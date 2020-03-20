@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 
+import java.io.IOException;
 import java.util.ArrayList;
 
 public class InboundAggregator implements Releasable {
@@ -40,7 +41,7 @@ public class InboundAggregator implements Releasable {
         currentHeader = header;
     }
 
-    public AggregatedMessage aggregate(ReleasableBytesReference content) {
+    public InboundMessage aggregate(ReleasableBytesReference content) {
         if (currentHeader == null) {
             content.close();
             throw new IllegalStateException("Received content without header");
@@ -62,14 +63,25 @@ public class InboundAggregator implements Releasable {
         }
     }
 
-    public AggregatedMessage finishAggregation() {
+    public InboundMessage finishAggregation() throws IOException {
         final ReleasableBytesReference[] references = contentAggregation.toArray(new ReleasableBytesReference[0]);
         final CompositeBytesReference content = new CompositeBytesReference(references);
         final ReleasableBytesReference releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
-        final AggregatedMessage aggregated = new AggregatedMessage(currentHeader, releasableContent);
+        final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent);
         contentAggregation.clear();
         currentHeader = null;
-        return aggregated;
+        boolean success = false;
+        try {
+            if (aggregated.getHeader().needsToReadVariableHeader()) {
+                aggregated.getHeader().finishParsingHeader(aggregated.openOrGetStreamInput());
+            }
+            success = true;
+            return aggregated;
+        } finally {
+            if (success == false) {
+                aggregated.close();
+            }
+        }
     }
 
     public boolean isAggregating() {

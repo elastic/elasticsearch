@@ -48,7 +48,7 @@ public class InboundPipelineTests extends ESTestCase {
         final List<Tuple<MessageData, Exception>> expected = new ArrayList<>();
         final List<Tuple<MessageData, Exception>> actual = new ArrayList<>();
         final List<ReleasableBytesReference> toRelease = new ArrayList<>();
-        final BiConsumer<TcpChannel, AggregatedMessage> messageHandler = (c, m) -> {
+        final BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {
             try {
                 final Header header = m.getHeader();
                 final MessageData actualData;
@@ -57,10 +57,10 @@ public class InboundPipelineTests extends ESTestCase {
                 final long requestId = header.getRequestId();
                 final boolean isCompressed = header.isCompressed();
                 if (isRequest) {
-                    final TestRequest request = new TestRequest(m.getContent().streamInput());
+                    final TestRequest request = new TestRequest(m.openOrGetStreamInput());
                     actualData = new MessageData(version, requestId, isRequest, isCompressed, header.getActionName(), request.value);
                 } else {
-                    final TestResponse response = new TestResponse(m.getContent().streamInput());
+                    final TestResponse response = new TestResponse(m.openOrGetStreamInput());
                     actualData = new MessageData(version, requestId, isRequest, isCompressed, null, response.value);
                 }
                 actual.add(new Tuple<>(actualData, null));

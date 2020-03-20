@@ -94,7 +94,7 @@ public class InboundHandler {
         }
     }
 
-    void inboundMessage(TcpChannel channel, AggregatedMessage message) throws Exception {
+    void inboundMessage(TcpChannel channel, InboundMessage message) throws Exception {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         TransportLogger.logInboundMessage(channel, message);
 
@@ -112,17 +112,13 @@ public class InboundHandler {
         readBytesMetric.inc(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
     }
 
-    private void messageReceived(AggregatedMessage message, TcpChannel channel) throws IOException {
+    private void messageReceived(InboundMessage message, TcpChannel channel) throws IOException {
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
         final Header header = message.getHeader();
-//        assert header.needsToReadVariableHeader() == false;
+        assert header.needsToReadVariableHeader() == false;
 
         final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
         assertRemoteVersion(streamInput, header.getVersion());
-        // TODO: Remove
-        if (header.needsToReadVariableHeader()) {
-            header.finishParsingHeader(streamInput);
-        }
 
         ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {

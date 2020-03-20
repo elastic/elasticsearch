@@ -22,22 +22,22 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
+import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class InboundAggregatorTests extends ESTestCase {
 
-    private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
+    private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     private InboundAggregator aggregator;
 
     @Before
@@ -47,16 +47,10 @@ public class InboundAggregatorTests extends ESTestCase {
         aggregator = new InboundAggregator();
     }
 
-    @After
-    @Override
-    public void tearDown() throws Exception {
-        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        super.tearDown();
-    }
-
     public void testCannotReceiveHeaderTwice() {
         long requestId = randomLong();
         Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        header.finishHeader(new Tuple<>(Collections.emptyMap(), Collections.emptyMap()), Collections.emptyList());
         aggregator.headerReceived(header);
 
         expectThrows(IllegalStateException.class, () -> aggregator.headerReceived(header));
@@ -64,7 +58,7 @@ public class InboundAggregatorTests extends ESTestCase {
 
     public void testCannotReceiveContentWithoutHeader() throws IOException {
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-            threadPool.getThreadContext().writeTo(streamOutput);
+            threadContext.writeTo(streamOutput);
             streamOutput.writeString("action_name");
             streamOutput.write(randomByteArrayOfLength(10));
             expectThrows(IllegalStateException.class, () -> {
@@ -74,14 +68,15 @@ public class InboundAggregatorTests extends ESTestCase {
         }
     }
 
-    public void testInboundAggregation() {
+    public void testInboundAggregation() throws IOException {
         long requestId = randomNonNegativeLong();
         Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        header.finishHeader(new Tuple<>(Collections.emptyMap(), Collections.emptyMap()), Collections.emptyList());
         // Initiate Message
         aggregator.headerReceived(header);
 
         BytesArray bytes = new BytesArray(randomByteArrayOfLength(10));
-        AggregatedMessage aggregated = aggregator.aggregate(new ReleasableBytesReference(bytes, () -> {}));
+        InboundMessage aggregated = aggregator.aggregate(new ReleasableBytesReference(bytes, () -> {}));
         assertNull(aggregated);
 
         // Signal EOS
@@ -92,5 +87,29 @@ public class InboundAggregatorTests extends ESTestCase {
         assertTrue(aggregated.getHeader().isRequest());
         assertThat(aggregated.getHeader().getRequestId(), equalTo(requestId));
         assertThat(aggregated.getHeader().getVersion(), equalTo(Version.CURRENT));
+    }
+
+    public void testFinishAggregationWillFinishHeader() throws IOException {
+        long requestId = randomNonNegativeLong();
+        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        // Initiate Message
+        aggregator.headerReceived(header);
+
+        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+            threadContext.writeTo(streamOutput);
+            streamOutput.writeString("action_name");
+            streamOutput.write(randomByteArrayOfLength(10));
+
+            InboundMessage aggregated = aggregator.aggregate(new ReleasableBytesReference(streamOutput.bytes(), () -> {}));
+            assertNull(aggregated);
+
+            // Signal EOS
+            aggregated = aggregator.finishAggregation();
+
+            assertThat(aggregated, notNullValue());
+            assertFalse(header.needsToReadVariableHeader());
+            assertEquals("action_name", header.getActionName());
+        }
+
     }
 }

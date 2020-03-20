@@ -101,8 +101,7 @@ public class Header {
     }
 
     void finishParsingHeader(StreamInput input) throws IOException {
-        headers = ThreadContext.readHeadersFromStream(input);
-        allowedSystemIndices = ThreadContext.readAllowedSystemIndices(input);
+        finishHeader(ThreadContext.readHeadersFromStream(input), ThreadContext.readAllowedSystemIndices(input));
 
         if (isRequest()) {
             if (version.before(Version.V_8_0_0)) {
@@ -113,5 +112,10 @@ public class Header {
         } else {
             actionName = RESPONSE_NAME;
         }
+    }
+
+    void finishHeader(Tuple<Map<String, String>, Map<String, Set<String>>> headers, List<String> allowedSystemIndices) {
+        this.headers = headers;
+        this.allowedSystemIndices = allowedSystemIndices;
     }
 }

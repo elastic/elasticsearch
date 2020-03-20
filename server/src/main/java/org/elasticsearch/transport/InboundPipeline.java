@@ -32,20 +32,20 @@ import java.util.function.BiConsumer;
 
 public class InboundPipeline implements Releasable {
 
-    private static final AggregatedMessage PING_MESSAGE = new AggregatedMessage(null, true);
+    private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
 
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
-    private final BiConsumer<TcpChannel, AggregatedMessage> messageHandler;
+    private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
     private final BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler;
 
-    public InboundPipeline(Version version, PageCacheRecycler recycler, BiConsumer<TcpChannel, AggregatedMessage> messageHandler,
+    public InboundPipeline(Version version, PageCacheRecycler recycler, BiConsumer<TcpChannel, InboundMessage> messageHandler,
                            BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
         this(new InboundDecoder(version, recycler), new InboundAggregator(), messageHandler, errorHandler);
     }
 
     private InboundPipeline(InboundDecoder decoder, InboundAggregator aggregator,
-                            BiConsumer<TcpChannel, AggregatedMessage> messageHandler,
+                            BiConsumer<TcpChannel, InboundMessage> messageHandler,
                             BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
         this.decoder = decoder;
         this.aggregator = aggregator;
@@ -104,7 +104,7 @@ public class InboundPipeline implements Releasable {
         return bytesConsumed;
     }
 
-    private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) {
+    private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) throws IOException {
         for (Object fragment : fragments) {
             if (fragment instanceof Header) {
                 assert aggregator.isAggregating() == false;
@@ -114,8 +114,7 @@ public class InboundPipeline implements Releasable {
                 messageHandler.accept(channel, PING_MESSAGE);
             } else if (fragment == InboundDecoder.END_CONTENT) {
                 assert aggregator.isAggregating();
-                final AggregatedMessage aggregated = aggregator.finishAggregation();
-                try (Releasable toClose = aggregated.getContent()) {
+                try (InboundMessage aggregated = aggregator.finishAggregation()) {
                     messageHandler.accept(channel, aggregated);
                 }
             } else if (fragment instanceof Exception) {

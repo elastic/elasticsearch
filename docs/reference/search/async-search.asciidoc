@@ -119,8 +119,9 @@ set to `false`.
 ==== Get async search
 
 The get async search API retrieves the results of a previously submitted
-async search request given its id. The access to the results of a specific
-async search is restricted to the user that submitted it in the first place.
+async search request given its id. If the {es} {security-features} are enabled.
+the access to the results of a specific async search is restricted to the user
+that submitted it in the first place.
 
 [source,console,id=get-async-search-date-histogram-example]
 --------------------------------------------------
@@ -133,10 +134,10 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
 {
   "id" : "FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=",
   "version" : 2, <1>
-  "is_partial" : true,
-  "is_running" : true,
+  "is_partial" : true, <2>
+  "is_running" : true, <3>
   "start_time_in_millis" : 1583945890986,
-  "expiration_time_in_millis" : 1584377890986,
+  "expiration_time_in_millis" : 1584377890986, <4>
   "response" : {
     "took" : 12144,
     "timed_out" : false,
@@ -155,7 +156,7 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
       "max_score" : null,
       "hits" : [ ]
     },
-    "aggregations" : { <2>
+    "aggregations" : { <5>
       "sale_date" :  {
         "buckets" : []
       }
@@ -180,7 +181,10 @@ additional results compared to previously obtained responses. If the version
 stays the same, no new results have become available, otherwise a higher version
 number indicates that more shards have completed their execution of the query
 and their partial results are also included in the response.
-<2> Partial aggregations results, coming from the shards that have already
+<2> Whether the returned search results are partial or final
+<3> Whether the search is still being executed or it has completed
+<4> When the async search will expire
+<5> Partial aggregations results, coming from the shards that have already
 completed the execution of the query.
 
 The `wait_for_completion` parameter, which defaults to `1`, can also be provided

@@ -16,9 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import org.elasticsearch.gradle.info.BuildParams
-
-import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -47,12 +44,5 @@ integTest.runner {
       'cat.templates/10_basic/Sort templates',
       'cat.templates/10_basic/Multiple template',
     ].join(',')
-  }
-}
-
-testClusters.integTest {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.itv2_feature_flag_registered', 'true'
-    systemProperty 'es.datastreams_feature_flag_registered', 'true'
   }
 }

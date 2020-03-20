@@ -209,7 +209,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this;
             }
 
-            public Builder setInfereceStatsByModelId(Map<String, InferenceStats> infereceStatsByModelId) {
+            public Builder setInferenceStatsByModelId(Map<String, InferenceStats> infereceStatsByModelId) {
                 this.inferenceStatsMap = infereceStatsByModelId;
                 return this;
             }

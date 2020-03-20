@@ -32,7 +32,7 @@ public class InferenceStats implements ToXContentObject, Writeable {
     public static final ParseField MODEL_ID = new ParseField("model_id");
     public static final ParseField NODE_ID = new ParseField("node_id");
     public static final ParseField TOTAL_TIME_SPENT_MILLIS = new ParseField("total_time_spent_millis");
-    private static final ParseField TOTAL_TIME_SPENT = new ParseField("total_time_spent");
+    public static final ParseField TOTAL_TIME_SPENT = new ParseField("total_time_spent");
     public static final ParseField FAILURE_COUNT = new ParseField("failure_count");
     public static final ParseField TYPE = new ParseField("type");
     public static final ParseField TIMESTAMP = new ParseField("time_stamp");
@@ -83,7 +83,7 @@ public class InferenceStats implements ToXContentObject, Writeable {
             unbox(failureCount),
             modelId,
             nodeId,
-            instant == null ? Instant.now() : Instant.ofEpochMilli(instant.toEpochMilli()));
+            instant);
     }
 
 
@@ -112,7 +112,7 @@ public class InferenceStats implements ToXContentObject, Writeable {
         this.failureCount = in.readVLong();
         this.modelId = in.readOptionalString();
         this.nodeId = in.readOptionalString();
-        this.timeStamp = Instant.ofEpochMilli(in.readInstant().toEpochMilli());
+        this.timeStamp = in.readInstant();
     }
 
     public long getMissingAllFieldsCount() {
@@ -247,7 +247,7 @@ public class InferenceStats implements ToXContentObject, Writeable {
             this.failureCountAccumulator.increment();
         }
 
-        public void timeSpent(long value) {
+        public void addTimeSpent(long value) {
             this.totalTimeSpentAccumulator.add(value);
         }
 

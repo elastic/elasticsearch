@@ -75,7 +75,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         GetTrainedModelsStatsAction.Response.Builder responseBuilder = new GetTrainedModelsStatsAction.Response.Builder();
 
         ActionListener<List<InferenceStats>> inferenceStatsListener = ActionListener.wrap(
-            inferenceStats -> listener.onResponse(responseBuilder.setInfereceStatsByModelId(inferenceStats.stream()
+            inferenceStats -> listener.onResponse(responseBuilder.setInferenceStatsByModelId(inferenceStats.stream()
                     .collect(Collectors.toMap(InferenceStats::getModelId, Function.identity())))
                     .build()),
             listener::onFailure

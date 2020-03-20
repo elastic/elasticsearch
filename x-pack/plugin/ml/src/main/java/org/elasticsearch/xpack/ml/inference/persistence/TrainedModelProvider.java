@@ -478,9 +478,10 @@ public class TrainedModelProvider {
                     for (MultiSearchResponse.Item response : responses.getResponses()) {
                         if (response.isFailure()) {
                             if (ExceptionsHelper.unwrapCause(response.getFailure()) instanceof ResourceNotFoundException) {
+                                modelIndex++;
                                 continue;
                             }
-                            logger.error(new ParameterizedMessage("search failed for models [{}]",
+                            logger.error(new ParameterizedMessage("[{}] search failed for models",
                                     Strings.arrayToCommaDelimitedString(modelIds)),
                                 response.getFailure());
                             listener.onFailure(ExceptionsHelper.serverError("Searching for stats for models [{}] failed",

@@ -132,7 +132,7 @@ public class LocalModel implements Model {
                 return;
             }
             InferenceResults inferenceResults = trainedModelDefinition.infer(fields, config);
-            statsAccumulator.timeSpent(nanoTimeSupplier.get() - startTimeInNanos);
+            statsAccumulator.addTimeSpent(nanoTimeSupplier.get() - startTimeInNanos);
             if (shouldPersistStats) {
                 persistStats();
             }

@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
@@ -113,7 +114,9 @@ public class TrainedModelStatsService {
 
     void start() {
         stopped = false;
-        scheduledFuture = threadPool.scheduleWithFixedDelay(this::persistStats, TimeValue.timeValueSeconds(1), ThreadPool.Names.GENERIC);
+        scheduledFuture = threadPool.scheduleWithFixedDelay(this::persistStats,
+            TimeValue.timeValueSeconds(1),
+            MachineLearning.UTILITY_THREAD_POOL_NAME);
     }
 
     void persistStats() {
@@ -139,8 +142,8 @@ public class TrainedModelStatsService {
                 verifiedStatsIndexCreated = true;
             } catch (Exception e) {
                 logger.error(
-                    new ParameterizedMessage("failure updating stats for models {}",
-                        stats.stream().map(InferenceStats::getModelId)),
+                    new ParameterizedMessage("failure creating ml stats index for storing model stats {}",
+                        stats.stream().map(InferenceStats::getModelId).collect(Collectors.toList())),
                     e);
                 return;
             }

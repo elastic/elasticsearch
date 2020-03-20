@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -57,6 +58,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
     private List<Object> randomTerms;
     private String termsPath;
+    private boolean maybeIncludeType = true;
 
     @Before
     public void randomTerms() {
@@ -100,10 +102,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     private TermsLookup randomTermsLookup() {
         // Randomly choose between a typeless terms lookup and one with an explicit type to make sure we are
+        TermsLookup lookup = maybeIncludeType && randomBoolean()
+            ? new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath)
+            : new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
         // testing both cases.
-        TermsLookup lookup = randomBoolean()
-            ? new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath)
-            : new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
         lookup.routing(randomBoolean() ? randomAlphaOfLength(10) : null);
         return lookup;
     }
@@ -149,7 +151,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
     }
 
-    public void testEmtpyFieldName() {
+    @Override
+    public void testUnknownField() throws IOException {
+        maybeIncludeType = false;   // deprecation warnings will fail the parent test, so we disable types
+        super.testUnknownField();
+    }
+
+    public void testEmptyFieldName() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder(null, "term"));
         assertEquals("field name cannot be null.", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("", "term"));
@@ -344,14 +352,18 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     @Override
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
-        QueryBuilder query = super.parseQuery(parser);
-        assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
+        try {
+            QueryBuilder query = super.parseQuery(parser);
+            assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
 
-        TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
-        if (termsQuery.isTypeless() == false) {
-            assertWarnings("Deprecated field [type] used, which has been removed entirely");
+            TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
+            if (termsQuery.isTypeless() == false) {
+                assertWarnings("Deprecated field [type] used, this field is unused and will be removed entirely");
+            }
+            return query;
+        } finally {
+
         }
-        return query;
     }
 
 }

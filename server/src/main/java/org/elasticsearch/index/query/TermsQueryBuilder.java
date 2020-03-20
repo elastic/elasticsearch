@@ -62,9 +62,6 @@ import java.util.stream.IntStream;
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
 
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated " +
-        "in [terms] lookup queries.";
-
     private final String fieldName;
     private final List<?> values;
     private final TermsLookup termsLookup;

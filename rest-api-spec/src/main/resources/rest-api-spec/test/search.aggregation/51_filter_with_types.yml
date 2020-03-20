@@ -39,7 +39,7 @@ setup:
       features: allowed_warnings
   - do:
       allowed_warnings:
-        - "Deprecated field [type] used, which has been removed entirely"
+        - "Deprecated field [type] used, this field is unused and will be removed entirely"
       search:
         rest_total_hits_as_int: true
         size: 0

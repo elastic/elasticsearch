@@ -118,7 +118,7 @@ public class TermsLookupTests extends ESTestCase {
         assertEquals("path", tl.path());
         assertEquals("routing", tl.routing());
 
-        assertWarnings("Deprecated field [type] used, which has been removed entirely");
+        assertWarnings("Deprecated field [type] used, this field is unused and will be removed entirely");
     }
 
     public void testXContentParsing() throws IOException {

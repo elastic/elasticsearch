@@ -20,6 +20,7 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.BufferedReader;
@@ -69,7 +70,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
         JsonLogLine firstLine = findFirstLine();
         assertNotNull(firstLine);
 
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()))) {
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()), getParser() )) {
             stream.limit(LINES_TO_CHECK)
                   .forEach(jsonLogLine -> {
                       assertThat(jsonLogLine.getType(), not(isEmptyOrNullString()));
@@ -118,12 +119,20 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
 
     @SuppressForbidden(reason = "PathUtils doesn't have permission to read this file")
     private Path getLogFile() {
-        String logFileString = System.getProperty("tests.logfile");
+        String logFileString = getLogFileName();
         if (logFileString == null) {
             fail("tests.logfile must be set to run this test. It is automatically "
                 + "set by gradle. If you must set it yourself then it should be the absolute path to the "
                 + "log file.");
         }
         return Paths.get(logFileString);
+    }
+
+    protected String getLogFileName() {
+        return System.getProperty("tests.logfile");
+    }
+
+    protected ObjectParser<JsonLogLine, Void> getParser() {
+        return JsonLogLine.ECS_LOG_LINE;
     }
 }

@@ -73,7 +73,7 @@ import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INI
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_NODES_SETTING;
+import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_DATA_NODES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -315,7 +315,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) {
                 return Settings.builder()
-                    .put(RECOVER_AFTER_NODES_SETTING.getKey(), 2)
+                    .put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2)
                     .putList(INITIAL_MASTER_NODES_SETTING.getKey()) // disable bootstrapping
                     .build();
             }
@@ -553,7 +553,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // make sure state is not recovered
-                return Settings.builder().put(RECOVER_AFTER_NODES_SETTING.getKey(), 2).build();
+                return Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build();
             }
         });
 

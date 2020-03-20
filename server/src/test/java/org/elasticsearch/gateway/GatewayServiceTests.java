@@ -47,26 +47,10 @@ public class GatewayServiceTests extends ESTestCase {
 
         // ensure settings override default
         final TimeValue timeValue = TimeValue.timeValueHours(3);
-        // ensure default is set when setting expected_nodes
+        // ensure default is set
         service = createService(Settings.builder().put("gateway.recover_after_time",
             timeValue.toString()));
         assertThat(service.recoverAfterTime().millis(), Matchers.equalTo(timeValue.millis()));
-    }
-
-    public void testDeprecatedSettings() {
-        GatewayService service = createService(Settings.builder());
-
-        service = createService(Settings.builder().put("gateway.expected_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.EXPECTED_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.expected_master_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.EXPECTED_MASTER_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.recover_after_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.RECOVER_AFTER_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.recover_after_master_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING });
     }
 
 }

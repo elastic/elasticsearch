@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe;
+package org.elasticsearch.client.ml.dataframe.stats.common;
 
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.common.ParseField;
@@ -52,6 +52,14 @@ public class MemoryUsage implements ToXContentObject {
     public MemoryUsage(Instant timestamp, long peakUsageBytes) {
         this.timestamp = Instant.ofEpochMilli(Objects.requireNonNull(timestamp).toEpochMilli());
         this.peakUsageBytes = peakUsageBytes;
+    }
+
+    public Instant getTimestamp() {
+        return timestamp;
+    }
+
+    public long getPeakUsageBytes() {
+        return peakUsageBytes;
     }
 
     @Override

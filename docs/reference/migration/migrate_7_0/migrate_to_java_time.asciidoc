@@ -135,8 +135,6 @@ yyyy-MM-dd'T'hh:mm:ssX||yyyy-MM-dd'T'hh:mm:ssXX||yyyy-MM-dd'T'hh:mm:ssXXXX
 --------------------------------------------------
 --
 
-
-
 `d` day::
 +
 --

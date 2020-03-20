@@ -336,8 +336,11 @@ PUT _ingest/pipeline/mypipeline
 --------------------------------------------------
 
 
-* upgrade template
-If your template was using joda date pattern it also should be updated before upgrading to ES7.
+[[java-time-migration-update-index-templates]]
+===== Update index templates
+
+If your index templates contain joda-time date formats, you can update them
+using the <<indices-templates,put index template>> API.
 
 [source,console]
 --------------------------------------------------

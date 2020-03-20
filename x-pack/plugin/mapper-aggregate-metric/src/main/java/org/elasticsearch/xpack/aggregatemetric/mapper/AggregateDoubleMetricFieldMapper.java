@@ -6,29 +6,49 @@
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.AggregateDoubleMetricValue;
+import org.elasticsearch.index.fielddata.AggregateDoubleMetricValues;
+import org.elasticsearch.index.fielddata.IndexAggregateDoubleMetricFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.LeafAggregateDoubleMetricFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -61,7 +81,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     /**
      * Enum of aggregate metrics supported by this field mapper
      */
-    enum Metric {
+    public enum Metric {
         min, max, sum, value_count;
     }
 
@@ -156,7 +176,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             EnumMap<Metric, NumberFieldMapper> metricMappers = new EnumMap<>(Metric.class);
             // Instantiate one NumberFieldMapper instance for each metric
             for (Metric m : this.metrics) {
-                String fieldName = context.path().pathAsText(name) + "._" + m.name();
+                String fieldName = context.path().pathAsText(name) + AggregateDoubleMetricFieldType.SUBFIELD_SEPARATOR + m.name();
                 NumberFieldMapper.Builder builder;
 
                 if (m == Metric.value_count) {
@@ -177,10 +197,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         throw new IllegalArgumentException("Duplicate keys " + l + "and " + r + ".");
                     },
                     () -> new EnumMap<>(Metric.class)));
-            Explicit<Metric> defaultMetric = defaultMetric(context);
 
-            AggregateDoubleMetricFieldType metricFieldType = (AggregateDoubleMetricFieldType) this.fieldType;
+            AggregateDoubleMetricFieldType metricFieldType = (AggregateDoubleMetricFieldType) fieldType;
             metricFieldType.setMetricFields(metricFields);
+
+            Explicit<Metric> defaultMetric = defaultMetric(context);
             metricFieldType.setDefaultMetric(defaultMetric.value());
 
             return new AggregateDoubleMetricFieldMapper(name, metricFieldType, defaultFieldType,
@@ -238,11 +259,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     public static final class AggregateDoubleMetricFieldType extends SimpleMappedFieldType {
 
+        public static final String SUBFIELD_SEPARATOR = "._";
+
         private EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields;
 
         private Metric defaultMetric;
 
-        AggregateDoubleMetricFieldType() {
+        public AggregateDoubleMetricFieldType() {
         }
 
         AggregateDoubleMetricFieldType(AggregateDoubleMetricFieldType other) {
@@ -277,9 +300,23 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        public void setMetricFields(EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {
+        private void setMetricFields(EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {
             checkIfFrozen();
             this.metricFields = metricFields;
+        }
+
+        public void addMetricField(Metric m, NumberFieldMapper.NumberFieldType subfield) {
+            checkIfFrozen();
+            if (metricFields == null) {
+                metricFields = new EnumMap<>(AggregateDoubleMetricFieldMapper.Metric.class);
+            }
+
+            if (name() == null) {
+                throw new IllegalArgumentException("Field of type [" + typeName() + "] must have a name before adding a subfield");
+            }
+            String subfieldName = name() + SUBFIELD_SEPARATOR + m.name();
+            subfield.setName(subfieldName);
+            metricFields.put(m, subfield);
         }
 
         public void setDefaultMetric(Metric defaultMetric) {
@@ -327,10 +364,98 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return delegateFieldType().fielddataBuilder(fullyQualifiedIndexName);
+        public ValuesSourceType getValuesSourceType() {
+            return AggregateMetricsValuesSourceType.AGGREGATE_METRIC;
         }
 
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            return new IndexFieldData.Builder() {
+
+                @Override
+                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+                                               CircuitBreakerService breakerService, MapperService mapperService) {
+
+                    return new IndexAggregateDoubleMetricFieldData(indexSettings.getIndex(), fieldType.name()) {
+                        @Override
+                        public LeafAggregateDoubleMetricFieldData load(LeafReaderContext context) {
+                            return new LeafAggregateDoubleMetricFieldData() {
+                                @Override
+                                public AggregateDoubleMetricValues getAggregateMetricValues(final String agg) throws IOException {
+                                    try {
+//                                        final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), fieldName+ SUBFIELD_SEPARATOR + agg);
+                                        final NumericDocValues values = DocValues.getNumeric(context.reader(), fieldName+ SUBFIELD_SEPARATOR + agg);
+
+                                        final InternalAggregateDoubleMetricValue value = new InternalAggregateDoubleMetricValue();
+                                        return new AggregateDoubleMetricValues() {
+
+                                            @Override
+                                            public boolean advanceExact(int doc) throws IOException {
+                                                return values.advanceExact(doc);
+                                            }
+
+                                            @Override
+                                            public AggregateDoubleMetricValue aggregateMetric() throws IOException {
+                                                try {
+//                                                    value.setValue(NumericUtils.sortableLongToDouble(values.longValue()));
+                                                    value.setValue(Double.longBitsToDouble(values.longValue()));
+                                                    return value;
+                                                } catch (IOException e) {
+                                                    throw new IOException("Cannot load doc value", e);
+                                                }
+                                            }
+                                        };
+
+//                                        return values;
+                                    } catch (IOException e) {
+                                        throw new IOException("Cannot load doc values", e);
+                                    }
+                                }
+
+                                @Override
+                                public ScriptDocValues<?> getScriptValues() {
+                                    throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " +
+                                        "support scripts");
+                                }
+
+                                @Override
+                                public SortedBinaryDocValues getBytesValues() {
+                                    throw new UnsupportedOperationException("String representation of doc values " +
+                                        "for [" + CONTENT_TYPE + "] fields is not supported");
+                                }
+
+                                @Override
+                                public long ramBytesUsed() {
+                                    return 0; // Unknown
+                                }
+
+                                @Override
+                                public void close() {
+
+                                }
+                            };
+                        }
+
+                        @Override
+                        public LeafAggregateDoubleMetricFieldData loadDirect(LeafReaderContext context) throws Exception {
+                            return load(context);
+                        }
+
+                        @Override
+                        public SortField sortField(Object missingValue, MultiValueMode sortMode,
+                                                   XFieldComparatorSource.Nested nested, boolean reverse) {
+                            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+                        }
+
+                        @Override
+                        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
+                                                            XFieldComparatorSource.Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+                            throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
+                        }
+                    };
+                }
+            };
+        }
     }
 
     private final EnumMap<Metric, NumberFieldMapper> metricFieldMappers;
@@ -431,7 +556,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             }
 
             for (Metric m : metrics.value()) {
-                if (context.doc().getField(fieldType().name() + "._" + m.name()) == null) {
+                if (context.doc().getField(fieldType().name()
+                    + AggregateDoubleMetricFieldType.SUBFIELD_SEPARATOR + m.name()) == null) {
                     throw new IllegalArgumentException("Aggregate metric field [" + fieldType.name() +
                         "] must contain all metrics " + metrics.value().toString());
                 }
@@ -489,5 +615,24 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         if (includeDefaults || defaultMetric.explicit()) {
             builder.field(Names.DEFAULT_METRIC.getPreferredName(), defaultMetric.value());
         }
+    }
+
+
+    /** re-usable {@link AggregateDoubleMetricValue} implementation */
+    private static class InternalAggregateDoubleMetricValue extends AggregateDoubleMetricValue {
+        double value;
+
+        InternalAggregateDoubleMetricValue() { }
+
+        /** Set the double value */
+        void setValue(double v) {
+            value = v;
+        }
+
+        @Override
+        public double value() {
+            return value;
+        }
+
     }
 }

@@ -33,8 +33,8 @@ import java.util.Objects;
 public class InternalSum extends InternalNumericMetricsAggregation.SingleValue implements Sum {
     private final double sum;
 
-    InternalSum(String name, double sum, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) {
+    public InternalSum(String name, double sum, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
+                       Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sum = sum;
         this.format = formatter;

@@ -16,37 +16,48 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.index.fielddata.AggregateDoubleMetricValue;
+import org.elasticsearch.index.fielddata.AggregateDoubleMetricValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class SumAggregator extends NumericMetricsAggregator.SingleValue {
+class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final ValuesSource.Numeric valuesSource;
+    private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
     private final DocValueFormat format;
 
     private DoubleArray sums;
     private DoubleArray compensations;
 
-    SumAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    AggregateMetricBackedSumAggregator(String name,
+                                       AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
+                                       DocValueFormat formatter,
+                                       SearchContext context,
+                                       Aggregator parent,
+                                       List<PipelineAggregator> pipelineAggregators,
+                                       Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.format = formatter;
@@ -68,7 +79,9 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+//        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final AggregateDoubleMetricValues values = valuesSource.getAggregateMetricValues(ctx, Metric.sum);
+
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -77,17 +90,14 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
                 compensations = bigArrays.grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
                     double sum = sums.get(bucket);
                     double compensation = compensations.get(bucket);
                     kahanSummation.reset(sum, compensation);
 
-                    for (int i = 0; i < valuesCount; i++) {
-                        double value = values.nextValue();
-                        kahanSummation.add(value);
-                    }
+                    final AggregateDoubleMetricValue aggregateSum = values.aggregateMetric();
+                    kahanSummation.add(aggregateSum.value());
 
                     compensations.set(bucket, kahanSummation.delta());
                     sums.set(bucket, kahanSummation.value());

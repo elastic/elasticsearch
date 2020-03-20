@@ -14,7 +14,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
-import java.util.EnumMap;
 import java.util.List;
 
 import static java.util.Arrays.asList;
@@ -26,14 +25,13 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType();
-        EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields = new EnumMap<>(Metric.class);
-        for (Metric m : List.of(Metric.min, Metric.max) ) {
-            String fieldName = "foo" + "._" + m.name();
+        fieldType.setName("foo");
+        for (AggregateDoubleMetricFieldMapper.Metric m : List.of(
+            AggregateDoubleMetricFieldMapper.Metric.min, AggregateDoubleMetricFieldMapper.Metric.max)) {
+
             NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-            subfield.setName(fieldName);
-            metricFields.put(m, subfield);
+            fieldType.addMetricField(m, subfield);
         }
-        fieldType.setMetricFields(metricFields);
         fieldType.setDefaultMetric(Metric.max);
         return fieldType;
     }

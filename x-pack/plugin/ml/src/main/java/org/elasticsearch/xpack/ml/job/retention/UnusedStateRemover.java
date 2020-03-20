@@ -41,9 +41,9 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * If for any reason a job is deleted by some of its state documents
+ * If for any reason a job is deleted but some of its state documents
  * are left behind, this class deletes any unused documents stored
- * in the .ml-state index.
+ * in the .ml-state* indices.
  */
 public class UnusedStateRemover implements MlDataRemover {
 

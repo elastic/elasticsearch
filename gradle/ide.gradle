@@ -90,7 +90,7 @@ idea {
           port = 5005
         }
         defaults(JUnit) {
-          vmParameters = '-Djava.locale.providers=SPI,COMPAT'
+          vmParameters = '-ea -Djava.locale.providers=SPI,COMPAT'
         }
       }
       copyright {

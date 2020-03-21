@@ -295,7 +295,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             // what would have happened if the error had been detected in the "fast fail" validation
                             cancelDatafeedStart(persistentTask, predicate.exception, listener);
                         } else {
-                            listener.onResponse(new AcknowledgedResponse(predicate.started));
+                            listener.onResponse(new AcknowledgedResponse(true));
                         }
                     }
 
@@ -479,7 +479,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
      */
     private static class DatafeedPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
-        private volatile boolean started;
         private volatile Exception exception;
 
         @Override
@@ -501,8 +500,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 }
             }
             DatafeedState datafeedState = (DatafeedState) persistentTask.getState();
-            started = datafeedState == DatafeedState.STARTED;
-            return started;
+            return datafeedState == DatafeedState.STARTED;
         }
     }
 }

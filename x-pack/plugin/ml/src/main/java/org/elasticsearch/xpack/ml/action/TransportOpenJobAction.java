@@ -554,6 +554,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                 // This means we are awaiting a new node to be spun up, ok to return back to the user to await node creation
                 if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
+                    opened = true;
                     return true;
                 }
 

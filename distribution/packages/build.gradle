@@ -462,6 +462,8 @@ subprojects {
         final File rpmDatabase = new File(extractionDir, 'rpm-database')
         commandLine 'rpm',
           '--badreloc',
+          '--ignorearch',
+          '--ignoreos',
           '--nodeps',
           '--noscripts',
           '--notriggers',

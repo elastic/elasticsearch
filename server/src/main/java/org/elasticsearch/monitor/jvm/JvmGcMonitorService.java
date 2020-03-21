@@ -28,8 +28,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.HashMap;
@@ -165,13 +165,11 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
     }
 
     private static TimeValue getValidThreshold(Settings settings, String key, String level) {
-        TimeValue threshold = settings.getAsTime(level, null);
-        if (threshold == null) {
+        final String thresholdString = settings.get(level, null);
+        if (thresholdString == null) {
             throw new IllegalArgumentException("missing gc_threshold for [" + getThresholdName(key, level) + "]");
         }
-        if (threshold.nanos() <= 0) {
-            throw new IllegalArgumentException("invalid gc_threshold [" + threshold + "] for [" + getThresholdName(key, level) + "]");
-        }
+        TimeValue threshold = TimeValue.parseTimeValue(thresholdString, null, getThresholdName(key, level));
         return threshold;
     }
 

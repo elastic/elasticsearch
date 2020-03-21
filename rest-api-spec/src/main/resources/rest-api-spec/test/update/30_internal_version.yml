@@ -15,7 +15,7 @@
           body:
             doc:    { foo: baz }
       warnings:
-        - "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test_1], type [test], id [1])"
+        - "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test_1], type [test])"
 
  - do:
       index:
@@ -35,4 +35,4 @@
           body:
             doc:    { foo: baz }
       warnings:
-        - "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test_1], type [test], id [1])"
+        - "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test_1], type [test])"

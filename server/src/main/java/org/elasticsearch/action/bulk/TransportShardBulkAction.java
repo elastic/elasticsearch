@@ -513,8 +513,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 && request.version() != Versions.MATCH_DELETED) {
                 DEPRECATION_LOGGER.deprecatedAndMaybeLog("occ_internal_version",
                     "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use" +
-                        " the `if_seq_no` and `if_primary_term` parameters instead. (request for index [{}], type [{}], id [{}])",
-                    request.index(), request.type(), request.id());
+                        " the `if_seq_no` and `if_primary_term` parameters instead. (request for index [{}], type [{}])",
+                    request.index(), request.type());
             }
         } else {
             if (request.ifSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO

@@ -853,10 +853,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool::absoluteTimeInMillis, new NoopMappingUpdatePerformer(), () -> {});
         closeShards(shard);
         if (deprecatedRequestIds.isEmpty() == false) {
-            assertWarnings(deprecatedRequestIds.stream().map(id ->
+            assertWarnings(
                 "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the " +
-                    "`if_seq_no` and `if_primary_term` parameters instead. (request for index [index], type [_doc], id [" + id + "])")
-                .toArray(String[]::new));
+                    "`if_seq_no` and `if_primary_term` parameters instead. (request for index [index], type [_doc])");
         }
     }
 

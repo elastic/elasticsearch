@@ -98,7 +98,14 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
         );
     }
 
-    private void assertJdkError(Project project, String name, String vendor, String version, String platform, String architecture, String message) {
+    private void assertJdkError(
+        final Project project,
+        final String name,
+        final String vendor,
+        final String version,
+        final String platform,
+        final String architecture,
+        final String message) {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> createJdk(project, name, vendor, version, platform, architecture)

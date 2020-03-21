@@ -537,7 +537,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private class JobPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+    private static class JobPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
         private volatile boolean opened;
         private volatile Exception exception;

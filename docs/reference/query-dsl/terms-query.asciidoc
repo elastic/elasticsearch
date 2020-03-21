@@ -22,7 +22,7 @@ GET /_search
     "query" : {
         "terms" : {
             "user" : ["kimchy", "elasticsearch"],
-            "boost" : 1.0 
+            "boost" : 1.0
         }
     }
 }
@@ -93,16 +93,16 @@ To perform a terms lookup, use the following parameters.
 [[query-dsl-terms-lookup-params]]
 ====== Terms lookup parameters
 `index`::
-(Optional, string) Name of the index from which to fetch field values.
+(Required, string) Name of the index from which to fetch field values.
 
 `id`::
-(Optional, string) <<mapping-id-field,ID>> of the document from which to fetch
+(Required, string) <<mapping-id-field,ID>> of the document from which to fetch
 field values.
 
 `path`::
 +
 --
-(Optional, string) Name of the field from which to fetch field values. {es} uses
+(Required, string) Name of the field from which to fetch field values. {es} uses
 these values as search terms for the query.
 
 If the field values include an array of nested inner objects, you can access
@@ -117,7 +117,7 @@ when the document was indexed, this parameter is required.
 [[query-dsl-terms-lookup-example]]
 ====== Terms lookup example
 
-To see how terms lookup works, try the following example.  
+To see how terms lookup works, try the following example.
 
 . Create an index with a `keyword` field named `color`.
 +

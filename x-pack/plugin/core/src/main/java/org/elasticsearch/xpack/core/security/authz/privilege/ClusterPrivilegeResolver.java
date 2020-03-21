@@ -55,7 +55,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Set.of("cluster:monitor/data_frame/*", "cluster:monitor/transform/*");
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
-    private static final Set<String> ALL_CLUSTER_PATTERN = Set.of("cluster:*", "indices:admin/template/*");
+    private static final Set<String> ALL_CLUSTER_PATTERN = Set.of("cluster:*", "indices:admin/template/*", "indices:admin/data_stream/*");
     private static final Set<String> MANAGE_ML_PATTERN = Set.of("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
     private static final Set<String> MANAGE_TRANSFORM_PATTERN = Set.of("cluster:admin/data_frame/*", "cluster:monitor/data_frame/*",
             "cluster:monitor/transform/*", "cluster:admin/transform/*");
@@ -197,7 +197,10 @@ public class ClusterPrivilegeResolver {
     }
 
     public static boolean isClusterAction(String actionName) {
-        return actionName.startsWith("cluster:") || actionName.startsWith("indices:admin/template/");
+        return actionName.startsWith("cluster:") ||
+            actionName.startsWith("indices:admin/template/") ||
+            // todo: hack until we implement security of data_streams
+            actionName.startsWith("indices:admin/data_stream/");
     }
 
     private static String actionToPattern(String text) {

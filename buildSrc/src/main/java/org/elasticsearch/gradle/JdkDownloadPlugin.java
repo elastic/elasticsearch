@@ -73,7 +73,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 depConfig.put("path", ":"); // root project
                 depConfig.put(
                     "configuration",
-                    configName("extracted_jdk", jdk.getVendor(), jdk.getVersion(), jdk.getPlatform(), jdk.getArchitecture()));
+                    configName("extracted_jdk", jdk.getVendor(), jdk.getVersion(), jdk.getPlatform(), jdk.getArchitecture())
+                );
                 project.getDependencies().add(jdk.getConfigurationName(), dependencies.project(depConfig));
 
                 // ensure a root level jdk download task exists
@@ -176,8 +177,13 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             );
 
             // Declare a configuration for the extracted JDK archive
-            String artifactConfigName =
-                configName("extracted_jdk", jdk.getVendor(), jdk.getVersion(), jdk.getPlatform(), jdk.getArchitecture());
+            String artifactConfigName = configName(
+                "extracted_jdk",
+                jdk.getVendor(),
+                jdk.getVersion(),
+                jdk.getPlatform(),
+                jdk.getArchitecture()
+            );
             maybeCreate(configurations, artifactConfigName);
             rootProject.getArtifacts().add(artifactConfigName, extractPath, artifact -> artifact.builtBy(extractTask));
         }

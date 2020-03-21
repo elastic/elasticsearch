@@ -63,7 +63,8 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
             "badversion",
             "linux",
             "x64",
-            "malformed version [badversion] for jdk [testjdk]");
+            "malformed version [badversion] for jdk [testjdk]"
+        );
     }
 
     public void testMissingPlatform() {
@@ -105,7 +106,8 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
         final String version,
         final String platform,
         final String architecture,
-        final String message) {
+        final String message
+    ) {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> createJdk(project, name, vendor, version, platform, architecture)

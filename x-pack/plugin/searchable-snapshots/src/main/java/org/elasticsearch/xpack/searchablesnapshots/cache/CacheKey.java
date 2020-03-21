@@ -18,7 +18,7 @@ public class CacheKey {
     private final ShardId shardId;
     private final String fileName;
 
-    CacheKey(SnapshotId snapshotId, IndexId indexId, ShardId shardId, String fileName) {
+    public CacheKey(SnapshotId snapshotId, IndexId indexId, ShardId shardId, String fileName) {
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indexId = Objects.requireNonNull(indexId);
         this.shardId = Objects.requireNonNull(shardId);
@@ -71,7 +71,7 @@ public class CacheKey {
             ']';
     }
 
-    boolean belongsTo(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public boolean belongsTo(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         return Objects.equals(this.snapshotId, snapshotId)
             && Objects.equals(this.indexId, indexId)
             && Objects.equals(this.shardId, shardId);

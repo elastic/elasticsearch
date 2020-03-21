@@ -22,7 +22,8 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
- * {@link CacheService} maintains a cache entry for all files read from cached searchable snapshot directories (see {@link CacheDirectory})
+ * {@link CacheService} maintains a cache entry for all files read from searchable snapshot directories (
+ * see {@link org.elasticsearch.index.store.SearchableSnapshotDirectory})
  */
 public class CacheService extends AbstractLifecycleComponent {
 
@@ -115,7 +116,7 @@ public class CacheService extends AbstractLifecycleComponent {
      *
      * @param predicate the predicate to evaluate
      */
-    void removeFromCache(final Predicate<CacheKey> predicate) {
+    public void removeFromCache(final Predicate<CacheKey> predicate) {
         for (CacheKey cacheKey : cache.keys()) {
             if (predicate.test(cacheKey)) {
                 cache.invalidate(cacheKey);

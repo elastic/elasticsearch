@@ -131,7 +131,7 @@ Either this parameter or `synonyms_path` must be specified.
 [TIP]
 ====
 For large sets of synonyms, we recommend using a file and the `synonyms_path`
-parameter. Specifying a large number of inline synonym rules can increases
+parameter. Specifying a large number of inline synonym rules can increase
 cluster size.
 ====
 --

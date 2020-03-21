@@ -28,6 +28,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSizeValue> {
@@ -300,10 +301,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     public void testParseFractionalNumber() throws IOException {
         ByteSizeUnit unit = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
         String fractionalValue = "23.5" + unit.getSuffix();
-        ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
-        assertEquals(fractionalValue, instance.toString());
-        assertWarnings("Fractional bytes values are deprecated. Use non-fractional bytes values instead: [" + fractionalValue
-                + "] found for setting [test]");
+        final ElasticsearchParseException e =
+            expectThrows(ElasticsearchParseException.class, () -> ByteSizeValue.parseBytesSizeValue(fractionalValue, "test"));
+        assertThat(e.getMessage(), equalTo("failed to parse [" + fractionalValue + "]"));
+        assertThat(e.getCause(), instanceOf(NumberFormatException.class));
+        assertThat(e.getCause().getMessage(), equalTo("For input string: \"23.5\""));
     }
 
     public void testGetBytesAsInt() {

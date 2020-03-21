@@ -103,7 +103,7 @@ final class JvmErgonomics {
          */
         final String java = Paths.get(System.getProperty("java.home"), "bin", "java").toString();
         final List<String> command = Collections.unmodifiableList(
-            Stream.of(Stream.of(java), userDefinedJvmOptions.stream(), Stream.of("-XX:+PrintFlagsFinal"), Stream.of("-version"))
+		Stream.of(Stream.of(java), userDefinedJvmOptions.stream(), Stream.of("-Xshare:off", "-XX:+PrintFlagsFinal"), Stream.of("-version"))
                 .reduce(Stream::concat)
                 .get()
                 .collect(Collectors.toList())

@@ -68,6 +68,11 @@ public class XPackSettings {
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
         "xpack.ml.enabled",
         "aarch64".equals(System.getProperty("os.arch")) ? false : true,
+        value -> {
+            if (value && "aarch64".equals(System.getProperty("os.arch"))) {
+                throw new IllegalArgumentException("[xpack.ml.enabled] can not be set to [true] on [aarch64]");
+            }
+        },
         Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling rollup. Defaults to true. */

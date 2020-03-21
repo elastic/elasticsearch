@@ -91,6 +91,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         Setting.boolSetting(
             "cluster.remote.connect",
             true,
+            Setting.Property.Deprecated,
             Setting.Property.NodeScope);
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE =

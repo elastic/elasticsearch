@@ -32,6 +32,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -370,7 +371,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Settings.Builder additionalSettings = Settings.builder();
 
         additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED_NODE.get(settings));
-        additionalSettings.put(transformRemoteEnabledNodeAttribute, RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings));
+        additionalSettings.put(transformRemoteEnabledNodeAttribute, Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings));
 
         return additionalSettings.build();
     }

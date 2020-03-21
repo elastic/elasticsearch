@@ -24,6 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -51,7 +52,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
 
             Settings localSettings = Settings.builder()
-                .put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), true)
+                .put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), true)
                 .put("cluster.remote.test.seeds",
                     remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {

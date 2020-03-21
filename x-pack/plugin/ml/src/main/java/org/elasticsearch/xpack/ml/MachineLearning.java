@@ -953,7 +953,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     }
 
     @Override
-<<<<<<< HEAD
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
 

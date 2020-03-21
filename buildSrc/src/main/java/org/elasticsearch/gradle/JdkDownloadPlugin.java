@@ -47,7 +47,6 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.gradle.Util.capitalize;
 import static org.elasticsearch.gradle.tool.Boilerplate.findByName;
 import static org.elasticsearch.gradle.tool.Boilerplate.maybeCreate;
 

@@ -62,7 +62,7 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
  */
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
 
-    private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
+    private final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
     /**
      * The initial connect timeout for remote cluster connections

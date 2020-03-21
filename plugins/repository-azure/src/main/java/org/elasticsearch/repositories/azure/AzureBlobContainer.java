@@ -116,7 +116,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         try {
             blobStore.deleteBlobsIgnoringIfNotExists(blobNames.stream().map(this::buildKey).collect(Collectors.toList()));
         } catch (URISyntaxException | StorageException e) {
-            throw new IOException(e);
+            throw new IOException("Exception during bulk delete", e);
         }
     }
 

@@ -28,8 +28,8 @@ public class PutRoleBuilderTests extends ESTestCase {
         try (Client client = new NoOpClient("testBWCFieldPermissions")) {
             ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
                     () -> new PutRoleRequestBuilder(client).source("role1", new BytesArray(roleString), XContentType.JSON));
-            assertThat(e.getDetailedMessage(), containsString("\"fields\": [...]] format has changed for field permissions in role " +
-                    "[role1], use [\"field_security\": {\"grant\":[...],\"except\":[...]}] instead"));
+            assertThat(e.getDetailedMessage(), containsString("failed to parse indices privileges for role [role1]. " +
+                "unexpected field [fields]"));
         }
     }
 }

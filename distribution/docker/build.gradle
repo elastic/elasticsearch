@@ -191,9 +191,8 @@ void addBuildDockerImage(final String architecture, final boolean oss) {
       ]
     }
   }
-  if (Architecture.current().name().toLowerCase().equals(architecture)) {
-    assemble.dependsOn(buildDockerImageTask)
-  }
+  assemble.dependsOn(buildDockerImageTask)
+  buildDockerImageTask.enabled = Architecture.current().name().toLowerCase().equals(architecture)
 }
 
 for (final String architecture : ["aarch64", "x64"]) {

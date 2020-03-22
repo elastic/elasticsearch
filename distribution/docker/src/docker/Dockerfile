@@ -42,7 +42,7 @@ RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 # gpg, but the keyservers are slow to return the key and this can fail the
 # build. Instead, we check the binary against a checksum that we have
 # computed.
-ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini${tini_suffic} /tini
+ADD https://github.com/krallin/tini/releases/download/v0.18.0/tini${tini_suffix} /tini
 COPY config/tin${tini_suffix}i.sha512 /tini.sha512
 RUN sha512sum -c /tini.sha512 && chmod +x /tini
 

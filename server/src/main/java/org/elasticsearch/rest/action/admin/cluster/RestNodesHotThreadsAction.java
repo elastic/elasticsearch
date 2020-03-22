@@ -41,9 +41,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     private static final String formatDeprecatedMessageWithoutNodeID = "[%s] is a deprecated endpoint. " + 
-        "Please use [/nodes/hot_threads] instead.";
+        "Please use [/_nodes/hot_threads] instead.";
     private static final String formatDeprecatedMessageWithNodeID = "[%s] is a deprecated endpoint. " + 
-        "Please use [/nodes/{nodeId}/hot_threads] instead.";
+        "Please use [/_nodes/{nodeId}/hot_threads] instead.";
     private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS = String.format(Locale.ROOT, 
         formatDeprecatedMessageWithoutNodeID, 
         "/_cluster/nodes/hot_threads"

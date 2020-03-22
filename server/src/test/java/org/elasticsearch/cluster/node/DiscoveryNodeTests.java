@@ -28,6 +28,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
+import java.util.HashSet;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
@@ -79,10 +80,12 @@ public class DiscoveryNodeTests extends ESTestCase {
     private void runTestDiscoveryNodeIsRemoteClusterClient(final Settings settings, final boolean expected) {
         final DiscoveryNode node = DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node");
         assertThat(node.isRemoteClusterClient(), equalTo(expected));
+        final Set<DiscoveryNodeRole> expectedRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES);
         if (expected) {
-            assertThat(node.getRoles(), equalTo(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
+            assertThat(node.getRoles(), equalTo(expectedRoles));
         } else {
-            assertThat(node.getRoles(), empty());
+            expectedRoles.remove(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+            assertThat(node.getRoles(), equalTo(expectedRoles));
         }
     }
 

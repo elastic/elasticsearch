@@ -84,9 +84,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotException;
@@ -127,6 +125,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1536,7 +1535,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, long globalCheckpoint, IndexShardSnapshotStatus snapshotStatus,
+                              IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
                               Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
@@ -1563,18 +1562,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 throw new IndexShardSnapshotFailedException(shardId,
                     "Duplicate snapshot name [" + snapshotId.getName() + "] detected, aborting");
             }
-            final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
-            // We only check the sequence number to see if the shard has changed if we know that the commit is safe,
-            // otherwise we short-circuit things here by not reading the sequence number from the commit
-            final SequenceNumbers.CommitInfo seqNumInfo =
-                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(snapshotIndexCommit.getUserData().entrySet());
-            final long maxSeqNo;
-            final String historyUUID;
-            maxSeqNo = seqNumInfo.maxSeqNo;
-            historyUUID = userCommitData.get(Engine.HISTORY_UUID_KEY);
             // First inspect all known SegmentInfos instances to see if we already have an equivalent commit in the repository
-            final List<BlobStoreIndexShardSnapshot.FileInfo> filesFromSegmentInfos =
-                findMatchingShardSnapshot(globalCheckpoint, maxSeqNo, historyUUID, snapshots);
+            final List<BlobStoreIndexShardSnapshot.FileInfo> filesFromSegmentInfos = Optional.ofNullable(shardStateIdentifier).map(id -> {
+                for (SnapshotFiles snapshotFileSet : snapshots.snapshots()) {
+                    if (id.equals(snapshotFileSet.shardStateIdentifier())) {
+                        return snapshotFileSet.indexFiles();
+                    }
+                }
+                return null;
+            }).orElse(null);
 
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles;
             int indexIncrementalFileCount = 0;
@@ -1676,7 +1672,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
                 // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
                 List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
-                newSnapshotsList.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles(), globalCheckpoint, historyUUID));
+                newSnapshotsList.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles(), shardStateIdentifier));
                 for (SnapshotFiles point : snapshots) {
                     newSnapshotsList.add(point);
                 }
@@ -1742,21 +1738,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    @Nullable
-    private static List<BlobStoreIndexShardSnapshot.FileInfo> findMatchingShardSnapshot(long globalCheckpoint, long maxSequenceNum,
-                                                                                        String historyUUID,
-                                                                                        BlobStoreIndexShardSnapshots snapshots) {
-        if (maxSequenceNum == SequenceNumbers.UNASSIGNED_SEQ_NO || globalCheckpoint != maxSequenceNum) {
-            return null;
-        }
-        for (SnapshotFiles snapshotFileSet : snapshots.snapshots()) {
-            if (snapshotFileSet.historyUUID().equals(historyUUID) && snapshotFileSet.globalCheckpoint() == maxSequenceNum) {
-                return snapshotFileSet.indexFiles();
-            }
-        }
-        return null;
-    }
-
     private static boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {
         try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
             final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
@@ -1779,7 +1760,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         executor.execute(ActionRunnable.wrap(restoreListener, l -> {
             final BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(container, snapshotId);
             final SnapshotFiles snapshotFiles =
-                new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles(), SequenceNumbers.UNASSIGNED_SEQ_NO, "");
+                new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles(), "");
             new FileRestoreContext(metadata.name(), shardId, snapshotId, recoveryState) {
                 @Override
                 protected void restoreFiles(List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover, Store store,

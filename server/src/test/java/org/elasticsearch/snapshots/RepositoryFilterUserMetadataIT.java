@@ -95,11 +95,11 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
 
                     @Override
                     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                                              IndexCommit snapshotIndexCommit, long globalCheckpoint,
+                                              IndexCommit snapshotIndexCommit, String shardStateIdentifier,
                                               IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
                                               Map<String, Object> userMetadata, ActionListener<String> listener) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
-                        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, globalCheckpoint,
+                        super.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, shardStateIdentifier,
                             snapshotStatus, repositoryMetaVersion, userMetadata, listener);
                     }
 

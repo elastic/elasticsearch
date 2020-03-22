@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -199,14 +200,16 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotId            snapshot id
      * @param indexId               id for the index being snapshotted
      * @param snapshotIndexCommit   commit point
-     * @param globalCheckpoint      the current global checkpoint of the shard
+     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
      * @param snapshotStatus        snapshot status
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
      * @param listener              listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       long globalCheckpoint, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
+                       @Nullable String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
                        Map<String, Object> userMetadata, ActionListener<String> listener);
 
     /**

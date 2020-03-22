@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.util.HashMap;
@@ -33,9 +34,8 @@ public class SnapshotFiles {
 
     private final List<FileInfo> indexFiles;
 
-    private final long globalCheckpoint;
-
-    private final String historyUUID;
+    @Nullable
+    private final String shardStateIdentifier;
 
     private Map<String, FileInfo> physicalFiles = null;
 
@@ -49,28 +49,23 @@ public class SnapshotFiles {
     }
 
     /**
-     * @param snapshot   snapshot name
-     * @param indexFiles index files
+     * @param snapshot             snapshot name
+     * @param indexFiles           index files
+     * @param shardStateIdentifier unique identifier for the state of the shard that this snapshot was taken from
      */
-    public SnapshotFiles(String snapshot, List<FileInfo> indexFiles, long globalCheckpoint, String historyUUID) {
+    public SnapshotFiles(String snapshot, List<FileInfo> indexFiles, @Nullable String shardStateIdentifier) {
         this.snapshot = snapshot;
         this.indexFiles = indexFiles;
-        this.globalCheckpoint = globalCheckpoint;
-        this.historyUUID = historyUUID;
+        this.shardStateIdentifier = shardStateIdentifier;
     }
 
     /**
-     * Returns the shard's global checkpoint at the time the snapshot was taken
+     * Returns an identifier for the shard state that can be used to check whether a shard has changed between
+     * snapshots or not.
      */
-    public long globalCheckpoint() {
-        return globalCheckpoint;
-    }
-
-    /**
-     * Returns the shard's history uuid at the time the snapshot was taken.
-     */
-    public String historyUUID() {
-        return historyUUID;
+    @Nullable
+    public String shardStateIdentifier() {
+        return shardStateIdentifier;
     }
 
     /**

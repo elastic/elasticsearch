@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -55,6 +56,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -340,8 +342,22 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             try {
                 // we flush first to make sure we get the latest writes snapshotted
                 snapshotRef = indexShard.acquireLastIndexCommit(true);
+                final IndexCommit snapshotIndexCommit = snapshotRef.getIndexCommit();
+                final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
+                // We only check the sequence number to see if the shard has changed if we know that the commit is safe,
+                // otherwise we short-circuit things here by not reading the sequence number from the commit
+                final SequenceNumbers.CommitInfo seqNumInfo =
+                    SequenceNumbers.loadSeqNoInfoFromLuceneCommit(snapshotIndexCommit.getUserData().entrySet());
+                final String shardStateId;
+                final long maxSeqNo = seqNumInfo.maxSeqNo;
+                if (maxSeqNo == indexShard.getLastSyncedGlobalCheckpoint()) {
+                    shardStateId = userCommitData.get(Engine.HISTORY_UUID_KEY) + "-" +
+                        userCommitData.getOrDefault(Engine.FORCE_MERGE_UUID_KEY, "na") + "-" + maxSeqNo;
+                } else {
+                    shardStateId = null;
+                }
                 repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-                    snapshotRef.getIndexCommit(), indexShard.getLastSyncedGlobalCheckpoint(), snapshotStatus, version, userMetadata,
+                    snapshotRef.getIndexCommit(), shardStateId, snapshotStatus, version, userMetadata,
                     ActionListener.runBefore(listener, snapshotRef::close));
             } catch (Exception e) {
                 IOUtils.close(snapshotRef);

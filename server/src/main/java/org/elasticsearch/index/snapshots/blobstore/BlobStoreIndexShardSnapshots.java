@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.io.IOException;
@@ -136,8 +135,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
 
     static final class ParseFields {
         static final ParseField FILES = new ParseField("files");
-        static final ParseField GLOBAL_CHECKPOINT = new ParseField("global_checkpoint");
-        static final ParseField HISTORY_UUID = new ParseField("history_uuid");
+        static final ParseField SHARD_STATE_ID = new ParseField("shard_state_id");
         static final ParseField SNAPSHOTS = new ParseField("snapshots");
     }
 
@@ -210,9 +208,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 builder.value(fileInfo.name());
             }
             builder.endArray();
-            if (snapshot.globalCheckpoint() > SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                builder.field(ParseFields.GLOBAL_CHECKPOINT.getPreferredName(), snapshot.globalCheckpoint());
-                builder.field(ParseFields.HISTORY_UUID.getPreferredName(), snapshot.historyUUID());
+            if (snapshot.shardStateIdentifier() != null) {
+                builder.field(ParseFields.SHARD_STATE_ID.getPreferredName(), snapshot.shardStateIdentifier());
             }
             builder.endObject();
         }
@@ -266,12 +263,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                                         fileNames.add(parser.text());
                                     }
                                     snapshotsMap.put(snapshot, fileNames);
-                                } else if (ParseFields.HISTORY_UUID.match(currentFieldName, parser.getDeprecationHandler())) {
+                                } else if (ParseFields.SHARD_STATE_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                     parser.nextToken();
                                     historyUUIDs.put(snapshot, parser.text());
-                                } else if (ParseFields.GLOBAL_CHECKPOINT.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    parser.nextToken();
-                                    globalCheckpoints.put(snapshot, parser.longValue());
                                 }
                             }
                         }
@@ -291,8 +285,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 fileInfosBuilder.add(fileInfo);
             }
             snapshots.add(new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder),
-                globalCheckpoints.getOrDefault(entry.getKey(), SequenceNumbers.UNASSIGNED_SEQ_NO),
-                historyUUIDs.getOrDefault(entry.getKey(), "")));
+                historyUUIDs.get(entry.getKey())));
         }
         return new BlobStoreIndexShardSnapshots(files, Collections.unmodifiableList(snapshots));
     }

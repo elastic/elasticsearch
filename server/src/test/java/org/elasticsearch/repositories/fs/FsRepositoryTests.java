@@ -49,7 +49,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -106,7 +105,7 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<String> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-                repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, SequenceNumbers.UNASSIGNED_SEQ_NO,
+                repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, null,
                     snapshotStatus, Version.CURRENT, Collections.emptyMap(), future1);
                 future1.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
@@ -136,7 +135,7 @@ public class FsRepositoryTests extends ESTestCase {
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
                 repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit,
-                    SequenceNumbers.UNASSIGNED_SEQ_NO, snapshotStatus, Version.CURRENT, Collections.emptyMap(), future2);
+                    null, snapshotStatus, Version.CURRENT, Collections.emptyMap(), future2);
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(2, copy.getIncrementalFileCount());

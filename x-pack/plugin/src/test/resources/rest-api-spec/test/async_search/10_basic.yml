@@ -48,7 +48,7 @@
           query:
             match_all: {}
           aggs:
-            1:
+            max:
               max:
                 field: max
           sort: max
@@ -58,7 +58,7 @@
   - match:  { is_partial:                   false }
   - length: { response.hits.hits:               3 }
   - match:  { response.hits.hits.0._source.max: 1 }
-  - match:  { response.aggregations.1.value:  3.0 }
+  - match:  { response.aggregations.max.value:  3.0 }
 
   - do:
       async_search.submit:
@@ -68,7 +68,7 @@
         clean_on_completion: false
         body:
           aggs:
-            1:
+            max:
               max:
                 field: max
           sort: max
@@ -78,7 +78,7 @@
   - match:  { is_partial:                   false }
   - length: { response.hits.hits:               3 }
   - match:  { response.hits.hits.0._source.max: 1 }
-  - match:  { response.aggregations.1.value:  3.0 }
+  - match:  { response.aggregations.max.value:  3.0 }
 
   # test with typed_keys:
   - do:
@@ -90,7 +90,7 @@
         typed_keys: true
         body:
           aggs:
-            1:
+            max:
               max:
                 field: max
           sort: max
@@ -100,7 +100,7 @@
   - match:  { is_partial:                       false }
   - length: { response.hits.hits:                   3 }
   - match:  { response.hits.hits.0._source.max:     1 }
-  - match:  { response.aggregations.max#1.value:  3.0 }
+  - match:  { response.aggregations.max#max.value:  3.0 }
 
   - do:
       async_search.get:
@@ -110,7 +110,7 @@
   - match:  { is_partial:                     false }
   - length: { response.hits.hits:                 3 }
   - match:  { response.hits.hits.0._source.max:   1 }
-  - match:  { response.aggregations.1.value:    3.0 }
+  - match:  { response.aggregations.max.value:    3.0 }
 
   # test with typed_keys:
   - do:
@@ -122,7 +122,7 @@
   - match:  { is_partial:                       false }
   - length: { response.hits.hits:                   3 }
   - match:  { response.hits.hits.0._source.max:     1 }
-  - match:  { response.aggregations.max#1.value:  3.0 }
+  - match:  { response.aggregations.max#max.value:  3.0 }
 
   - do:
       async_search.delete:

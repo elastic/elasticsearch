@@ -777,14 +777,15 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateReduceContext() {
-        final SearchService service = getInstanceFromNode(SearchService.class);
+        SearchService service = getInstanceFromNode(SearchService.class);
+        InternalAggregation.ReduceContextBuilder reduceContextBuilder = service.aggReduceContextBuilder(new SearchRequest());
         {
-            InternalAggregation.ReduceContext reduceContext = service.createReduceContext(true);
+            InternalAggregation.ReduceContext reduceContext = reduceContextBuilder.forFinalReduction();
             expectThrows(MultiBucketConsumerService.TooManyBucketsException.class,
                 () -> reduceContext.consumeBucketsAndMaybeBreak(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 1));
         }
         {
-            InternalAggregation.ReduceContext reduceContext = service.createReduceContext(false);
+            InternalAggregation.ReduceContext reduceContext = reduceContextBuilder.forPartialReduction();
             reduceContext.consumeBucketsAndMaybeBreak(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 1);
         }
     }

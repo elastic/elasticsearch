@@ -29,6 +29,11 @@ dependencies {
   compile 'org.ow2.asm:asm-commons:5.0.4'
   compile 'org.ow2.asm:asm-tree:5.0.4'
 }
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'search'
+  }
+}
 
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'

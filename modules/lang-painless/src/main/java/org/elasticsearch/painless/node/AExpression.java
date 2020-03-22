@@ -91,6 +91,7 @@ public abstract class AExpression extends ANode {
     AExpression prefix;
 
     // TODO: remove placeholders once analysis and write are combined into build
+    // TODO: https://github.com/elastic/elasticsearch/issues/53561
     // This are used to support the transition from a mutable to immutable state.
     // Currently, the IR tree is built during the user tree "write" phase, so
     // these are stored on the node to set during the "semantic" phase and then

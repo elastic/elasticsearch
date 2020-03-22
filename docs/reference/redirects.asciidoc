@@ -380,3 +380,8 @@ See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
 === Asynchronous search
 
 coming::[7.x]
+
+[role="exclude",id="indices-component-templates"]
+=== Component template APIs
+
+coming::[7.x]

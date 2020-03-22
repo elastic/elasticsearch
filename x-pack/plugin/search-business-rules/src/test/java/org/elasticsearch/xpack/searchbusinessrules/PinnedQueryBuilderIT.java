@@ -17,12 +17,15 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -196,5 +199,29 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
 
     }
+    
+    public void testHighlight() throws Exception {
+        // Issue raised in https://github.com/elastic/elasticsearch/issues/53699
+        assertAcked(prepareCreate("test").setMapping(
+                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
+                        .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject()));
+        ensureGreen();
+        client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
+        refresh();
 
+        PinnedQueryBuilder pqb = new PinnedQueryBuilder(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR), "2");
+        
+        HighlightBuilder testHighlighter = new HighlightBuilder();
+        testHighlighter.field("field1");
+
+        SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(pqb)
+                .highlighter(testHighlighter)
+                .setExplain(true).get();
+        assertHitCount(searchResponse, 1);
+        Map<String, HighlightField> highlights = searchResponse.getHits().getHits()[0].getHighlightFields();
+        assertThat(highlights.size(), equalTo(1));
+        HighlightField highlight = highlights.get("field1");
+        assertThat(highlight.fragments()[0].toString(), equalTo("<em>the</em> <em>quick</em> <em>brown</em> fox"));
+    }  
 }
+

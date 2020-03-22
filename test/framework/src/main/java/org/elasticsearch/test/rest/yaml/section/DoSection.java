@@ -331,7 +331,7 @@ public class DoSection implements ExecutableSection {
             final Matcher matcher = WARNING_HEADER_PATTERN.matcher(header);
             final boolean matches = matcher.matches();
             if (matches) {
-                final String message = matcher.group(1);
+                final String message = DeprecationLogger.extractWarningValueFromWarningHeader(header, true);
                 if (allowed.contains(message)) {
                     continue;
                 }

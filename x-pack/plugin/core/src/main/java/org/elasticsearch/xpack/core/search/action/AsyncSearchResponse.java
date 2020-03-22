@@ -26,7 +26,9 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     @Nullable
     private final String id;
     private final int version;
+    @Nullable
     private final SearchResponse searchResponse;
+    @Nullable
     private final ElasticsearchException error;
     private final boolean isRunning;
     private final boolean isPartial;
@@ -100,7 +102,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     public AsyncSearchResponse clone(String id) {
-        return new AsyncSearchResponse(id, version, searchResponse, error, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
+        return new AsyncSearchResponse(id, version, searchResponse, error, isPartial, false, startTimeMillis, expirationTimeMillis);
     }
 
     /**

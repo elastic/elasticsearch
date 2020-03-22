@@ -404,7 +404,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 assert token == XContentParser.Token.FIELD_NAME;
                 String name = p.currentName();
                 try {
-                    return namedObjectParser.parse(p, c, name);
+                    T namedObject = namedObjectParser.parse(p, c, name);
+                    // consume the end object token
+                    token = p.nextToken();
+                    assert token == XContentParser.Token.END_OBJECT;
+                    return namedObject;
                 } catch (Exception e) {
                     throw new XContentParseException(p.getTokenLocation(), "[" + field + "] failed to parse field [" + name + "]", e);
                 }
@@ -567,7 +571,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
 
         void assertSupports(String parserName, XContentParser parser, String currentFieldName) {
-            if (parseField.match(currentFieldName, parser.getDeprecationHandler()) == false) {
+            if (parseField.match(parserName, parser::getTokenLocation, currentFieldName, parser.getDeprecationHandler()) == false) {
                 throw new XContentParseException(parser.getTokenLocation(),
                         "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }

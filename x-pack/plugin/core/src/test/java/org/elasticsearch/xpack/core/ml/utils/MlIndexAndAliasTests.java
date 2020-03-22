@@ -114,7 +114,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         CreateIndexRequest createRequest = createRequestCaptor.getValue();
         assertThat(createRequest.index(), equalTo(FIRST_CONCRETE_INDEX));
-        assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(TEST_INDEX_ALIAS))));
+        assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(TEST_INDEX_ALIAS).isHidden(true))));
     }
 
     private void assertNoClientInteractionsWhenWriteAliasAlreadyExists(String indexName) {
@@ -157,7 +157,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertThat(
             indicesAliasesRequest.getAliasActions(),
             contains(
-                AliasActions.add().alias(TEST_INDEX_ALIAS).index(FIRST_CONCRETE_INDEX),
+                AliasActions.add().alias(TEST_INDEX_ALIAS).index(FIRST_CONCRETE_INDEX).isHidden(true),
                 AliasActions.remove().alias(TEST_INDEX_ALIAS).index(LEGACY_INDEX_WITHOUT_SUFFIX)));
     }
 
@@ -175,7 +175,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         IndicesAliasesRequest indicesAliasesRequest = aliasesRequestCaptor.getValue();
         assertThat(
             indicesAliasesRequest.getAliasActions(),
-            contains(AliasActions.add().alias(TEST_INDEX_ALIAS).index(expectedWriteIndexName)));
+            contains(AliasActions.add().alias(TEST_INDEX_ALIAS).index(expectedWriteIndexName).isHidden(true)));
     }
 
     public void testCreateStateIndexAndAliasIfNecessary_WriteAliasDoesNotExistButInitialStateIndexExists() {
@@ -205,7 +205,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         CreateIndexRequest createRequest = createRequestCaptor.getValue();
         assertThat(createRequest.index(), equalTo(FIRST_CONCRETE_INDEX));
-        assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(TEST_INDEX_ALIAS))));
+        assertThat(createRequest.aliases(), equalTo(Collections.singleton(new Alias(TEST_INDEX_ALIAS).isHidden(true))));
     }
 
     public void testIndexNameComparator() {

@@ -367,9 +367,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         assert id.startsWith(ROLE_TYPE) : "[" + id + "] does not have role prefix";
         final String name = id.substring(ROLE_TYPE.length() + 1);
         try {
-            // we pass true as last parameter because we do not want to reject permissions if the field permissions
-            // are given in 2.x syntax
-            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
+            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, XContentType.JSON);
             if (licenseState.isAllowed(Feature.SECURITY_DLS_FLS)) {
                 return roleDescriptor;
             } else {

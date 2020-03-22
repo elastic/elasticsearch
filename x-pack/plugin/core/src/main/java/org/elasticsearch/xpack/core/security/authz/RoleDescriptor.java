@@ -274,18 +274,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
     }
 
-    public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat, XContentType xContentType)
-            throws IOException {
+    public static RoleDescriptor parse(String name, BytesReference source, XContentType xContentType) throws IOException {
         assert name != null;
         // EMPTY is safe here because we never use namedObject
         try (InputStream stream = source.streamInput();
              XContentParser parser = xContentType.xContent()
                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return parse(name, parser, allow2xFormat);
+            return parse(name, parser);
         }
     }
 
-    public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat) throws IOException {
+    public static RoleDescriptor parse(String name, XContentParser parser) throws IOException {
         // validate name
         Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
         if (validationError != null) {
@@ -311,7 +310,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 currentFieldName = parser.currentName();
             } else if (Fields.INDEX.match(currentFieldName, parser.getDeprecationHandler())
                     || Fields.INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
-                indicesPrivileges = parseIndices(name, parser, allow2xFormat);
+                indicesPrivileges = parseIndices(name, parser);
             } else if (Fields.RUN_AS.match(currentFieldName, parser.getDeprecationHandler())) {
                 runAsUsers = readStringArray(name, parser, true);
             } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -373,7 +372,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Fields.INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
-                    indexPrivileges = parseIndices(description, parser, false);
+                    indexPrivileges = parseIndices(description, parser);
                 } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     clusterPrivileges = readStringArray(description, parser, true);
                 } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
@@ -401,21 +400,19 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
-    private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser,
-                                                                   boolean allow2xFormat) throws IOException {
+    private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] value " +
                     "to be an array, but found [{}] instead", roleName, parser.currentName(), parser.currentToken());
         }
         List<RoleDescriptor.IndicesPrivileges> privileges = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            privileges.add(parseIndex(roleName, parser, allow2xFormat));
+            privileges.add(parseIndex(roleName, parser));
         }
         return privileges.toArray(new IndicesPrivileges[privileges.size()]);
     }
 
-    private static RoleDescriptor.IndicesPrivileges parseIndex(String roleName, XContentParser parser,
-                                                               boolean allow2xFormat) throws IOException {
+    private static RoleDescriptor.IndicesPrivileges parseIndex(String roleName, XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] value to " +
@@ -510,14 +507,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 }
             } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
                 privileges = readStringArray(roleName, parser, true);
-            } else if (Fields.FIELD_PERMISSIONS_2X.match(currentFieldName, parser.getDeprecationHandler())) {
-                if (allow2xFormat) {
-                    grantedFields = readStringArray(roleName, parser, true);
-                } else {
-                    throw new ElasticsearchParseException("[\"fields\": [...]] format has changed for field" +
-                            " permissions in role [{}], use [\"{}\": {\"{}\":[...]," + "\"{}\":[...]}] instead",
-                            roleName, Fields.FIELD_PERMISSIONS, Fields.GRANT_FIELDS, Fields.EXCEPT_FIELDS, roleName);
-                }
             } else if (Fields.TRANSIENT_METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -1000,7 +989,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField PRIVILEGES = new ParseField("privileges");
         ParseField APPLICATION = new ParseField("application");
         ParseField FIELD_PERMISSIONS = new ParseField("field_security");
-        ParseField FIELD_PERMISSIONS_2X = new ParseField("fields");
         ParseField GRANT_FIELDS = new ParseField("grant");
         ParseField EXCEPT_FIELDS = new ParseField("except");
         ParseField METADATA = new ParseField("metadata");

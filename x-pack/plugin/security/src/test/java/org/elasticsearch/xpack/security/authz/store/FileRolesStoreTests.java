@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.io.BufferedWriter;
-import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -51,7 +50,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -553,15 +551,19 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(usageStats.get("dls"), is(flsDlsEnabled));
     }
 
-    // test that we can read a role where field permissions are stored in 2.x format (fields:...)
-    public void testBWCFieldPermissions() throws IOException {
+    // test that we reject a role where field permissions are stored in 2.x format (fields:...)
+    public void testBWCFieldPermissions() throws Exception {
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
+        events.clear();
         Path path = getDataPath("roles2xformat.yml");
         byte[] bytes = Files.readAllBytes(path);
         String roleString = new String(bytes, Charset.defaultCharset());
-        RoleDescriptor role = FileRolesStore.parseRoleDescriptor(roleString, path, logger, true, Settings.EMPTY, xContentRegistry());
-        RoleDescriptor.IndicesPrivileges indicesPrivileges = role.getIndicesPrivileges()[0];
-        assertThat(indicesPrivileges.getGrantedFields(), arrayContaining("foo", "boo"));
-        assertNull(indicesPrivileges.getDeniedFields());
+        assertNull(FileRolesStore.parseRoleDescriptor(roleString, path, logger, true, Settings.EMPTY, xContentRegistry()));
+        assertThat(events, notNullValue());
+        assertThat(events, hasSize(1));
+        assertThat(events.get(0), containsString("failed to parse indices privileges for role [role1]. unexpected field [fields]. " +
+            "skipping role..."));
     }
 
 }

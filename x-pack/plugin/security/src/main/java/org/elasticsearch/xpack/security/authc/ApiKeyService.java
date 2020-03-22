@@ -404,7 +404,7 @@ public class ApiKeyService {
                     try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                         new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
                         BytesReference.bytes(builder).streamInput())) {
-                        return RoleDescriptor.parse(name, parser, false);
+                        return RoleDescriptor.parse(name, parser);
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);

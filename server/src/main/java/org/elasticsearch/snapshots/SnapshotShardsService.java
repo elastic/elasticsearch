@@ -343,17 +343,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // we flush first to make sure we get the latest writes snapshotted
                 snapshotRef = indexShard.acquireLastIndexCommit(true);
                 final IndexCommit snapshotIndexCommit = snapshotRef.getIndexCommit();
-                final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
-                final SequenceNumbers.CommitInfo seqNumInfo =
-                    SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userCommitData.entrySet());
-                final String shardStateId;
-                final long maxSeqNo = seqNumInfo.maxSeqNo;
-                if (maxSeqNo == indexShard.getLastSyncedGlobalCheckpoint()) {
-                    shardStateId = userCommitData.get(Engine.HISTORY_UUID_KEY) + "-" +
-                        userCommitData.getOrDefault(Engine.FORCE_MERGE_UUID_KEY, "na") + "-" + maxSeqNo;
-                } else {
-                    shardStateId = null;
-                }
+                final String shardStateId = getShardStateId(indexShard, snapshotIndexCommit);
                 repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
                     snapshotRef.getIndexCommit(), shardStateId, snapshotStatus, version, userMetadata,
                     ActionListener.runBefore(listener, snapshotRef::close));
@@ -364,6 +354,30 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Generates an identifier that identifies the current contents of the shard that can be used to identify whether
+     * a shard's contents have been changed between two snapshots.
+     * A shard is assumed to have unchanged contents if its global- and local checkpoint are equal, its maximum
+     * sequence number has not changed and its history and force merge uuid have not changed.
+     * The method returns {@code null} if global and local checkpoint are different for a shard since no safe unique
+     * shard state id can be used in this case because of the possibility of a primary failover.
+     *
+     * @param indexShard          Shard
+     * @param snapshotIndexCommit IndexCommit for shard
+     * @return shard state id or {@code null} if non is to be used
+     */
+    @Nullable
+    private static String getShardStateId(IndexShard indexShard, IndexCommit snapshotIndexCommit) throws IOException {
+        final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
+        final SequenceNumbers.CommitInfo seqNumInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userCommitData.entrySet());
+        final long maxSeqNo = seqNumInfo.maxSeqNo;
+        if (maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint()) {
+            return null;
+        }
+        return userCommitData.get(Engine.HISTORY_UUID_KEY) + "-" +
+            userCommitData.getOrDefault(Engine.FORCE_MERGE_UUID_KEY, "na") + "-" + maxSeqNo;
     }
 
     /**

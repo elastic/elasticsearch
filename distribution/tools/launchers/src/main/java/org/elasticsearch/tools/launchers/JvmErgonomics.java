@@ -106,10 +106,10 @@ final class JvmErgonomics {
             Stream.of(
                 Stream.of(java),
                 userDefinedJvmOptions.stream(),
-                Stream.of("-Xshare:off", "-XX:+PrintFlagsFinal"), Stream.of("-version"))
-                .reduce(Stream::concat)
-                .get()
-                .collect(Collectors.toList())
+                Stream.of("-Xshare:off"),
+                Stream.of("-XX:+PrintFlagsFinal"),
+                Stream.of("-version")
+            ).reduce(Stream::concat).get().collect(Collectors.toList())
         );
         final Process process = new ProcessBuilder().command(command).start();
         final List<String> output = readLinesFromInputStream(process.getInputStream());

@@ -113,6 +113,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
 
+    public SearchResponseSections getInternalResponse() {
+        return internalResponse;
+    }
+
     /**
      * The search hits.
      */
@@ -256,7 +260,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return innerFromXContent(parser);
     }
 
-    static SearchResponse innerFromXContent(XContentParser parser) throws IOException {
+    public static SearchResponse innerFromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String currentFieldName = parser.currentName();
         SearchHits hits = null;

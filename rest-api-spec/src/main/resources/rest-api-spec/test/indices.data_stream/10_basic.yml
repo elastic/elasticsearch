@@ -1,0 +1,26 @@
+---
+"Test stubs":
+  - skip:
+      version: " - 7.99.99"
+      reason: not backported yet
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream2
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_streams: {}
+  - match: { 0.name: my_data_stream1 }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.indices: ['my_data_stream1-000000'] }
+  - match: { 1.name: my_data_stream2 }
+  - match: { 1.timestamp_field: '@timestamp' }
+  - match: { 1.indices: [] }
+
+  - do:
+      indices.delete_data_stream:
+        name: data-stream2
+  - is_true: acknowledged

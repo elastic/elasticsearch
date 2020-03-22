@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -55,7 +54,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -88,7 +86,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -113,15 +110,6 @@ public class MetaDataCreateIndexService {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
-
-    /**
-     * These index patterns will be converted to hidden indices, at which point they should be removed from this list.
-     */
-    private static final CharacterRunAutomaton DOT_INDICES_EXCLUSIONS = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(
-        ".watch-history-*",
-        ".data-frame-notifications-*",
-        ".transform-notifications-*"
-    ));
 
     private final Settings settings;
     private final ClusterService clusterService;
@@ -193,11 +181,7 @@ public class MetaDataCreateIndexService {
             List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
                 .filter(descriptor -> descriptor.matchesIndexPattern(index))
                 .collect(toList());
-            if (DOT_INDICES_EXCLUSIONS.run(index)) {
-                assert Objects.isNull(isHidden) || Boolean.FALSE.equals(isHidden) : "when converting a special-cased index to be a " +
-                    "hidden index, it must be removed from the exclusions list";
-                logger.debug("not emitting deprecation warning about index [{}] because it is in the exclusions list", index);
-            } else if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
+            if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
                 deprecationLogger.deprecated("index name [{}] starts with a dot '.', in the next major version, index names " +
                     "starting with a dot are reserved for hidden indices and system indices", index);
             } else if (matchingDescriptors.size() > 1) {
@@ -415,15 +399,11 @@ public class MetaDataCreateIndexService {
         Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, mappingsJson);
         // apply templates, merging the mappings into the request mapping if exists
         for (IndexTemplateMetaData template : templates) {
-            for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
-                String mappingString = cursor.value.string();
-                // Templates are wrapped with their _type names, which for pre-8x templates may not
-                // be _doc.  For now, we unwrap them based on the _type name, and then re-wrap with
-                // _doc
-                // TODO in 9x these will all have a _type of _doc so no re-wrapping will be necessary
-                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mappingString);
+            CompressedXContent mapping = template.mappings();
+            if (mapping != null) {
+                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
                 assert templateMapping.size() == 1 : templateMapping;
-                assert cursor.key.equals(templateMapping.keySet().iterator().next()) : cursor.key + " != " + templateMapping;
+                // pre-8x templates may have a wrapper type other than _doc, so we re-wrap things here
                 templateMapping = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME,
                     templateMapping.values().iterator().next());
                 if (mappings.isEmpty()) {
@@ -553,7 +533,8 @@ public class MetaDataCreateIndexService {
                 aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
             }
             AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex()).build();
+                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex())
+                .isHidden(alias.isHidden()).build();
             resolvedAliases.add(aliasMetaData);
         }
 

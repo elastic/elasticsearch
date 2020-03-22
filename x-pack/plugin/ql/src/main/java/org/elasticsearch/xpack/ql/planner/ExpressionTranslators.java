@@ -69,6 +69,10 @@ public final class ExpressionTranslators {
             new Scalars()
             );
 
+    public static Query toQuery(Expression e) {
+        return toQuery(e, new QlTranslatorHandler());
+    }
+
     public static Query toQuery(Expression e, TranslatorHandler handler) {
         Query translation = null;
         for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
@@ -107,7 +111,7 @@ public final class ExpressionTranslators {
             }
 
             if (e instanceof RLike) {
-                String pattern = ((RLike) e).pattern();
+                String pattern = ((RLike) e).pattern().asJavaRegex();
                 q = new RegexQuery(e.source(), targetFieldName, pattern);
             }
 

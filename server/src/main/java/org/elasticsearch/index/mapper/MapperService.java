@@ -716,4 +716,5 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         return reloadedAnalyzers;
     }
+
 }

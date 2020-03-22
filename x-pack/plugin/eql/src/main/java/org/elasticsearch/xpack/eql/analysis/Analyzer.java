@@ -10,9 +10,11 @@ import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 
 import java.util.ArrayList;
@@ -35,7 +37,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch resolution = new Batch("Resolution",
-                new ResolveRefs());
+                new ResolveRefs(),
+                new ResolveFunctions());
         
         return asList(resolution);
     }
@@ -52,7 +55,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         return plan;
     }
 
-    private static class ResolveRefs extends AnalyzeRule<LogicalPlan> {
+    private static class ResolveRefs extends AnalyzerRule<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
@@ -87,20 +90,34 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    abstract static class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
-
-        // transformUp (post-order) - that is first children and then the node
-        // but with a twist; only if the tree is not resolved or analyzed
-        @Override
-        public final LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t), typeToken());
-        }
+    private class ResolveFunctions extends AnalyzerRule<LogicalPlan> {
 
         @Override
-        protected abstract LogicalPlan rule(SubPlan plan);
+        protected LogicalPlan rule(LogicalPlan plan) {
+            return plan.transformExpressionsUp(e -> {
+                if (e instanceof UnresolvedFunction) {
+                    UnresolvedFunction uf = (UnresolvedFunction) e;
 
-        protected boolean skipResolved() {
-            return true;
+                    if (uf.analyzed()) {
+                        return uf;
+                    }
+
+                    String name = uf.name();
+
+                    if (uf.childrenResolved() == false) {
+                        return uf;
+                    }
+
+                    String functionName = functionRegistry.resolveAlias(name);
+                    if (functionRegistry.functionExists(functionName) == false) {
+                        return uf.missing(functionName, functionRegistry.listFunctions());
+                    }
+                    FunctionDefinition def = functionRegistry.resolveFunction(functionName);
+                    Function f = uf.buildResolved(null, def);
+                    return f;
+                }
+                return e;
+            });
         }
     }
 }

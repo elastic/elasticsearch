@@ -132,7 +132,7 @@ public class LongTermsAggregator extends TermsAggregator {
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
         long otherDocCount = 0;
-        BucketPriorityQueue<LongTerms.Bucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
+        BucketPriorityQueue<LongTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
         LongTerms.Bucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {

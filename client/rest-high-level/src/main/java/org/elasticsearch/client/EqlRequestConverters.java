@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.eql.EqlSearchRequest;
+import org.elasticsearch.client.eql.EqlStatsRequest;
 
 import java.io.IOException;
 
@@ -40,5 +41,12 @@ final class EqlRequestConverters {
         request.setEntity(createEntity(eqlSearchRequest, REQUEST_BODY_CONTENT_TYPE));
         request.addParameters(parameters.asMap());
         return request;
+    }
+
+    static Request stats(EqlStatsRequest eqlStatsRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_eql", "stats")
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 }

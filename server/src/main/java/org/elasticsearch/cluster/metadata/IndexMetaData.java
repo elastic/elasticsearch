@@ -95,7 +95,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.METADATA_READ));
     public static final ClusterBlock INDEX_READ_ONLY_ALLOW_DELETE_BLOCK =
         new ClusterBlock(12, "index read-only / allow delete (api)", false, false,
-            true, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE));
+            true, RestStatus.TOO_MANY_REQUESTS, EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE));
 
     public enum State {
         OPEN((byte) 0),
@@ -262,7 +262,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
      * normal wildcard searches unless explicitly allowed
      */
     public static final Setting<Boolean> INDEX_HIDDEN_SETTING =
-        Setting.boolSetting(SETTING_INDEX_HIDDEN, false, Property.IndexScope, Property.Final);
+        Setting.boolSetting(SETTING_INDEX_HIDDEN, false, Property.Dynamic, Property.IndexScope);
 
     /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading

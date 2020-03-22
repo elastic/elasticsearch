@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -37,12 +38,15 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class HistogramGroupSource extends SingleGroupSource implements ToXContentObject {
 
     protected static final ParseField INTERVAL = new ParseField("interval");
-    private static final ConstructingObjectParser<HistogramGroupSource, Void> PARSER =
-            new ConstructingObjectParser<>("histogram_group_source", true,
-                    args -> new HistogramGroupSource((String) args[0], (double) args[1]));
+    private static final ConstructingObjectParser<HistogramGroupSource, Void> PARSER = new ConstructingObjectParser<>(
+        "histogram_group_source",
+        true,
+        args -> new HistogramGroupSource((String) args[0], (Script) args[1], (double) args[2])
+    );
 
     static {
         PARSER.declareString(optionalConstructorArg(), FIELD);
+        Script.declareScript(PARSER, optionalConstructorArg(), SCRIPT);
         PARSER.declareDouble(optionalConstructorArg(), INTERVAL);
     }
 
@@ -52,8 +56,8 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
 
     private final double interval;
 
-    HistogramGroupSource(String field, double interval) {
-        super(field);
+    HistogramGroupSource(String field, Script script, double interval) {
+        super(field, script);
         if (interval <= 0) {
             throw new IllegalArgumentException("[interval] must be greater than 0.");
         }
@@ -72,9 +76,7 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        if (field != null) {
-            builder.field(FIELD.getPreferredName(), field);
-        }
+        super.innerXContent(builder, params);
         builder.field(INTERVAL.getPreferredName(), interval);
         builder.endObject();
         return builder;
@@ -92,8 +94,7 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
 
         final HistogramGroupSource that = (HistogramGroupSource) other;
 
-        return Objects.equals(this.field, that.field) &&
-                Objects.equals(this.interval, that.interval);
+        return Objects.equals(this.field, that.field) && Objects.equals(this.interval, that.interval);
     }
 
     @Override
@@ -108,6 +109,7 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
     public static class Builder {
 
         private String field;
+        private Script script;
         private double interval;
 
         /**
@@ -130,8 +132,18 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
             return this;
         }
 
+        /**
+         * The script with which to construct the histogram grouping
+         * @param script The script
+         * @return The {@link Builder} with the script set.
+         */
+        public Builder setScript(Script script) {
+            this.script = script;
+            return this;
+        }
+
         public HistogramGroupSource build() {
-            return new HistogramGroupSource(field, interval);
+            return new HistogramGroupSource(field, script, interval);
         }
     }
 }

@@ -41,13 +41,14 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.joda.time.DateTimeZone;
@@ -269,6 +270,15 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expected,
                 ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
 
+        instant1 = nowInMillis;
+        instant2 = instant1 + 100;
+        expected = new DateRangeIncludingNowQuery(new IndexOrDocValuesQuery(
+            LongPoint.newRangeQuery("field", instant1, instant2),
+            SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
+        ));
+        assertEquals(expected,
+            ft.rangeQuery("now", instant2, true, true, null, null, null, context));
+
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.rangeQuery(date1, date2, true, true, null, null, null, context));
@@ -294,7 +304,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);
         assertTrue(reader.leaves().size() > 0);
-        AtomicNumericFieldData a = fieldData.load(reader.leaves().get(0).reader().getContext());
+        LeafNumericFieldData a = fieldData.load(reader.leaves().get(0).reader().getContext());
         SortedNumericDocValues docValues = a.getLongValues();
         assertEquals(0, docValues.nextDoc());
         assertEquals(1, docValues.nextDoc());

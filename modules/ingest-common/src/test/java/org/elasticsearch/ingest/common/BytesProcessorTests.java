@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.ingest.IngestDocument;
@@ -28,6 +29,7 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.hamcrest.CoreMatchers;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
 
@@ -90,9 +92,10 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "1.1kb");
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
-        processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, expectedResultType()), equalTo(1126L));
-        assertWarnings("Fractional bytes values are deprecated. Use non-fractional bytes values instead: [1.1kb] found for setting " +
-            "[Ingest Field]");
+        final ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("failed to parse [1.1kb]"));
+        assertThat(e.getCause(), instanceOf(NumberFormatException.class));
+        assertThat(e.getCause().getMessage(), equalTo("For input string: \"1.1\""));
     }
+
 }

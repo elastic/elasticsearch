@@ -1299,7 +1299,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, Property... properties) {
-        return byteSizeSetting(key, (s) -> value.toString(), properties);
+        return byteSizeSetting(key, (s) -> value.getStringRep(), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSetting,

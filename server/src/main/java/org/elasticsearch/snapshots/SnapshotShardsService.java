@@ -344,10 +344,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 snapshotRef = indexShard.acquireLastIndexCommit(true);
                 final IndexCommit snapshotIndexCommit = snapshotRef.getIndexCommit();
                 final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
-                // We only check the sequence number to see if the shard has changed if we know that the commit is safe,
-                // otherwise we short-circuit things here by not reading the sequence number from the commit
                 final SequenceNumbers.CommitInfo seqNumInfo =
-                    SequenceNumbers.loadSeqNoInfoFromLuceneCommit(snapshotIndexCommit.getUserData().entrySet());
+                    SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userCommitData.entrySet());
                 final String shardStateId;
                 final long maxSeqNo = seqNumInfo.maxSeqNo;
                 if (maxSeqNo == indexShard.getLastSyncedGlobalCheckpoint()) {

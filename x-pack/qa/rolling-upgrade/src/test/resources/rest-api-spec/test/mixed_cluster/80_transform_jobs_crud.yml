@@ -1,3 +1,8 @@
+setup:
+  - skip:
+      version: "all"
+      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/53931"
+
 ---
 "Test put batch transform on mixed cluster":
   - skip:

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.JdkDownloadPlugin;
@@ -65,6 +66,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             jdk.setVendor(LEGACY_JAVA_VENDOR);
             jdk.setVersion(LEGACY_JAVA_VERSION);
             jdk.setPlatform(OS.current().name().toLowerCase());
+            jdk.setArchitecture(Architecture.current().name().toLowerCase());
         });
 
         // enable the DSL to describe clusters

@@ -373,7 +373,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
         final SequenceNumbers.CommitInfo seqNumInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userCommitData.entrySet());
         final long maxSeqNo = seqNumInfo.maxSeqNo;
-        if (maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint()) {
+        if (maxSeqNo != seqNumInfo.localCheckpoint || maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint()) {
             return null;
         }
         return userCommitData.get(Engine.HISTORY_UUID_KEY) + "-" +

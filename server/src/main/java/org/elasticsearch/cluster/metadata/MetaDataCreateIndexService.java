@@ -373,8 +373,7 @@ public class MetaDataCreateIndexService {
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetaData.getIndex(),
                 indexMetaData.getSettings());
-            return clusterStateCreateIndex(currentState, request.blocks(), indexMetaData,
-                allocationService::reroute);
+            return clusterStateCreateIndex(currentState, request.blocks(), indexMetaData, allocationService::reroute);
         });
     }
 

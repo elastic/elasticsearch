@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
 import org.apache.lucene.document.Field;
@@ -122,7 +127,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
                           Consumer<InternalSum> verify) throws IOException {
         MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        this.testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
     private <T extends AggregationBuilder, V extends InternalAggregation> void testCase(

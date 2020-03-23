@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54034")
     public void testIncrementalBehaviorOnPrimaryFailover() throws InterruptedException, ExecutionException, IOException {
         internalCluster().startMasterOnlyNode();
         final String primaryNode = internalCluster().startDataOnlyNode();

@@ -132,7 +132,7 @@
             "allow_lazy_open": true
           }
   - match: { job_id: "job-model-memory-limit-as-string" }
-  - match: { analysis_limits.model_memory_limit: "3000gb" }
+  - match: { analysis_limits.model_memory_limit: "3072000mb" }
 
   # The assumption here is that a 3000GB job will not fit on the test
   # node - increase in future if the test ever fails because of this!

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.utils.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -36,29 +37,29 @@ public class Wildcard extends ScalarFunction {
     private final Expression field;
     private final List<Expression> patterns;
 
-    private static List<Expression> getArguments(Expression src, List<Expression> patterns) {
-        ArrayList<Expression> arguments = new ArrayList<>();
-        arguments.add(src);
-        arguments.addAll(patterns);
-        return arguments;
-    }
-
     public Wildcard(Source source, Expression field, List<Expression> patterns) {
-        super(source, getArguments(field, patterns));
+        super(source, toArguments(field, patterns));
         this.field = field;
         this.patterns = patterns;
     }
 
-    public Expression asLikes() {
-        Expression result = null;
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, Wildcard::new, field, patterns);
+    }
 
-        for (Expression pattern: patterns) {
-            String wcString = pattern.fold().toString();
-            Like like = new Like(source(), field, StringUtils.toLikePattern(wcString));
-            result = result == null ? like : new Or(source(), result, like);
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() < 2) {
+            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
         }
 
-        return result;
+        return new Wildcard(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataTypes.BOOLEAN;
     }
 
     @Override
@@ -89,32 +90,8 @@ public class Wildcard extends ScalarFunction {
     }
 
     @Override
-    protected Pipe makePipe() {
-        Expression asLikes = asLikes();
-        if (asLikes instanceof Like) {
-            return ((Like) asLikes).makePipe();
-        } else {
-            return ((Or) asLikes).makePipe();
-        }
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        Expression asLikes = asLikes();
-        if (asLikes instanceof Like) {
-            return ((Like) asLikes).asScript();
-        } else {
-            return ((Or) asLikes).asScript();
-        }
-    }
-
-    @Override
     public boolean foldable() {
-        boolean foldable = field.foldable();
-        for (Expression p : patterns) {
-            foldable = foldable && p.foldable();
-        }
-        return foldable;
+        return Expressions.foldable(arguments());
     }
 
     @Override
@@ -123,21 +100,31 @@ public class Wildcard extends ScalarFunction {
     }
 
     @Override
-    protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Wildcard::new, field, patterns);
+    protected Pipe makePipe() {
+        throw new EqlIllegalArgumentException("Wildcard.makePipe() should not be called directly");
     }
 
     @Override
-    public DataType dataType() {
-        return DataTypes.BOOLEAN;
+    public ScriptTemplate asScript() {
+        throw new EqlIllegalArgumentException("Wildcard.asScript() should not be called directly");
     }
 
-    @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
+    public Expression asLikes() {
+        Expression result = null;
+
+        for (Expression pattern: patterns) {
+            String wcString = pattern.fold().toString();
+            Like like = new Like(source(), field, StringUtils.toLikePattern(wcString));
+            result = result == null ? like : new Or(source(), result, like);
         }
 
-        return new Wildcard(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
+        return result;
+    }
+
+    private static List<Expression> toArguments(Expression src, List<Expression> patterns) {
+        ArrayList<Expression> arguments = new ArrayList<>();
+        arguments.add(src);
+        arguments.addAll(patterns);
+        return arguments;
     }
 }

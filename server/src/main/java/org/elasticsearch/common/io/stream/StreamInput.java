@@ -38,9 +38,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.joda.time.DateTime;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.ByteArrayInputStream;
@@ -768,9 +769,12 @@ public abstract class StreamInput extends InputStream {
         return list;
     }
 
-    private DateTime readDateTime() throws IOException {
-        final String timeZoneId = readString();
-        return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));
+    private JodaCompatibleZonedDateTime readDateTime() throws IOException {
+        // we reuse DateTime to communicate with older nodes that don't know about the joda compat layer, but
+        // here we are on a new node so we always want a compat datetime
+        final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(readString()));
+        long millis = readLong();
+        return new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), zoneId);
     }
 
     private ZonedDateTime readZonedDateTime() throws IOException {

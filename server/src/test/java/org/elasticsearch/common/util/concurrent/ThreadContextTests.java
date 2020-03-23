@@ -208,11 +208,11 @@ public class ThreadContextTests extends ESTestCase {
         }
 
         final String value = DeprecationLogger.formatWarning("qux");
-        threadContext.addResponseHeader("baz", value, DeprecationLogger::extractWarningValueFromWarningHeader);
+        threadContext.addResponseHeader("baz", value, s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, false));
         // pretend that another thread created the same response at a different time
         if (randomBoolean()) {
             final String duplicateValue = DeprecationLogger.formatWarning("qux");
-            threadContext.addResponseHeader("baz", duplicateValue, DeprecationLogger::extractWarningValueFromWarningHeader);
+            threadContext.addResponseHeader("baz", duplicateValue, s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, false));
         }
 
         threadContext.addResponseHeader("Warning", "One is the loneliest number");

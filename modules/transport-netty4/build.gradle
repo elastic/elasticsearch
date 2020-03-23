@@ -43,6 +43,12 @@ dependencies {
   compile "io.netty:netty-transport:${versions.netty}"
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
+}
+
 dependencyLicenses {
   mapping from: /netty-.*/, to: 'netty'
 }

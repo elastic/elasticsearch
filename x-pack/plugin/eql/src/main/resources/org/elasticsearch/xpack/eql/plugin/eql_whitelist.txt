@@ -1,0 +1,53 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License;
+# you may not use this file except in compliance with the Elastic License.
+#
+
+# This file contains a whitelist for EQL specific utilities and classes available inside EQL scripting
+
+#### Classes
+
+class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils {
+}
+
+class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils {
+#
+# Utilities
+# 
+  def docValue(java.util.Map, String)
+  boolean nullSafeFilter(Boolean)
+  double nullSafeSortNumeric(Number)
+  String nullSafeSortString(Object)
+
+#
+# Comparison
+#
+  Boolean eq(Object, Object)
+  Boolean nulleq(Object, Object)
+  Boolean neq(Object, Object)
+  Boolean lt(Object, Object)
+  Boolean lte(Object, Object)
+  Boolean gt(Object, Object)
+  Boolean gte(Object, Object)
+  Boolean in(Object, java.util.List)
+
+#
+# Logical
+#
+  Boolean and(Boolean, Boolean)
+  Boolean or(Boolean, Boolean)
+  Boolean not(Boolean)
+  Boolean isNull(Object)
+  Boolean isNotNull(Object)
+
+#
+# Regex
+#
+  Boolean regex(String, String)
+
+#
+# ASCII Functions
+# 
+  String  substring(String, Number, Number)
+}

@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -162,8 +163,8 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
 
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        InternalAggregation.ReduceContext context =
-            new InternalAggregation.ReduceContext(bigArrays, mockScriptService, true);
+        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                bigArrays, mockScriptService, b -> {}, PipelineTree.EMPTY);
         InternalMatrixStats reduced = (InternalMatrixStats) shardResults.get(0).reduce(shardResults, context);
         multiPassStats.assertNearlyEqual(reduced.getResults());
     }

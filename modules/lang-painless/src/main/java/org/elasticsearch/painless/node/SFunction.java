@@ -30,6 +30,8 @@ import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.node.AStatement.Input;
+import org.elasticsearch.painless.node.AStatement.Output;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.invoke.MethodType;
@@ -134,9 +136,10 @@ public final class SFunction extends ANode {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
         }
 
-        block.lastSource = true;
-        block.analyze(scriptRoot, functionScope.newLocalScope());
-        methodEscape = block.methodEscape;
+        Input blockInput = new Input();
+        blockInput.lastSource = true;
+        Output blockOutput = block.analyze(scriptRoot, functionScope.newLocalScope(), blockInput);
+        methodEscape = blockOutput.methodEscape;
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
             throw createError(new IllegalArgumentException("not all paths provide a return value " +

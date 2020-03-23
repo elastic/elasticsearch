@@ -276,7 +276,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            checkAndThrowWithSampling();
+            queryCancellation.checkCancelled();
             return in.compare(minPackedValue, maxPackedValue);
         }
 

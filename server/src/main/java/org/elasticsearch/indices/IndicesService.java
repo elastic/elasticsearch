@@ -585,13 +585,13 @@ public class IndicesService extends AbstractLifecycleComponent
                 @Override
                 public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
                     assert false : "temp index should not trigger shard creation";
-                    throw new ElasticsearchException("\"temp index should not trigger shard creation [{}]", index);
+                    throw new ElasticsearchException("temp index should not trigger shard creation [{}]", index);
                 }
 
                 @Override
                 public void onStoreCreated(ShardId shardId) {
                     assert false : "temp index should not trigger store creation";
-                    throw new ElasticsearchException("\"temp index should not trigger shard creation [{}]", index);
+                    throw new ElasticsearchException("temp index should not trigger shard creation [{}]", index);
                 }
             }
         );

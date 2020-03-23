@@ -126,7 +126,7 @@ public final class InferenceHelpers {
                 importances.add(FeatureImportance.forRegression(k, v[0]));
             } else {
                 Map<String, Double> classImportance = new LinkedHashMap<>(v.length, 1.0f);
-                // If the classificationLabels exist, the better be the same length as the leaf values
+                // If the classificationLabels exist, their length must match leaf_value length
                 assert classificationLabels == null || classificationLabels.size() == v.length;
                 for (int i = 0; i < v.length; i++) {
                     classImportance.put(classificationLabels == null ? String.valueOf(i) : classificationLabels.get(i), v[i]);

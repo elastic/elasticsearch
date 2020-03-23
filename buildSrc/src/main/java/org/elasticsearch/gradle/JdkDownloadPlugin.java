@@ -47,9 +47,9 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.gradle.Util.capitalize;
-import static org.elasticsearch.gradle.tool.Boilerplate.findByName;
-import static org.elasticsearch.gradle.tool.Boilerplate.maybeCreate;
+import static org.elasticsearch.gradle.util.GradleUtils.findByName;
+import static org.elasticsearch.gradle.util.GradleUtils.maybeCreate;
+import static org.elasticsearch.gradle.util.Util.capitalize;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
 

@@ -20,7 +20,7 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -146,6 +146,6 @@ public class CopyRestTestsTask extends DefaultTask {
     }
 
     private SourceSet getTestSourceSet() {
-        return Boilerplate.getJavaSourceSets(getProject()).findByName("test");
+        return GradleUtils.getJavaSourceSets(getProject()).findByName("test");
     }
 }

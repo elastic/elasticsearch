@@ -1,0 +1,66 @@
+//
+// QueryFolder test
+// Simple format of the following blocks, separated by two new lines
+// <name>
+// <eql query>
+// <expectation 1>
+// <expectation 2>
+// ...
+// <expectation n>
+
+
+basic
+process where true
+null
+
+
+singleNumericFilterEquals
+process where serial_event_id = 1
+"term":{"serial_event_id":{"value":1
+
+
+singleNumericFilterLess
+process where serial_event_id < 4
+"range":{"serial_event_id":{"from":null,"to":4,"include_lower":false,"include_upper":false
+
+
+singleNumericFilterLessEquals
+process where serial_event_id <= 4
+"range":{"serial_event_id":{"from":null,"to":4,"include_lower":false,"include_upper":true
+
+
+singleNumericFilterGreater
+process where serial_event_id > 4
+"range":{"serial_event_id":{"from":4,"to":null,"include_lower":false,"include_upper":false
+
+
+singleNumericFilterGreaterEquals
+process where serial_event_id >= 4
+"range":{"serial_event_id":{"from":4,"to":null,"include_lower":true,"include_upper":false
+
+
+mixedTypeFilter
+process where process_name == "notepad.exe" or (serial_event_id < 4.5 and serial_event_id >= 3.1)
+"term":{"process_name":{"value":"notepad.exe"
+"range":{"serial_event_id":{"from":3.1,"to":4.5,"include_lower":true,"include_upper":false
+
+
+notFilter
+process where not (exit_code > -1)
+"range":{"exit_code":{"from":null,"to":-1,"include_lower":false,"include_upper":true
+
+
+inFilter
+process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
+"term":{"process_name":{"value":"python.exe"
+"term":{"process_name":{"value":"SMSS.exe"
+"term":{"process_name":{"value":"explorer.exe"
+
+
+equalsAndInFilter
+process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+"term":{"opcode":{"value":0
+"term":{"opcode":{"value":1
+"term":{"opcode":{"value":2
+"term":{"opcode":{"value":3

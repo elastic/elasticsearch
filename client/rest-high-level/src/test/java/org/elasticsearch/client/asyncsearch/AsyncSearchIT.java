@@ -39,7 +39,6 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         submitRequest.setCleanOnCompletion(false);
         AsyncSearchResponse submitResponse = highLevelClient().asyncSearch().submitAsyncSearch(submitRequest, RequestOptions.DEFAULT);
         assertNotNull(submitResponse.getId());
-        assertTrue(submitResponse.getVersion() >= 0);
         assertFalse(submitResponse.isPartial());
         assertTrue(submitResponse.getStartTime() > 0);
         assertTrue(submitResponse.getExpirationTime() > 0);
@@ -56,7 +55,6 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
             getResponse = highLevelClient().asyncSearch().getAsyncSearch(getRequest, RequestOptions.DEFAULT);
         }
 
-        assertTrue(getResponse.getVersion() >= 0);
         assertFalse(getResponse.isRunning());
         assertFalse(getResponse.isPartial());
         assertTrue(getResponse.getStartTime() > 0);

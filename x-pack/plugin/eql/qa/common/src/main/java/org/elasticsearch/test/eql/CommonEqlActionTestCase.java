@@ -4,19 +4,25 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.action;
+package org.elasticsearch.test.eql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.Build;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.eql.EqlSearchRequest;
+import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -25,10 +31,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class EqlActionIT extends AbstractEqlIntegTestCase {
+public abstract class CommonEqlActionTestCase extends ESRestTestCase {
+
+    private RestHighLevelClient highLevelClient;
 
     static final String indexPrefix = "endgame";
     static final String testIndexName = indexPrefix + "-1.4.0";
@@ -39,12 +46,20 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
         assumeTrue("Only works on snapshot builds for now", Build.CURRENT.isSnapshot());
     }
 
-    @Before
+    private static boolean isSetUp = false;
+    private static int counter = 0;
+
     @SuppressWarnings("unchecked")
-    public void setUpData() throws Exception {
-        // Insert test data
-        BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, EqlActionIT.class.getResourceAsStream("/test_data.json"))) {
+    private static void setupData(CommonEqlActionTestCase tc) throws Exception {
+        if (isSetUp) {
+            return;
+        }
+
+        BulkRequest bulk = new BulkRequest();
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        try (XContentParser parser = tc.createParser(JsonXContent.jsonXContent,
+                CommonEqlActionTestCase.class.getResourceAsStream("/test_data.json"))) {
             List<Object> list = parser.list();
             for (Object item : list) {
                 assertThat(item, instanceOf(HashMap.class));
@@ -60,18 +75,40 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
                 // Add @timestamp field
                 entry.put("@timestamp", entry.get("timestamp"));
 
-                bulkBuilder.add(new IndexRequest(testIndexName).source(entry, XContentType.JSON));
+                bulk.add(new IndexRequest(testIndexName).source(entry, XContentType.JSON));
             }
         }
-        BulkResponse bulkResponse = bulkBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertThat(bulkResponse.hasFailures() ? bulkResponse.buildFailureMessage() : "", bulkResponse.hasFailures(), equalTo(false));
 
-        ensureYellow(testIndexName);
+        if (bulk.numberOfActions() > 0) {
+            BulkResponse bulkResponse = tc.highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+            assertEquals(RestStatus.OK, bulkResponse.status());
+            assertFalse(bulkResponse.hasFailures());
+            isSetUp = true;
+        }
+    }
+
+    private static void cleanupData(CommonEqlActionTestCase tc) throws Exception {
+        // Delete index after all tests ran
+        if (isSetUp && (--counter == 0)) {
+            deleteIndex(testIndexName);
+            isSetUp = false;
+        }
+    }
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        // Need to preserve data between parameterized tests runs
+        return true;
+    }
+
+    @Before
+    public void setup() throws Exception {
+        setupData(this);
     }
 
     @After
-    public void tearDownData() {
-        client().admin().indices().prepareDelete(testIndexName).get();
+    public void cleanup() throws Exception {
+        cleanupData(this);
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
@@ -83,7 +120,6 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
         List<EqlSpec> unsupportedSpecs = EqlSpecLoader.load("/test_queries_unsupported.toml", false);
 
         // Validate only currently supported specs
-        int num = 1; // Seq number of the test
         for (EqlSpec spec : specs) {
             boolean supported = true;
             // Check if spec is supported, simple iteration, cause the list is short.
@@ -95,18 +131,34 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
             }
 
             if (supported) {
-                testSpecs.add(new Object[]{num++, spec});
+                String name = spec.description();
+                if (Strings.isNullOrEmpty(name)) {
+                    name = spec.note();
+                }
+                if (Strings.isNullOrEmpty(name)) {
+                    name = spec.query();
+                }
+
+                testSpecs.add(new Object[]{++counter, name, spec});
             }
         }
         return testSpecs;
     }
 
     private final int num;
+    private final String name;
     private final EqlSpec spec;
 
-    public EqlActionIT(int num, EqlSpec spec) {
+    public CommonEqlActionTestCase(int num, String name, EqlSpec spec) {
         this.num = num;
+        this.name = name;
         this.spec = spec;
+    }
+
+    public void test() throws Exception {
+        EqlSearchRequest request = new EqlSearchRequest(testIndexName, spec.query());
+        EqlSearchResponse response = highLevelClient().eql().search(request, RequestOptions.DEFAULT);
+        assertSpec(response.hits().events());
     }
 
     private static long[] extractIds(List<SearchHit> events) {
@@ -123,10 +175,15 @@ public class EqlActionIT extends AbstractEqlIntegTestCase {
         assertArrayEquals("unexpected result for spec: [" + spec.toString() + "]", spec.expectedEventIds(), extractIds(events));
     }
 
-    public final void test() {
-        EqlSearchResponse response = new EqlSearchRequestBuilder(client(), EqlSearchAction.INSTANCE)
-                .indices(testIndexName).query(spec.query()).get();
-
-        assertSpec(response.hits().events());
+    private RestHighLevelClient highLevelClient() {
+        if (highLevelClient == null) {
+            highLevelClient = new RestHighLevelClient(
+                    client(),
+                    ignore -> {
+                    },
+                    List.of()) {
+            };
+        }
+        return highLevelClient;
     }
 }

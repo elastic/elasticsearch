@@ -78,6 +78,13 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  */
 public class GatewayMetaState implements Closeable {
 
+    /**
+     * Fake node ID for a voting configuration written by a master-ineligible data node to indicate that its on-disk state is potentially
+     * stale (since it is written asynchronously after application, rather than before acceptance). This node ID means that if the node is
+     * restarted as a master-eligible node then it does not win any elections until it has received a fresh cluster state.
+     */
+    public static final String STALE_STATE_CONFIG_NODE_ID = "STALE_STATE_CONFIG";
+
     // Set by calling start()
     private final SetOnce<PersistedState> persistedState = new SetOnce<>();
 
@@ -360,7 +367,7 @@ public class GatewayMetaState implements Closeable {
         }
 
         static final CoordinationMetaData.VotingConfiguration staleStateConfiguration =
-            new CoordinationMetaData.VotingConfiguration(Collections.singleton("STALE_STATE_CONFIG"));
+            new CoordinationMetaData.VotingConfiguration(Collections.singleton(STALE_STATE_CONFIG_NODE_ID));
 
         static ClusterState resetVotingConfiguration(ClusterState clusterState) {
             CoordinationMetaData newCoordinationMetaData = CoordinationMetaData.builder(clusterState.coordinationMetaData())

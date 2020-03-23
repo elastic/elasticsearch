@@ -421,4 +421,26 @@ public class FunctionRegistry {
     protected interface CastFunctionBuilder<T> {
         T build(Source source, Expression expression, DataType dataType);
     }
+
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
+                                                              TwoParametersVariadicBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
+            if (hasMinimumOne && children.size() < 1) {
+                throw new QlIllegalArgumentException("expects at least one argument");
+            } else if (!hasMinimumOne && children.size() < 2) {
+                throw new QlIllegalArgumentException("expects at least two arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.subList(1, children.size()));
+        };
+        return def(function, builder, false, names);
+    }
+
+    protected interface TwoParametersVariadicBuilder<T> {
+        T build(Source source, Expression src, List<Expression> remaining);
+    }
 }

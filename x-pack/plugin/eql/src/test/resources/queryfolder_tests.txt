@@ -64,3 +64,22 @@ process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
 "term":{"opcode":{"value":1
 "term":{"opcode":{"value":2
 "term":{"opcode":{"value":3
+
+
+wildcardFunctionSingleArgument
+process where wildcard(process_path, "*\\red_ttp\\wininit.*")
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+
+
+wildcardFunctionTwoArguments
+process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*")
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
+
+
+wildcardFunctionThreeArguments
+process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def*")
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
+"wildcard":{"process_path":{"wildcard":"*def*"
+

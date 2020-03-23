@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -37,7 +37,8 @@ public class Wildcard extends ScalarFunction {
     private final List<Expression> patterns;
 
     private static List<Expression> getArguments(Expression src, List<Expression> patterns) {
-        List<Expression> arguments = new java.util.ArrayList<>(Collections.singletonList(src));
+        ArrayList<Expression> arguments = new ArrayList<>();
+        arguments.add(src);
         arguments.addAll(patterns);
         return arguments;
     }

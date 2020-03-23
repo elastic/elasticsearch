@@ -94,6 +94,13 @@ public final class ExpressionTranslators {
         throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);
     }
 
+    public static Object valueOf(Expression e) {
+        if (e.foldable()) {
+            return e.fold();
+        }
+        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
+    }
+
     // TODO: see whether escaping is needed
     @SuppressWarnings("rawtypes")
     public static class Likes extends ExpressionTranslator<RegexMatch> {
@@ -342,7 +349,7 @@ public final class ExpressionTranslators {
                 Set<Object> set = new LinkedHashSet<>(CollectionUtils.mapSize(list.size()));
 
                 for (Expression e : list) {
-                    set.add(valueOf(e));
+                    set.add(handler.convert(valueOf(e), dt));
                 }
 
                 q = new TermsQuery(in.source(), fa.exactAttribute().name(), set);
@@ -363,13 +370,6 @@ public final class ExpressionTranslators {
         public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
             return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
         }
-    }
-
-    public static Object valueOf(Expression e) {
-        if (e.foldable()) {
-            return e.fold();
-        }
-        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }
 
     public static Query or(Source source, Query left, Query right) {

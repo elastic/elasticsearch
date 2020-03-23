@@ -153,20 +153,13 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      */
     public NodesStatsRequest addMetrics(String... metrics) {
         // use sorted set for reliable ordering in error messages
-        SortedSet<String> illegalMetrics = new TreeSet<>();
-        Set<String> validMetrics = new HashSet<>();
-        for (String metric : metrics) {
-            if (Metric.allMetrics().contains(metric)) {
-                validMetrics.add(metric);
-            } else {
-                illegalMetrics.add(metric);
-            }
+        SortedSet<String> metricsSet = new TreeSet<>(Set.of(metrics));
+        if (Metric.allMetrics().containsAll(metricsSet) == false) {
+            metricsSet.removeAll(Metric.allMetrics());
+            String plural = metricsSet.size() == 1 ? "" : "s";
+            throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
         }
-        if (illegalMetrics.isEmpty() == false) {
-            String plural = illegalMetrics.size() == 1 ? "" : "s";
-            throw new IllegalStateException("Used illegal metric" + plural + ": " + illegalMetrics);
-        }
-        requestedMetrics.addAll(validMetrics);
+        requestedMetrics.addAll(metricsSet);
         return this;
     }
 

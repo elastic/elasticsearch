@@ -289,7 +289,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         listener.onFailure(predicate.exception);
                     }
                 } else {
-                    listener.onResponse(new AcknowledgedResponse(predicate.opened));
+                    listener.onResponse(new AcknowledgedResponse(true));
                 }
             }
 
@@ -539,7 +539,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
      */
     private static class JobPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
-        private volatile boolean opened;
         private volatile Exception exception;
         private volatile boolean shouldCancel;
 
@@ -554,7 +553,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                 // This means we are awaiting a new node to be spun up, ok to return back to the user to await node creation
                 if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
-                    opened = true;
                     return true;
                 }
 
@@ -587,7 +585,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 case CLOSED:
                     return false;
                 case OPENED:
-                    opened = true;
                     return true;
                 case CLOSING:
                     exception = ExceptionsHelper.conflictStatusException("The job has been " + JobState.CLOSED + " while waiting to be "

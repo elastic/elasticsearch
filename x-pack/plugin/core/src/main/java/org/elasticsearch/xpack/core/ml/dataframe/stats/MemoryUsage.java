@@ -26,9 +26,6 @@ public class MemoryUsage implements Writeable, ToXContentObject {
 
     public static final String TYPE_VALUE = "analytics_memory_usage";
 
-    public static final ParseField TYPE = new ParseField("type");
-    public static final ParseField JOB_ID = new ParseField("job_id");
-    public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField PEAK_USAGE_BYTES = new ParseField("peak_usage_bytes");
 
     public static final ConstructingObjectParser<MemoryUsage, Void> STRICT_PARSER = createParser(false);
@@ -38,11 +35,11 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         ConstructingObjectParser<MemoryUsage, Void> parser = new ConstructingObjectParser<>(TYPE_VALUE,
             ignoreUnknownFields, a -> new MemoryUsage((String) a[0], (Instant) a[1], (long) a[2]));
 
-        parser.declareString((bucket, s) -> {}, TYPE);
-        parser.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
+        parser.declareString((bucket, s) -> {}, Fields.TYPE);
+        parser.declareString(ConstructingObjectParser.constructorArg(), Fields.JOB_ID);
         parser.declareField(ConstructingObjectParser.constructorArg(),
-            p -> TimeUtils.parseTimeFieldToInstant(p, TIMESTAMP.getPreferredName()),
-            TIMESTAMP,
+            p -> TimeUtils.parseTimeFieldToInstant(p, Fields.TIMESTAMP.getPreferredName()),
+            Fields.TIMESTAMP,
             ObjectParser.ValueType.VALUE);
         parser.declareLong(ConstructingObjectParser.constructorArg(), PEAK_USAGE_BYTES);
         return parser;
@@ -56,7 +53,7 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         this.jobId = Objects.requireNonNull(jobId);
         // We intend to store this timestamp in millis granularity. Thus we're rounding here to ensure
         // internal representation matches toXContent
-        this.timestamp = Instant.ofEpochMilli(ExceptionsHelper.requireNonNull(timestamp, TIMESTAMP).toEpochMilli());
+        this.timestamp = Instant.ofEpochMilli(ExceptionsHelper.requireNonNull(timestamp, Fields.TIMESTAMP).toEpochMilli());
         this.peakUsageBytes = peakUsageBytes;
     }
 
@@ -77,10 +74,10 @@ public class MemoryUsage implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(TYPE.getPreferredName(), TYPE_VALUE);
-            builder.field(JOB_ID.getPreferredName(), jobId);
+            builder.field(Fields.TYPE.getPreferredName(), TYPE_VALUE);
+            builder.field(Fields.JOB_ID.getPreferredName(), jobId);
         }
-        builder.timeField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.toEpochMilli());
+        builder.timeField(Fields.TIMESTAMP.getPreferredName(), Fields.TIMESTAMP.getPreferredName() + "_string", timestamp.toEpochMilli());
         builder.field(PEAK_USAGE_BYTES.getPreferredName(), peakUsageBytes);
         builder.endObject();
         return builder;

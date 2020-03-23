@@ -179,8 +179,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         preference = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+            bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
         } else {
             canReturnNullResponseIfMatchNoDocs = false;
+            bottomSortValues = null;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
@@ -223,6 +225,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
+            out.writeOptionalWriteable(bottomSortValues);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalWriteable(bottomSortValues);

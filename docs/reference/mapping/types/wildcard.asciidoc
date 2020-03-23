@@ -8,6 +8,7 @@
 
 A `wildcard` field stores values optimised for wildcard grep-like queries.
 Wildcard queries are possible on other field types but suffer from constraints:
+
 * `text` fields limit matching of any wildcard expressions to individual tokens rather than the original whole value held in a field
 * `keyword` fields are untokenized but slow at performing wildcard queries (especially patterns with leading wildcards).
 

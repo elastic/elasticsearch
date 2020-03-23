@@ -124,9 +124,9 @@ public class VerifierTests extends ESTestCase {
     // Some functions fail with "Unknown" message at the parse stage
     public void testFunctionParsingUnknown() {
         assertEquals("1:15: Unknown function [matchLite]",
-                errorParsing("process where matchLite(?'.*?net1\\s+localgroup\\s+.*?', command_line)"));
+                error("process where matchLite(?'.*?net1\\s+localgroup\\s+.*?', command_line)"));
         assertEquals("1:15: Unknown function [safe]",
-                errorParsing("network where safe(divide(process_name, process_name))"));
+                error("network where safe(process_name)"));
     }
 
     // Test the known EQL functions that are not supported

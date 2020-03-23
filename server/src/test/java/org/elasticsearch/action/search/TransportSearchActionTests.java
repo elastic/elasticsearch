@@ -19,6 +19,28 @@
 
 package org.elasticsearch.action.search;
 
+import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.startsWith;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
@@ -78,28 +100,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-
-import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.startsWith;
 
 public class TransportSearchActionTests extends ESTestCase {
 
@@ -539,13 +539,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
-<<<<<<< HEAD
                 TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, 
                         emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
-=======
-                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
-                        aggReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
->>>>>>> master
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
@@ -848,8 +843,6 @@ public class TransportSearchActionTests extends ESTestCase {
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
         }
     }
-<<<<<<< HEAD
-=======
 
     public void testShouldPreFilterSearchShards() {
         int numIndices = randomIntBetween(1, 10);
@@ -944,19 +937,4 @@ public class TransportSearchActionTests extends ESTestCase {
                 indices, randomIntBetween(127, 10000)));
         }
     }
-
-    private InternalAggregation.ReduceContextBuilder aggReduceContextBuilder() {
-        return new InternalAggregation.ReduceContextBuilder() {
-            @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(null, null);
-            };
-
-            @Override
-            public InternalAggregation.ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(null, null, b -> {}, new PipelineTree(emptyMap(), emptyList()));
-            }
-        };
-    }
->>>>>>> master
 }

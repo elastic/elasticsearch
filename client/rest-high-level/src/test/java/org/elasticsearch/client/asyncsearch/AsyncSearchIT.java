@@ -40,7 +40,6 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         // 15 sec should be enough to make sure we always complete right away
         request.setWaitForCompletion(new TimeValue(15, TimeUnit.SECONDS));
         AsyncSearchResponse response = highLevelClient().asyncSearch().submitAsyncSearch(request, RequestOptions.DEFAULT);
-        assertTrue(response.getVersion() >= 0);
         assertFalse(response.isPartial());
         assertTrue(response.getStartTime() > 0);
         assertTrue(response.getExpirationTime() > 0);

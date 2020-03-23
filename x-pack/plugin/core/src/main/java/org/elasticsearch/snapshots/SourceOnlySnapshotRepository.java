@@ -138,9 +138,10 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
         final List<Closeable> toClose = new ArrayList<>(3);
         try {
-            FSDirectory directory = new SimpleFSDirectory(snapPath);
-            toClose.add(directory);
-            Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
+            SourceOnlySnapshot.LinkedFilesDirectory overlayDir = new SourceOnlySnapshot.LinkedFilesDirectory(
+                new SimpleFSDirectory(snapPath));
+            toClose.add(overlayDir);
+            Store tempStore = new Store(store.shardId(), store.indexSettings(), overlayDir, new ShardLock(store.shardId()) {
                 @Override
                 protected void closeInternal() {
                     // do nothing;
@@ -148,7 +149,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             }, Store.OnClose.EMPTY);
             Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
-            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier);
+            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(overlayDir, querySupplier);
             snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();

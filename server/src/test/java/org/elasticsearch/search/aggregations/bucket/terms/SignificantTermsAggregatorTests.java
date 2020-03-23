@@ -39,6 +39,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -52,6 +53,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory.ExecutionMode;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -83,24 +86,24 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         return new SignificantTermsAggregationBuilder("foo").field(fieldName);
     }
 
-    /* NOTE - commented out instead of deleted, we need to backport https://github.com/elastic/elasticsearch/pull/52851 to support this.
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return Arrays.asList(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BYTES);
+            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.IP);
     }
 
     @Override
     protected List<String> unsupportedMappedFieldTypes() {
-        return List.of(
+        return Arrays.asList(
             NumberFieldMapper.NumberType.DOUBLE.typeName(), // floating points are not supported at all
             NumberFieldMapper.NumberType.FLOAT.typeName(),
             NumberFieldMapper.NumberType.HALF_FLOAT.typeName(),
             BinaryFieldMapper.CONTENT_TYPE // binary fields are not supported because they cannot be searched
         );
     }
-
-     */
 
     /**
      * For each provided field type, we also register an alias with name {@code <field>-alias}.

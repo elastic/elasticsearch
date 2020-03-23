@@ -439,7 +439,16 @@ public class Setting<T> implements ToXContentObject {
                     map = new HashMap<>();
                     while (it.hasNext()) {
                         final Setting<?> setting = it.next();
-                        map.put(setting, setting.get(settings, false)); // we have to disable validation or we will stack overflow
+                        if (setting instanceof AffixSetting) {
+                            // Collect all possible concrete settings
+                            AffixSetting<?> as = ((AffixSetting<?>)setting);
+                            for (String ns : as.getNamespaces(settings)) {
+                                Setting<?> s = as.getConcreteSettingForNamespace(ns);
+                                map.put(s, s.get(settings, false));
+                            }
+                        } else {
+                            map.put(setting, setting.get(settings, false)); // we have to disable validation or we will stack overflow
+                        }
                     }
                 } else {
                     map = Collections.emptyMap();
@@ -659,7 +668,12 @@ public class Setting<T> implements ToXContentObject {
 
     static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(Consumer<Settings> consumer,
                                                                                   final List<? extends Setting<?>> configuredSettings) {
+        return groupedSettingsUpdater(consumer, configuredSettings, (v) -> {});
+    }
 
+    static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(Consumer<Settings> consumer,
+                                                                                  final List<? extends Setting<?>> configuredSettings,
+                                                                                  Consumer<Settings> validator) {
         return new AbstractScopedSettings.SettingUpdater<Settings>() {
 
             private Settings get(Settings settings) {
@@ -682,6 +696,7 @@ public class Setting<T> implements ToXContentObject {
 
             @Override
             public Settings getValue(Settings current, Settings previous) {
+                validator.accept(current);
                 return get(current);
             }
 

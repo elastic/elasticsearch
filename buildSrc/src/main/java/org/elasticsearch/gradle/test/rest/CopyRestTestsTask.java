@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
  * @see RestResourcesPlugin
  */
 public class CopyRestTestsTask extends DefaultTask {
-    private static final String COPY_TO = "rest-api-spec/test";
+    private static final String REST_TEST_PREFIX = "rest-api-spec/test";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
@@ -81,21 +81,29 @@ public class CopyRestTestsTask extends DefaultTask {
     @SkipWhenEmpty
     @InputFiles
     public FileTree getInputDir() {
-        xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-        ConfigurableFileCollection fileCollection = getProject().files(xpackConfig.getAsFileTree().matching(xpackPatternSet));
-        if (BuildParams.isInternal()) {
-            corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-            fileCollection.plus(coreConfig.getAsFileTree().matching(corePatternSet));
-        } else {
-            fileCollection.plus(coreConfig);
+        FileTree coreFileTree = null;
+        FileTree xpackFileTree = null;
+        if (includeXpack.get().isEmpty() == false) {
+            xpackPatternSet.setIncludes(includeXpack.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
+            xpackFileTree = xpackConfig.getAsFileTree().matching(xpackPatternSet);
         }
+        if (includeCore.get().isEmpty() == false) {
+            if (BuildParams.isInternal()) {
+                corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
+                coreFileTree = coreConfig.getAsFileTree().matching(corePatternSet); // directory on disk
+            } else {
+                coreFileTree = coreConfig.getAsFileTree(); // jar file
+            }
+        }
+        ConfigurableFileCollection fileCollection = getProject().files(coreFileTree, xpackFileTree);
+
         // copy tests only if explicitly requested
         return includeCore.get().isEmpty() == false || includeXpack.get().isEmpty() == false ? fileCollection.getAsFileTree() : null;
     }
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(getTestSourceSet().getOutput().getResourcesDir(), COPY_TO);
+        return new File(getTestSourceSet().getOutput().getResourcesDir(), REST_TEST_PREFIX);
     }
 
     @TaskAction
@@ -106,7 +114,7 @@ public class CopyRestTestsTask extends DefaultTask {
             if (BuildParams.isInternal()) {
                 getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", project.getPath());
                 project.copy(c -> {
-                    c.from(coreConfig.getSingleFile());
+                    c.from(coreConfig.getAsFileTree());
                     c.into(getOutputDir());
                     c.include(corePatternSet.getIncludes());
                 });
@@ -120,7 +128,9 @@ public class CopyRestTestsTask extends DefaultTask {
                 project.copy(c -> {
                     c.from(project.zipTree(coreConfig.getSingleFile()));
                     c.into(getTestSourceSet().getOutput().getResourcesDir()); // this ends up as the same dir as outputDir
-                    c.include(includeCore.get().stream().map(prefix -> COPY_TO + "/" + prefix + "*/**").collect(Collectors.toList()));
+                    c.include(
+                        includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
+                    );
                 });
             }
         }
@@ -128,7 +138,7 @@ public class CopyRestTestsTask extends DefaultTask {
         if (includeXpack.get().isEmpty() == false) {
             getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
-                c.from(xpackConfig.getSingleFile());
+                c.from(xpackConfig.getAsFileTree());
                 c.into(getOutputDir());
                 c.include(xpackPatternSet.getIncludes());
             });

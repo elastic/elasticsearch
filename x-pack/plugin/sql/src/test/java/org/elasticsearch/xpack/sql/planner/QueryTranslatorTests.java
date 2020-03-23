@@ -547,6 +547,23 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("keyword", rqsq.field());
     }
 
+    public void testLikeRLikeAsPainlessScripts() {
+        LogicalPlan p = plan("SELECT count(*), CASE WHEN keyword LIKE '%foo%' THEN 1 WHEN keyword RLIKE '.*bar.*' THEN 2 " +
+                             "ELSE 3 END AS t FROM test GROUP BY t");
+        assertTrue(p instanceof Aggregate);
+        Expression condition = ((Aggregate) p).groupings().get(0);
+        assertFalse(condition.foldable());
+        GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.regex(InternalSqlScriptUtils.docValue(" +
+                     "doc,params.v0),params.v1),params.v2,InternalSqlScriptUtils.regex(InternalSqlScriptUtils.docValue(" +
+                     "doc,params.v3),params.v4),params.v5,params.v6])",
+                scriptTemplate.toString());
+        assertEquals("[{v=keyword}, {v=^.*foo.*$}, {v=1}, {v=keyword}, {v=.*bar.*}, {v=2}, {v=3}]",
+                scriptTemplate.params().toString());
+    }
+
     public void testTranslateNotExpression_WhereClause_Painless() {
         LogicalPlan p = plan("SELECT * FROM test WHERE NOT(POSITION('x', keyword) = 0)");
         assertTrue(p instanceof Project);
@@ -645,6 +662,33 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNotNull(params.a0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
+    }
+
+    public void testTranslateCoalesceExpression_WhereGroupByAndHaving_Painless() {
+        PhysicalPlan p = optimizeAndPlan("SELECT COALESCE(null, int) AS c, COALESCE(max(date), NULL) as m FROM test " +
+                                         "WHERE c > 10 GROUP BY c HAVING m > '2020-01-01'::date");
+        assertTrue(p instanceof EsQueryExec);
+        EsQueryExec esQExec = (EsQueryExec) p;
+        assertEquals(2, esQExec.output().size());
+        AggregationBuilder aggBuilder = esQExec.queryContainer().aggs().asAggBuilder();
+        assertEquals(1, aggBuilder.getSubAggregations().size());
+        assertEquals(1, aggBuilder.getPipelineAggregations().size());
+        String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
+        String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
+        assertThat(aggBuilder.toString(), containsString("{\"terms\":{\"script\":{\"source\":\"" +
+                "InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)])\",\"lang\":\"painless\"" +
+                ",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}," +
+                "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":" +
+                "{\"bucket_selector\":{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"" +
+                "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.coalesce(" +
+                "[params.a0]),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\",\"params\":" +
+                "{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
+        assertTrue(esQExec.queryContainer().query() instanceof ScriptQuery);
+        ScriptQuery sq = (ScriptQuery) esQExec.queryContainer().query();
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(" +
+                "InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)]),params.v1))",
+                sq.script().toString());
+        assertEquals("[{v=int}, {v=10}]", sq.script().params().toString());
     }
 
     public void testTranslateInExpression_WhereClause() {

@@ -111,6 +111,8 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
@@ -326,6 +328,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(InvalidateTokenAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(CreateTokenAction.NAME, request, authentication), is(true));
 
+        // API keys
+        assertThat(kibanaRole.cluster().check(InvalidateApiKeyAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(GrantApiKeyAction.NAME, request, authentication), is(true));
+
         // Application Privileges
         DeletePrivilegesRequest deleteKibanaPrivileges = new DeletePrivilegesRequest("kibana-.kibana", new String[]{ "all", "read" });
         DeletePrivilegesRequest deleteLogstashPrivileges = new DeletePrivilegesRequest("logstash", new String[]{ "all", "read" });
@@ -362,7 +368,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".kibana",
             ".kibana-devnull",
             ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ".apm-agent-configuration"
+            ".apm-agent-configuration",
+            ".apm-custom-link"
         ).forEach((index) -> {
             logger.info("index name [{}]", index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));

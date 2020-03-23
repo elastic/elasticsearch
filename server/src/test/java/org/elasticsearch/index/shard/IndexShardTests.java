@@ -4104,4 +4104,22 @@ public class IndexShardTests extends IndexShardTestCase {
         recoveryThread.join();
         shard.store().close();
     }
+
+    public void testRecordsForceMerges() throws IOException {
+        IndexShard shard = newStartedShard(true);
+        final String initialForceMergeUUID = ((InternalEngine) shard.getEngine()).getForceMergeUUID();
+        assertThat(initialForceMergeUUID, nullValue());
+        final ForceMergeRequest firstForceMergeRequest = new ForceMergeRequest().maxNumSegments(1);
+        shard.forceMerge(firstForceMergeRequest);
+        final String secondForceMergeUUID = ((InternalEngine) shard.getEngine()).getForceMergeUUID();
+        assertThat(secondForceMergeUUID, notNullValue());
+        assertThat(secondForceMergeUUID, equalTo(firstForceMergeRequest.forceMergeUUID()));
+        final ForceMergeRequest secondForceMergeRequest = new ForceMergeRequest().maxNumSegments(1);
+        shard.forceMerge(secondForceMergeRequest);
+        final String thirdForceMergeUUID = ((InternalEngine) shard.getEngine()).getForceMergeUUID();
+        assertThat(thirdForceMergeUUID, notNullValue());
+        assertThat(thirdForceMergeUUID, not(equalTo(secondForceMergeUUID)));
+        assertThat(thirdForceMergeUUID, equalTo(secondForceMergeRequest.forceMergeUUID()));
+        closeShards(shard);
+    }
 }

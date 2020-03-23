@@ -36,6 +36,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
@@ -65,11 +66,16 @@ public class UnifiedHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
+        Integer keywordIgnoreAbove = null;
+        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+            KeywordFieldMapper mapper = (KeywordFieldMapper) context.getMapperService().documentMapper()
+                .mappers().getMapper(highlighterContext.fieldName);
+            keywordIgnoreAbove = mapper.ignoreAbove();
+        }
 
         List<Snippet> snippets = new ArrayList<>();
         int numberOfFragments = field.fieldOptions().numberOfFragments();
         try {
-
             final Analyzer analyzer = getAnalyzer(context.getMapperService().documentMapper(), hitContext);
             List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext,
                 highlighterContext.highlight.forceSource(field));
@@ -81,7 +87,11 @@ public class UnifiedHighlighter implements Highlighter {
             final CustomUnifiedHighlighter highlighter;
             final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
             final OffsetSource offsetSource = getOffsetSource(fieldType);
-            if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValue.length() > maxAnalyzedOffset)) {
+            int fieldValueLength = fieldValue.length();
+            if (keywordIgnoreAbove != null  && fieldValueLength > keywordIgnoreAbove) {
+                return null; // skip highlighting keyword terms that were ignored during indexing
+            }
+            if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
                     "The length of [" + highlighterContext.fieldName + "] field of [" + hitContext.hit().getId() +
                         "] doc of [" + context.index().getName() + "] index " + "has exceeded [" +

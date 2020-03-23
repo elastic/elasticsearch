@@ -46,7 +46,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -519,37 +518,57 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportResponseHandler<T> handler) {
+        final Transport.Connection connection;
         try {
-            Transport.Connection connection = getConnection(node);
-            sendRequest(connection, action, request, TransportRequestOptions.EMPTY, handler);
-        } catch (NodeNotConnectedException ex) {
+            connection = getConnection(node);
+        } catch (final NodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
             handler.handleException(ex);
+            return;
         }
+        sendRequest(connection, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
     public final <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
+        final Transport.Connection connection;
         try {
-            Transport.Connection connection = getConnection(node);
-            sendRequest(connection, action, request, options, handler);
-        } catch (NodeNotConnectedException ex) {
+            connection = getConnection(node);
+        } catch (final NodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
             handler.handleException(ex);
+            return;
         }
+        sendRequest(connection, action, request, options, handler);
     }
 
+    /**
+     * Sends a request on the specified connection. If there is a failure sending the request, the specified handler is invoked.
+     *
+     * @param connection the connection to send the request on
+     * @param action     the name of the action
+     * @param request    the request
+     * @param options    the options for this request
+     * @param handler    the response handler
+     * @param <T>        the type of the transport response
+     */
     public final <T extends TransportResponse> void sendRequest(final Transport.Connection connection, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
         try {
             asyncSender.sendRequest(connection, action, request, options, handler);
-        } catch (NodeNotConnectedException ex) {
+        } catch (final Exception ex) {
             // the caller might not handle this so we invoke the handler
-            handler.handleException(ex);
+            final TransportException te;
+            if (ex instanceof TransportException) {
+                te = (TransportException) ex;
+            } else {
+                te = new TransportException("failure to send", ex);
+            }
+            handler.handleException(te);
         }
     }
 
@@ -569,13 +588,15 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                                                      final TransportRequest request, final Task parentTask,
                                                                      final TransportRequestOptions options,
                                                                      final TransportResponseHandler<T> handler) {
+        final Transport.Connection connection;
         try {
-            Transport.Connection connection = getConnection(node);
-            sendChildRequest(connection, action, request, parentTask, options, handler);
-        } catch (NodeNotConnectedException ex) {
+            connection = getConnection(node);
+        } catch (final NodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
             handler.handleException(ex);
+            return;
         }
+        sendChildRequest(connection, action, request, parentTask, options, handler);
     }
 
     public <T extends TransportResponse> void sendChildRequest(final Transport.Connection connection, final String action,
@@ -589,16 +610,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                                                final TransportRequestOptions options,
                                                                final TransportResponseHandler<T> handler) {
         request.setParentTask(localNode.getId(), parentTask.getId());
-        try {
-            sendRequest(connection, action, request, options, handler);
-        } catch (TaskCancelledException ex) {
-            // The parent task is already cancelled - just fail the request
-            handler.handleException(new TransportException(ex));
-        } catch (NodeNotConnectedException ex) {
-            // the caller might not handle this so we invoke the handler
-            handler.handleException(ex);
-        }
-
+        sendRequest(connection, action, request, options, handler);
     }
 
     private <T extends TransportResponse> void sendRequestInternal(final Transport.Connection connection, final String action,

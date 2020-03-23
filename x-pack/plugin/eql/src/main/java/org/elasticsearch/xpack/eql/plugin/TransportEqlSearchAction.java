@@ -56,19 +56,19 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                                  String clusterName, ActionListener<EqlSearchResponse> listener) {
         // TODO: these should be sent by the client
         ZoneId zoneId = DateUtils.of("Z");
-        QueryBuilder filter = request.query();
+        QueryBuilder filter = request.filter();
         TimeValue timeout = TimeValue.timeValueSeconds(30);
         boolean includeFrozen = request.indicesOptions().ignoreThrottled() == false;
         String clientId = null;
 
         ParserParams params = new ParserParams()
-            .fieldEventType(request.eventTypeField())
+            .fieldEventCategory(request.eventCategoryField())
             .fieldTimestamp(request.timestampField())
             .implicitJoinKey(request.implicitJoinKeyField());
 
         Configuration cfg = new Configuration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
                 includeFrozen, clientId);
-        planExecutor.eql(cfg, request.rule(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
+        planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r)), listener::onFailure));
     }
 
     static EqlSearchResponse createResponse(Results results) {

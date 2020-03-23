@@ -43,30 +43,28 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
 
-        if (actual == null) {
+        output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
+
+        if (output.actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
         }
 
-        child.expected = actual;
-        child.explicit = true;
-        child.analyze(scriptRoot, scope);
-        child = child.cast(scriptRoot, scope);
+        Input childInput = new Input();
+        childInput.expected = output.actual;
+        childInput.explicit = true;
+        child.analyze(scriptRoot, scope, childInput);
+        child.cast();
+
+        return output;
     }
 
     @Override
     ExpressionNode write(ClassNode classNode) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    AExpression cast(ScriptRoot scriptRoot, Scope scope) {
-        child.expected = expected;
-        child.explicit = explicit;
-        child.internal = internal;
-
-        return child.cast(scriptRoot, scope);
+        return child.cast(child.write(classNode));
     }
 
     @Override

@@ -20,12 +20,15 @@
 package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.client.ml.NodeAttributes;
+import org.elasticsearch.client.ml.dataframe.stats.AnalysisStats;
+import org.elasticsearch.client.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,6 +47,8 @@ public class DataFrameAnalyticsStats {
     static final ParseField STATE = new ParseField("state");
     static final ParseField FAILURE_REASON = new ParseField("failure_reason");
     static final ParseField PROGRESS = new ParseField("progress");
+    static final ParseField MEMORY_USAGE = new ParseField("memory_usage");
+    static final ParseField ANALYSIS_STATS = new ParseField("analysis_stats");
     static final ParseField NODE = new ParseField("node");
     static final ParseField ASSIGNMENT_EXPLANATION = new ParseField("assignment_explanation");
 
@@ -55,8 +60,10 @@ public class DataFrameAnalyticsStats {
                 (DataFrameAnalyticsState) args[1],
                 (String) args[2],
                 (List<PhaseProgress>) args[3],
-                (NodeAttributes) args[4],
-                (String) args[5]));
+                (MemoryUsage) args[4],
+                (AnalysisStats) args[5],
+                (NodeAttributes) args[6],
+                (String) args[7]));
 
     static {
         PARSER.declareString(constructorArg(), ID);
@@ -68,24 +75,39 @@ public class DataFrameAnalyticsStats {
         }, STATE, ObjectParser.ValueType.STRING);
         PARSER.declareString(optionalConstructorArg(), FAILURE_REASON);
         PARSER.declareObjectArray(optionalConstructorArg(), PhaseProgress.PARSER, PROGRESS);
+        PARSER.declareObject(optionalConstructorArg(), MemoryUsage.PARSER, MEMORY_USAGE);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseAnalysisStats(p), ANALYSIS_STATS);
         PARSER.declareObject(optionalConstructorArg(), NodeAttributes.PARSER, NODE);
         PARSER.declareString(optionalConstructorArg(), ASSIGNMENT_EXPLANATION);
+    }
+
+    private static AnalysisStats parseAnalysisStats(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        AnalysisStats analysisStats = parser.namedObject(AnalysisStats.class, parser.currentName(), true);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return analysisStats;
     }
 
     private final String id;
     private final DataFrameAnalyticsState state;
     private final String failureReason;
     private final List<PhaseProgress> progress;
+    private final MemoryUsage memoryUsage;
+    private final AnalysisStats analysisStats;
     private final NodeAttributes node;
     private final String assignmentExplanation;
 
     public DataFrameAnalyticsStats(String id, DataFrameAnalyticsState state, @Nullable String failureReason,
-                                   @Nullable List<PhaseProgress> progress, @Nullable NodeAttributes node,
+                                   @Nullable List<PhaseProgress> progress, @Nullable MemoryUsage memoryUsage,
+                                   @Nullable AnalysisStats analysisStats, @Nullable NodeAttributes node,
                                    @Nullable String assignmentExplanation) {
         this.id = id;
         this.state = state;
         this.failureReason = failureReason;
         this.progress = progress;
+        this.memoryUsage = memoryUsage;
+        this.analysisStats = analysisStats;
         this.node = node;
         this.assignmentExplanation = assignmentExplanation;
     }
@@ -106,6 +128,16 @@ public class DataFrameAnalyticsStats {
         return progress;
     }
 
+    @Nullable
+    public MemoryUsage getMemoryUsage() {
+        return memoryUsage;
+    }
+
+    @Nullable
+    public AnalysisStats getAnalysisStats() {
+        return analysisStats;
+    }
+
     public NodeAttributes getNode() {
         return node;
     }
@@ -124,13 +156,15 @@ public class DataFrameAnalyticsStats {
             && Objects.equals(state, other.state)
             && Objects.equals(failureReason, other.failureReason)
             && Objects.equals(progress, other.progress)
+            && Objects.equals(memoryUsage, other.memoryUsage)
+            && Objects.equals(analysisStats, other.analysisStats)
             && Objects.equals(node, other.node)
             && Objects.equals(assignmentExplanation, other.assignmentExplanation);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, state, failureReason, progress, node, assignmentExplanation);
+        return Objects.hash(id, state, failureReason, progress, memoryUsage, analysisStats, node, assignmentExplanation);
     }
 
     @Override
@@ -140,6 +174,8 @@ public class DataFrameAnalyticsStats {
             .add("state", state)
             .add("failureReason", failureReason)
             .add("progress", progress)
+            .add("memoryUsage", memoryUsage)
+            .add("analysisStats", analysisStats)
             .add("node", node)
             .add("assignmentExplanation", assignmentExplanation)
             .toString();

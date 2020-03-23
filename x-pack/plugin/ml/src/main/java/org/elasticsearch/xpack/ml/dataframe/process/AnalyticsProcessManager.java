@@ -31,8 +31,8 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
-import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessor;
-import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessorFactory;
+import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitter;
+import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitterFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
@@ -103,6 +103,8 @@ public class AnalyticsProcessManager {
             ProcessContext processContext = new ProcessContext(config);
             synchronized (processContextByAllocation) {
                 if (task.isStopping()) {
+                    LOGGER.debug("[{}] task is stopping. Marking as complete before creating process context.",
+                        task.getParams().getId());
                     // The task was requested to stop before we created the process context
                     auditor.info(config.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS);
                     task.markAsCompleted();
@@ -145,6 +147,9 @@ public class AnalyticsProcessManager {
     }
 
     private void processData(DataFrameAnalyticsTask task, ProcessContext processContext, BytesReference state) {
+        LOGGER.info("[{}] Started loading data", processContext.config.getId());
+        auditor.info(processContext.config.getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_LOADING_DATA));
+
         DataFrameAnalyticsConfig config = processContext.config;
         DataFrameDataExtractor dataExtractor = processContext.dataExtractor.get();
         AnalyticsProcess<AnalyticsResult> process = processContext.process.get();
@@ -156,6 +161,9 @@ public class AnalyticsProcessManager {
             process.flushStream();
 
             restoreState(task, config, state, process);
+
+            LOGGER.info("[{}] Started analyzing", processContext.config.getId());
+            auditor.info(processContext.config.getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_ANALYZING));
 
             LOGGER.info("[{}] Waiting for result processor to complete", config.getId());
             resultProcessor.awaitForCompletion();
@@ -200,7 +208,8 @@ public class AnalyticsProcessManager {
     private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process,
                                DataFrameAnalysis analysis, ProgressTracker progressTracker) throws IOException {
 
-        CustomProcessor customProcessor = new CustomProcessorFactory(dataExtractor.getFieldNames()).create(analysis);
+        CrossValidationSplitter crossValidationSplitter = new CrossValidationSplitterFactory(dataExtractor.getFieldNames())
+            .create(analysis);
 
         // The extra fields are for the doc hash and the control field (should be an empty string)
         String[] record = new String[dataExtractor.getFieldNames().size() + 2];
@@ -218,7 +227,7 @@ public class AnalyticsProcessManager {
                         String[] rowValues = row.getValues();
                         System.arraycopy(rowValues, 0, record, 0, rowValues.length);
                         record[record.length - 2] = String.valueOf(row.getChecksum());
-                        customProcessor.process(record);
+                        crossValidationSplitter.process(record);
                         process.writeRecord(record);
                     }
                 }
@@ -329,7 +338,6 @@ public class AnalyticsProcessManager {
             processContext.stop();
         } else {
             LOGGER.debug("[{}] No process context to stop", task.getParams().getId());
-            task.markAsCompleted();
         }
     }
 
@@ -426,7 +434,8 @@ public class AnalyticsProcessManager {
             DataFrameRowsJoiner dataFrameRowsJoiner =
                 new DataFrameRowsJoiner(config.getId(), dataExtractorFactory.newExtractor(true), resultsPersisterService);
             return new AnalyticsResultProcessor(
-                config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, dataExtractor.get().getFieldNames());
+                config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, resultsPersisterService,
+                dataExtractor.get().getAllExtractedFields());
         }
     }
 }

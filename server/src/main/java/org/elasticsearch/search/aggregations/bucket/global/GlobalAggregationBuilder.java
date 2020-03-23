@@ -33,6 +33,11 @@ import java.io.IOException;
 import java.util.Map;
 
 public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalAggregationBuilder> {
+    public static GlobalAggregationBuilder parse(XContentParser parser, String aggregationName) throws IOException {
+        parser.nextToken();
+        return new GlobalAggregationBuilder(aggregationName);
+    }
+
     public static final String NAME = "global";
 
     public GlobalAggregationBuilder(String name) {
@@ -71,11 +76,6 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
         builder.startObject();
         builder.endObject();
         return builder;
-    }
-
-    public static GlobalAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        parser.nextToken();
-        return new GlobalAggregationBuilder(aggregationName);
     }
 
     @Override

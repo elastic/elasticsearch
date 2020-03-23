@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.idp.saml.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.opensaml.xmlsec.signature.SignableXMLObject;
 import org.opensaml.xmlsec.signature.Signature;
@@ -14,6 +15,8 @@ import org.opensaml.xmlsec.signature.support.SignatureConstants;
 import org.opensaml.xmlsec.signature.support.SignatureException;
 import org.opensaml.xmlsec.signature.support.Signer;
 import org.w3c.dom.Element;
+
+import java.security.PrivilegedActionException;
 
 /**
  * Signs OpenSAML {@link SignableXMLObject} instances using {@link SamlIdentityProvider#getSigningCredential()}.
@@ -36,11 +39,13 @@ public class SamlObjectSigner {
         signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
         object.setSignature(signature);
         Element element = samlFactory.toDomElement(object);
-        try {
+        try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(Signer.class)) {
             Signer.signObject(signature);
+            return element;
+        } catch (PrivilegedActionException e) {
+            throw new ElasticsearchException("SecurityException while attempting to generate SAML signature");
         } catch (SignatureException e) {
             throw new ElasticsearchException("failed to sign SAML object " + object, e);
         }
-        return element;
     }
 }

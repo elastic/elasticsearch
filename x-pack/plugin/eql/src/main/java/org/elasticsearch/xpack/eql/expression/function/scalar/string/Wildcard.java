@@ -31,7 +31,6 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndE
  * EQL wildcard function. Matches the form:
  *     wildcard(field, "*wildcard*pattern*", "*wildcard*pattern*")
  */
-
 public class Wildcard extends ScalarFunction {
 
     private final Expression field;

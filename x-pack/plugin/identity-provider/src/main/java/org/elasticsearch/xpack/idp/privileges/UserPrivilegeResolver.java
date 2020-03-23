@@ -81,8 +81,8 @@ public class UserPrivilegeResolver {
         final String username = securityContext.requireUser().principal();
         request.username(username);
         request.applicationPrivileges(buildResourcePrivilege(service));
-        request.applicationPrivileges(buildResourcePrivilege(service));
         request.clusterPrivileges(Strings.EMPTY_ARRAY);
+        request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
         client.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(
             response -> {
                 logger.debug("Checking access for user [{}] to application [{}] resource [{}]",

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -128,7 +129,7 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
         lastSeekPosition = lastReadPosition;
     }
 
-    int readCacheFile(FileChannel fc, long end, long position, byte[] buffer, int offset, long length) throws IOException {
+    private int readCacheFile(FileChannel fc, long end, long position, byte[] buffer, int offset, long length) throws IOException {
         assert assertFileChannelOpen(fc);
         int bytesRead = Channels.readFromFileChannel(fc, position, buffer, offset, Math.toIntExact(Math.min(length, end - position)));
         stats.addCachedBytesRead(bytesRead);
@@ -136,7 +137,7 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
     }
 
     @SuppressForbidden(reason = "Use positional writes on purpose")
-    void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
+    private void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
         assert assertFileChannelOpen(fc);
         final long length = end - start;
         final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
@@ -150,6 +151,10 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
             while (remaining > 0) {
                 final int len = (remaining < copyBuffer.length) ? Math.toIntExact(remaining) : copyBuffer.length;
                 int bytesRead = input.read(copyBuffer, 0, len);
+                if (bytesRead == -1) {
+                    throw new EOFException(String.format(Locale.ROOT,
+                        "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s", start, end, remaining, cacheFileReference));
+                }
                 fc.write(ByteBuffer.wrap(copyBuffer, 0, bytesRead), start + bytesCopied);
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
@@ -214,7 +219,11 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
             while (remaining > 0) {
                 final int len = (remaining < copyBuffer.length) ? (int) remaining : copyBuffer.length;
                 int bytesRead = input.read(copyBuffer, 0, len);
-                System.arraycopy(copyBuffer, 0, buffer, offset + bytesCopied, len);
+                if (bytesRead == -1) {
+                    throw new EOFException(String.format(Locale.ROOT,
+                        "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s", start, end, remaining, cacheFileReference));
+                }
+                System.arraycopy(copyBuffer, 0, buffer, offset + bytesCopied, bytesRead);
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
             }

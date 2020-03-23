@@ -28,7 +28,7 @@ public class AutoscalingDecisionTests extends AutoscalingTestCase {
         assertThat(decision.type(), equalTo(type));
     }
 
-    public void testMultipleAutoscalingDecisionTypeUp() {
+    public void testMultipleAutoscalingDecisionTypeDown() {
         final int numberOfDecisions = 1 + randomIntBetween(1, 8);
         final List<SingleAutoscalingDecision> decisions = new ArrayList<>(numberOfDecisions);
         for (int i = 0; i < numberOfDecisions; i++) {

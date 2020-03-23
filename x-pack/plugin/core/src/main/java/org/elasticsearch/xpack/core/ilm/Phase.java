@@ -48,6 +48,7 @@ public class Phase implements ToXContentObject, Writeable {
                 // In earlier versions it was possible to create a Phase with a negative `min_age` which would then cause errors
                 // when the phase is read from the cluster state during startup (even before negative timevalues were strictly
                 // disallowed) so this is a hack to treat negative `min_age`s as 0 to prevent those errors.
+                // They will be saved as `0` so this hack can be removed once we no longer have to read cluster states from 7.x.
                 final String timeValueString = p.text();
                 if (timeValueString.startsWith("-")) {
                     logger.warn("phase has negative min_age value of [{}] - this will be treated as a min_age of 0",

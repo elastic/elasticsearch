@@ -19,14 +19,14 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.equalTo;
 
 import java.io.IOException;
 
-import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.equalTo;
+import org.elasticsearch.Version;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 public class DelayableWriteableTests extends ESTestCase {
     // NOTE: we don't use AbstractWireSerializingTestCase because we don't implement equals and hashCode.

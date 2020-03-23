@@ -938,7 +938,7 @@ setup:
         id: "missing_config"
 
 ---
-"Test delete given config and state documents":
+"Test delete given config, state and stats documents":
   - skip:
       features: headers
   - do:
@@ -979,8 +979,30 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-stats-000001
+        id: "delete_foo_stats_1"
+        body: >
+          {
+            "job_id": "delete_foo"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-stats-000001
+        id: "delete_foo_stats_2"
+        body: >
+          {
+            "job_id": "delete_foo"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
-        index: .ml-state*
+        index: .ml-stat*
 
   - do:
       search:
@@ -994,6 +1016,21 @@ setup:
                   values:
                     - "data_frame_analytics-delete_foo-progress"
                     - "delete_foo_regression_state#1"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: .ml-stats-*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "delete_foo_stats_1"
+                    - "delete_foo_stats_2"
 
   - match: { hits.total.value: 2 }
 
@@ -1014,6 +1051,21 @@ setup:
                   values:
                     - "data_frame_analytics-delete_foo-progress"
                     - "delete_foo_regression_state#1"
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: .ml-stats-*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "delete_foo_stats_1"
+                    - "delete_foo_stats_2"
+
   - match: { hits.total.value: 0 }
 
 ---

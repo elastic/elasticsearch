@@ -98,7 +98,8 @@ public class SnapshotHistoryStore {
             client.admin().indices().prepareCreate(initialHistoryIndexName)
                 .setWaitForActiveShards(1)
                 .addAlias(new Alias(SLM_HISTORY_ALIAS)
-                    .writeIndex(true))
+                    .writeIndex(true)
+                    .isHidden(true))
                 .execute(new ActionListener<>() {
                     @Override
                     public void onResponse(CreateIndexResponse response) {

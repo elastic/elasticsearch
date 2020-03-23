@@ -23,7 +23,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -130,6 +132,104 @@ public class MetaDataIndexTemplateService {
                 listener.onResponse(new RemoveResponse(true));
             }
         });
+    }
+
+    /**
+     * Add the given component template to the cluster state. If {@code create} is true, an
+     * exception will be thrown if the component template already exists
+     */
+    public void putComponentTemplate(final String cause, final boolean create, final String name, final TimeValue masterTimeout,
+                                     final ComponentTemplate template, final ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("create-component-template [" + name + "], cause [" + cause + "]",
+            new ClusterStateUpdateTask(Priority.URGENT) {
+
+                @Override
+                public TimeValue timeout() {
+                    return masterTimeout;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return addComponentTemplate(currentState, create, name, template);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new AcknowledgedResponse(true));
+                }
+            });
+    }
+
+    // Package visible for testing
+    static ClusterState addComponentTemplate(final ClusterState currentState, final boolean create,
+                                             final String name, final ComponentTemplate template) {
+        if (create && currentState.metaData().componentTemplates().containsKey(name)) {
+            throw new IllegalArgumentException("component template [" + name + "] already exists");
+        }
+
+        // TODO: validation of component template
+        // validateAndAddTemplate(request, templateBuilder, indicesService, xContentRegistry);
+
+        logger.info("adding component template [{}]", name);
+        return ClusterState.builder(currentState)
+            .metaData(MetaData.builder(currentState.metaData()).put(name, template))
+            .build();
+    }
+
+    /**
+     * Remove the given component template from the cluster state. The component template name
+     * supports simple regex wildcards for removing multiple component templates at a time.
+     */
+    public void removeComponentTemplate(final String name, final TimeValue masterTimeout,
+                                        final ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("remove-component-template [" + name + "]",
+            new ClusterStateUpdateTask(Priority.URGENT) {
+
+                @Override
+                public TimeValue timeout() {
+                    return masterTimeout;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    Set<String> templateNames = new HashSet<>();
+                    for (String templateName : currentState.metaData().componentTemplates().keySet()) {
+                        if (Regex.simpleMatch(name, templateName)) {
+                            templateNames.add(templateName);
+                        }
+                    }
+                    if (templateNames.isEmpty()) {
+                        // if its a match all pattern, and no templates are found (we have none), don't
+                        // fail with index missing...
+                        if (Regex.isMatchAllPattern(name)) {
+                            return currentState;
+                        }
+                        // TODO: perhaps introduce a ComponentTemplateMissingException?
+                        throw new IndexTemplateMissingException(name);
+                    }
+                    MetaData.Builder metaData = MetaData.builder(currentState.metaData());
+                    for (String templateName : templateNames) {
+                        logger.info("removing component template [{}]", templateName);
+                        metaData.removeComponentTemplate(templateName);
+                    }
+                    return ClusterState.builder(currentState).metaData(metaData).build();
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new AcknowledgedResponse(true));
+                }
+            });
     }
 
     public void putTemplate(final PutRequest request, final PutListener listener) {

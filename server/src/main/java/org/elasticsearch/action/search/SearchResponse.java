@@ -260,7 +260,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return innerFromXContent(parser);
     }
 
-    static SearchResponse innerFromXContent(XContentParser parser) throws IOException {
+    public static SearchResponse innerFromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String currentFieldName = parser.currentName();
         SearchHits hits = null;
@@ -413,9 +413,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
 
         private Clusters(StreamInput in) throws IOException {
-            this.total = in.readVInt();
-            this.successful = in.readVInt();
-            this.skipped = in.readVInt();
+            this(in.readVInt(), in.readVInt(), in.readVInt());
         }
 
         @Override
@@ -427,7 +425,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (this != EMPTY) {
+            if (total > 0) {
                 builder.startObject(_CLUSTERS_FIELD.getPreferredName());
                 builder.field(TOTAL_FIELD.getPreferredName(), total);
                 builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);

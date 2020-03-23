@@ -455,7 +455,7 @@ public class EmailTemplate implements ToXContentObject {
         static void validateEmailAddresses(TextTemplate ... emails) {
             for (TextTemplate emailTemplate : emails) {
                 // no mustache, do validation
-                if (emailTemplate.isUsingMustache() == false) {
+                if (emailTemplate.mayRequireCompilation() == false) {
                     String email = emailTemplate.getTemplate();
                     try {
                         for (Email.Address address : Email.AddressList.parse(email)) {

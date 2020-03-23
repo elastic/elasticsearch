@@ -32,7 +32,7 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.docker.DockerSupportService;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.elasticsearch.gradle.vagrant.BatsProgressLogger;
 import org.elasticsearch.gradle.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.vagrant.VagrantExtension;
@@ -90,7 +90,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
         project.getPluginManager().apply("elasticsearch.build");
 
-        Provider<DockerSupportService> dockerSupport = Boilerplate.getBuildService(
+        Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );

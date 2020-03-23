@@ -103,9 +103,6 @@ be used to test against other JDKs as well, this is not only limited to JDK 11.
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
 and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
 
-> Warning: do not use `sdkman` for Java installations which do not have proper
-`jrunscript` for jdk distributions.
-
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the

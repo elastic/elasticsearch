@@ -81,8 +81,8 @@ public class QuerySearchResultTests extends ESTestCase {
         assertEquals(querySearchResult.size(), deserialized.size());
         assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
         if (deserialized.hasAggs()) {
-            Aggregations aggs = querySearchResult.consumeAggs();
-            Aggregations deserializedAggs = deserialized.consumeAggs();
+            Aggregations aggs = querySearchResult.consumeAggs().get();
+            Aggregations deserializedAggs = deserialized.consumeAggs().get();
             assertEquals(aggs.asList(), deserializedAggs.asList());
         }
         assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());

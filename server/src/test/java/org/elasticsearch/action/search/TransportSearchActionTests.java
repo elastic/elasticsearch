@@ -29,6 +29,10 @@ import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
@@ -44,6 +48,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -57,6 +62,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -533,8 +539,13 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<SearchResponse> response = new AtomicReference<>();
                 LatchedActionListener<SearchResponse> listener = new LatchedActionListener<>(
                     ActionListener.wrap(response::set, e -> fail("no failures expected")), latch);
+<<<<<<< HEAD
                 TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider, 
                         emptyReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+=======
+                TransportSearchAction.ccsRemoteReduce(searchRequest, localIndices, remoteIndicesByCluster, timeProvider,
+                        aggReduceContextBuilder(), remoteClusterService, threadPool, listener, (r, l) -> setOnce.set(Tuple.tuple(r, l)));
+>>>>>>> master
                 if (localIndices == null) {
                     assertNull(setOnce.get());
                 } else {
@@ -837,4 +848,115 @@ public class TransportSearchActionTests extends ESTestCase {
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
         }
     }
+<<<<<<< HEAD
+=======
+
+    public void testShouldPreFilterSearchShards() {
+        int numIndices = randomIntBetween(1, 10);
+        Index[] indices = new Index[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            String indexName = randomAlphaOfLengthBetween(5, 10);
+            indices[i] = new Index(indexName, indexName + "-uuid");
+        }
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(1, 127)));
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(1, 127)));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(1, 127)));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")))
+                .scroll("5m");
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(1, 127)));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+    }
+
+    public void testShouldPreFilterSearchShardsWithReadOnly() {
+        int numIndices = randomIntBetween(1, 10);
+        int numReadOnly = randomIntBetween(1, numIndices);
+        Index[] indices = new Index[numIndices];
+        ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder();
+        for (int i = 0; i < numIndices; i++) {
+            String indexName = randomAlphaOfLengthBetween(5, 10);
+            indices[i] = new Index(indexName, indexName + "-uuid");
+            if (--numReadOnly >= 0) {
+                if (randomBoolean()) {
+                    blocksBuilder.addIndexBlock(indexName, IndexMetaData.INDEX_WRITE_BLOCK);
+                } else {
+                    blocksBuilder.addIndexBlock(indexName, IndexMetaData.INDEX_READ_ONLY_BLOCK);
+                }
+            }
+        }
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).blocks(blocksBuilder).build();
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(1, 127)));
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(1, 127)));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
+            searchRequest.scroll("5s");
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+            assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest()
+                .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+            assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
+                indices, randomIntBetween(127, 10000)));
+        }
+    }
+
+    private InternalAggregation.ReduceContextBuilder aggReduceContextBuilder() {
+        return new InternalAggregation.ReduceContextBuilder() {
+            @Override
+            public InternalAggregation.ReduceContext forPartialReduction() {
+                return InternalAggregation.ReduceContext.forPartialReduction(null, null);
+            };
+
+            @Override
+            public InternalAggregation.ReduceContext forFinalReduction() {
+                return InternalAggregation.ReduceContext.forFinalReduction(null, null, b -> {}, new PipelineTree(emptyMap(), emptyList()));
+            }
+        };
+    }
+>>>>>>> master
 }

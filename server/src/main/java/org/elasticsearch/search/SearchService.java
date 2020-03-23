@@ -339,10 +339,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private DfsSearchResult executeDfsPhase(SearchRewriteContext rewriteContext, SearchShardTask task) throws IOException {
-        final SearchContext context = createAndPutContext(rewriteContext);
+        final SearchContext context = createAndPutContext(rewriteContext, task);
         context.incRef();
         try {
-            context.setTask(task);
             contextProcessing(context);
             dfsPhase.execute(context);
             contextProcessedSuccessfully(context);
@@ -422,11 +421,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private SearchPhaseResult executeQueryPhase(SearchRewriteContext rewriteContext, SearchShardTask task) throws Exception {
-        final SearchContext context = createAndPutContext(rewriteContext);
+        final SearchContext context = createAndPutContext(rewriteContext, task);
         final ShardSearchRequest request = rewriteContext.request;
         context.incRef();
         try {
-            context.setTask(task);
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 contextProcessing(context);
@@ -626,8 +624,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final SearchContext createAndPutContext(SearchRewriteContext rewriteContext) throws IOException {
-        SearchContext context = createContext(rewriteContext);
+    final SearchContext createAndPutContext(SearchRewriteContext rewriteContext, SearchShardTask task) throws IOException {
+        SearchContext context = createContext(rewriteContext, task);
         onNewContext(context);
         boolean success = false;
         try {
@@ -660,7 +658,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final SearchContext createContext(SearchRewriteContext rewriteContext) throws IOException {
+    final SearchContext createContext(SearchRewriteContext rewriteContext, SearchShardTask searchTask) throws IOException {
         final DefaultSearchContext context = createSearchContext(rewriteContext, defaultSearchTimeout);
         try {
             final ShardSearchRequest request = rewriteContext.request;
@@ -684,6 +682,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.size() == -1) {
                 context.size(DEFAULT_SIZE);
             }
+            context.setTask(searchTask);
 
             // pre process
             dfsPhase.preProcess(context);
@@ -696,7 +695,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 keepAlive = request.scroll().keepAlive().millis();
             }
             contextScrollKeepAlive(context, keepAlive);
-            context.lowLevelCancellation(lowLevelCancellation);
         } catch (Exception e) {
             context.close();
             throw e;
@@ -731,7 +729,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             DefaultSearchContext searchContext = new DefaultSearchContext(
                 new SearchContextId(readerId, idGenerator.incrementAndGet()),
                 request, shardTarget, searcher, clusterService, indexService, indexShard, bigArrays,
-                threadPool::relativeTimeInMillis, timeout, fetchPhase);
+                threadPool::relativeTimeInMillis, timeout, fetchPhase, lowLevelCancellation);
             success = true;
             return searchContext;
         } finally {

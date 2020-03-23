@@ -46,6 +46,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.AliasOrIndex.*;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.INDEX_TEMPLATE_VERSION;
@@ -222,18 +223,14 @@ public class ILMHistoryStore implements Closeable {
             // alias does not exist but initial index does, something is broken
             listener.onFailure(new IllegalStateException("ILM history index [" + initialHistoryIndexName +
                 "] already exists but does not have alias [" + ILM_HISTORY_ALIAS + "]"));
-        } else if (ilmHistory.isAlias() && ilmHistory instanceof AliasOrIndex.Alias) {
-            if (((AliasOrIndex.Alias) ilmHistory).getWriteIndex() != null) {
+        } else if (ilmHistory.getType() == Type.ALIAS) {
+            if (ilmHistory.getWriteIndex() != null) {
                 // The alias exists and has a write index, so we're good
                 listener.onResponse(false);
             } else {
                 // The alias does not have a write index, so we can't index into it
                 listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS + "does not have a write index"));
             }
-        } else if (ilmHistory.isAlias() == false) {
-            // This is not an alias, error out
-            listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS +
-                "] already exists as concrete index"));
         } else {
             logger.error("unexpected IndexOrAlias for [{}]: [{}]", ILM_HISTORY_ALIAS, ilmHistory);
             assert false : ILM_HISTORY_ALIAS + " cannot be both an alias and not an alias simultaneously";

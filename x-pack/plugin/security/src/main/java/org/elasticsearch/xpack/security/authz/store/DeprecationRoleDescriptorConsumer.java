@@ -167,13 +167,13 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             for (final Map.Entry<String, AliasOrIndex> aliasOrIndex : aliasOrIndexMap.entrySet()) {
                 final String aliasOrIndexName = aliasOrIndex.getKey();
                 if (namePatternPredicate.test(aliasOrIndexName)) {
-                    if (aliasOrIndex.getValue().isAlias()) {
+                    if (aliasOrIndex.getValue().getType() == AliasOrIndex.Type.ALIAS) {
                         final Set<String> privilegesByAlias = privilegesByAliasMap.computeIfAbsent(aliasOrIndexName,
-                                k -> new HashSet<String>());
+                                k -> new HashSet<>());
                         privilegesByAlias.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
                     } else {
                         final Set<String> privilegesByIndex = privilegesByIndexMap.computeIfAbsent(aliasOrIndexName,
-                                k -> new HashSet<String>());
+                                k -> new HashSet<>());
                         privilegesByIndex.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
                     }
                 }

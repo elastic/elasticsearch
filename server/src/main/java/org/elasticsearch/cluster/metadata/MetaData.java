@@ -265,7 +265,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public boolean hasAlias(String alias) {
         AliasOrIndex aliasOrIndex = getAliasAndIndexLookup().get(alias);
         if (aliasOrIndex != null) {
-            return aliasOrIndex.isAlias();
+            return aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS;
         } else {
             return false;
         }
@@ -532,15 +532,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
-        if (result == null || result.isAlias() == false) {
+        if (result == null || result.getType() != AliasOrIndex.Type.ALIAS) {
             return routing;
         }
-        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
-        IndexMetaData writeIndex = alias.getWriteIndex();
+        IndexMetaData writeIndex = result.getWriteIndex();
         if (writeIndex == null) {
             throw new IllegalArgumentException("alias [" + aliasOrIndex + "] does not have a write index");
         }
-        AliasMetaData aliasMd = writeIndex.getAliases().get(alias.getAliasName());
+        AliasMetaData aliasMd = writeIndex.getAliases().get(result.getName());
         if (aliasMd.indexRouting() != null) {
             if (aliasMd.indexRouting().indexOf(',') != -1) {
                 throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value ["
@@ -569,7 +568,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
-        if (result == null || result.isAlias() == false) {
+        if (result == null || result.getType() != AliasOrIndex.Type.ALIAS) {
             return routing;
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
@@ -1327,14 +1326,15 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                         if (alias == null) {
                             return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
                         } else {
-                            assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
+                            assert alias.getType() == AliasOrIndex.Type.ALIAS : alias.getClass().getName();
                             ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
                             return alias;
                         }
                     });
                 }
             }
-            aliasAndIndexLookup.values().stream().filter(AliasOrIndex::isAlias)
+            aliasAndIndexLookup.values().stream()
+                .filter(aliasOrIndex -> aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS)
                 .forEach(alias -> ((AliasOrIndex.Alias) alias).computeAndValidateAliasProperties());
             return aliasAndIndexLookup;
         }

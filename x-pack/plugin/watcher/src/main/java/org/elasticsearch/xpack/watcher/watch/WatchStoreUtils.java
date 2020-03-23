@@ -27,7 +27,7 @@ public class WatchStoreUtils {
             return null;
         }
 
-        if (aliasOrIndex.isAlias() && aliasOrIndex.getIndices().size() > 1) {
+        if (aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS && aliasOrIndex.getIndices().size() > 1) {
             throw new IllegalStateException("Alias [" + name + "] points to more than one index");
         }
 

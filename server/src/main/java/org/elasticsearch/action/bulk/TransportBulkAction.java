@@ -280,17 +280,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // check the alias for the index request (this is how normal index requests are modeled)
             if (indexMetaData == null && indexRequest.index() != null) {
                 AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
-                if (indexOrAlias != null && indexOrAlias.isAlias()) {
-                    AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
-                    indexMetaData = alias.getWriteIndex();
+                if (indexOrAlias != null) {
+                    indexMetaData = indexOrAlias.getWriteIndex();
                 }
             }
             // check the alias for the action request (this is how upserts are modeled)
             if (indexMetaData == null && originalRequest.index() != null) {
                 AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(originalRequest.index());
-                if (indexOrAlias != null && indexOrAlias.isAlias()) {
-                    AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
-                    indexMetaData = alias.getWriteIndex();
+                if (indexOrAlias != null) {
+                    indexMetaData = indexOrAlias.getWriteIndex();
                 }
             }
             if (indexMetaData != null) {

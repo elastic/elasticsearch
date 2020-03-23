@@ -292,7 +292,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(indexOrAliasName);
         if (aliasOrIndex != null) {
             final List<IndexMetaData> indices = aliasOrIndex.getIndices();
-            if (aliasOrIndex.isAlias() && indices.size() > 1) {
+            if (aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS && indices.size() > 1) {
                 throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " +
                         indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList()));
             }

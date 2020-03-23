@@ -40,9 +40,14 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_HIDDEN_SETT
 public interface AliasOrIndex {
 
     /**
-     * @return whether this an alias or concrete index
+     * @return the type of the namespace
      */
-    boolean isAlias();
+    Type getType();
+
+    /**
+     * @return the name of the namespace
+     */
+    String getName();
 
     /**
      * @return All {@link IndexMetaData} of all concrete indices this alias is referring to
@@ -50,10 +55,20 @@ public interface AliasOrIndex {
      */
     List<IndexMetaData> getIndices();
 
+    @Nullable
+    IndexMetaData getWriteIndex();
+
     /**
      * @return whether this alias/index is hidden or not
      */
     boolean isHidden();
+
+    enum Type {
+
+        INDEX,
+        ALIAS
+
+    }
 
     /**
      * Represents an concrete index and encapsulates its {@link IndexMetaData}
@@ -67,13 +82,23 @@ public interface AliasOrIndex {
         }
 
         @Override
-        public boolean isAlias() {
-            return false;
+        public String getName() {
+            return concreteIndex.getIndex().getName();
+        }
+
+        @Override
+        public Type getType() {
+            return Type.INDEX;
         }
 
         @Override
         public List<IndexMetaData> getIndices() {
             return Collections.singletonList(concreteIndex);
+        }
+
+        @Override
+        public IndexMetaData getWriteIndex() {
+            return concreteIndex;
         }
 
         @Override
@@ -100,11 +125,11 @@ public interface AliasOrIndex {
         }
 
         @Override
-        public boolean isAlias() {
-            return true;
+        public Type getType() {
+            return Type.ALIAS;
         }
 
-        public String getAliasName() {
+        public String getName() {
             return aliasName;
         }
 
@@ -131,7 +156,7 @@ public interface AliasOrIndex {
          * and filters)
          */
         public Iterable<Tuple<String, AliasMetaData>> getConcreteIndexAndAliasMetaDatas() {
-            return () -> new Iterator<Tuple<String,AliasMetaData>>() {
+            return () -> new Iterator<>() {
 
                 int index = 0;
 

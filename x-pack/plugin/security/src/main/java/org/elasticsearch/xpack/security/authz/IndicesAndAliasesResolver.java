@@ -232,8 +232,8 @@ class IndicesAndAliasesResolver {
         final String resolvedAliasOrIndex;
         if (aliasOrIndex == null) {
             resolvedAliasOrIndex = concreteIndexName;
-        } else if (aliasOrIndex.isAlias()) {
-            throw new IllegalStateException("concrete index [" + concreteIndexName + "] is an alias but should not be");
+        } else if (aliasOrIndex.getType() != AliasOrIndex.Type.INDEX) {
+            throw new IllegalStateException("concrete index [" + concreteIndexName + "] is not an index but should be");
         } else if (authorizedIndicesList.contains(concreteIndexName)) {
             // user is authorized to put mappings for this index
             resolvedAliasOrIndex = concreteIndexName;
@@ -252,8 +252,8 @@ class IndicesAndAliasesResolver {
                         if (indexMetadata.size() == 1) {
                             return true;
                         } else {
-                            assert alias instanceof AliasOrIndex.Alias;
-                            IndexMetaData idxMeta = ((AliasOrIndex.Alias) alias).getWriteIndex();
+                            assert alias.getType() == AliasOrIndex.Type.ALIAS;
+                            IndexMetaData idxMeta = alias.getWriteIndex();
                             return idxMeta != null && idxMeta.getIndex().getName().equals(concreteIndexName);
                         }
                     })
@@ -277,7 +277,7 @@ class IndicesAndAliasesResolver {
         SortedMap<String, AliasOrIndex> existingAliases = metaData.getAliasAndIndexLookup();
         for (String authorizedIndex : authorizedIndices) {
             AliasOrIndex aliasOrIndex = existingAliases.get(authorizedIndex);
-            if (aliasOrIndex != null && aliasOrIndex.isAlias()) {
+            if (aliasOrIndex != null && aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS) {
                 authorizedAliases.add(authorizedIndex);
             }
         }
@@ -418,7 +418,7 @@ class IndicesAndAliasesResolver {
                                           boolean dateMathExpression) {
         AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(index);
         final boolean isHidden = aliasOrIndex.isHidden();
-        if (aliasOrIndex.isAlias()) {
+        if (aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS) {
             //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             //complicated to support those options with aliases pointing to multiple indices...
             //TODO investigate supporting expandWildcards option for aliases too, like es core does.

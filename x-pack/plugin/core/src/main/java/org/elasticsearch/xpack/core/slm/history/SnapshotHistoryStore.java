@@ -122,18 +122,14 @@ public class SnapshotHistoryStore {
             // alias does not exist but initial index does, something is broken
             andThen.onFailure(new IllegalStateException("SLM history index [" + initialHistoryIndexName +
                 "] already exists but does not have alias [" + SLM_HISTORY_ALIAS + "]"));
-        } else if (slmHistory.isAlias() && slmHistory instanceof AliasOrIndex.Alias) {
-            if (((AliasOrIndex.Alias) slmHistory).getWriteIndex() != null) {
+        } else if (slmHistory.getType() == AliasOrIndex.Type.ALIAS ) {
+            if (slmHistory.getWriteIndex() != null) {
                 // The alias exists and has a write index, so we're good
                 andThen.onResponse(false);
             } else {
                 // The alias does not have a write index, so we can't index into it
                 andThen.onFailure(new IllegalStateException("SLM history alias [" + SLM_HISTORY_ALIAS + "does not have a write index"));
             }
-        } else if (slmHistory.isAlias() == false) {
-            // This is not an alias, error out
-            andThen.onFailure(new IllegalStateException("SLM history alias [" + SLM_HISTORY_ALIAS +
-                "] already exists as concrete index"));
         } else {
             logger.error("unexpected IndexOrAlias for [{}]: [{}]", SLM_HISTORY_ALIAS, slmHistory);
             // (slmHistory.isAlias() == true) but (slmHistory instanceof Alias == false)?

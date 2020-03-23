@@ -42,7 +42,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (aliasOrIndex == null) {
             throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
         }
-        assert aliasOrIndex.isAlias();
+        assert aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS;
         assert aliasOrIndex.getIndices().size() == 1;
         IndexMetaData imd = aliasOrIndex.getIndices().get(0);
 

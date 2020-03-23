@@ -194,7 +194,7 @@ public class IndexNameExpressionResolver {
                 } else {
                     continue;
                 }
-            } else if (aliasOrIndex.isAlias() && context.getOptions().ignoreAliases()) {
+            } else if (aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS && context.getOptions().ignoreAliases()) {
                 if (failNoIndices) {
                     throw aliasesNotSupportedException(expression);
                 } else {
@@ -202,11 +202,10 @@ public class IndexNameExpressionResolver {
                 }
             }
 
-            if (aliasOrIndex.isAlias() && context.isResolveToWriteIndex()) {
-                AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
-                IndexMetaData writeIndex = alias.getWriteIndex();
+            if (aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS && context.isResolveToWriteIndex()) {
+                IndexMetaData writeIndex = aliasOrIndex.getWriteIndex();
                 if (writeIndex == null) {
-                    throw new IllegalArgumentException("no write index is defined for alias [" + alias.getAliasName() + "]." +
+                    throw new IllegalArgumentException("no write index is defined for alias [" + aliasOrIndex.getName() + "]." +
                         " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
                         " indices without one being designated as a write index");
                 }
@@ -458,7 +457,7 @@ public class IndexNameExpressionResolver {
 
         for (String expression : resolvedExpressions) {
             AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(expression);
-            if (aliasOrIndex != null && aliasOrIndex.isAlias()) {
+            if (aliasOrIndex != null && aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS) {
                 AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
                 for (Tuple<String, AliasMetaData> item : alias.getConcreteIndexAndAliasMetaDatas()) {
                     String concreteIndex = item.v1();
@@ -725,7 +724,7 @@ public class IndexNameExpressionResolver {
                         AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
                         if (aliasOrIndex == null) {
                             throw indexNotFoundException(expression);
-                        } else if (aliasOrIndex.isAlias() && options.ignoreAliases()) {
+                        } else if (aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS && options.ignoreAliases()) {
                             throw aliasesNotSupportedException(expression);
                         }
                     }
@@ -768,7 +767,7 @@ public class IndexNameExpressionResolver {
         private static boolean aliasOrIndexExists(IndicesOptions options, MetaData metaData, String expression) {
             AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
             //treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
-            return aliasOrIndex != null && (options.ignoreAliases() == false || aliasOrIndex.isAlias() == false);
+            return aliasOrIndex != null && (options.ignoreAliases() == false || aliasOrIndex.getType() != AliasOrIndex.Type.ALIAS);
         }
 
         private static IndexNotFoundException indexNotFoundException(String expression) {
@@ -797,7 +796,7 @@ public class IndexNameExpressionResolver {
                 // Can only happen if the expressions was initially: '-*'
                 if (context.getOptions().ignoreAliases()) {
                     return metaData.getAliasAndIndexLookup().entrySet().stream()
-                            .filter(e -> e.getValue().isAlias() == false)
+                            .filter(e -> e.getValue().getType() != AliasOrIndex.Type.ALIAS)
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 } else {
                     return metaData.getAliasAndIndexLookup();
@@ -818,7 +817,7 @@ public class IndexNameExpressionResolver {
             SortedMap<String,AliasOrIndex> subMap = metaData.getAliasAndIndexLookup().subMap(fromPrefix, toPrefix);
             if (context.getOptions().ignoreAliases()) {
                  return subMap.entrySet().stream()
-                        .filter(entry -> entry.getValue().isAlias() == false)
+                        .filter(entry -> entry.getValue().getType() != AliasOrIndex.Type.ALIAS)
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             }
             return subMap;
@@ -829,7 +828,7 @@ public class IndexNameExpressionResolver {
             return metaData.getAliasAndIndexLookup()
                 .entrySet()
                 .stream()
-                .filter(e -> context.getOptions().ignoreAliases() == false || e.getValue().isAlias() == false)
+                .filter(e -> context.getOptions().ignoreAliases() == false || e.getValue().getType() != AliasOrIndex.Type.ALIAS)
                 .filter(e -> Regex.simpleMatch(pattern, e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
@@ -842,7 +841,7 @@ public class IndexNameExpressionResolver {
                 AliasOrIndex aliasOrIndex = entry.getValue();
 
                 if (aliasOrIndex.isHidden() == false || includeHidden || implicitHiddenMatch(aliasOrIndexName, expression)) {
-                    if (context.isPreserveAliases() && aliasOrIndex.isAlias()) {
+                    if (context.isPreserveAliases() && aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS) {
                         expand.add(aliasOrIndexName);
                     } else {
                         for (IndexMetaData meta : aliasOrIndex.getIndices()) {

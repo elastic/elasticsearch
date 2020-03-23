@@ -39,6 +39,10 @@ The specification contains:
 
 * The _name_ of the API (`indices.create`), which usually corresponds to the client calls
 * Link to the documentation at <http://elastic.co>
+  **IMPORANT:** This should be a _live_ link. Several downstream ES clients use
+  this link to generate their documentation. Using a broken link or linking to
+  yet-to-be-created doc pages can break the [Elastic docs
+  build](https://github.com/elastic/docs#building-documentation).
 * List of HTTP methods for the endpoint
 * URL specification: path, parts, parameters
 * Whether body is allowed for the endpoint or not and its description

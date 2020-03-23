@@ -89,7 +89,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private int maxConcurrentShardRequests = 0;
 
-    private int preFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE;
+    private Integer preFilterShardSize;
 
     private boolean ccsMinimizeRoundtrips = true;
 
@@ -201,7 +201,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
         maxConcurrentShardRequests = in.readVInt();
-        preFilterShardSize = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            preFilterShardSize = in.readOptionalVInt();
+        } else {
+            preFilterShardSize = in.readVInt();
+        }
         allowPartialSearchResults = in.readOptionalBoolean();
         localClusterAlias = in.readOptionalString();
         if (localClusterAlias != null) {
@@ -231,7 +235,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
         out.writeVInt(maxConcurrentShardRequests);
-        out.writeVInt(preFilterShardSize);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalVInt(preFilterShardSize);
+        } else {
+            out.writeVInt(preFilterShardSize == null ? DEFAULT_BATCHED_REDUCE_SIZE : preFilterShardSize);
+        }
         out.writeOptionalBoolean(allowPartialSearchResults);
         out.writeOptionalString(localClusterAlias);
         if (localClusterAlias != null) {
@@ -531,8 +539,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     /**
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
-     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
-     * bounds and the query are disjoint. The default is {@code 128}
+     * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint.
+     *
+     * When unspecified, the pre-filter phase is executed if any of these conditions is met:
+     * <ul>
+     * <li>The request targets more than 128 shards</li>
+     * <li>The request targets one or more read-only index</li>
+     * <li>The primary sort of the query targets an indexed field</li>
+     * </ul>
      */
     public void setPreFilterShardSize(int preFilterShardSize) {
         if (preFilterShardSize < 1) {
@@ -543,11 +558,20 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     /**
      * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
-     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
-     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
-     * bounds and the query are disjoint. The default is {@code 128}
+     * the search request expands to exceeds the threshold, or <code>null</code> if the threshold is unspecified.
+     * This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint.
+     *
+     * When unspecified, the pre-filter phase is executed if any of these conditions is met:
+     * <ul>
+     * <li>The request targets more than 128 shards</li>
+     * <li>The request targets one or more read-only index</li>
+     * <li>The primary sort of the query targets an indexed field</li>
+     * </ul>
      */
-    public int getPreFilterShardSize() {
+    @Nullable
+    public Integer getPreFilterShardSize() {
         return preFilterShardSize;
     }
 

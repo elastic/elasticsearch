@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -97,7 +98,9 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32827")
+    @TestIssueLogging(
+        value = "org.elasticsearch.indices.IndicesRequestCache:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/32827")
     public void testQueryRewrite() throws Exception {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index").setMapping("s", "type=date")

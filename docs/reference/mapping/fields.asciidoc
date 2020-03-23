@@ -15,7 +15,7 @@ can be customised when a mapping type is created.
 
 <<mapping-type-field,`_type`>>::
 
-    The document's <<mapping-type,mapping type>>.
+    The document's mapping type.
 
 <<mapping-id-field,`_id`>>::
 

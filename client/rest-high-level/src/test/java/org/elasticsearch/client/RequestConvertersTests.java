@@ -1875,7 +1875,9 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             searchRequest.setPreFilterShardSize(randomIntBetween(2, Integer.MAX_VALUE));
         }
-        expectedParams.put("pre_filter_shard_size", Integer.toString(searchRequest.getPreFilterShardSize()));
+        if (searchRequest.getPreFilterShardSize() != null) {
+            expectedParams.put("pre_filter_shard_size", Integer.toString(searchRequest.getPreFilterShardSize()));
+        }
     }
 
     public static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,

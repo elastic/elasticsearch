@@ -1,8 +1,8 @@
 ---
 "Test stubs":
   - skip:
-      version: " - 7.99.99"
-      reason: not backported yet
+      version: " - 7.6.99"
+      reason: only available in 7.7+
 
   - do:
       indices.create_data_stream:

@@ -125,6 +125,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         ActionRequestValidationException validationException = null;
         if (name == null) {
             validationException = addValidationError("name is missing", validationException);
+        } else if (name.contains("*")) {
+            validationException = addValidationError("may not contain an asterisk", validationException);
         }
         if (indexPatterns == null || indexPatterns.size() == 0) {
             validationException = addValidationError("index patterns are missing", validationException);

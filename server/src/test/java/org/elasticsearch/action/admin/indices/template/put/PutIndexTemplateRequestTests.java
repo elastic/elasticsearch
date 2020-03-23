@@ -54,6 +54,11 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         request.patterns(Collections.singletonList("test-*"));
         ActionRequestValidationException noError = request.validate();
         assertThat(noError, is(nullValue()));
+
+        request.name("*");
+        ActionRequestValidationException badIndexTemplateName = request.validate();
+        assertThat(badIndexTemplateName.validationErrors(), hasSize(1));
+        assertThat(badIndexTemplateName.getMessage(), containsString("may not contain an asterisk"));
     }
 
     public void testMappingKeyedByType() throws IOException {

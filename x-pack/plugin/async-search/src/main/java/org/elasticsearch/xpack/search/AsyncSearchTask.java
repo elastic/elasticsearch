@@ -24,7 +24,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -43,7 +43,7 @@ import java.util.function.Supplier;
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
 final class AsyncSearchTask extends SearchTask {
-    private final CancellableTask submitTask;
+    private final BooleanSupplier checkSubmitCancellation;
     private final AsyncSearchId searchId;
     private final Client client;
     private final ThreadPool threadPool;
@@ -69,7 +69,8 @@ final class AsyncSearchTask extends SearchTask {
      * @param id The id of the task.
      * @param type The type of the task.
      * @param action The action name.
-     * @param submitTask The task that submitted the async search.
+     * @param parentTaskId The parent task id.
+     * @param checkSubmitCancellation A boolean supplier that checks if the submit task has been cancelled.
      * @param originHeaders All the request context headers.
      * @param taskHeaders The filtered request headers for the task.
      * @param searchId The {@link AsyncSearchId} of the task.
@@ -79,7 +80,8 @@ final class AsyncSearchTask extends SearchTask {
     AsyncSearchTask(long id,
                     String type,
                     String action,
-                    CancellableTask submitTask,
+                    TaskId parentTaskId,
+                    BooleanSupplier checkSubmitCancellation,
                     TimeValue keepAlive,
                     Map<String, String> originHeaders,
                     Map<String, String> taskHeaders,
@@ -87,8 +89,8 @@ final class AsyncSearchTask extends SearchTask {
                     Client client,
                     ThreadPool threadPool,
                     Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
-        super(id, type, action, "async_search", TaskId.EMPTY_TASK_ID, taskHeaders);
-        this.submitTask = submitTask;
+        super(id, type, action, "async_search", parentTaskId, taskHeaders);
+        this.checkSubmitCancellation = checkSubmitCancellation;
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.originHeaders = originHeaders;
         this.searchId = searchId;
@@ -297,7 +299,7 @@ final class AsyncSearchTask extends SearchTask {
     // checks if the search task should be cancelled
     private void checkCancellation() {
         long now = System.currentTimeMillis();
-        if (expirationTimeMillis < now || submitTask.isCancelled()) {
+        if (expirationTimeMillis < now || checkSubmitCancellation.getAsBoolean()) {
             // we cancel the search task if the initial submit task was cancelled,
             // this is needed because the task cancellation mechanism doesn't
             // handle the cancellation of grand-children.

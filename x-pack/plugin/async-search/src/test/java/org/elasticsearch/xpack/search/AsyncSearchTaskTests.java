@@ -65,7 +65,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     public void testWaitForInit() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", createSubmitTask(), TimeValue.timeValueHours(1),
+        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> false, TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncSearchId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool), threadPool, null);
         int numShards = randomIntBetween(0, 10);
@@ -105,7 +105,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     public void testWithFailure() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", createSubmitTask(), TimeValue.timeValueHours(1),
+        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> false, TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncSearchId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool), threadPool, null);
         int numThreads = randomIntBetween(1, 10);
@@ -133,7 +133,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     public void testWaitForCompletion() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", createSubmitTask(), TimeValue.timeValueHours(1),
+        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> false, TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncSearchId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool), threadPool, null);
         int numShards = randomIntBetween(0, 10);

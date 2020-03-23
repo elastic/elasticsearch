@@ -46,7 +46,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.AliasOrIndex.*;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.INDEX_TEMPLATE_VERSION;
@@ -223,7 +222,7 @@ public class ILMHistoryStore implements Closeable {
             // alias does not exist but initial index does, something is broken
             listener.onFailure(new IllegalStateException("ILM history index [" + initialHistoryIndexName +
                 "] already exists but does not have alias [" + ILM_HISTORY_ALIAS + "]"));
-        } else if (ilmHistory.getType() == Type.ALIAS) {
+        } else if (ilmHistory.getType() == AliasOrIndex.Type.ALIAS) {
             if (ilmHistory.getWriteIndex() != null) {
                 // The alias exists and has a write index, so we're good
                 listener.onResponse(false);

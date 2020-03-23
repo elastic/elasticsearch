@@ -8,7 +8,7 @@
 
 These examples demonstrate how to use Painless in {transforms}. You can learn 
 more about the Painless scripting language in the 
-https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-guide.html[Painless guide].
+{painless}/painless-guide.html[Painless guide].
 
 * <<painless-top-hits>>
 * <<painless-time-features>>
@@ -63,7 +63,7 @@ returned by each shard and returns the document with the latest timestamp
 nested below the `latest_doc` field.
 
 Check the
-{ref}/search-aggregations-metrics-scripted-metric-aggregation.html#_scope_of_scripts[scope of scripts]
+<<scripted-metric-aggregation-scope,scope of scripts>>
 for detailed explanation on the respective scripts.
 
 You can retrieve the last value in a similar way: 

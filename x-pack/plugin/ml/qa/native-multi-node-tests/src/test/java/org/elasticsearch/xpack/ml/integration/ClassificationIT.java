@@ -562,7 +562,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                         DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size())));
             }
             if (TEXT_FIELD.equals(dependentVariable) == false) {
-                source.addAll(List.of(TEXT_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
+                source.addAll(Arrays.asList(TEXT_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             if (KEYWORD_FIELD.equals(dependentVariable) == false) {
                 source.addAll(Arrays.asList(KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));

@@ -188,7 +188,7 @@ task buildLinuxTar(type: SymbolicLinkPreservingTar) {
 
 task buildOssLinuxAarch64Tar(type: SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
-  archiveClassifier = 'linux-x86_64'
+  archiveClassifier = 'linux-aarch64'
   with archiveFiles(modulesFiles(true, 'linux'), 'tar', 'linux', 'aarch64', true, true)
 }
 

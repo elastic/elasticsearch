@@ -324,41 +324,44 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         assertThat(searchRequest, containsString("\"_source\":{\"includes\":[\"field_2\"],\"excludes\":[]}"));
     }
 
-    public void testMissingValues_GivenShouldNotInclude() throws IOException {
+    public void testCollectDataSummary_GivenAnalysisSupportsMissingFields() {
+        TestExtractor dataExtractor = createExtractor(true, true);
+
+        // First and only batch
+        SearchResponse response = createSearchResponse(Arrays.asList(1_1, 1_2), Arrays.asList(2_1, 2_2));
+        dataExtractor.setNextResponse(response);
+
+        DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
+
+        assertThat(dataSummary.rows, equalTo(2L));
+        assertThat(dataSummary.cols, equalTo(2));
+
+        assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(1));
+        String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString("\"query\":{\"match_all\":{\"boost\":1.0}}"));
+    }
+
+    public void testCollectDataSummary_GivenAnalysisDoesNotSupportMissingFields() {
         TestExtractor dataExtractor = createExtractor(true, false);
 
         // First and only batch
-        SearchResponse response1 = createSearchResponse(Arrays.asList(1_1, null, 1_3), Arrays.asList(2_1, 2_2, 2_3));
-        dataExtractor.setNextResponse(response1);
+        SearchResponse response = createSearchResponse(Arrays.asList(1_1, 1_2), Arrays.asList(2_1, 2_2));
+        dataExtractor.setNextResponse(response);
 
-        // Empty
-        SearchResponse lastAndEmptyResponse = createEmptySearchResponse();
-        dataExtractor.setNextResponse(lastAndEmptyResponse);
+        DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
 
-        assertThat(dataExtractor.hasNext(), is(true));
+        assertThat(dataSummary.rows, equalTo(2L));
+        assertThat(dataSummary.cols, equalTo(2));
 
-        // First batch
-        Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
-        assertThat(rows.isPresent(), is(true));
-        assertThat(rows.get().size(), equalTo(3));
-
-        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"11", "21"}));
-        assertThat(rows.get().get(1).getValues(), is(nullValue()));
-        assertThat(rows.get().get(2).getValues(), equalTo(new String[] {"13", "23"}));
-
-        assertThat(rows.get().get(0).shouldSkip(), is(false));
-        assertThat(rows.get().get(1).shouldSkip(), is(true));
-        assertThat(rows.get().get(2).shouldSkip(), is(false));
-
-        assertThat(dataExtractor.hasNext(), is(true));
-
-        // Third batch should return empty
-        rows = dataExtractor.next();
-        assertThat(rows.isEmpty(), is(true));
-        assertThat(dataExtractor.hasNext(), is(false));
+        assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(1));
+        String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
+        assertThat(searchRequest, containsString(
+            "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},{\"bool\":{\"filter\":" +
+                "[{\"exists\":{\"field\":\"field_1\",\"boost\":1.0}},{\"exists\":{\"field\":\"field_2\",\"boost\":1.0}}]," +
+                "\"boost\":1.0}}],\"boost\":1.0}"));
     }
 
-    public void testMissingValues_GivenShouldInclude() throws IOException {
+    public void testMissingValues_GivenSupported() throws IOException {
         TestExtractor dataExtractor = createExtractor(true, true);
 
         // First and only batch
@@ -383,6 +386,40 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         assertThat(rows.get().get(0).shouldSkip(), is(false));
         assertThat(rows.get().get(1).shouldSkip(), is(false));
+        assertThat(rows.get().get(2).shouldSkip(), is(false));
+
+        assertThat(dataExtractor.hasNext(), is(true));
+
+        // Third batch should return empty
+        rows = dataExtractor.next();
+        assertThat(rows.isEmpty(), is(true));
+        assertThat(dataExtractor.hasNext(), is(false));
+    }
+
+    public void testMissingValues_GivenNotSupported() throws IOException {
+        TestExtractor dataExtractor = createExtractor(true, false);
+
+        // First and only batch
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1_1, null, 1_3), Arrays.asList(2_1, 2_2, 2_3));
+        dataExtractor.setNextResponse(response1);
+
+        // Empty
+        SearchResponse lastAndEmptyResponse = createEmptySearchResponse();
+        dataExtractor.setNextResponse(lastAndEmptyResponse);
+
+        assertThat(dataExtractor.hasNext(), is(true));
+
+        // First batch
+        Optional<List<DataFrameDataExtractor.Row>> rows = dataExtractor.next();
+        assertThat(rows.isPresent(), is(true));
+        assertThat(rows.get().size(), equalTo(3));
+
+        assertThat(rows.get().get(0).getValues(), equalTo(new String[] {"11", "21"}));
+        assertThat(rows.get().get(1).getValues(), is(nullValue()));
+        assertThat(rows.get().get(2).getValues(), equalTo(new String[] {"13", "23"}));
+
+        assertThat(rows.get().get(0).shouldSkip(), is(false));
+        assertThat(rows.get().get(1).shouldSkip(), is(true));
         assertThat(rows.get().get(2).shouldSkip(), is(false));
 
         assertThat(dataExtractor.hasNext(), is(true));
@@ -424,9 +461,9 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             containsInAnyOrder("field_keyword", "field_text", "field_boolean"));
     }
 
-    private TestExtractor createExtractor(boolean includeSource, boolean includeRowsWithMissingValues) {
+    private TestExtractor createExtractor(boolean includeSource, boolean supportsRowsWithMissingValues) {
         DataFrameDataExtractorContext context = new DataFrameDataExtractorContext(
-            JOB_ID, extractedFields, indices, query, scrollSize, headers, includeSource, includeRowsWithMissingValues);
+            JOB_ID, extractedFields, indices, query, scrollSize, headers, includeSource, supportsRowsWithMissingValues);
         return new TestExtractor(client, context);
     }
 

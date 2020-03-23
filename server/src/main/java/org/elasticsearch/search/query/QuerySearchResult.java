@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.query;
 
+import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import org.apache.lucene.search.FieldDoc;
@@ -384,22 +384,37 @@ public final class QuerySearchResult extends SearchPhaseResult {
         writeTopDocs(out, topDocsAndMaxScore);
         if (aggregations == null) {
             out.writeBoolean(false);
+            if (out.getVersion().before(Version.V_7_2_0)) {
+                /*
+                 * Earlier versions expect sibling pipeline aggs separately
+                 * as they used to be set to QuerySearchResult directly, while
+                 * later versions expect them in InternalAggregations. Note
+                 * that despite serializing sibling pipeline aggs as part of
+                 * InternalAggregations is supported since 6.7.0, the shards
+                 * set sibling pipeline aggs to InternalAggregations only from
+                 * 7.1 on.
+                 */
+                out.writeNamedWriteableList(emptyList());
+            }
         } else {
             out.writeBoolean(true);
             if (out.getVersion().before(Version.V_8_0_0)) {
-                aggregations.get().writeTo(out);
+                InternalAggregations aggs = aggregations.get();
+                aggs.writeTo(out);
+                if (out.getVersion().before(Version.V_7_2_0)) {
+                    /*
+                     * Earlier versions expect sibling pipeline aggs separately
+                     * as they used to be set to QuerySearchResult directly, while
+                     * later versions expect them in InternalAggregations. Note
+                     * that despite serializing sibling pipeline aggs as part of
+                     * InternalAggregations is supported since 6.7.0, the shards
+                     * set sibling pipeline aggs to InternalAggregations only from
+                     * 7.1 on.
+                     */
+                    out.writeNamedWriteableList(aggs.getTopLevelPipelineAggregators());
+                }
             } else {
                 aggregations.writeTo(out);
-            }
-        }
-        if (out.getVersion().before(Version.V_7_2_0)) {
-            //Earlier versions expect sibling pipeline aggs separately as they used to be set to QuerySearchResult directly,
-            //while later versions expect them in InternalAggregations. Note that despite serializing sibling pipeline aggs as part of
-            //InternalAggregations is supported since 6.7.0, the shards set sibling pipeline aggs to InternalAggregations only from 7.1 on.
-            if (aggregations == null) {
-                out.writeNamedWriteableList(Collections.emptyList());
-            } else {
-                out.writeNamedWriteableList(aggregations.get().getTopLevelPipelineAggregators());
             }
         }
         if (suggest == null) {

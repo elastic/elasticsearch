@@ -142,8 +142,8 @@ public class InboundPipelineTests extends ESTestCase {
                     final BytesReference slice = networkBytes.slice(currentOffset, bytesToRead);
                     try (ReleasableBytesReference reference = new ReleasableBytesReference(slice, () -> {})) {
                         toRelease.add(reference);
-                        final int handled = pipeline.handleBytes(mock(TcpChannel.class), reference);
-                        currentOffset += handled;
+                        pipeline.handleBytes(mock(TcpChannel.class), reference);
+                        currentOffset += bytesToRead;
                     }
                 }
 

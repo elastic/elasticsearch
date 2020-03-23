@@ -54,7 +54,8 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
         }
         Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
         try (ReleasableBytesReference reference = new ReleasableBytesReference(new CompositeBytesReference(references), releasable)) {
-            return pipeline.handleBytes(channel, reference);
+            pipeline.handleBytes(channel, reference);
+            return reference.length();
         }
     }
 

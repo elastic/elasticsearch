@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.function.BiConsumer;
 
@@ -38,6 +40,7 @@ public class InboundPipeline implements Releasable {
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
     private final BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler;
+    private ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
 
     public InboundPipeline(Version version, PageCacheRecycler recycler, BiConsumer<TcpChannel, InboundMessage> messageHandler,
                            BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
@@ -55,21 +58,32 @@ public class InboundPipeline implements Releasable {
 
     @Override
     public void close() {
-        Releasables.close(decoder, aggregator);
+        Releasables.closeWhileHandlingException(pending);
+        Releasables.closeWhileHandlingException(decoder, aggregator);
     }
 
-    public int handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+    public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+        pending.add(reference.retain());
+
+        final ReleasableBytesReference composite;
+        if (pending.size() == 1) {
+            composite = pending.peekFirst();
+        } else {
+            final ReleasableBytesReference[] bytesReferences = pending.toArray(new ReleasableBytesReference[0]);
+            final Releasable releasable = () -> Releasables.closeWhileHandlingException(bytesReferences);
+            composite = new ReleasableBytesReference(new CompositeBytesReference(bytesReferences), releasable);
+        }
+
         int bytesConsumed = 0;
         final ArrayList<Object> fragments = new ArrayList<>();
-
         boolean continueHandling = true;
 
         while (continueHandling) {
             boolean continueDecoding = true;
             while (continueDecoding) {
-                final int remaining = reference.length() - bytesConsumed;
+                final int remaining = composite.length() - bytesConsumed;
                 if (remaining != 0) {
-                    try (ReleasableBytesReference slice = reference.retainedSlice(bytesConsumed, remaining)) {
+                    try (ReleasableBytesReference slice = composite.retainedSlice(bytesConsumed, remaining)) {
                         final int bytesDecoded = decoder.handle(slice, fragments::add);
                         if (bytesDecoded != 0) {
                             bytesConsumed += bytesDecoded;
@@ -101,7 +115,7 @@ public class InboundPipeline implements Releasable {
             }
         }
 
-        return bytesConsumed;
+        releasePendingBytes(bytesConsumed);
     }
 
     private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) throws IOException {
@@ -131,5 +145,20 @@ public class InboundPipeline implements Releasable {
 
     private boolean endOfMessage(Object fragment) {
         return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
+    }
+
+    private void releasePendingBytes(int bytesConsumed) {
+        int bytesToRelease = bytesConsumed;
+        while (bytesToRelease != 0) {
+            try (ReleasableBytesReference reference = pending.pollFirst()) {
+                assert reference != null;
+                if (bytesToRelease < reference.length()) {
+                    pending.addFirst(reference.retainedSlice(bytesToRelease, reference.length() - bytesToRelease));
+                    bytesToRelease -= bytesToRelease;
+                } else {
+                    bytesToRelease -= reference.length();
+                }
+            }
+        }
     }
 }

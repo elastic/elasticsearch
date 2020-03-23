@@ -187,5 +187,4 @@ public class MetaDataRolloverService {
             throw new IllegalArgumentException("source alias [" + alias.getAliasName() + "] does not point to a write index");
         }
     }
-
 }

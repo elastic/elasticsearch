@@ -108,8 +108,8 @@ public class Wildcard extends ScalarFunction {
         throw new EqlIllegalArgumentException("Wildcard.asScript() should not be called directly");
     }
 
-    public Expression asLikes() {
-        Expression result = null;
+    public ScalarFunction asLikes() {
+        ScalarFunction result = null;
 
         for (Expression pattern: patterns) {
             String wcString = pattern.fold().toString();

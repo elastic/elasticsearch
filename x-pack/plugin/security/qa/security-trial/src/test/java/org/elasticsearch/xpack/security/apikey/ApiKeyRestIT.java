@@ -10,6 +10,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.security.support.ApiKey;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -22,9 +23,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -45,10 +46,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     @Before
     public void createUsers() throws IOException {
-        createUser(SYSTEM_USER, SYSTEM_USER_PASSWORD, List.of("system_role"));
-        createRole("system_role", Set.of("manage_api_key"));
-        createUser(END_USER, END_USER_PASSWORD, List.of("user_role"));
-        createRole("user_role", Set.of("monitor"));
+        createUser(SYSTEM_USER, SYSTEM_USER_PASSWORD, Collections.singletonList("system_role"));
+        createRole("system_role", Collections.singleton("manage_api_key"));
+        createUser(END_USER, END_USER_PASSWORD, Collections.singletonList("user_role"));
+        createRole("user_role", Collections.singleton("monitor"));
     }
 
     @After
@@ -64,12 +65,11 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         Request request = new Request("POST", "_security/api_key/grant");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD)));
-        final Map<String, Object> requestBody = Map.ofEntries(
-            Map.entry("grant_type", "password"),
-            Map.entry("username", END_USER),
-            Map.entry("password", END_USER_PASSWORD.toString()),
-            Map.entry("api_key", Map.of("name", "test_api_key_password"))
-        );
+        final Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("grant_type", "password");
+        requestBody.put("username", END_USER);
+        requestBody.put("password", END_USER_PASSWORD.toString());
+        requestBody.put("api_key", Collections.singletonMap("name", "test_api_key_password"));
         request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
 
         final Response response = client().performRequest(request);
@@ -90,11 +90,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Request request = new Request("POST", "_security/api_key/grant");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD)));
-        final Map<String, Object> requestBody = Map.ofEntries(
-            Map.entry("grant_type", "access_token"),
-            Map.entry("access_token", accessToken),
-            Map.entry("api_key", Map.of("name", "test_api_key_token", "expiration", "2h"))
-        );
+        final Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("grant_type", "access_token");
+        requestBody.put("access_token", accessToken);
+        requestBody.put("api_key", MapBuilder.newMapBuilder().put("name", "test_api_key_token").put("expiration", "2h").map());
         request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
 
         final Instant before = Instant.now();
@@ -116,3 +115,4 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(apiKey.getExpiration(), lessThanOrEqualTo(maxExpiry));
     }
 }
+

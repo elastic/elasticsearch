@@ -2,6 +2,14 @@
 == {es} version 7.4.2
 
 [float]
+=== Known issues
+
+* Indices created in 6.x with <<date,`date`>> and <<date_nanos,`date_nanos`>> fields using formats
+that are incompatible with java.time patterns will cause parsing errors, incorrect date calculations or wrong search results.
+https://github.com/elastic/elasticsearch/pull/52555
+This is fixed in {es} 7.7 and later versions.
+
+[float]
 [[bug-7.4.2]]
 === Bug fixes
 

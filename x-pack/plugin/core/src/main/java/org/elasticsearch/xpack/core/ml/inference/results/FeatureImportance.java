@@ -41,7 +41,7 @@ public class FeatureImportance implements Writeable {
         this.featureName = in.readString();
         this.importance = in.readDouble();
         if (in.readBoolean()) {
-            this.classImportance = in.readLinkedHashMap(StreamInput::readString, StreamInput::readDouble);
+            this.classImportance = in.readMap(StreamInput::readString, StreamInput::readDouble);
         } else {
             this.classImportance = null;
         }

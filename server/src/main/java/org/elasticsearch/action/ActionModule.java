@@ -381,9 +381,6 @@ public class ActionModule extends AbstractModule {
 
     static {
         final String property = System.getProperty("es.itv2_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.itv2_feature_flag_registered is only supported in non-snapshot builds");
-        }
         if (Build.CURRENT.isSnapshot() || "true".equals(property)) {
             ITV2_FEATURE_FLAG_REGISTERED = true;
         } else if ("false".equals(property) || property == null) {
@@ -398,9 +395,6 @@ public class ActionModule extends AbstractModule {
 
     static {
         final String property = System.getProperty("es.datastreams_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.datastreams_feature_flag_registered is only supported in non-snapshot builds");
-        }
         if (Build.CURRENT.isSnapshot() || "true".equals(property)) {
             DATASTREAMS_FEATURE_FLAG_REGISTERED = true;
         } else if ("false".equals(property) || property == null) {

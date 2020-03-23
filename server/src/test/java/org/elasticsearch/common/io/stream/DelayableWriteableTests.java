@@ -33,11 +33,11 @@ public class DelayableWriteableTests extends ESTestCase {
     private static class Example implements NamedWriteable {
         private final String s;
 
-        public Example(String s) {
+        Example(String s) {
             this.s = s;
         }
 
-        public Example(StreamInput in) throws IOException {
+        Example(StreamInput in) throws IOException {
             s = in.readString();
         }
 
@@ -69,11 +69,11 @@ public class DelayableWriteableTests extends ESTestCase {
     private static class NamedHolder implements Writeable {
         private final Example e;
 
-        public NamedHolder(Example e) {
+        NamedHolder(Example e) {
             this.e = e;
         }
 
-        public NamedHolder(StreamInput in) throws IOException {
+        NamedHolder(StreamInput in) throws IOException {
             e = in.readNamedWriteable(Example.class);
         }
 
@@ -100,11 +100,11 @@ public class DelayableWriteableTests extends ESTestCase {
     private static class SneakOtherSideVersionOnWire implements Writeable {
         private final Version version;
 
-        public SneakOtherSideVersionOnWire() {
+        SneakOtherSideVersionOnWire() {
             version = Version.CURRENT;
         }
 
-        public SneakOtherSideVersionOnWire(StreamInput in) throws IOException {
+        SneakOtherSideVersionOnWire(StreamInput in) throws IOException {
             version = Version.readVersion(in);
         }
 

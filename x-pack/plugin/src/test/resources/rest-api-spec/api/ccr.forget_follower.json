@@ -5,6 +5,10 @@
       "description": "Removes the follower retention leases from the leader."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

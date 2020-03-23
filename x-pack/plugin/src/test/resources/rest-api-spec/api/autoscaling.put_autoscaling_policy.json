@@ -5,6 +5,10 @@
       "description": "Creates a new autoscaling policy."
     },
     "stability":"experimental",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

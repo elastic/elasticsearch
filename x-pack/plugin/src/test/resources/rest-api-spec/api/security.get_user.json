@@ -5,6 +5,9 @@
       "description":"Retrieves information about users in the native realm and built-in users."
     },
     "stability":"stable",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

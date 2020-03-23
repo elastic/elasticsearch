@@ -5,6 +5,9 @@
       "description":"Returns information about a task."
     },
     "stability":"experimental",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

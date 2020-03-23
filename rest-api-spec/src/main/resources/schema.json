@@ -33,6 +33,9 @@
                     "type": "string",
                     "enum": ["stable", "beta", "experimental", "private"]
                 },
+                "headers": {
+                  "$ref": "#/definitions/Headers"
+                },
                 "url": {
                     "$ref": "#/definitions/Url"
                 },
@@ -173,6 +176,29 @@
             ],
             "title": "Documentation",
             "description": "API documentation including a link to the public reference and a short description"
+        },
+        "Headers": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "accept": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minItems": 1
+                    }
+                },
+                "content_type": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minItems": 1
+                    }
+                }
+            },
+            "required": ["accept"],
+            "title": "Headers the API understands",
+            "description": "Documents the headers the API supports, at a minimum this should document the Accept header and Content-Type header if the API supports a body"
         },
         "Parts": {
             "type": "object",

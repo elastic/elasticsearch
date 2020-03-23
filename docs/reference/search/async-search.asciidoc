@@ -68,7 +68,6 @@ results are returned as part of the <<search-api-response-body,`response`>> obje
 }
 --------------------------------------------------
 // TESTRESPONSE[s/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=/$body.id/]
-// TESTRESPONSE[s/"version" : 0/"version": $body.version/]
 // TESTRESPONSE[s/"is_partial" : true/"is_partial": $body.is_partial/]
 // TESTRESPONSE[s/"is_running" : true/"is_running": $body.is_running/]
 // TESTRESPONSE[s/1583945890986/$body.start_time_in_millis/]
@@ -170,7 +169,6 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
 }
 --------------------------------------------------
 // TESTRESPONSE[s/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=/$body.id/]
-// TESTRESPONSE[s/"version" : 39/"version" : $body.version/]
 // TESTRESPONSE[s/"is_partial" : true/"is_partial" : false/]
 // TESTRESPONSE[s/"is_running" : true/"is_running" : false/]
 // TESTRESPONSE[s/1583945890986/$body.start_time_in_millis/]

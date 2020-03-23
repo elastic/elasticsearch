@@ -1,8 +1,8 @@
 ---
 "Create data stream":
   - skip:
-      version: " - 7.6.99"
-      reason: only available in 7.7+
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/54022"
 
   - do:
       indices.create_data_stream:

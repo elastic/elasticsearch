@@ -146,7 +146,7 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
   "response" : {
     "took" : 12144,
     "timed_out" : false,
-    "num_reduce_phases" : 38, <4>
+    "num_reduce_phases" : 46, <4>
     "_shards" : {
       "total" : 562, <5>
       "successful" : 188,

@@ -42,7 +42,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -869,7 +868,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             service.acceptIncomingRequests();
             final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> service.getRemoteClusterService().collectNodes(Set.of(), ActionListener.wrap(r -> {}, r -> {})));
+                () -> service.getRemoteClusterService().collectNodes(Collections.emptySet(), ActionListener.wrap(r -> {}, r -> {})));
             assertThat(e.getMessage(), equalTo("remote cluster service is not enabled"));
         }
     }

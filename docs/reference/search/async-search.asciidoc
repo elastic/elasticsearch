@@ -30,9 +30,8 @@ POST /sales*/_async_search?size=0
     }
 }
 --------------------------------------------------
-// TEST[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/53887"]
 // TEST[setup:sales]
-// TEST[s/size=0/size=0&wait_for_completion=0/]
+// TEST[s/size=0/size=0&wait_for_completion=10s&clean_on_completion=false/]
 
 The response contains an identifier of the search being executed.
 You can use this ID to later retrieve the search's final results.
@@ -69,12 +68,17 @@ results are returned as part of the <<search-api-response-body,`response`>> obje
 }
 --------------------------------------------------
 // TESTRESPONSE[s/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=/$body.id/]
+// TESTRESPONSE[s/"is_partial" : true/"is_partial": $body.is_partial/]
+// TESTRESPONSE[s/"is_running" : true/"is_running": $body.is_running/]
 // TESTRESPONSE[s/1583945890986/$body.start_time_in_millis/]
 // TESTRESPONSE[s/1584377890986/$body.expiration_time_in_millis/]
 // TESTRESPONSE[s/"took" : 1122/"took": $body.response.took/]
+// TESTRESPONSE[s/"num_reduce_phases" : 0,//]
 // TESTRESPONSE[s/"total" : 562/"total": $body.response._shards.total/]
 // TESTRESPONSE[s/"successful" : 3/"successful": $body.response._shards.successful/]
 // TESTRESPONSE[s/"value" : 157483/"value": $body.response.hits.total.value/]
+// TESTRESPONSE[s/"relation" : "gte"/"relation": $body.response.hits.total.relation/]
+// TESTRESPONSE[s/"hits" : \[ \]\n\s\s\s\s\}/"hits" : \[\]},"aggregations":  $body.response.aggregations/]
 
 <1> Identifier of the async search that can be used to monitor its progress, retrieve its results, and/or delete it.
 <2> Whether the returned search results are partial or final
@@ -141,7 +145,7 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
   "response" : {
     "took" : 12144,
     "timed_out" : false,
-    "num_reduce_phases" : 38, <4>
+    "num_reduce_phases" : 46, <4>
     "_shards" : {
       "total" : 562, <5>
       "successful" : 188,
@@ -174,7 +178,7 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
 // TESTRESPONSE[s/"successful" : 188/"successful": $body.response._shards.successful/]
 // TESTRESPONSE[s/"value" : 456433/"value": $body.response.hits.total.value/]
 // TESTRESPONSE[s/"buckets" : \[\]/"buckets": $body.response.aggregations.sale_date.buckets/]
-// TESTRESPONSE[s/"num_reduce_phases" : 38,//]
+// TESTRESPONSE[s/"num_reduce_phases" : 46,//]
 
 <1> Whether the returned search results are partial or final
 <2> Whether the search is still being executed or it has completed

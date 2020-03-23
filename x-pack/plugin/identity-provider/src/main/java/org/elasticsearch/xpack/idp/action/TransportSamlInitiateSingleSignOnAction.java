@@ -88,7 +88,7 @@ public class TransportSamlInitiateSingleSignOnAction
                         final SuccessfulAuthenticationResponseMessageBuilder builder =
                             new SuccessfulAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider);
                         try {
-                            final Response response = builder.build(user, null);
+                            final Response response = builder.build(user, authenticationState);
                             listener.onResponse(new SamlInitiateSingleSignOnResponse(
                                 user.getServiceProvider().getAssertionConsumerService().toString(),
                                 samlFactory.getXmlContent(response),

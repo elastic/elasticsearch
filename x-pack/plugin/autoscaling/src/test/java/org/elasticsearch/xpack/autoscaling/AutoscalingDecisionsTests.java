@@ -6,9 +6,16 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class AutoscalingDecisionsTests extends AutoscalingTestCase {
+
+    public void testAutoscalingDecisionsRejectsEmptyDecisions() {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new AutoscalingDecisions(List.of()));
+        assertThat(e.getMessage(), equalTo("decisions can not be empty"));
+    }
 
     public void testAutoscalingDecisionsTypeDown() {
         final AutoscalingDecisions decisions = randomAutoscalingDecisions(randomIntBetween(1, 8), 0, 0);

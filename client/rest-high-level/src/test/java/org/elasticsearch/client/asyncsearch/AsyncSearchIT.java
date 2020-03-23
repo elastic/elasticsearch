@@ -37,7 +37,7 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
         SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(sourceBuilder, index);
         submitRequest.setCleanOnCompletion(false);
-        AsyncSearchResponse submitResponse = highLevelClient().asyncSearch().submitAsyncSearch(submitRequest, RequestOptions.DEFAULT);
+        AsyncSearchResponse submitResponse = highLevelClient().asyncSearch().submit(submitRequest, RequestOptions.DEFAULT);
         assertNotNull(submitResponse.getId());
         assertFalse(submitResponse.isPartial());
         assertTrue(submitResponse.getStartTime() > 0);
@@ -50,9 +50,9 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         }
 
         GetAsyncSearchRequest getRequest = new GetAsyncSearchRequest(submitResponse.getId());
-        AsyncSearchResponse getResponse = highLevelClient().asyncSearch().getAsyncSearch(getRequest, RequestOptions.DEFAULT);
+        AsyncSearchResponse getResponse = highLevelClient().asyncSearch().get(getRequest, RequestOptions.DEFAULT);
         while (getResponse.isRunning()) {
-            getResponse = highLevelClient().asyncSearch().getAsyncSearch(getRequest, RequestOptions.DEFAULT);
+            getResponse = highLevelClient().asyncSearch().get(getRequest, RequestOptions.DEFAULT);
         }
 
         assertFalse(getResponse.isRunning());
@@ -62,7 +62,7 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         assertNotNull(getResponse.getSearchResponse());
 
         DeleteAsyncSearchRequest deleteRequest = new DeleteAsyncSearchRequest(submitResponse.getId());
-        AcknowledgedResponse deleteAsyncSearchResponse = highLevelClient().asyncSearch().deleteAsyncSearch(deleteRequest,
+        AcknowledgedResponse deleteAsyncSearchResponse = highLevelClient().asyncSearch().delete(deleteRequest,
                 RequestOptions.DEFAULT);
         assertNotNull(deleteAsyncSearchResponse);
         assertNotNull(deleteAsyncSearchResponse.isAcknowledged());

@@ -87,7 +87,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
         if (general != null) {
             builder.field(ScriptStats.Fields.COMPILATIONS, general.getCompilations());
             builder.field(ScriptStats.Fields.CACHE_EVICTIONS, general.getCacheEvictions());
-            builder.field(ScriptStats.Fields.COMPILATIONS, general.getCompilations());
+            builder.field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, general.getCompilationLimitTriggered());
             builder.endObject().endObject();
             return builder;
         }
@@ -95,7 +95,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
         ScriptStats sum = ScriptStats.sum(context.values());
         builder.field(ScriptStats.Fields.COMPILATIONS, sum.getCompilations());
         builder.field(ScriptStats.Fields.CACHE_EVICTIONS, sum.getCacheEvictions());
-        builder.field(ScriptStats.Fields.COMPILATIONS, sum.getCompilations());
+        builder.field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, sum.getCompilationLimitTriggered());
         builder.endObject();
 
         builder.startArray(Fields.CONTEXTS);
@@ -105,7 +105,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
             builder.field(Fields.CONTEXT, name);
             builder.field(ScriptStats.Fields.COMPILATIONS, stats.getCompilations());
             builder.field(ScriptStats.Fields.CACHE_EVICTIONS, stats.getCacheEvictions());
-            builder.field(ScriptStats.Fields.COMPILATIONS, stats.getCompilations());
+            builder.field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, stats.getCompilationLimitTriggered());
             builder.endObject();
         }
         builder.endArray();

@@ -526,7 +526,7 @@ Possible values are `accuracy` and `minimum_recall`.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`downsample_factor`:::
 (double)
-Th value of the downsample factor.
+The value of the downsample factor.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`eta`:::
 (double)
@@ -674,7 +674,7 @@ An object containing the hyperparameters of the {reganalysis}.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`downsample_factor`:::
 (double)
-Th value of the downsample factor.
+The value of the downsample factor.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`eta`:::
 (double)

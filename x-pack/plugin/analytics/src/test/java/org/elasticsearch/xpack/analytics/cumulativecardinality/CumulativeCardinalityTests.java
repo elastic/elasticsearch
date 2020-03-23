@@ -24,7 +24,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class CumulativeCardinalityTests extends BasePipelineAggregationTestCase<CumulativeCardinalityPipelineAggregationBuilder> {
-    
     @Override
     protected List<SearchPlugin> plugins() {
         return singletonList(new SearchPlugin() {

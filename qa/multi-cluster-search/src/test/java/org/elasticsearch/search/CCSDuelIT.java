@@ -124,7 +124,7 @@ public class CCSDuelIT extends ESRestTestCase {
 
     private static final String INDEX_NAME = "ccs_duel_index";
     private static final String REMOTE_INDEX_NAME = "my_remote_cluster:" + INDEX_NAME;
-    private static final String[] TAGS = new String[]{"java", "xml", "sql", "html", "php", "ruby", "python", "perl"};
+    private static final String[] TAGS = new String[] {"java", "xml", "sql", "html", "php", "ruby", "python", "perl"};
 
     private static RestHighLevelClient restHighLevelClient;
 
@@ -416,7 +416,6 @@ public class CCSDuelIT extends ESRestTestCase {
     public void testSortByField() throws Exception  {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
-        searchRequest.setPreFilterShardSize(1);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.from(30);
         sourceBuilder.size(25);
@@ -436,7 +435,8 @@ public class CCSDuelIT extends ESRestTestCase {
     public void testSortByFieldOneClusterHasNoResults() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
-        searchRequest.setPreFilterShardSize(1);
+        // set to a value greater than the number of shards to avoid differences due to the skipping of shards
+        searchRequest.setPreFilterShardSize(128);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         boolean onlyRemote = randomBoolean();
         sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
@@ -493,7 +493,6 @@ public class CCSDuelIT extends ESRestTestCase {
     public void testFieldCollapsingSortByField() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
-        searchRequest.setPreFilterShardSize(1);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         searchRequest.source(sourceBuilder);
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "ruby"));

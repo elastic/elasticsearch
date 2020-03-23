@@ -40,22 +40,25 @@ class RandomCrossValidationSplitter implements CrossValidationSplitter {
     }
 
     @Override
-    public void process(String[] row) {
-        if (canBeUsedForTraining(row)) {
-            if (isFirstRow) {
-                // Let's make sure we have at least one training row
-                isFirstRow = false;
-            } else if (isRandomlyExcludedFromTraining()) {
-                row[dependentVariableIndex] = DataFrameDataExtractor.NULL_VALUE;
-            }
+    public void process(String[] row, Runnable incrementTrainingDocs, Runnable incrementTestDocs) {
+        if (canBeUsedForTraining(row) && isPickedForTraining()) {
+            incrementTrainingDocs.run();
+        } else {
+            row[dependentVariableIndex] = DataFrameDataExtractor.NULL_VALUE;
+            incrementTestDocs.run();
         }
     }
 
     private boolean canBeUsedForTraining(String[] row) {
-        return row[dependentVariableIndex].length() > 0;
+        return row[dependentVariableIndex] != DataFrameDataExtractor.NULL_VALUE;
     }
 
-    private boolean isRandomlyExcludedFromTraining() {
-        return random.nextDouble() * 100 > trainingPercent;
+    private boolean isPickedForTraining() {
+        if (isFirstRow) {
+            // Let's make sure we have at least one training row
+            isFirstRow = false;
+            return true;
+        }
+        return random.nextDouble() * 100 <= trainingPercent;
     }
 }

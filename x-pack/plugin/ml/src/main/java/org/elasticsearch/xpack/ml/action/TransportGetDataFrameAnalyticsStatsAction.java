@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
@@ -108,6 +109,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
                 Stats stats = buildStats(
                     task.getParams().getId(),
                     statsHolder.getProgressTracker().report(),
+                    statsHolder.getDataCountsTracker().report(task.getParams().getId()),
                     statsHolder.getMemoryUsage(),
                     statsHolder.getAnalysisStats()
                 );
@@ -200,6 +202,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.add(buildStoredProgressSearch(configId));
+        multiSearchRequest.add(buildStatsDocSearch(configId, DataCounts.TYPE_VALUE));
         multiSearchRequest.add(buildStatsDocSearch(configId, MemoryUsage.TYPE_VALUE));
         multiSearchRequest.add(buildStatsDocSearch(configId, OutlierDetectionStats.TYPE_VALUE));
         multiSearchRequest.add(buildStatsDocSearch(configId, ClassificationStats.TYPE_VALUE));
@@ -224,6 +227,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
                 }
                 listener.onResponse(buildStats(configId,
                     retrievedStatsHolder.progress.get(),
+                    retrievedStatsHolder.dataCounts,
                     retrievedStatsHolder.memoryUsage,
                     retrievedStatsHolder.analysisStats
                 ));
@@ -258,6 +262,8 @@ public class TransportGetDataFrameAnalyticsStatsAction
         String hitId = hit.getId();
         if (StoredProgress.documentId(configId).equals(hitId)) {
             retrievedStatsHolder.progress = MlParserUtils.parse(hit, StoredProgress.PARSER);
+        } else if (DataCounts.documentId(configId).equals(hitId)) {
+            retrievedStatsHolder.dataCounts = MlParserUtils.parse(hit, DataCounts.LENIENT_PARSER);
         } else if (hitId.startsWith(MemoryUsage.documentIdPrefix(configId))) {
             retrievedStatsHolder.memoryUsage = MlParserUtils.parse(hit, MemoryUsage.LENIENT_PARSER);
         } else if (hitId.startsWith(OutlierDetectionStats.documentIdPrefix(configId))) {
@@ -273,6 +279,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
     private GetDataFrameAnalyticsStatsAction.Response.Stats buildStats(String concreteAnalyticsId,
                                                                        List<PhaseProgress> progress,
+                                                                       DataCounts dataCounts,
                                                                        MemoryUsage memoryUsage,
                                                                        AnalysisStats analysisStats) {
         ClusterState clusterState = clusterService.state();
@@ -295,6 +302,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
             analyticsState,
             failureReason,
             progress,
+            dataCounts,
             memoryUsage,
             analysisStats,
             node,
@@ -305,6 +313,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
     private static class RetrievedStatsHolder {
 
         private volatile StoredProgress progress = new StoredProgress(new ProgressTracker().report());
+        private volatile DataCounts dataCounts;
         private volatile MemoryUsage memoryUsage;
         private volatile AnalysisStats analysisStats;
     }

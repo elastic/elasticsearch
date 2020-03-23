@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
@@ -166,6 +167,9 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             private final List<PhaseProgress> progress;
 
             @Nullable
+            private final DataCounts dataCounts;
+
+            @Nullable
             private final MemoryUsage memoryUsage;
 
             @Nullable
@@ -177,12 +181,13 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             private final String assignmentExplanation;
 
             public Stats(String id, DataFrameAnalyticsState state, @Nullable String failureReason, List<PhaseProgress> progress,
-                         @Nullable MemoryUsage memoryUsage, @Nullable AnalysisStats analysisStats, @Nullable DiscoveryNode node,
-                         @Nullable String assignmentExplanation) {
+                         @Nullable DataCounts dataCounts, @Nullable MemoryUsage memoryUsage, @Nullable AnalysisStats analysisStats,
+                         @Nullable DiscoveryNode node, @Nullable String assignmentExplanation) {
                 this.id = Objects.requireNonNull(id);
                 this.state = Objects.requireNonNull(state);
                 this.failureReason = failureReason;
                 this.progress = Objects.requireNonNull(progress);
+                this.dataCounts = dataCounts;
                 this.memoryUsage = memoryUsage;
                 this.analysisStats = analysisStats;
                 this.node = node;
@@ -197,6 +202,11 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     progress = readProgressFromLegacy(state, in);
                 } else {
                     progress = in.readList(PhaseProgress::new);
+                }
+                if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                    dataCounts = in.readOptionalWriteable(DataCounts::new);
+                } else {
+                    dataCounts = null;
                 }
                 if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                     memoryUsage = in.readOptionalWriteable(MemoryUsage::new);
@@ -262,6 +272,11 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             }
 
             @Nullable
+            public DataCounts getDataCounts() {
+                return dataCounts;
+            }
+
+            @Nullable
             public MemoryUsage getMemoryUsage() {
                 return memoryUsage;
             }
@@ -292,6 +307,9 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 }
                 if (progress != null) {
                     builder.field("progress", progress);
+                }
+                if (dataCounts != null) {
+                    builder.field("data_counts", dataCounts);
                 }
                 if (memoryUsage != null) {
                     builder.field("memory_usage", memoryUsage);
@@ -331,6 +349,9 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 } else {
                     out.writeList(progress);
                 }
+                if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                    out.writeOptionalWriteable(dataCounts);
+                }
                 if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                     out.writeOptionalWriteable(memoryUsage);
                 }
@@ -369,7 +390,8 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
 
             @Override
             public int hashCode() {
-                return Objects.hash(id, state, failureReason, progress, memoryUsage, analysisStats, node, assignmentExplanation);
+                return Objects.hash(id, state, failureReason, progress, dataCounts, memoryUsage, analysisStats, node,
+                    assignmentExplanation);
             }
 
             @Override
@@ -385,6 +407,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                         && Objects.equals(this.state, other.state)
                         && Objects.equals(this.failureReason, other.failureReason)
                         && Objects.equals(this.progress, other.progress)
+                        && Objects.equals(this.dataCounts, other.dataCounts)
                         && Objects.equals(this.memoryUsage, other.memoryUsage)
                         && Objects.equals(this.analysisStats, other.analysisStats)
                         && Objects.equals(this.node, other.node)

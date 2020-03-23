@@ -36,6 +36,12 @@ dependencies {
   testCompile project(path: ':plugins:repository-gcs')
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'snapshot','indices', 'index', 'bulk', 'count'
+  }
+}
+
 testFixtures.useFixture(':test:fixtures:gcs-fixture')
 boolean useFixture = false
 

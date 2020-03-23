@@ -40,7 +40,6 @@ class MutableSearchResponse {
     private final AtomicArray<ShardSearchFailure> shardFailures;
     private final Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier;
 
-    private int version;
     private boolean isPartial;
     private boolean isFinalReduce;
     private int successfulShards;
@@ -63,7 +62,6 @@ class MutableSearchResponse {
         this.skippedShards = skippedShards;
         this.clusters = clusters;
         this.aggReduceContextSupplier = aggReduceContextSupplier;
-        this.version = 0;
         this.shardFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards-skippedShards);
         this.isPartial = true;
         this.sections = totalShards == -1 ? null : new InternalSearchResponse(
@@ -83,7 +81,6 @@ class MutableSearchResponse {
             throw new IllegalStateException("received partial response out of order: "
                 + newSections.getNumReducePhases() + " < " + sections.getNumReducePhases());
         }
-        ++ version;
         this.successfulShards = successfulShards;
         this.sections = newSections;
         this.isPartial = true;
@@ -96,7 +93,6 @@ class MutableSearchResponse {
      */
     synchronized void updateFinalResponse(int successfulShards, SearchResponseSections newSections) {
         failIfFrozen();
-        ++ version;
         this.successfulShards = successfulShards;
         this.sections = newSections;
         this.isPartial = false;
@@ -110,7 +106,6 @@ class MutableSearchResponse {
      */
     synchronized void updateWithFailure(Exception exc) {
         failIfFrozen();
-        ++ version;
         this.isPartial = true;
         this.failure = ElasticsearchException.guessRootCauses(exc)[0];
         this.frozen = true;
@@ -147,7 +142,7 @@ class MutableSearchResponse {
         } else {
             resp = null;
         }
-        return new AsyncSearchResponse(task.getSearchId().getEncoded(), version, resp, failure, isPartial,
+        return new AsyncSearchResponse(task.getSearchId().getEncoded(), resp, failure, isPartial,
             frozen == false, task.getStartTime(), expirationTime);
     }
 
@@ -159,7 +154,7 @@ class MutableSearchResponse {
 
     private ShardSearchFailure[] buildShardFailures() {
         if (shardFailures == null) {
-            return new ShardSearchFailure[0];
+            return ShardSearchFailure.EMPTY_ARRAY;
         }
         List<ShardSearchFailure> failures = new ArrayList<>();
         for (int i = 0; i < shardFailures.length(); i++) {

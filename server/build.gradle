@@ -317,10 +317,8 @@ thirdPartyAudit.ignoreMissingClasses(
   'com.google.common.geometry.S2LatLng'
 )
 
-rootProject.globalInfo.ready {
-  if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
-  }
+if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }
 
 dependencyLicenses {

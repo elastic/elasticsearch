@@ -49,12 +49,10 @@ if (!isEclipse) {
   }
 
   forbiddenApisJava9 {
-    rootProject.globalInfo.ready {
-      if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
-        targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
-      }
-      replaceSignatureFiles 'jdk-signatures'
+    if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
+      targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
     }
+    replaceSignatureFiles 'jdk-signatures'
   }
 
   jar {

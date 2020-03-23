@@ -18,7 +18,6 @@ import java.util.Map;
 
 final class MapUtils {
 
-
     private static final Map<String, Object> FEATURE_IMPORTANCE_MAPPING;
     static {
         Map<String, Object> featureImportanceMappingProperties = new HashMap<>();

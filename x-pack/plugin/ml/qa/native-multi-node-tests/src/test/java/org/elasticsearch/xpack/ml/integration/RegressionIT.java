@@ -28,6 +28,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -89,7 +90,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
-            assertThat(importanceArray.size(), greaterThan(0));
+            assertThat(importanceArray, hasSize(greaterThan(0)));
             assertThat(
                 importanceArray.stream().filter(m -> NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
                     || DISCRETE_NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))).findAny().orElse(null),

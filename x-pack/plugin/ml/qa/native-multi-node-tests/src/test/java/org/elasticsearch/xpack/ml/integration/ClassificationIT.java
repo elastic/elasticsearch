@@ -108,7 +108,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
-            assertThat(importanceArray.size(), greaterThan(0));
+            assertThat(importanceArray, hasSize(greaterThan(0)));
         }
 
         assertProgress(jobId, 100, 100, 100, 100);

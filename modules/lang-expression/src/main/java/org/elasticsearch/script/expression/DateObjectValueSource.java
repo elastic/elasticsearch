@@ -27,7 +27,7 @@ import java.util.function.ToIntFunction;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
@@ -41,7 +41,7 @@ class DateObjectValueSource extends FieldDataValueSource {
     final String methodName;
     final ToIntFunction<ReadableDateTime> function;
 
-    DateObjectValueSource(IndexFieldData<?> indexFieldData, MultiValueMode multiValueMode, 
+    DateObjectValueSource(IndexFieldData<?> indexFieldData, MultiValueMode multiValueMode,
                           String methodName, ToIntFunction<ReadableDateTime> function) {
         super(indexFieldData, multiValueMode);
 
@@ -54,7 +54,7 @@ class DateObjectValueSource extends FieldDataValueSource {
     @Override
     @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+        LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         MutableDateTime joda = new MutableDateTime(0, DateTimeZone.UTC);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
         return new DoubleDocValues(this) {

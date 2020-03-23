@@ -94,6 +94,7 @@ import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -454,7 +455,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
         }
 
-        List<InternalAggregation> aggs = new ArrayList<> ();
+        PipelineTree pipelines = builder.buildPipelineTree();
+        List<InternalAggregation> aggs = new ArrayList<>();
         Query rewritten = searcher.rewrite(query);
         Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(maxBucket,
@@ -481,33 +483,27 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 Collections.shuffle(aggs, random());
                 int r = randomIntBetween(1, toReduceSize);
                 List<InternalAggregation> toReduce = aggs.subList(0, r);
-                MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket,
-                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
-                InternalAggregation.ReduceContext context =
-                    new InternalAggregation.ReduceContext(root.context().bigArrays(), getMockScriptService(),
-                        reduceBucketConsumer, false);
+                InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
+                        root.context().bigArrays(), getMockScriptService());
                 A reduced = (A) aggs.get(0).reduce(toReduce, context);
-                doAssertReducedMultiBucketConsumer(reduced, reduceBucketConsumer);
                 aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
                 aggs.add(reduced);
             }
             // now do the final reduce
             MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
-            InternalAggregation.ReduceContext context =
-                new InternalAggregation.ReduceContext(root.context().bigArrays(), getMockScriptService(), reduceBucketConsumer, true);
+            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                    root.context().bigArrays(), getMockScriptService(), reduceBucketConsumer, pipelines);
 
             @SuppressWarnings("unchecked")
             A internalAgg = (A) aggs.get(0).reduce(aggs, context);
 
             // materialize any parent pipelines
-            internalAgg = (A) internalAgg.reducePipelines(internalAgg, context);
+            internalAgg = (A) internalAgg.reducePipelines(internalAgg, context, pipelines);
 
             // materialize any sibling pipelines at top level
-            if (internalAgg.pipelineAggregators().size() > 0) {
-                for (PipelineAggregator pipelineAggregator : internalAgg.pipelineAggregators()) {
-                    internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
-                }
+            for (PipelineAggregator pipelineAggregator : pipelines.aggregators()) {
+                internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
             }
             doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             return internalAgg;

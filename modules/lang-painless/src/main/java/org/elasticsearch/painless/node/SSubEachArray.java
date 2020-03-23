@@ -52,13 +52,18 @@ final class SSubEachArray extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+        this.input = input;
+        output = new Output();
+
         // We must store the array and index as variables for securing slots on the stack, and
         // also add the location offset to make the names unique in case of nested for each loops.
         array = scope.defineInternalVariable(location, expression.output.actual, "array" + location.getOffset(), true);
         index = scope.defineInternalVariable(location, int.class, "index" + location.getOffset(), true);
         indexed = expression.output.actual.getComponentType();
         cast = AnalyzerCaster.getLegalCast(location, indexed, variable.getType(), true, true);
+
+        return output;
     }
 
     @Override

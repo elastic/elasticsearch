@@ -32,6 +32,12 @@ dependencies {
   testCompile project(path: ':plugins:discovery-ec2', configuration: 'runtime')
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
+}
+
 final int ec2NumberOfNodes = 3
 
 Map<String, Object> expansions = [

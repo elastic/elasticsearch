@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
+import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.optimizer.Optimizer;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.planner.Planner;
@@ -44,7 +45,7 @@ public class PlanExecutor {
         this.writableRegistry = writeableRegistry;
 
         this.indexResolver = indexResolver;
-        this.functionRegistry = null;
+        this.functionRegistry = new EqlFunctionRegistry();
 
         this.metrics = new Metrics();
 

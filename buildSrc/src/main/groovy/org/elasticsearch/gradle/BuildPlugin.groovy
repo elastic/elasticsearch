@@ -46,6 +46,7 @@ import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.repositories.ExclusiveContentRepository
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
@@ -327,9 +328,15 @@ class BuildPlugin implements Plugin<Project> {
             // extract the revision number from the version with a regex matcher
             List<String> matches = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/).getAt(0) as List<String>
             String revision = matches.get(1)
-            repos.maven { MavenArtifactRepository repo ->
+            MavenArtifactRepository luceneRepo = repos.maven { MavenArtifactRepository repo ->
                 repo.name = 'lucene-snapshots'
                 repo.url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+            }
+            repos.exclusiveContent { ExclusiveContentRepository exclusiveRepo ->
+                exclusiveRepo.filter {
+                    it.includeVersionByRegex(/org\.apache\.lucene/, '.*', ".*-snapshot-${revision}")
+                }
+                exclusiveRepo.forRepositories(luceneRepo)
             }
         }
     }
@@ -446,7 +453,9 @@ class BuildPlugin implements Plugin<Project> {
 
         project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
             // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile classpath
-            project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).extendsFrom(project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME))
+            project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).dependencies.all { Dependency dependency ->
+                project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).dependencies.add(dependency)
+            }
         }
     }
 

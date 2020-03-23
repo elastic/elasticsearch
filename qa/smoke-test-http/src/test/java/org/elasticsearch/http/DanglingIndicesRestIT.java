@@ -283,7 +283,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         private final String stoppedNodeName;
         private final Map<String, String> indexToUUID;
 
-        public DanglingIndexDetails(String stoppedNodeName, Map<String, String> indexToUUID) {
+        DanglingIndexDetails(String stoppedNodeName, Map<String, String> indexToUUID) {
             this.stoppedNodeName = stoppedNodeName;
             this.indexToUUID = indexToUUID;
         }

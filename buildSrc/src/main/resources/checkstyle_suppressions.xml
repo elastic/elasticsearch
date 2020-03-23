@@ -31,6 +31,7 @@
   -->
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]ClusterClientDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]GraphDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]CRUDDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]IndicesClientDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]IngestClientDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]LicensingDocumentationIT.java" id="SnippetLength" />

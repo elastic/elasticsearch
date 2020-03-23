@@ -31,8 +31,8 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
-import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessor;
-import org.elasticsearch.xpack.ml.dataframe.process.customprocessing.CustomProcessorFactory;
+import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitter;
+import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitterFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
@@ -208,7 +208,8 @@ public class AnalyticsProcessManager {
     private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process,
                                DataFrameAnalysis analysis, ProgressTracker progressTracker) throws IOException {
 
-        CustomProcessor customProcessor = new CustomProcessorFactory(dataExtractor.getFieldNames()).create(analysis);
+        CrossValidationSplitter crossValidationSplitter = new CrossValidationSplitterFactory(dataExtractor.getFieldNames())
+            .create(analysis);
 
         // The extra fields are for the doc hash and the control field (should be an empty string)
         String[] record = new String[dataExtractor.getFieldNames().size() + 2];
@@ -226,7 +227,7 @@ public class AnalyticsProcessManager {
                         String[] rowValues = row.getValues();
                         System.arraycopy(rowValues, 0, record, 0, rowValues.length);
                         record[record.length - 2] = String.valueOf(row.getChecksum());
-                        customProcessor.process(record);
+                        crossValidationSplitter.process(record);
                         process.writeRecord(record);
                     }
                 }

@@ -548,7 +548,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Integer preFilterShardSize = searchRequest.getPreFilterShardSize();
         if (preFilterShardSize == null
                 && (hasReadOnlyIndices(indices, clusterState) || hasPrimaryFieldSort(source))) {
-            // unspecified, 
             preFilterShardSize = 1;
         } else if (preFilterShardSize == null) {
             preFilterShardSize = SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;

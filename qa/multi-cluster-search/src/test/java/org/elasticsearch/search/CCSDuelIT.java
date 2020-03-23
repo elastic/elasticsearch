@@ -416,6 +416,7 @@ public class CCSDuelIT extends ESRestTestCase {
     public void testSortByField() throws Exception  {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
+        searchRequest.setPreFilterShardSize(1);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.from(30);
         sourceBuilder.size(25);
@@ -435,6 +436,7 @@ public class CCSDuelIT extends ESRestTestCase {
     public void testSortByFieldOneClusterHasNoResults() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
+        searchRequest.setPreFilterShardSize(1);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         boolean onlyRemote = randomBoolean();
         sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
@@ -491,6 +493,7 @@ public class CCSDuelIT extends ESRestTestCase {
     public void testFieldCollapsingSortByField() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
+        searchRequest.setPreFilterShardSize(1);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         searchRequest.source(sourceBuilder);
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "ruby"));

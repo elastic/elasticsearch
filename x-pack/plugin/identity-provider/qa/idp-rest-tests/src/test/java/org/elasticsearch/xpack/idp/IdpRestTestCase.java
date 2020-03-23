@@ -24,7 +24,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("idp_user", new SecureString("idp-password".toCharArray()));
+        String token = basicAuthHeaderValue("idp_admin", new SecureString("idp-password".toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();

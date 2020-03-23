@@ -81,7 +81,7 @@ public class UserPrivilegeResolver {
         final String username = securityContext.requireUser().principal();
         request.username(username);
         request.applicationPrivileges(buildResourcePrivilege(service));
-        request.applicationPrivileges(buildResourcePrivilege(service));
+        request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
         request.clusterPrivileges(Strings.EMPTY_ARRAY);
         client.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(
             response -> {

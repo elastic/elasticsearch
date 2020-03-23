@@ -196,7 +196,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static void throwInvalidJavaHomeException(String description, File javaHome, int expectedVersion, int actualVersion) {
         String message = String.format(
             Locale.ROOT,
-            "The %s must be set to a JDK installation directory for Java" + " %d but is [%s] corresponding to [%s]",
+            "The %s must be set to a JDK installation directory for Java %d but is [%s] corresponding to [%s]",
             description,
             expectedVersion,
             javaHome,

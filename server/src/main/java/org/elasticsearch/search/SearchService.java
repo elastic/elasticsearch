@@ -470,6 +470,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                   ActionListener<ScrollQueryFetchSearchResult> listener) {
         runAsync(request.contextId(), () -> {
             final LegacyReaderContext reader = (LegacyReaderContext) findReaderContext(request.contextId());
+            if (request.scroll() != null && request.scroll().keepAlive() != null) {
+                checkKeepAliveLimit(request.scroll().keepAlive().millis());
+                reader.keepAlive(request.scroll().keepAlive().millis());
+            }
             try (SearchContext context = createContext(reader, reader.getShardSearchRequest(null), task, false);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 context.assignRescoreDocIds(reader.getRescoreDocIds(null));

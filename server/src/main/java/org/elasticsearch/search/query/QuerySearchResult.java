@@ -320,7 +320,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
         }
         setTopDocs(readTopDocs(in));
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getVersion().before(Version.V_7_7_0)) {
             InternalAggregations readAggs = null;
             if (hasAggs = in.readBoolean()) {
                 readAggs = new InternalAggregations(in);
@@ -398,7 +398,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
         } else {
             out.writeBoolean(true);
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getVersion().before(Version.V_7_7_0)) {
                 InternalAggregations aggs = aggregations.get();
                 aggs.writeTo(out);
                 if (out.getVersion().before(Version.V_7_2_0)) {

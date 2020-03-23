@@ -104,6 +104,7 @@ public class AnalyticsResultProcessor {
 
     public void cancel() {
         dataFrameRowsJoiner.cancel();
+        statsPersister.cancel();
         isCancelled = true;
     }
 

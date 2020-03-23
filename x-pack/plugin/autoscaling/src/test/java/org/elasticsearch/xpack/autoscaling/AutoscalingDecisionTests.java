@@ -53,7 +53,7 @@ public class AutoscalingDecisionTests extends AutoscalingTestCase {
         assertThat(decision.type(), equalTo(AutoscalingDecision.Type.NO_SCALE));
     }
 
-    public void testMultipleAutoscalingDecisionTypeDown() {
+    public void testMultipleAutoscalingDecisionTypeUp() {
         final int numberOfDecisions = randomIntBetween(1, 8);
         final List<SingleAutoscalingDecision> decisions = new ArrayList<>(numberOfDecisions);
         for (int i = 0; i < numberOfDecisions; i++) {

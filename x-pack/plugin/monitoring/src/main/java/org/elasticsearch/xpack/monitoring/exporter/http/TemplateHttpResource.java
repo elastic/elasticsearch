@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -107,10 +108,13 @@ public class TemplateHttpResource extends PublishableHttpResource {
      HttpEntity templateToHttpEntity() {
         // the internal representation of a template has type nested under mappings.
         // this uses xContent to help remove the type before sending to the remote cluster
+        ToXContent.Params params = new ToXContent.MapParams(Map.of(IndexTemplateMetaData.INCLUDE_TEMPLATE_NAME, "false"));
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template.get())) {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            IndexTemplateMetaData.Builder.removeType(IndexTemplateMetaData.Builder.fromXContent(parser, templateName), builder);
+            builder.startObject();
+            IndexTemplateMetaData.fromXContent(parser, templateName).toXContent(builder, params);
+            builder.endObject();
             return new StringEntity(BytesReference.bytes(builder).utf8ToString(), ContentType.APPLICATION_JSON);
         } catch (IOException ex) {
             throw new IllegalStateException("Cannot serialize template [" + templateName + "] for monitoring export", ex);

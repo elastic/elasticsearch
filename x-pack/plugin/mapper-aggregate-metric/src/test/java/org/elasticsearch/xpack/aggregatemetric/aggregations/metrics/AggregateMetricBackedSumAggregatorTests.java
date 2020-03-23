@@ -1,12 +1,16 @@
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -26,7 +30,6 @@ import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricField
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -39,12 +42,12 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
 
     public void testMatchesNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(Arrays.asList(
+            iw.addDocument(List.of(
                 new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
                 new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
             ));
 
-            iw.addDocument(Arrays.asList(
+            iw.addDocument(List.of(
                 new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
                 new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
             ));
@@ -73,6 +76,29 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
         });
     }
 
+    public void testQueryFiltering() throws IOException {
+        testCase(new TermQuery(new Term("match", "yes")), iw -> {
+            iw.addDocument(List.of(
+                new StringField("match", "yes", Field.Store.NO),
+                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
+                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
+            ));
+            iw.addDocument(List.of(
+                new StringField("match", "yes", Field.Store.NO),
+                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(20)),
+                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+            ));
+            iw.addDocument(List.of(
+                new StringField("match", "no", Field.Store.NO),
+                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(40)),
+                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+            ));
+        }, sum -> {
+            assertEquals(30L, sum.getValue(), 0d);
+            assertTrue(AggregationInspectionHelper.hasValue(sum));
+        });
+    }
+
     /**
      * Create a default aggregate_metric_double field type containing sum and a value_count metrics.
      *
@@ -90,7 +116,6 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
         fieldType.setDefaultMetric(Metric.sum);
         return fieldType;
     }
-
 
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
@@ -117,9 +142,6 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();
                 verify.accept((V) aggregator.buildAggregation(0L));
-
-//                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
-//                verify.accept(agg);
             }
         }
     }

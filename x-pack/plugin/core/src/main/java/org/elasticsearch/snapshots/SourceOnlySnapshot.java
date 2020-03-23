@@ -39,6 +39,7 @@ import org.apache.lucene.store.TrackingDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -250,9 +251,7 @@ public class SourceOnlySnapshot {
             }
 
             if (liveDocs.bits != null && liveDocs.numDeletes != 0 && liveDocs.numDeletes != newInfo.getDelCount()) {
-                if (newInfo.getDelCount() != 0) {
-                    assert assertLiveDocs(liveDocs.bits, liveDocs.numDeletes);
-                }
+                assert newInfo.getDelCount() == 0 || assertLiveDocs(liveDocs.bits, liveDocs.numDeletes);
                 codec.liveDocsFormat().writeLiveDocs(liveDocs.bits, trackingDir, newInfo, liveDocs.numDeletes - newInfo.getDelCount(),
                     IOContext.DEFAULT);
                 SegmentCommitInfo info = new SegmentCommitInfo(newInfo.info, liveDocs.numDeletes, 0, newInfo.getNextDelGen(), -1, -1);
@@ -312,13 +311,9 @@ public class SourceOnlySnapshot {
         @Override
         public String[] listAll() throws IOException {
             Set<String> files = new HashSet<>();
-            for (String f : wrapped.listAll()) {
-                files.add(f);
-            }
-            for (String f : linkedFiles.keySet()) {
-                files.add(f);
-            }
-            String[] result = files.toArray(new String[files.size()]);
+            Collections.addAll(files, wrapped.listAll());
+            files.addAll(linkedFiles.keySet());
+            String[] result = files.toArray(Strings.EMPTY_ARRAY);
             Arrays.sort(result);
             return result;
         }
@@ -329,12 +324,10 @@ public class SourceOnlySnapshot {
             if (directory == null) {
                 wrapped.deleteFile(name);
             } else {
-                try {
+                try (directory) {
                     wrapped.deleteFile(name);
                 } catch (NoSuchFileException | FileNotFoundException e) {
                     // ignore
-                } finally {
-                    directory.close();
                 }
             }
         }
@@ -352,7 +345,7 @@ public class SourceOnlySnapshot {
         @Override
         public IndexOutput createOutput(String name, IOContext context) throws IOException {
             if (linkedFiles.containsKey(name)) {
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("file cannot be created as linked file with name " + name + " already exists");
             } else {
                 return wrapped.createOutput(name, context);
             }
@@ -386,7 +379,8 @@ public class SourceOnlySnapshot {
         @Override
         public void rename(String source, String dest) throws IOException {
             if (linkedFiles.containsKey(source) || linkedFiles.containsKey(dest)) {
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("file cannot be renamed as linked file with name " + source + " or " + dest +
+                    " already exists");
             } else {
                 wrapped.rename(source, dest);
             }
@@ -409,9 +403,7 @@ public class SourceOnlySnapshot {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(linkedFiles.values());
-            linkedFiles.clear();
-            wrapped.close();
+            IOUtils.close(() -> IOUtils.close(linkedFiles.values()), linkedFiles::clear, wrapped);
         }
 
         @Override
@@ -431,9 +423,7 @@ public class SourceOnlySnapshot {
                         }
                     });
                 }
-                if (previous != null) {
-                    previous.close();
-                }
+                IOUtils.close(previous);
             }
         }
 

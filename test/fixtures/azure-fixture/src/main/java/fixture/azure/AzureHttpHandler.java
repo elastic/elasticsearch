@@ -22,16 +22,21 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -67,18 +72,21 @@ public class AzureHttpHandler implements HttpHandler {
             assert read == -1 : "Request body should have been empty but saw [" + read + "]";
         }
         try {
+            // Request body is closed in the finally block
+            final BytesReference requestBody = Streams.readFully(Streams.noCloseStream(exchange.getRequestBody()));
             if (Regex.simpleMatch("PUT /" + container + "/*blockid=*", request)) {
                 // Put Block (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block)
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
 
                 final String blockId = params.get("blockid");
-                blobs.put(blockId, Streams.readFully(exchange.getRequestBody()));
+                blobs.put(blockId, requestBody);
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("PUT /" + container + "/*comp=blocklist*", request)) {
                 // Put Block List (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list)
-                final String blockList = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
+                final String blockList =
+                    Streams.copyToString(new InputStreamReader(requestBody.streamInput(), StandardCharsets.UTF_8));
                 final List<String> blockIds = Arrays.stream(blockList.split("<Latest>"))
                     .filter(line -> line.contains("</Latest>"))
                     .map(line -> line.substring(0, line.indexOf("</Latest>")))
@@ -97,12 +105,12 @@ public class AzureHttpHandler implements HttpHandler {
                 // PUT Blob (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob)
                 final String ifNoneMatch = exchange.getRequestHeaders().getFirst("If-None-Match");
                 if ("*".equals(ifNoneMatch)) {
-                    if (blobs.putIfAbsent(exchange.getRequestURI().getPath(), Streams.readFully(exchange.getRequestBody())) != null) {
+                    if (blobs.putIfAbsent(exchange.getRequestURI().getPath(), requestBody) != null) {
                         sendError(exchange, RestStatus.CONFLICT);
                         return;
                     }
                 } else {
-                    blobs.put(exchange.getRequestURI().getPath(), Streams.readFully(exchange.getRequestBody()));
+                    blobs.put(exchange.getRequestURI().getPath(), requestBody);
                 }
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
@@ -190,6 +198,45 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
+            } else if (Regex.simpleMatch("POST /?comp=batch", request)) {
+                // Batch Delete (https://docs.microsoft.com/en-us/rest/api/storageservices/blob-batch)
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(requestBody.streamInput()))) {
+                    final Set<String> toDelete = reader.lines().filter(l -> l.startsWith("DELETE"))
+                        .map(l -> l.split(" ")[1]).collect(Collectors.toSet());
+                    final BytesStreamOutput baos = new BytesStreamOutput();
+                    final String batchSeparator = "batchresponse_" + UUIDs.randomBase64UUID();
+                    try (Writer writer = new OutputStreamWriter(baos)) {
+                        int contentId = 0;
+                        for (String b : toDelete) {
+                            writer.write("\r\n--" + batchSeparator + "\r\n" +
+                                "Content-Type: application/http \r\n" +
+                                "Content-ID: " + contentId++ + " \r\n");
+                            if (blobs.remove(b) == null) {
+                                writer.write("\r\nHTTP/1.1 404 The specified blob does not exist. \r\n" +
+                                    "x-ms-error-code: BlobNotFound \r\n" +
+                                    "x-ms-request-id: " + UUIDs.randomBase64UUID() + " \r\n" +
+                                    "x-ms-version: 2018-11-09\r\n" +
+                                    "Content-Length: 216 \r\n" +
+                                    "Content-Type: application/xml\r\n\r\n" +
+                                    "<?xml version=\"1.0\" encoding=\"utf-8\"?> \r\n" +
+                                    "<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.\r\n" +
+                                    "RequestId:" + UUIDs.randomBase64UUID() + "\r\n" +
+                                    "Time:2020-01-01T01:01:01.0000000Z</Message></Error>\r\n");
+                            } else {
+                                writer.write(
+                                    "\r\nHTTP/1.1 202 Accepted \r\n" +
+                                        "x-ms-request-id: " + UUIDs.randomBase64UUID() + " \r\n" +
+                                        "x-ms-version: 2018-11-09\r\n\r\n");
+                            }
+                        }
+                        writer.write("--" + batchSeparator + "--");
+                    }
+                    final Headers headers = exchange.getResponseHeaders();
+                    headers.add("Content-Type",
+                        "multipart/mixed; boundary=" + batchSeparator);
+                    exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), baos.size());
+                    baos.bytes().writeTo(exchange.getResponseBody());
+                }
             } else {
                 sendError(exchange, RestStatus.BAD_REQUEST);
             }

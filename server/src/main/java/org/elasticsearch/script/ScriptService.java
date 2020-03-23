@@ -560,8 +560,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return cacheHolder.get().stats();
     }
 
-    public ScriptContextStats contextStats() {
-        return cacheHolder.get().contextStats();
+    public ScriptCacheStats cacheStats() {
+        return cacheHolder.get().cacheStats();
     }
 
     @Override
@@ -661,15 +661,15 @@ public class ScriptService implements Closeable, ClusterStateApplier {
             return ScriptStats.sum(contextCache.values().stream().map(AtomicReference::get).map(ScriptCache::stats)::iterator);
         }
 
-        ScriptContextStats contextStats() {
+        ScriptCacheStats cacheStats() {
             if (general != null) {
-                return new ScriptContextStats(general.stats());
+                return new ScriptCacheStats(general.stats());
             }
             Map<String, ScriptStats> context = new HashMap<>(contextCache.size());
             for (String name: contexts) {
                 context.put(name, contextCache.get(name).get().stats());
             }
-            return new ScriptContextStats(context);
+            return new ScriptCacheStats(context);
         }
 
         /**

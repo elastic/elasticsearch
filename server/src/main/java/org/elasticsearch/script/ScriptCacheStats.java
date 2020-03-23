@@ -32,21 +32,21 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class ScriptContextStats implements Writeable, ToXContentFragment {
+public class ScriptCacheStats implements Writeable, ToXContentFragment {
     private final Map<String,ScriptStats> context;
     private final ScriptStats general;
 
-    public ScriptContextStats(Map<String, ScriptStats> context) {
+    public ScriptCacheStats(Map<String, ScriptStats> context) {
         this.context = Collections.unmodifiableMap(context);
         this.general = null;
     }
 
-    public ScriptContextStats(ScriptStats general) {
+    public ScriptCacheStats(ScriptStats general) {
         this.general = Objects.requireNonNull(general);
         this.context = null;
     }
 
-    public ScriptContextStats(StreamInput in) throws IOException {
+    public ScriptCacheStats(StreamInput in) throws IOException {
         boolean isContext = in.readBoolean();
         if (isContext) {
             general = new ScriptStats(in);

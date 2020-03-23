@@ -276,15 +276,15 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
-    public boolean scriptContext() {
-        return Metric.SCRIPT_CONTEXT.containedIn(requestedMetrics);
+    public boolean scriptCache() {
+        return Metric.SCRIPT_CACHE.containedIn(requestedMetrics);
     }
 
     /**
-     * Should scriptContext statistics be returned.
+     * Should scriptCache statistics be returned.
      */
-    public NodesStatsRequest scriptContext(boolean scriptContext) {
-        addOrRemoveMetric(scriptContext, Metric.SCRIPT_CONTEXT.metricName());
+    public NodesStatsRequest scriptCache(boolean scriptContext) {
+        addOrRemoveMetric(scriptContext, Metric.SCRIPT_CACHE.metricName());
         return this;
     }
 
@@ -340,7 +340,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         DISCOVERY("discovery"),
         INGEST("ingest"),
         ADAPTIVE_SELECTION("adaptiveSelection"),
-        SCRIPT_CONTEXT("scriptContext");
+        SCRIPT_CACHE("scriptCache");
 
         private String metricName;
 

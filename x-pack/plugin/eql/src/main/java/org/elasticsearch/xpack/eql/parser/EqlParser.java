@@ -133,24 +133,6 @@ public class EqlParser {
             this.ruleNames = ruleNames;
         }
 
-
-        @Override
-        public void exitFunctionExpression(EqlBaseParser.FunctionExpressionContext context) {
-            Token token = context.name;
-            String functionName = token.getText();
-
-            switch (functionName) {
-                case "arrayContains":
-                case "arrayCount":
-                case "arraySearch":
-                    throw new ParsingException(
-                        "Unsupported function [" + functionName + "]",
-                        null,
-                        token.getLine(),
-                        token.getCharPositionInLine());
-            }
-        }
-
         @Override
         public void exitJoin(EqlBaseParser.JoinContext context) {
             Token token = context.JOIN().getSymbol();

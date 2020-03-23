@@ -19,6 +19,29 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.movingAvg;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.core.IsNull.nullValue;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -34,28 +57,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
-import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
-import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.movingAvg;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.core.IsNull.notNullValue;
-import static org.hamcrest.core.IsNull.nullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class MovAvgIT extends ESIntegTestCase {
@@ -737,7 +738,7 @@ public class MovAvgIT extends ESIntegTestCase {
                     ).get();
             fail("MovingAvg should not accept non-histogram as parent");
 
-        } catch (SearchPhaseExecutionException exception) {
+        } catch (ActionRequestValidationException exception) {
             // All good
         }
     }
@@ -850,7 +851,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     public void testHoltWintersNotEnoughData() {
         Client client = client();
-        expectThrows(SearchPhaseExecutionException.class, () -> client.prepareSearch("idx")
+        expectThrows(IllegalArgumentException.class, () -> client.prepareSearch("idx")
             .addAggregation(
                 histogram("histo").field(INTERVAL_FIELD).interval(interval)
                     .extendedBounds(0L, interval * (numBuckets - 1))
@@ -1144,7 +1145,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                         .minimize(true))
                 ).get();
             fail("Simple Model cannot be minimized, but an exception was not thrown");
-        } catch (SearchPhaseExecutionException e) {
+        } catch (ActionRequestValidationException e) {
             // All good
         }
 
@@ -1162,7 +1163,7 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .minimize(true))
                     ).get();
             fail("Linear Model cannot be minimized, but an exception was not thrown");
-        } catch (SearchPhaseExecutionException e) {
+        } catch (ActionRequestValidationException e) {
             // all good
         }
     }

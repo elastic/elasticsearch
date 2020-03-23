@@ -1,0 +1,40 @@
+[role="xpack"]
+[[transform-setup]]
+=== Set up {transforms}
+++++
+<titleabbrev>Setup</titleabbrev>
+++++
+
+To use the {transforms}, you must have the
+{subscriptions}[appropriate license] and at least one
+<<transform-setup-nodes,{transform} node>> in your {es} cluster. If {stack}
+{security-features} are enabled, you must also ensure your users have the
+<<transform-privileges,necessary privileges>>.
+
+[discrete]
+[[transform-setup-nodes]]
+==== {transform-cap} nodes
+
+To use {transforms}, there must be at least one node in your cluster with
+`xpack.transform.enabled` and `node.transform` set to `true`. By default, all
+nodes are {transform} nodes unless you explicitly change these settings or set 
+`node.data` to `false`.
+
+If you want to control which nodes run {transforms}, set `node.transform` to
+`false` on some nodes.
+
+For more information, see <<transform-settings>> and <<modules-node>>.
+
+[discrete]
+[[transform-privileges]]
+==== Security privileges
+
+The {es} {security-features} provide <<built-in-roles,built-in roles>>
+and <<security-privileges,privileges>> that make it easier to control
+which users can manage or view {transforms}. 
+
+For example, you need `manage_transform` cluster privileges to preview and
+create {transforms}. Members of the built-in `transform_admin` role have these 
+privileges. You also need `read` and `view_index_metadata` index privileges on
+the source index and `read`, `create_index`, and `index` privileges on the
+destination index.

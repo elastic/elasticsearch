@@ -14,11 +14,11 @@ import org.elasticsearch.xpack.security.Security;
 
 import java.nio.file.Path;
 
-public class LocalStateIdentityProvider extends LocalStateCompositeXPackPlugin {
+public class LocalStateIdentityProviderPlugin extends LocalStateCompositeXPackPlugin {
 
-    public LocalStateIdentityProvider(Settings settings, Path configPath) throws Exception {
+    public LocalStateIdentityProviderPlugin(Settings settings, Path configPath) throws Exception {
         super(settings, configPath);
-        LocalStateIdentityProvider thisVar = this;
+        LocalStateIdentityProviderPlugin thisVar = this;
         plugins.add(new Security(settings, configPath) {
             @Override
             protected SSLService getSslService() {

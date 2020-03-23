@@ -27,6 +27,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class GetDataStreamsResponseTests extends AbstractSerializingTestCase<Response> {
@@ -53,7 +54,7 @@ public class GetDataStreamsResponseTests extends AbstractSerializingTestCase<Res
         List<DataStream> dataStreams = new ArrayList<>();
         for (int i = 0; i < numDataStreams; i++) {
             dataStreams.add(new DataStream(randomAlphaOfLength(4), randomAlphaOfLength(4),
-                List.of(generateRandomStringArray(8, 4, false))));
+                Arrays.asList(generateRandomStringArray(8, 4, false))));
         }
         return new Response(dataStreams);
     }

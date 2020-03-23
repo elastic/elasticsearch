@@ -26,6 +26,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -38,7 +39,7 @@ public class RestCreateDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
+        return Collections.singletonList(
             new Route(RestRequest.Method.PUT, "/_data_stream/{name}")
         );
     }

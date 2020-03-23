@@ -30,6 +30,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -103,7 +104,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
                 adminClient(),
                 ignore -> {
                 },
-                List.of()) {
+                Collections.emptyList()) {
             };
         }
         return highLevelAdminClient;

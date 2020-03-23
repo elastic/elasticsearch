@@ -36,7 +36,7 @@ public class OutlierDetectionStats implements AnalysisStats {
 
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField PARAMETERS = new ParseField("parameters");
-    public static final ParseField TIMING_STATS = new ParseField("timings_stats");
+    public static final ParseField TIMING_STATS = new ParseField("timing_stats");
 
     public static final ConstructingObjectParser<OutlierDetectionStats, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(), true,

@@ -41,6 +41,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 
@@ -70,6 +71,12 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
      */
     private SortField[] testInstancesSortFields;
 
+    /**
+     * Collects all generated scores and fields to ensure that all scores are unique. That is necessary for deterministic results
+     */
+    private Set<Float> usedScores = new HashSet<>();
+    private Set<Object> usedFields = new HashSet<>();
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -88,7 +95,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         SearchHit[] hits = new SearchHit[actualSize];
         Set<Integer> usedDocIds = new HashSet<>();
         for (int i = 0; i < actualSize; i++) {
-            float score = randomFloat();
+            float score = randomValueOtherThanMany(usedScores::contains, ESTestCase::randomFloat);
+            usedScores.add(score);
             maxScore = max(maxScore, score);
             int docId = randomValueOtherThanMany(usedDocIds::contains, () -> between(0, IndexWriter.MAX_DOCS));
             usedDocIds.add(docId);
@@ -97,7 +105,9 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             if (testInstancesLookSortedByField) {
                 Object[] fields = new Object[testInstancesSortFields.length];
                 for (int f = 0; f < testInstancesSortFields.length; f++) {
-                    fields[f] = randomOfType(testInstancesSortFields[f].getType());
+                    final int ff = f;
+                    fields[f] = randomValueOtherThanMany(usedFields::contains, () -> randomOfType(testInstancesSortFields[ff].getType()));
+                    usedFields.add(fields[f]);
                 }
                 scoreDocs[i] = new FieldDoc(docId, score, fields);
             } else {
@@ -107,10 +117,10 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);
+        sort(hits, scoreDocs, scoreDocComparator());
         SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
 
         TopDocs topDocs;
-        Arrays.sort(scoreDocs, scoreDocComparator());
         if (testInstancesLookSortedByField) {
             topDocs = new TopFieldDocs(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), scoreDocs, testInstancesSortFields);
         } else {
@@ -120,6 +130,21 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore);
 
         return new InternalTopHits(name, from, requestedSize, topDocsAndMaxScore, searchHits, pipelineAggregators, metaData);
+    }
+
+    /**
+     * Sorts both searchHits and scoreDocs together based on scoreDocComparator()
+     */
+    private void sort(SearchHit[] searchHits, ScoreDoc[] scoreDocs, Comparator<ScoreDoc> comparator) {
+        List<Tuple<SearchHit, ScoreDoc>> hitScores = new ArrayList<>();
+        for (int i = 0; i < searchHits.length; i++) {
+            hitScores.add(new Tuple<>(searchHits[i], scoreDocs[i]));
+        }
+        hitScores.sort((t1, t2) -> comparator.compare(t1.v2(), t2.v2()));
+        for (int i = 0; i < searchHits.length; i++) {
+            searchHits[i] = hitScores.get(i).v1();
+            scoreDocs[i] = hitScores.get(i).v2();
+        }
     }
 
     @Override

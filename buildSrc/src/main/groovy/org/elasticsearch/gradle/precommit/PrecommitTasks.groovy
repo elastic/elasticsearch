@@ -143,16 +143,13 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
-            doFirst {
-                // we need to defer this configuration since we don't know the runtime java version until execution time
-                targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
-                if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
-                    project.logger.warn(
-                            "Forbidden APIs does not support Java versions past 13. Will use the signatures from 13 for {}.",
-                            BuildParams.runtimeJavaVersion
-                    )
-                    targetCompatibility = JavaVersion.VERSION_13.majorVersion
-                }
+            targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
+            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
+                project.logger.warn(
+                        "Forbidden APIs does not support Java versions past 13. Will use the signatures from 13 for {}.",
+                        BuildParams.runtimeJavaVersion
+                )
+                targetCompatibility = JavaVersion.VERSION_13.majorVersion
             }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"

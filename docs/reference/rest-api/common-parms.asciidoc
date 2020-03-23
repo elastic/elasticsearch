@@ -593,10 +593,12 @@ are supported:
 * <<search-aggregations-metrics-avg-aggregation,Average>>
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>
+* <<search-aggregations-bucket-filter-aggregation,Filter>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
+* <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
 * <<search-aggregations-metrics-sum-aggregation,Sum>>
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>

@@ -215,6 +215,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
@@ -381,9 +382,6 @@ public class ActionModule extends AbstractModule {
 
     static {
         final String property = System.getProperty("es.itv2_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.itv2_feature_flag_registered is only supported in non-snapshot builds");
-        }
         if (Build.CURRENT.isSnapshot() || "true".equals(property)) {
             ITV2_FEATURE_FLAG_REGISTERED = true;
         } else if ("false".equals(property) || property == null) {
@@ -398,9 +396,6 @@ public class ActionModule extends AbstractModule {
 
     static {
         final String property = System.getProperty("es.datastreams_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.datastreams_feature_flag_registered is only supported in non-snapshot builds");
-        }
         if (Build.CURRENT.isSnapshot() || "true".equals(property)) {
             DATASTREAMS_FEATURE_FLAG_REGISTERED = true;
         } else if ("false".equals(property) || property == null) {
@@ -425,17 +420,19 @@ public class ActionModule extends AbstractModule {
     private final RestController restController;
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
+    private final ClusterService clusterService;
 
     public ActionModule(Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
                         ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-                        CircuitBreakerService circuitBreakerService, UsageService usageService) {
+                        CircuitBreakerService circuitBreakerService, UsageService usageService, ClusterService clusterService) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
+        this.clusterService = clusterService;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver);
@@ -460,9 +457,9 @@ public class ActionModule extends AbstractModule {
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
-        final boolean restrictSystemIndices = RestController.RESTRICT_SYSTEM_INDICES.get(settings);
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, restrictSystemIndices);
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
     }
+
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;
@@ -704,7 +701,7 @@ public class ActionModule extends AbstractModule {
 
         registerHandler.accept(new RestIndexAction());
         registerHandler.accept(new CreateHandler());
-        registerHandler.accept(new AutoIdHandler(nodesInCluster));
+        registerHandler.accept(new AutoIdHandler(clusterService));
         registerHandler.accept(new RestGetAction());
         registerHandler.accept(new RestGetSourceAction());
         registerHandler.accept(new RestMultiGetAction(settings));

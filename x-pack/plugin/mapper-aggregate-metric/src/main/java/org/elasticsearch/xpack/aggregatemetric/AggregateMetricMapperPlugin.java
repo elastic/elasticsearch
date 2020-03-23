@@ -43,7 +43,10 @@ public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin,
 
     @Override
     public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
-        return List.of(AggregateMetricsAggregatorsRegistrar::registerSumAggregator);
+        return List.of(
+            AggregateMetricsAggregatorsRegistrar::registerSumAggregator,
+            AggregateMetricsAggregatorsRegistrar::registerAvgAggregator
+        );
     }
 
 }

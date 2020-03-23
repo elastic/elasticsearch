@@ -125,10 +125,13 @@ You can access Elasticsearch with:
 
 ### Importing the project into IntelliJ IDEA
 
-Elasticsearch builds using Java 13. Before importing into IntelliJ you will need
+Elasticsearch builds using Java 13. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
 "13"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
+SDK definitions are global, so you can add the JDK from any project, or after
+project import. Importing with a missing JDK will still work, IntelliJ will
+simply report a problem and will refuse to build until resolved.
 
 You can import the Elasticsearch project into IntelliJ IDEA via:
 

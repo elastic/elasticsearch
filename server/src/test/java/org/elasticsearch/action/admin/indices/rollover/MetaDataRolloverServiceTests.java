@@ -56,10 +56,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -342,8 +342,8 @@ public class MetaDataRolloverServiceTests extends ESTestCase {
 
             AliasOrIndex.Alias alias = (AliasOrIndex.Alias) rolloverMetaData.getAliasAndIndexLookup().get(aliasName);
             assertThat(alias.getIndices(), hasSize(2));
-            assertThat(alias.getIndices(), contains(rolloverMetaData.index(sourceIndexName)));
-            assertThat(alias.getIndices(), contains(rolloverIndexMetaData));
+            assertThat(alias.getIndices(), hasItem(rolloverMetaData.index(sourceIndexName)));
+            assertThat(alias.getIndices(), hasItem(rolloverIndexMetaData));
             assertThat(alias.getWriteIndex(), equalTo(rolloverIndexMetaData));
 
             RolloverInfo info = rolloverMetaData.index(sourceIndexName).getRolloverInfos().get(aliasName);

@@ -43,7 +43,7 @@ public class PField extends AStoreable {
     protected final boolean nullSafe;
     protected final String value;
 
-    // TODO: make local
+    // TODO: https://github.com/elastic/elasticsearch/issues/54015
     private boolean isDefOptimized;
 
     public PField(Location location, AExpression prefix, boolean nullSafe, String value) {

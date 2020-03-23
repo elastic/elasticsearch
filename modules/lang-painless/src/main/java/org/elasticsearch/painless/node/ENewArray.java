@@ -63,9 +63,7 @@ public class ENewArray extends AExpression {
 
         List<Output> argumentOutputs = new ArrayList<>();
 
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
-
+        for (AExpression expression : arguments) {
             Input expressionInput = new Input();
             expressionInput.expected = initialize ? clazz.getComponentType() : int.class;
             expressionInput.internal = true;
@@ -78,8 +76,8 @@ public class ENewArray extends AExpression {
 
         NewArrayNode newArrayNode = new NewArrayNode();
 
-        for (int argument = 0; argument < arguments.size(); ++ argument) {
-            newArrayNode.addArgumentNode(arguments.get(argument).cast(argumentOutputs.get(argument)));
+        for (int i = 0; i < arguments.size(); ++ i) {
+            newArrayNode.addArgumentNode(arguments.get(i).cast(argumentOutputs.get(i)));
         }
 
         newArrayNode.setLocation(location);

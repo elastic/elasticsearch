@@ -80,11 +80,11 @@ public class ENewObj extends AExpression {
 
         List<Output> argumentOutputs = new ArrayList<>();
 
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
+        for (int i = 0; i < arguments.size(); ++i) {
+            AExpression expression = arguments.get(i);
 
             Input expressionInput = new Input();
-            expressionInput.expected = types[argument];
+            expressionInput.expected = types[i];
             expressionInput.internal = true;
             Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
             expression.cast(expressionInput, expressionOutput);
@@ -95,8 +95,8 @@ public class ENewObj extends AExpression {
 
         NewObjectNode newObjectNode = new NewObjectNode();
 
-        for (int argument = 0; argument < arguments.size(); ++ argument) {
-            newObjectNode.addArgumentNode(arguments.get(argument).cast(argumentOutputs.get(argument)));
+        for (int i = 0; i < arguments.size(); ++ i) {
+            newObjectNode.addArgumentNode(arguments.get(i).cast(argumentOutputs.get(i)));
         }
 
         newObjectNode.setLocation(location);

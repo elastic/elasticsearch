@@ -39,7 +39,7 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
 
     protected final String type;
 
-    // TODO: make local
+    // TODO: https://github.com/elastic/elasticsearch/issues/54015
     private String defPointer;
 
     public ENewArrayFunctionRef(Location location, String type) {
@@ -50,8 +50,6 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        FunctionRef ref;
-
         Output output = new Output();
 
         SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
@@ -62,6 +60,8 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
         function.generateSignature(scriptRoot.getPainlessLookup());
         FunctionNode functionNode = function.writeFunction(classNode, scriptRoot);
         scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true, true);
+
+        FunctionRef ref;
 
         if (input.expected == null) {
             ref = null;

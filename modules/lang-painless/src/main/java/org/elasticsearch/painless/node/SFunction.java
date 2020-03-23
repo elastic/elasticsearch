@@ -118,7 +118,6 @@ public class SFunction extends ANode {
                 PainlessLookupUtility.typeToJavaType(returnType), paramClasses).toMethodDescriptorString());
     }
 
-    // TODO: decouple from ir
     FunctionNode writeFunction(ClassNode classNode, ScriptRoot scriptRoot) {
         FunctionScope functionScope = newFunctionScope(returnType);
 

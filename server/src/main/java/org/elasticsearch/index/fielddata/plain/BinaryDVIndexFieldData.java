@@ -32,19 +32,19 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BinaryDVAtomicFieldData> {
+public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BinaryDVLeafFieldData> {
 
     public BinaryDVIndexFieldData(Index index, String fieldName) {
         super(index, fieldName);
     }
 
     @Override
-    public BinaryDVAtomicFieldData load(LeafReaderContext context) {
-        return new BinaryDVAtomicFieldData(context.reader(), fieldName);
+    public BinaryDVLeafFieldData load(LeafReaderContext context) {
+        return new BinaryDVLeafFieldData(context.reader(), fieldName);
     }
 
     @Override
-    public BinaryDVAtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public BinaryDVLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

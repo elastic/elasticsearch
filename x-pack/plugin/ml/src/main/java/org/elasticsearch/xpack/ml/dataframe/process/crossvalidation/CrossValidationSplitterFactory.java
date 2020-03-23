@@ -31,6 +31,6 @@ public class CrossValidationSplitterFactory {
             return new RandomCrossValidationSplitter(
                 fieldNames, classification.getDependentVariable(), classification.getTrainingPercent(), classification.getRandomizeSeed());
         }
-        return row -> {};
+        return (row, incrementTrainingDocs, incrementTestDocs) -> incrementTrainingDocs.run();
     }
 }

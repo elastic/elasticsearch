@@ -38,7 +38,7 @@ public class EFunctionRef extends AExpression implements ILambda {
     protected final String type;
     protected final String call;
 
-    // TODO: make local
+    // TODO: https://github.com/elastic/elasticsearch/issues/54015
     private String defPointer;
 
     public EFunctionRef(Location location, String type, String call) {

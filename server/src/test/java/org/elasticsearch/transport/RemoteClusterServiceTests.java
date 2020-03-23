@@ -851,7 +851,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             service.acceptIncomingRequests();
             final IllegalArgumentException e =
                 expectThrows(IllegalArgumentException.class, () -> service.getRemoteClusterService().getRemoteClusterConnection("test"));
-            assertThat(e.getMessage(), equalTo("remote cluster service is not enabled"));
+            assertThat(e.getMessage(), equalTo("this does not have the remote_cluster_client role"));
         }
     }
 
@@ -863,7 +863,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> service.getRemoteClusterService().collectNodes(Set.of(), ActionListener.wrap(r -> {}, r -> {})));
-            assertThat(e.getMessage(), equalTo("remote cluster service is not enabled"));
+            assertThat(e.getMessage(), equalTo("this does not have the remote_cluster_client role"));
         }
     }
 

@@ -19,26 +19,35 @@
 
 package org.elasticsearch.script.expression;
 
-import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValuesSource;
+import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 
-/**
- * A support class for an executable expression script that allows the double returned
- * by a {@link DoubleValues} to be modified.
- */
-final class ReplaceableConstDoubleValues extends DoubleValues {
-    private double value = 0;
+import java.util.Objects;
 
-    void setValue(double value) {
-        this.value = value;
+abstract class FieldDataBasedDoubleValuesSource extends DoubleValuesSource {
+
+    FieldDataBasedDoubleValuesSource(IndexFieldData<?> fieldData) {
+        this.fieldData = Objects.requireNonNull(fieldData);
+    }
+
+    protected final IndexFieldData<?> fieldData;
+
+    @Override
+    public boolean needsScores() {
+        return false;
     }
 
     @Override
-    public double doubleValue() {
-        return value;
+    public DoubleValuesSource rewrite(IndexSearcher reader) {
+        return this;
     }
 
     @Override
-    public boolean advanceExact(int doc) {
-        return true;
+    public boolean isCacheable(LeafReaderContext ctx) {
+        return DocValues.isCacheable(ctx, fieldData.getFieldName());
     }
+
 }

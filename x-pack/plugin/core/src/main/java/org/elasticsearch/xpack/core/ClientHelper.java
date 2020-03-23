@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +35,8 @@ public final class ClientHelper {
      * List of headers that are related to security
      */
     public static final Set<String> SECURITY_HEADER_FILTERS = Sets.newHashSet(AuthenticationServiceField.RUN_AS_USER_HEADER,
-            AuthenticationField.AUTHENTICATION_KEY);
+        AuthenticationField.AUTHENTICATION_KEY,
+        SecondaryAuthentication.THREAD_CTX_KEY);
 
     /**
      * .

@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.utils.AuthHeadersExtractor;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,6 +62,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
 
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
 
@@ -109,7 +111,12 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
 
             final String[] indices = request.getDatafeed().getIndices().toArray(new String[0]);
 
-            final String username = securityContext.getUser().principal();
+            // If we have secondary auth, prefer it.
+            final String username = securityContext.getSecondaryAuthentication() == null ?
+                securityContext.getUser().principal() :
+                securityContext.getSecondaryAuthentication().getAuthentication().getUser().principal();
+            Map<String, String> authHeaders = AuthHeadersExtractor.extractAuthHeadersAndPreferSecondaryAuth(threadPool.getThreadContext());
+
             final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
             privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
             privRequest.username(username);
@@ -119,7 +126,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                 .indices(indices);
 
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, r, state, listener),
+                r -> handlePrivsResponse(username, request, r, state, authHeaders, listener),
                 listener::onFailure);
 
             ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
@@ -130,13 +137,23 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                         indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
                     }
                     privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
-                    client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                    executeWithHeadersAsync(authHeaders,
+                        ML_ORIGIN,
+                        client,
+                        HasPrivilegesAction.INSTANCE,
+                        privRequest,
+                        privResponseListener);
                 },
                 e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                         indicesPrivilegesBuilder.privileges(SearchAction.NAME);
                         privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
-                        client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                        executeWithHeadersAsync(authHeaders,
+                            ML_ORIGIN,
+                            client,
+                            HasPrivilegesAction.INSTANCE,
+                            privRequest,
+                            privResponseListener);
                     } else {
                         listener.onFailure(e);
                     }
@@ -161,9 +178,10 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                      PutDatafeedAction.Request request,
                                      HasPrivilegesResponse response,
                                      ClusterState clusterState,
+                                     Map<String, String> headers,
                                      ActionListener<PutDatafeedAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
+            putDatafeed(request, headers, clusterState, listener);
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();

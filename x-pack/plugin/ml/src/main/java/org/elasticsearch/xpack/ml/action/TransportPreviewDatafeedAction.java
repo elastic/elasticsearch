@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -33,6 +32,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.ml.utils.AuthHeadersExtractor.extractAuthHeadersAndPreferSecondaryAuth;
 
 public class TransportPreviewDatafeedAction extends HandledTransportAction<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
 
@@ -65,9 +66,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 jobConfigProvider.getJob(datafeedConfig.getJobId(), ActionListener.wrap(
                     jobBuilder -> {
                         DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeedConfig);
-                        Map<String, String> headers = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                        Map<String, String> headers = extractAuthHeadersAndPreferSecondaryAuth(threadPool.getThreadContext());
                         previewDatafeed.setHeaders(headers);
                         jobResultsProvider.datafeedTimingStats(
                             jobBuilder.getId(),

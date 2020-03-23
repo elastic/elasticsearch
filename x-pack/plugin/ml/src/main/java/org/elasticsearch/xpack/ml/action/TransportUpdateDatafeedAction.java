@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ml.utils.AuthHeadersExtractor.extractAuthHeadersAndPreferSecondaryAuth;
+
 public class TransportUpdateDatafeedAction extends
     TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
 
@@ -74,7 +76,6 @@ public class TransportUpdateDatafeedAction extends
             return;
         }
 
-        final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
 
         // Check datafeed is stopped
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
@@ -84,6 +85,8 @@ public class TransportUpdateDatafeedAction extends
                             request.getUpdate().getId(), DatafeedState.STARTED)));
             return;
         }
+
+        final Map<String, String> headers = extractAuthHeadersAndPreferSecondaryAuth(threadPool.getThreadContext());
 
         datafeedConfigProvider.updateDatefeedConfig(
             request.getUpdate().getId(),

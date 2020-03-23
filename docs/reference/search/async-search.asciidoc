@@ -178,7 +178,7 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
 // TESTRESPONSE[s/"successful" : 188/"successful": $body.response._shards.successful/]
 // TESTRESPONSE[s/"value" : 456433/"value": $body.response.hits.total.value/]
 // TESTRESPONSE[s/"buckets" : \[\]/"buckets": $body.response.aggregations.sale_date.buckets/]
-// TESTRESPONSE[s/"num_reduce_phases" : 38,//]
+// TESTRESPONSE[s/"num_reduce_phases" : 46,//]
 
 <1> Whether the returned search results are partial or final
 <2> Whether the search is still being executed or it has completed

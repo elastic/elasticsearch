@@ -163,5 +163,4 @@ public class FakeThreadPoolMasterService extends MasterService {
     protected AckListener wrapAckListener(AckListener ackListener) {
         return ackListener;
     }
-
 }

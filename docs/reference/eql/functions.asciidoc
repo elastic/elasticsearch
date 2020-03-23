@@ -37,7 +37,7 @@ substring("quick brown fox", -3)        // returns "f"
 substring(<source>, <start_pos>[, <end_pos>])
 ----
 
-*Arguments*
+*Parameters*
 
 `<source>`::
 (Required, string)

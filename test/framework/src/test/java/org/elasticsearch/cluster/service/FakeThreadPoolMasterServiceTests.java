@@ -27,7 +27,10 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,6 +40,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FakeThreadPoolMasterServiceTests extends ESTestCase {
 
@@ -48,7 +53,10 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         lastClusterStateRef.set(ClusterStateCreationUtils.state(discoveryNode, discoveryNode));
         long firstClusterStateVersion = lastClusterStateRef.get().version();
         AtomicReference<ActionListener<Void>> publishingCallback = new AtomicReference<>();
-        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService("test_node","test", runnableTasks::add);
+        final ThreadContext context = new ThreadContext(Settings.EMPTY);
+        final ThreadPool mockThreadPool = mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(context);
+        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService("test_node","test", mockThreadPool, runnableTasks::add);
         masterService.setClusterStateSupplier(lastClusterStateRef::get);
         masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             lastClusterStateRef.set(event.state());

@@ -164,13 +164,13 @@ public class AsyncSearchResponse implements ToXContentObject  {
     public static final ConstructingObjectParser<AsyncSearchResponse, Void> PARSER = new ConstructingObjectParser<>(
             "submit_async_search_response", true,
             args -> new AsyncSearchResponse(
+                    (boolean) args[0],
                     (boolean) args[1],
-                    (boolean) args[2],
+                    (long) args[2],
                     (long) args[3],
-                    (long) args[4],
-                    (String) args[5],
-                    (SearchResponse) args[6],
-                    (ElasticsearchException) args[7]));
+                    (String) args[4],
+                    (SearchResponse) args[5],
+                    (ElasticsearchException) args[6]));
     static {
         PARSER.declareBoolean(constructorArg(), IS_PARTIAL_FIELD);
         PARSER.declareBoolean(constructorArg(), IS_RUNNING_FIELD);
@@ -189,7 +189,7 @@ public class AsyncSearchResponse implements ToXContentObject  {
         return SearchResponse.innerFromXContent(p);
     }
 
-    public static AsyncSearchResponse fromXContent(XContentParser parser) throws IOException {
+    public static AsyncSearchResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 

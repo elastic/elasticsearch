@@ -83,13 +83,6 @@ public class StatsIT extends AbstractNumericTestCase {
         assertThat(Double.isNaN(stats.getAvg()), is(true));
     }
 
-    /** this test was moved to {@link StatsAggregatorTests#testUnmapped()} */
-    @Override
-    public void testUnmapped() throws Exception {}
-
-    /** this test was moved to {@link StatsAggregatorTests#testPartiallyUnmapped()} */
-    public void testPartiallyUnmapped() {}
-
     @Override
     public void testSingleValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -169,18 +162,6 @@ public class StatsIT extends AbstractNumericTestCase {
         assertThat((double) ((InternalAggregation)global).getProperty("stats.count"), equalTo((double) expectedCountValue));
     }
 
-    /** this test was moved to {@link StatsAggregatorTests#testPartiallyUnmapped()} */
-    @Override
-    public void testSingleValuedFieldPartiallyUnmapped() throws Exception {}
-
-    /** this test was moved to {@link StatsAggregatorTests#testValueScriptSingleValuedField()} */
-    @Override
-    public void testSingleValuedFieldWithValueScript() throws Exception {}
-
-    /** this test was moved to {@link StatsAggregatorTests#testValueScriptSingleValuedField()} */
-    @Override
-    public void testSingleValuedFieldWithValueScriptWithParams() throws Exception {}
-
     @Override
     public void testMultiValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -201,30 +182,6 @@ public class StatsIT extends AbstractNumericTestCase {
         assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11+3+4+5+6+7+8+9+10+11+12));
         assertThat(stats.getCount(), equalTo(20L));
     }
-
-    /** this test was moved to {@link StatsAggregatorTests#testValueScriptMultiValuedField()} */
-    @Override
-    public void testMultiValuedFieldWithValueScript() throws Exception {}
-
-    /** this test was moved to {@link StatsAggregatorTests#testValueScriptMultiValuedField()} */
-    @Override
-    public void testMultiValuedFieldWithValueScriptWithParams() throws Exception {}
-
-    /** this test was moved to {@link StatsAggregatorTests#testFieldScriptSingleValuedField()} */
-    @Override
-    public void testScriptSingleValued() throws Exception {}
-
-    /** this test was moved to {@link StatsAggregatorTests#testFieldScriptSingleValuedField()} */
-    @Override
-    public void testScriptSingleValuedWithParams() throws Exception {}
-
-    /** this test was moved to {@link StatsAggregatorTests#testFieldScriptMultiValuedField()} */
-    @Override
-    public void testScriptMultiValued() throws Exception {}
-
-    /** this test was moved to {@link StatsAggregatorTests#testFieldScriptMultiValuedField()} */
-    @Override
-    public void testScriptMultiValuedWithParams() throws Exception {}
 
     @Override
     public void testOrderByEmptyAggregation() throws Exception {

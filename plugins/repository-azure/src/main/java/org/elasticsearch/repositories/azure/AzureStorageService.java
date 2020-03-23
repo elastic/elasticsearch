@@ -190,6 +190,7 @@ public class AzureStorageService {
 
     public void deleteBlobsIgnoringIfNotExists(String account, String container, Collection<String> blobs)
             throws URISyntaxException, StorageException {
+        logger.trace(() -> new ParameterizedMessage("delete blobs for container [{}], blob [{}]", container, blobs));
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         // Container name must be lower case.
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
@@ -203,7 +204,6 @@ public class AzureStorageService {
                 ++currentBatchSize;
             } while (blobIterator.hasNext() && currentBatchSize < Constants.BATCH_MAX_REQUESTS);
             currentBatchSize = 0;
-            logger.trace(() -> new ParameterizedMessage("delete blobs for container [{}], blob [{}]", container, blobs));
             try {
                 SocketAccess.doPrivilegedVoidException(() -> blobContainer.getServiceClient().executeBatch(batchDeleteOp));
             } catch (BatchException e) {

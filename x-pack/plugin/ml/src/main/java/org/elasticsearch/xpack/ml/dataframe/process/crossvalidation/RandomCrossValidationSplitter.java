@@ -25,6 +25,7 @@ class RandomCrossValidationSplitter implements CrossValidationSplitter {
     private boolean isFirstRow = true;
 
     RandomCrossValidationSplitter(List<String> fieldNames, String dependentVariable, double trainingPercent, long randomizeSeed) {
+        assert trainingPercent >= 1.0 && trainingPercent <= 100.0;
         this.dependentVariableIndex = findDependentVariableIndex(fieldNames, dependentVariable);
         this.trainingPercent = trainingPercent;
         this.random = new Random(randomizeSeed);

@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.autoscaling.AutoscalingDecision;
+import org.elasticsearch.xpack.autoscaling.AutoscalingDecisions;
 
 import java.io.IOException;
 import java.util.Map;
@@ -65,15 +65,15 @@ public class GetAutoscalingDecisionAction extends ActionType<GetAutoscalingDecis
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final SortedMap<String, AutoscalingDecision.MultipleAutoscalingDecision> decisions;
+        private final SortedMap<String, AutoscalingDecisions> decisions;
 
-        public Response(final SortedMap<String, AutoscalingDecision.MultipleAutoscalingDecision> decisions) {
+        public Response(final SortedMap<String, AutoscalingDecisions> decisions) {
             this.decisions = Objects.requireNonNull(decisions);
         }
 
         public Response(final StreamInput in) throws IOException {
             super(in);
-            decisions = new TreeMap<>(in.readMap(StreamInput::readString, AutoscalingDecision.MultipleAutoscalingDecision::new));
+            decisions = new TreeMap<>(in.readMap(StreamInput::readString, AutoscalingDecisions::new));
         }
 
         @Override
@@ -87,7 +87,7 @@ public class GetAutoscalingDecisionAction extends ActionType<GetAutoscalingDecis
             {
                 builder.startArray("decisions");
                 {
-                    for (final Map.Entry<String, AutoscalingDecision.MultipleAutoscalingDecision> decision : decisions.entrySet()) {
+                    for (final Map.Entry<String, AutoscalingDecisions> decision : decisions.entrySet()) {
                         builder.startObject();
                         {
                             builder.field(decision.getKey(), decision.getValue());

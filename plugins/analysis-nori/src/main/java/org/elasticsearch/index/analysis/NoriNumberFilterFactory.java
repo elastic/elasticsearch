@@ -17,15 +17,22 @@
  * under the License.
  */
 
-esplugin {
-  description 'Plugin exposing APIs for Kibana system indices'
-  classname 'org.elasticsearch.kibana.KibanaPlugin'
-}
+package org.elasticsearch.index.analysis;
 
-dependencies {
-  compile project(path: ':modules:reindex', configuration: 'runtime')
-}
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.ko.KoreanNumberFilter;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
-testClusters.integTest {
-  module file(project(':modules:reindex').tasks.bundlePlugin.archiveFile)
+public class NoriNumberFilterFactory extends AbstractTokenFilterFactory {
+
+    public NoriNumberFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
+    }
+
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
+        return new KoreanNumberFilter(tokenStream);
+    }
 }

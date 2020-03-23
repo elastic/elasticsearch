@@ -66,14 +66,14 @@ class AsyncSearchIndexService {
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
 
-    public static Settings settings() {
+    private static Settings settings() {
         return Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .build();
     }
 
-    public static XContentBuilder mappings() throws IOException {
+    private static XContentBuilder mappings() throws IOException {
         XContentBuilder builder = jsonBuilder()
             .startObject()
                 .startObject(SINGLE_MAPPING_NAME)

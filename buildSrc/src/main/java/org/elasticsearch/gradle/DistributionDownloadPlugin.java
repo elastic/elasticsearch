@@ -26,7 +26,7 @@ import org.elasticsearch.gradle.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.docker.DockerSupportService;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -52,7 +52,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.gradle.Util.capitalize;
+import static org.elasticsearch.gradle.util.Util.capitalize;
 
 /**
  * A plugin to manage getting and extracting distributions of Elasticsearch.
@@ -77,7 +77,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
 
-        Provider<DockerSupportService> dockerSupport = Boilerplate.getBuildService(
+        Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );

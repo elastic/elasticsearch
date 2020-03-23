@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2Metadata;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
@@ -130,6 +131,8 @@ public class ClusterModule extends AbstractModule {
             PersistentTasksCustomMetaData::readDiffFrom);
         registerMetaDataCustom(entries, ComponentTemplateMetadata.TYPE, ComponentTemplateMetadata::new,
             ComponentTemplateMetadata::readDiffFrom);
+        registerMetaDataCustom(entries, IndexTemplateV2Metadata.TYPE, IndexTemplateV2Metadata::new,
+            IndexTemplateV2Metadata::readDiffFrom);
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
@@ -150,6 +153,8 @@ public class ClusterModule extends AbstractModule {
             PersistentTasksCustomMetaData::fromXContent));
         entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(ComponentTemplateMetadata.TYPE),
             ComponentTemplateMetadata::fromXContent));
+        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexTemplateV2Metadata.TYPE),
+            IndexTemplateV2Metadata::fromXContent));
         return entries;
     }
 

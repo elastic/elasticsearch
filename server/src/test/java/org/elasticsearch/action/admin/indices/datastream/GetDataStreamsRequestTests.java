@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Request;
 import org.elasticsearch.cluster.ClusterName;
@@ -32,7 +31,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<Request> {

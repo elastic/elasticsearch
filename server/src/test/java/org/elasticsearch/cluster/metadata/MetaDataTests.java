@@ -399,7 +399,7 @@ public class MetaDataTests extends ESTestCase {
                 .endObject()
             .endObject());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
-            MetaData.Builder.fromXContent(parser, randomBoolean());
+            MetaData.Builder.fromXContent(parser);
             fail();
         } catch (IllegalArgumentException e) {
             assertEquals("Unexpected field [random]", e.getMessage());

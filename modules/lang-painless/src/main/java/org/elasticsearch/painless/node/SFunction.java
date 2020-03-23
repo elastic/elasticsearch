@@ -117,7 +117,6 @@ public class SFunction extends ANode {
         functionTable.addFunction(name, returnType, typeParameters, isInternal, isStatic);
     }
 
-    // TODO: decouple from ir
     FunctionNode writeFunction(ClassNode classNode, ScriptRoot scriptRoot) {
         FunctionTable.LocalFunction localFunction = scriptRoot.getFunctionTable().getFunction(name, paramTypeStrs.size());
         Class<?> returnType = localFunction.getReturnType();

@@ -81,8 +81,8 @@ public class EMapInit extends AExpression {
         List<Output> keyOutputs = new ArrayList<>(keys.size());
         List<Output> valueOutputs = new ArrayList<>(values.size());
 
-        for (int index = 0; index < keys.size(); ++index) {
-            AExpression expression = keys.get(index);
+        for (int i = 0; i < keys.size(); ++i) {
+            AExpression expression = keys.get(i);
             Input expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
@@ -90,7 +90,7 @@ public class EMapInit extends AExpression {
             expression.cast(expressionInput, expressionOutput);
             keyOutputs.add(expressionOutput);
 
-            expression = values.get(index);
+            expression = values.get(i);
             expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
@@ -101,10 +101,10 @@ public class EMapInit extends AExpression {
 
         MapInitializationNode mapInitializationNode = new MapInitializationNode();
 
-        for (int index = 0; index < keys.size(); ++index) {
+        for (int i = 0; i < keys.size(); ++i) {
             mapInitializationNode.addArgumentNode(
-                    keys.get(index).cast(keyOutputs.get(index)),
-                    values.get(index).cast(valueOutputs.get(index)));
+                    keys.get(i).cast(keyOutputs.get(i)),
+                    values.get(i).cast(valueOutputs.get(i)));
         }
 
         mapInitializationNode.setLocation(location);

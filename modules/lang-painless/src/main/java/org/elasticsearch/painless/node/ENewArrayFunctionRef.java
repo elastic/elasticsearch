@@ -42,7 +42,7 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
 
     protected final String type;
 
-    // TODO: make local
+    // TODO: https://github.com/elastic/elasticsearch/issues/54015
     private String defPointer;
 
     public ENewArrayFunctionRef(Location location, String type) {
@@ -54,8 +54,6 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
-
-        FunctionRef ref;
 
         if (input.read == false) {
             throw createError(new IllegalArgumentException("A newly created array must be read from."));
@@ -69,6 +67,8 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
 
         String name = scriptRoot.getNextSyntheticName("newarray");
         scriptRoot.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
+
+        FunctionRef ref;
 
         if (input.expected == null) {
             ref = null;

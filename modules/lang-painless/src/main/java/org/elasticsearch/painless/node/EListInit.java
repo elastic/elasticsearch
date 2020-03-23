@@ -73,9 +73,7 @@ public class EListInit extends AExpression {
 
         List<Output> valueOutputs = new ArrayList<>(values.size());
 
-        for (int index = 0; index < values.size(); ++index) {
-            AExpression expression = values.get(index);
-
+        for (AExpression expression : values) {
             Input expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
@@ -86,8 +84,8 @@ public class EListInit extends AExpression {
 
         ListInitializationNode listInitializationNode = new ListInitializationNode();
 
-        for (int value = 0; value < values.size(); ++value) {
-            listInitializationNode.addArgumentNode(values.get(value).cast(valueOutputs.get(value)));
+        for (int i = 0; i < values.size(); ++i) {
+            listInitializationNode.addArgumentNode(values.get(i).cast(valueOutputs.get(i)));
         }
 
         listInitializationNode.setLocation(location);

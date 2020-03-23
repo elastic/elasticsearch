@@ -66,7 +66,7 @@ public class ELambda extends AExpression implements ILambda {
     protected final List<String> paramNameStrs;
     protected final List<AStatement> statements;
 
-    // TODO: make local
+    // TODO: https://github.com/elastic/elasticsearch/issues/54015
     private List<Variable> captures;
     private String defPointer;
 

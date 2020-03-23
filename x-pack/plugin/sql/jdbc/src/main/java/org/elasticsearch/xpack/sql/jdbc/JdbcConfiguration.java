@@ -47,9 +47,9 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     // can be out/err/url
     static final String DEBUG_OUTPUT_DEFAULT = "err";
 
-    static final String DEBUG_BUFFERED = "debug.buffered";
+    static final String DEBUG_FLUSH_ALWAYS = "debug.flushAlways";
     // can be buffered/immediate
-    static final String DEBUG_BUFFERED_DEFAULT = "true";
+    static final String DEBUG_FLUSH_ALWAYS_DEFAULT = "false";
 
     public static final String TIME_ZONE = "timezone";
     // follow the JDBC spec and use the JVM default...
@@ -67,7 +67,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     // options that don't change at runtime
     private static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-            Arrays.asList(TIME_ZONE, FIELD_MULTI_VALUE_LENIENCY, INDEX_INCLUDE_FROZEN, DEBUG, DEBUG_OUTPUT, DEBUG_BUFFERED));
+            Arrays.asList(TIME_ZONE, FIELD_MULTI_VALUE_LENIENCY, INDEX_INCLUDE_FROZEN, DEBUG, DEBUG_OUTPUT, DEBUG_FLUSH_ALWAYS));
 
     static {
         // trigger version initialization
@@ -80,7 +80,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     // immutable properties
     private final boolean debug;
     private final String debugOut;
-    private final boolean debugBuffered;
+    private final boolean flushAlways;
 
     // mutable ones
     private ZoneId zoneId;
@@ -163,7 +163,8 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
         this.debug = parseValue(DEBUG, props.getProperty(DEBUG, DEBUG_DEFAULT), Boolean::parseBoolean);
         this.debugOut = props.getProperty(DEBUG_OUTPUT, DEBUG_OUTPUT_DEFAULT);
-        this.debugBuffered = parseValue(DEBUG_BUFFERED, props.getProperty(DEBUG_BUFFERED, DEBUG_BUFFERED_DEFAULT), Boolean::parseBoolean);
+        this.flushAlways = parseValue(DEBUG_FLUSH_ALWAYS, props.getProperty(DEBUG_FLUSH_ALWAYS, DEBUG_FLUSH_ALWAYS_DEFAULT),
+                Boolean::parseBoolean);
 
         this.zoneId = parseValue(TIME_ZONE, props.getProperty(TIME_ZONE, TIME_ZONE_DEFAULT),
                 s -> TimeZone.getTimeZone(s).toZoneId().normalized());
@@ -190,8 +191,8 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         return debugOut;
     }
 
-    public boolean debugBuffered() {
-        return debugBuffered;
+    public boolean flushAlways() {
+        return flushAlways;
     }
 
     public TimeZone timeZone() {

@@ -75,21 +75,21 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.debugOut(), is("jdbc.out"));
     }
 
-    public void testDebugBuffered() throws Exception {
-        JdbcConfiguration ci = ci("jdbc:es://a:1/?debug=true&debug.buffered=false");
+    public void testDebugFlushAlways() throws Exception {
+        JdbcConfiguration ci = ci("jdbc:es://a:1/?debug=true&debug.flushAlways=false");
         assertThat(ci.baseUri().toString(), is("http://a:1/"));
         assertThat(ci.debug(), is(true));
-        assertThat(ci.debugBuffered(), is(false));
+        assertThat(ci.flushAlways(), is(false));
 
-        ci = ci("jdbc:es://a:1/?debug=true&debug.buffered=true");
+        ci = ci("jdbc:es://a:1/?debug=true&debug.flushAlways=true");
         assertThat(ci.baseUri().toString(), is("http://a:1/"));
         assertThat(ci.debug(), is(true));
-        assertThat(ci.debugBuffered(), is(true));
+        assertThat(ci.flushAlways(), is(true));
 
         ci = ci("jdbc:es://a:1/?debug=true");
         assertThat(ci.baseUri().toString(), is("http://a:1/"));
         assertThat(ci.debug(), is(true));
-        assertThat(ci.debugBuffered(), is(true));
+        assertThat(ci.flushAlways(), is(false));
     }
 
     public void testTypeInParam() throws Exception {

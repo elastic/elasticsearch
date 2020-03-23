@@ -17,11 +17,11 @@ final class DebugLog {
     private static final String HEADER = "%tF/%tT.%tL - ";
 
     final PrintWriter print;
-    private boolean debugBuffered;
+    private boolean flushAlways;
 
-    DebugLog(PrintWriter print, boolean debugBuffered) {
+    DebugLog(PrintWriter print, boolean flushAlways) {
         this.print = print;
-        this.debugBuffered = debugBuffered;
+        this.flushAlways = flushAlways;
     }
 
     void logMethod(Method m, Object[] args) {
@@ -33,7 +33,7 @@ final class DebugLog {
                 m.getName(),
                 //array(m.getParameterTypes()),
                 array(args));
-        if (debugBuffered == false) {
+        if (flushAlways) {
             print.flush();
         }
     }
@@ -48,7 +48,7 @@ final class DebugLog {
                 //array(m.getParameterTypes()),
                 array(args),
                 r);
-        if (debugBuffered == false) {
+        if (flushAlways) {
             print.flush();
         }
     }

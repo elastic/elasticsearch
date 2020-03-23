@@ -22,6 +22,8 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -130,6 +132,52 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         ensureRestoreSingleShardSuccessfully(repo, indexName, snapshot4, "-copy-4");
         assertCountInIndexThenDelete(indexName + "-copy-4", countAfterDelete);
+    }
+
+    public void testForceMergeCausesFullSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final String indexName = "test-index";
+        createIndex(indexName, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build());
+        ensureGreen(indexName);
+
+        logger.info("--> adding some documents to test index and flush in between to get at least two segments");
+        for (int j = 0; j < 2; j++) {
+            final BulkRequest bulkRequest = new BulkRequest();
+            for (int i = 0; i < scaledRandomIntBetween(1, 100); ++i) {
+                bulkRequest.add(new IndexRequest(indexName).source("foo" + j, "bar" + i));
+            }
+            client().bulk(bulkRequest).get();
+            flushAndRefresh(indexName);
+        }
+        final IndexStats indexStats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName);
+        assertThat(indexStats.getIndexShards().get(0).getPrimary().getSegments().getCount(), greaterThan(1L));
+
+        final String snapshot1 = "snap-1";
+        final String repo = "test-repo";
+        logger.info("--> creating repository");
+        assertThat(client().admin().cluster().preparePutRepository(repo)
+                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet().isAcknowledged(),
+            is(true));
+
+        logger.info("--> creating snapshot 1");
+        client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
+
+        logger.info("--> force merging down to a single segment");
+        final ForceMergeResponse forceMergeResponse =
+            client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(true).get();
+        assertThat(forceMergeResponse.getFailedShards(), is(0));
+
+        final String snapshot2 = "snap-2";
+        logger.info("--> creating snapshot 2");
+        client().admin().cluster().prepareCreateSnapshot(repo, snapshot2).setIndices(indexName).setWaitForCompletion(true).get();
+
+        logger.info("--> asserting that the two snapshots refer to different files in the repository");
+        final SnapshotsStatusResponse response =
+            client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots(snapshot2).get();
+        final SnapshotStats secondSnapshotShardStatus =
+            response.getSnapshots().get(0).getIndices().get(indexName).getShards().get(0).getStats();
+        assertThat(secondSnapshotShardStatus.getIncrementalFileCount(), greaterThan(0));
     }
 
     private void assertCountInIndexThenDelete(String index, long expectedCount) throws ExecutionException, InterruptedException {

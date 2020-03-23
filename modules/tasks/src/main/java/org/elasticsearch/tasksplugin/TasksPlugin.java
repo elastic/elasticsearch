@@ -19,7 +19,6 @@
 
 package org.elasticsearch.tasksplugin;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -35,7 +34,7 @@ import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 public class TasksPlugin extends Plugin implements SystemIndexPlugin {
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return Collections.singletonList(new SystemIndexDescriptor(TASK_INDEX, this.getClass().getSimpleName()));
     }
 }

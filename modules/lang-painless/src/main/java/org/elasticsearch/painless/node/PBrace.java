@@ -38,7 +38,7 @@ public class PBrace extends AStoreable {
 
     protected final AExpression index;
 
-    // TODO: https://github.com/elastic/elasticsearch/issues/54015
+    // TODO: #54015
     private boolean isDefOptimized = false;
 
     public PBrace(Location location, AExpression prefix, AExpression index) {

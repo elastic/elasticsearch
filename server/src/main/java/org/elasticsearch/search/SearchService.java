@@ -245,7 +245,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
         if (defaultKeepAlive.millis() > maxKeepAlive.millis()) {
-            throw new IllegalArgumentException("Default keep alive setting for scroll [" + DEFAULT_KEEPALIVE_SETTING.getKey() + "]" +
+            throw new IllegalArgumentException("Default keep alive setting for request [" + DEFAULT_KEEPALIVE_SETTING.getKey() + "]" +
                 " should be smaller than max keep alive [" + MAX_KEEPALIVE_SETTING.getKey() + "], " +
                 "was (" + defaultKeepAlive + " > " + maxKeepAlive + ")");
         }

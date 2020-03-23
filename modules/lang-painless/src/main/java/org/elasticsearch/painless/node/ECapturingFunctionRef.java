@@ -40,7 +40,7 @@ public class ECapturingFunctionRef extends AExpression implements ILambda {
     protected final String variable;
     protected final String call;
 
-    // TODO: https://github.com/elastic/elasticsearch/issues/54015
+    // TODO: #54015
     private Variable captured;
     private String defPointer;
 

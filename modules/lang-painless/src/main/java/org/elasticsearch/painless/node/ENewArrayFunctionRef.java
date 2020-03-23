@@ -39,7 +39,7 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
 
     protected final String type;
 
-    // TODO: https://github.com/elastic/elasticsearch/issues/54015
+    // TODO: #54015
     private String defPointer;
 
     public ENewArrayFunctionRef(Location location, String type) {

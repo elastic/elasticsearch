@@ -76,7 +76,7 @@ public class PSubDefCall extends AExpression {
             expression.cast(expressionInput, expressionOutput);
             parameterTypes.add(expressionOutput.actual);
 
-            // TODO: https://github.com/elastic/elasticsearch/issues/54015
+            // TODO: #54015
             if (expression instanceof ILambda) {
                 ILambda lambda = (ILambda) expression;
                 pointers.add(lambda.getPointer());

@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -39,7 +38,6 @@ public class Header {
     private final byte status;
     private String actionName;
     private Tuple<Map<String, String>, Map<String, Set<String>>> headers;
-    private List<String> allowedSystemIndices;
 
     Header(int networkMessageSize, long requestId, byte status, Version version) {
         this.networkMessageSize = networkMessageSize;
@@ -96,12 +94,8 @@ public class Header {
         return headers;
     }
 
-    public List<String> getAllowedSystemIndices() {
-        return allowedSystemIndices;
-    }
-
     void finishParsingHeader(StreamInput input) throws IOException {
-        finishHeader(ThreadContext.readHeadersFromStream(input), ThreadContext.readAllowedSystemIndices(input));
+        finishHeader(ThreadContext.readHeadersFromStream(input));
 
         if (isRequest()) {
             if (version.before(Version.V_8_0_0)) {
@@ -114,8 +108,7 @@ public class Header {
         }
     }
 
-    void finishHeader(Tuple<Map<String, String>, Map<String, Set<String>>> headers, List<String> allowedSystemIndices) {
+    void finishHeader(Tuple<Map<String, String>, Map<String, Set<String>>> headers) {
         this.headers = headers;
-        this.allowedSystemIndices = allowedSystemIndices;
     }
 }

@@ -123,7 +123,7 @@ public class InboundHandler {
         ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
             // Place the context with the headers from the message
-            threadContext.setHeaders(header.getHeaders(), header.getAllowedSystemIndices());
+            threadContext.setHeaders(header.getHeaders());
             threadContext.putTransient("_remote_address", remoteAddress);
             if (header.isRequest()) {
                 handleRequest(channel, header, streamInput, message.getContent().length());

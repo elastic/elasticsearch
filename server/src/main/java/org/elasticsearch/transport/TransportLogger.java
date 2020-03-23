@@ -101,14 +101,8 @@ public final class TransportLogger {
                     InboundHandler.assertRemoteVersion(streamInput, version);
                 }
 
-                // TODO (jaymode) Need a better way to deal with this. In one aspect,
-                // changes were made to ThreadContext to allocate less internally, yet we have this
-                // ugliness needed to move past the threadcontext data in the stream and discard it
-                // Could we have an alternative that essentially just seeks through the stream with
-                // minimal allocation?
-                // read and discard thread context data
+                // read and discard headers
                 ThreadContext.readHeadersFromStream(streamInput);
-                ThreadContext.readAllowedSystemIndices(streamInput);
 
                 if (isRequest) {
                     if (version.before(Version.V_8_0_0)) {

@@ -207,15 +207,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         }
     }
 
-    public static Map<String, Consumer<NodesStatsRequest>> getDispatchMap() {
-        Map<String, Consumer<NodesStatsRequest>> map = new HashMap<>();
-        for (Metric metric : Metric.values()) {
-            map.put(metric.metricName(), request -> request.addMetric(metric.metricName()));
-        }
-        map.put("indices", request -> request.indices(true));
-        return Collections.unmodifiableMap(map);
-    }
-
     /**
      * An enumeration of the "core" sections of metrics that may be requested
      * from the nodes stats endpoint. Eventually this list will be pluggable.
@@ -232,7 +223,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SCRIPT("script"),
         DISCOVERY("discovery"),
         INGEST("ingest"),
-        ADAPTIVE_SELECTION("adaptiveSelection"); // TODO: Should this be removed?
+        ADAPTIVE_SELECTION("adaptive_selection");
 
         private String metricName;
 

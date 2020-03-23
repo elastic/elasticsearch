@@ -53,7 +53,17 @@ public class RestNodesStatsAction extends BaseRestHandler {
             new Route(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}"));
     }
 
-    static final Map<String, Consumer<NodesStatsRequest>> METRICS = NodesStatsRequest.getDispatchMap();
+    static final Map<String, Consumer<NodesStatsRequest>> METRICS;
+
+    static {
+        Map<String, Consumer<NodesStatsRequest>> map = new HashMap<>();
+        for (NodesStatsRequest.Metric metric : NodesStatsRequest.Metric.values()) {
+            map.put(metric.metricName(), request -> request.addMetric(metric.metricName()));
+        }
+        map.put("indices", request -> request.indices(true));
+        METRICS = Collections.unmodifiableMap(map);
+    }
+
     static final Map<String, Consumer<CommonStatsFlags>> FLAGS;
 
     static {

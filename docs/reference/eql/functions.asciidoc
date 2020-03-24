@@ -23,11 +23,11 @@ start position.
 *Example*
 [source,eql]
 ----
-substring("quick brown fox", 0, 5)      // returns "quick"
-substring("quick brown fox", 6, 11)     // returns "brown"
-substring("quick brown fox", 6)         // returns "b"
-substring("quick brown fox", -3, -1)    // returns "fo"
-substring("quick brown fox", -3)        // returns "f"
+substring("start regsvr32.exe", 0, 5)     // returns "start"
+substring("start regsvr32.exe", 6, 14)    // returns "regsvr32"
+substring("start regsvr32.exe", 6)        // returns "r"
+substring("start regsvr32.exe", -3, -1)   // returns "ex"
+substring("start regsvr32.exe", -3)       // returns "e"
 ----
 
 *Syntax*

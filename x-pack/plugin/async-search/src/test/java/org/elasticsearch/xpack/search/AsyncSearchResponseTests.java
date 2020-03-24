@@ -91,15 +91,15 @@ public class AsyncSearchResponseTests extends ESTestCase {
         int rand = randomIntBetween(0, 2);
         switch (rand) {
             case 0:
-                return new AsyncSearchResponse(searchId, randomIntBetween(0, Integer.MAX_VALUE), randomBoolean(),
+                return new AsyncSearchResponse(searchId, randomBoolean(),
                     randomBoolean(), randomNonNegativeLong(), randomNonNegativeLong());
 
             case 1:
-                return new AsyncSearchResponse(searchId, randomIntBetween(0, Integer.MAX_VALUE), searchResponse, null,
+                return new AsyncSearchResponse(searchId, searchResponse, null,
                     randomBoolean(), randomBoolean(), randomNonNegativeLong(), randomNonNegativeLong());
 
             case 2:
-                return new AsyncSearchResponse(searchId, randomIntBetween(0, Integer.MAX_VALUE), searchResponse,
+                return new AsyncSearchResponse(searchId, searchResponse,
                     new ElasticsearchException(new IOException("boum")), randomBoolean(), randomBoolean(),
                     randomNonNegativeLong(), randomNonNegativeLong());
 
@@ -120,7 +120,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
     static void assertEqualResponses(AsyncSearchResponse expected, AsyncSearchResponse actual) {
         assertEquals(expected.getId(), actual.getId());
-        assertEquals(expected.getVersion(), actual.getVersion());
         assertEquals(expected.status(), actual.status());
         assertEquals(expected.getFailure() == null, actual.getFailure() == null);
         assertEquals(expected.isRunning(), actual.isRunning());

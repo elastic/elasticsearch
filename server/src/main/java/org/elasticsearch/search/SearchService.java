@@ -406,13 +406,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                   ActionListener<ScrollQuerySearchResult> listener) {
         runAsync(request.contextId(), () -> {
             final LegacyReaderContext reader = (LegacyReaderContext) findReaderContext(request.contextId());
-            if (request.scroll() != null && request.scroll().keepAlive() != null) {
-                final long keepAlive = request.scroll().keepAlive().millis();
-                checkKeepAliveLimit(keepAlive);
-                reader.keepAlive(keepAlive);
-            }
             try (SearchContext context = createContext(reader, reader.getShardSearchRequest(null), task, false);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+                if (request.scroll() != null && request.scroll().keepAlive() != null) {
+                    checkKeepAliveLimit(request.scroll().keepAlive().millis());
+                    reader.keepAlive(request.scroll().keepAlive().millis());
+                }
                 reader.indexShard().getSearchOperationListener().validateSearchContext(context, request);
                 context.searcher().setAggregatedDfs(reader.getAggregatedDfs(null));
                 processScroll(request, reader, context);
@@ -469,12 +468,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                   ActionListener<ScrollQueryFetchSearchResult> listener) {
         runAsync(request.contextId(), () -> {
             final LegacyReaderContext reader = (LegacyReaderContext) findReaderContext(request.contextId());
-            if (request.scroll() != null && request.scroll().keepAlive() != null) {
-                checkKeepAliveLimit(request.scroll().keepAlive().millis());
-                reader.keepAlive(request.scroll().keepAlive().millis());
-            }
             try (SearchContext context = createContext(reader, reader.getShardSearchRequest(null), task, false);
                  SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+                if (request.scroll() != null && request.scroll().keepAlive() != null) {
+                    checkKeepAliveLimit(request.scroll().keepAlive().millis());
+                    reader.keepAlive(request.scroll().keepAlive().millis());
+                }
                 context.assignRescoreDocIds(reader.getRescoreDocIds(null));
                 context.searcher().setAggregatedDfs(reader.getAggregatedDfs(null));
                 reader.indexShard().getSearchOperationListener().validateSearchContext(context, request);
@@ -618,7 +617,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             dfsPhase.preProcess(context);
             queryPhase.preProcess(context);
             fetchPhase.preProcess(context);
-
             context.lowLevelCancellation(lowLevelCancellation);
             // Disable timeout while searching and mark the reader as accessed when releasing the context.
             context.addReleasable(reader.markAsUsed());

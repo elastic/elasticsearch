@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -334,14 +336,15 @@ thirdPartyAudit {
     'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
   )
 }
-
-thirdPartyAudit.ignoreMissingClasses(
-  'javax.xml.bind.JAXBContext',
-  'javax.xml.bind.JAXBElement',
-  'javax.xml.bind.JAXBException',
-  'javax.xml.bind.Unmarshaller',
-  'javax.xml.bind.UnmarshallerHandler',
-)
+if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.ignoreMissingClasses(
+    'javax.xml.bind.JAXBContext',
+    'javax.xml.bind.JAXBElement',
+    'javax.xml.bind.JAXBException',
+    'javax.xml.bind.Unmarshaller',
+    'javax.xml.bind.UnmarshallerHandler',
+  )
+}
 
 
 test {

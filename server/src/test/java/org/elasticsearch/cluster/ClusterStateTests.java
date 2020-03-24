@@ -181,9 +181,6 @@ public class ClusterStateTests extends ESTestCase {
             "        }\n" +
             "      ]\n" +
             "    },\n" +
-            "    \"transient_settings\" : {\n" +
-            "      \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
-            "    },\n" +
             "    \"templates\" : {\n" +
             "      \"template\" : {\n" +
             "        \"order\" : 0,\n" +
@@ -372,9 +369,6 @@ public class ClusterStateTests extends ESTestCase {
             "        }\n" +
             "      ]\n" +
             "    },\n" +
-            "    \"transient_settings\" : {\n" +
-            "      \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
-            "    },\n" +
             "    \"templates\" : {\n" +
             "      \"template\" : {\n" +
             "        \"order\" : 0,\n" +
@@ -555,9 +549,6 @@ public class ClusterStateTests extends ESTestCase {
             "          \"node_name\" : \"excludedNodeName\"\n" +
             "        }\n" +
             "      ]\n" +
-            "    },\n" +
-            "    \"transient_settings\" : {\n" +
-            "      \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
             "    },\n" +
             "    \"templates\" : {\n" +
             "      \"template\" : {\n" +

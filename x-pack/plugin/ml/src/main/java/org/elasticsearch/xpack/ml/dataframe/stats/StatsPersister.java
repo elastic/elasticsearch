@@ -47,7 +47,7 @@ public class StatsPersister {
                 MlStatsIndex.writeAlias(),
                 result,
                 new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
-                WriteRequest.RefreshPolicy.IMMEDIATE,
+                WriteRequest.RefreshPolicy.NONE,
                 docIdSupplier.apply(jobId),
                 () -> isCancelled == false,
                 errorMsg -> auditor.error(jobId,

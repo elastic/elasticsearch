@@ -66,7 +66,3 @@
         rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 3m
-
-  - do:
-      clear_scroll:
-        scroll_id: $scroll_id

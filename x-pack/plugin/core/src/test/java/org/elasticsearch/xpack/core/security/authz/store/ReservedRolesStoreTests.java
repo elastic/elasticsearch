@@ -660,6 +660,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(remoteMonitoringAgentRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(EnrichStatsAction.NAME, request, authentication), is(true));
+        assertThat(remoteMonitoringAgentRole.cluster().check(EnrichCoordinatorStatsAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringAgentRole.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(false));
         assertThat(remoteMonitoringAgentRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(false));
         assertThat(remoteMonitoringAgentRole.cluster().check(DeleteIndexTemplateAction.NAME, request, authentication), is(false));

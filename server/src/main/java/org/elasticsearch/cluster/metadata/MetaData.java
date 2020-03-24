@@ -1368,7 +1368,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
             builder.endObject();
 
-            if (context == XContentContext.API && !metaData.indices().isEmpty()) {
+            if (context == XContentContext.API) {
                 builder.startObject("indices");
                 for (IndexMetaData indexMetaData : metaData) {
                     IndexMetaData.Builder.toXContent(indexMetaData, builder, params);

@@ -82,7 +82,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("remote_monitoring_collector", new RoleDescriptor(
                         "remote_monitoring_collector",
                         new String[] {
-                            "monitor"
+                            "monitor",
+                            "cluster:admin/xpack/enrich/stats",
+                            "cluster:admin/xpack/enrich/coordinator_stats",
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()

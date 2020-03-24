@@ -209,6 +209,10 @@ public class User implements ToXContentObject {
         output.writeBoolean(false); // last user written, regardless of bwc, does not have an inner user
     }
 
+    public static boolean isInternal(User user) {
+        return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user) || AsyncSearchUser.is(user);
+    }
+
     /** Write just the given {@link User}, but not the inner {@link #authenticatedUser}. */
     private static void writeUser(User user, StreamOutput output) throws IOException {
         output.writeBoolean(false); // not a system user

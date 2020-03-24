@@ -28,6 +28,7 @@ import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,30 +37,30 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
 /**
  * Represents a method call and defers to a child subnode.
  */
-public final class PCallInvoke extends AExpression {
+public class PCallInvoke extends AExpression {
 
-    private final String name;
-    private final boolean nullSafe;
-    private final List<AExpression> arguments;
-
-    private AExpression sub = null;
+    protected final String name;
+    protected final boolean nullSafe;
+    protected final List<AExpression> arguments;
 
     public PCallInvoke(Location location, AExpression prefix, String name, boolean nullSafe, List<AExpression> arguments) {
         super(location, prefix);
 
         this.name = Objects.requireNonNull(name);
         this.nullSafe = nullSafe;
-        this.arguments = Objects.requireNonNull(arguments);
+        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-        Output prefixOutput = prefix.analyze(scriptRoot, scope, new Input());
-        prefix.input.expected = prefixOutput.actual;
-        prefix.cast();
+        Input prefixInput = new Input();
+        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
+        prefixInput.expected = prefixOutput.actual;
+        prefix.cast(prefixInput, prefixOutput);
+
+        AExpression sub;
 
         if (prefixOutput.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
@@ -84,25 +85,22 @@ public final class PCallInvoke extends AExpression {
         Input subInput = new Input();
         subInput.expected = input.expected;
         subInput.explicit = input.explicit;
-        Output subOutput = sub.analyze(scriptRoot, scope, subInput);
+        Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
         output.actual = subOutput.actual;
 
         output.statement = true;
 
-        return output;
-    }
-
-    @Override
-    CallNode write(ClassNode classNode) {
         CallNode callNode = new CallNode();
 
-        callNode.setLeftNode(prefix.cast(prefix.write(classNode)));
-        callNode.setRightNode(sub.write(classNode));
+        callNode.setLeftNode(prefix.cast(prefixOutput));
+        callNode.setRightNode(subOutput.expressionNode);
 
         callNode.setLocation(location);
         callNode.setExpressionType(output.actual);
 
-        return callNode;
+        output.expressionNode = callNode;
+
+        return output;
     }
 
     @Override

@@ -34,11 +34,12 @@ import java.util.Objects;
 /**
  * Represents an array load/store and defers to a child subnode.
  */
-public final class PBrace extends AStoreable {
+public class PBrace extends AStoreable {
 
-    private AExpression index;
+    protected final AExpression index;
 
-    private AStoreable sub = null;
+    // TODO: #54015
+    private boolean isDefOptimized = false;
 
     public PBrace(Location location, AExpression prefix, AExpression index) {
         super(location, prefix);
@@ -47,24 +48,26 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
         AStoreable.Input storeableInput = new AStoreable.Input();
         storeableInput.read = input.read;
         storeableInput.expected = input.expected;
         storeableInput.explicit = input.explicit;
         storeableInput.internal = input.internal;
 
-        return analyze(scriptRoot, scope, storeableInput);
+        return analyze(classNode, scriptRoot, scope, storeableInput);
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
-        Output prefixOutput = prefix.analyze(scriptRoot, scope, new Input());
-        prefix.input.expected = prefixOutput.actual;
-        prefix.cast();
+        Input prefixInput = new Input();
+        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
+        prefixInput.expected = prefixOutput.actual;
+        prefix.cast(prefixInput, prefixOutput);
+
+        AStoreable sub;
 
         if (prefixOutput.actual.isArray()) {
             sub = new PSubBrace(location, prefixOutput.actual, index);
@@ -79,39 +82,32 @@ public final class PBrace extends AStoreable {
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual) + "]."));
         }
 
+        isDefOptimized = sub.isDefOptimized();
+
         Input subInput = new Input();
         subInput.write = input.write;
         subInput.read = input.read;
         subInput.expected = input.expected;
         subInput.explicit = input.explicit;
-        Output subOutput = sub.analyze(scriptRoot, scope, subInput);
+        Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
         output.actual = subOutput.actual;
+
+        BraceNode braceNode = new BraceNode();
+
+        braceNode.setLeftNode(prefix.cast(prefixOutput));
+        braceNode.setRightNode(subOutput.expressionNode);
+
+        braceNode.setLocation(location);
+        braceNode.setExpressionType(output.actual);
+
+        output.expressionNode = braceNode;
 
         return output;
     }
 
     @Override
-    BraceNode write(ClassNode classNode) {
-        BraceNode braceNode = new BraceNode();
-
-        braceNode.setLeftNode(prefix.cast(prefix.write(classNode)));
-        braceNode.setRightNode(sub.write(classNode));
-
-        braceNode.setLocation(location);
-        braceNode.setExpressionType(output.actual);
-
-        return braceNode;
-    }
-
-    @Override
     boolean isDefOptimized() {
-        return sub.isDefOptimized();
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        sub.updateActual(actual);
-        this.output.actual = actual;
+        return isDefOptimized;
     }
 
     @Override

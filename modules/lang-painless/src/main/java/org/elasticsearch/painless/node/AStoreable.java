@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -57,7 +58,7 @@ abstract class AStoreable extends AExpression {
         this.prefix = Objects.requireNonNull(prefix);
     }
 
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         throw new UnsupportedOperationException();
     }
 
@@ -66,11 +67,4 @@ abstract class AStoreable extends AExpression {
      * rhs actual type to avoid an unnecessary cast.
      */
     abstract boolean isDefOptimized();
-
-    /**
-     * If this node or a sub-node of this node uses dynamic calls then
-     * actual will be set to this value. This is used for an optimization
-     * during assignment to def type targets.
-     */
-    abstract void updateActual(Class<?> actual);
 }

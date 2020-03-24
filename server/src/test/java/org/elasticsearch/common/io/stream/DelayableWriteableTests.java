@@ -19,25 +19,25 @@
 
 package org.elasticsearch.common.io.stream;
 
+import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.equalTo;
+
+import java.io.IOException;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import java.io.IOException;
-
-import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.equalTo;
-
 public class DelayableWriteableTests extends ESTestCase {
     // NOTE: we don't use AbstractWireSerializingTestCase because we don't implement equals and hashCode.
-    public static class Example implements NamedWriteable {
+    private static class Example implements NamedWriteable {
         private final String s;
 
-        public Example(String s) {
+        Example(String s) {
             this.s = s;
         }
 
-        public Example(StreamInput in) throws IOException {
+        Example(StreamInput in) throws IOException {
             s = in.readString();
         }
 
@@ -66,14 +66,14 @@ public class DelayableWriteableTests extends ESTestCase {
         }
     }
 
-    public static class NamedHolder implements Writeable {
+    private static class NamedHolder implements Writeable {
         private final Example e;
 
-        public NamedHolder(Example e) {
+        NamedHolder(Example e) {
             this.e = e;
         }
 
-        public NamedHolder(StreamInput in) throws IOException {
+        NamedHolder(StreamInput in) throws IOException {
             e = in.readNamedWriteable(Example.class);
         }
 
@@ -94,6 +94,23 @@ public class DelayableWriteableTests extends ESTestCase {
         @Override
         public int hashCode() {
             return e.hashCode();
+        }
+    }
+
+    private static class SneakOtherSideVersionOnWire implements Writeable {
+        private final Version version;
+
+        SneakOtherSideVersionOnWire() {
+            version = Version.CURRENT;
+        }
+
+        SneakOtherSideVersionOnWire(StreamInput in) throws IOException {
+            version = Version.readVersion(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            Version.writeVersion(out.getVersion(), out);
         }
     }
 
@@ -137,6 +154,12 @@ public class DelayableWriteableTests extends ESTestCase {
         DelayableWriteable<NamedHolder> original = roundTrip(DelayableWriteable.referencing(n), NamedHolder::new, randomOldVersion());
         assertTrue(original.isDelayed());
         roundTripTestCase(original, NamedHolder::new);
+    }
+
+    public void testSerializesWithRemoteVersion() throws IOException {
+        Version remoteVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        DelayableWriteable<SneakOtherSideVersionOnWire> original = DelayableWriteable.referencing(new SneakOtherSideVersionOnWire());
+        assertThat(roundTrip(original, SneakOtherSideVersionOnWire::new, remoteVersion).get().version, equalTo(remoteVersion));
     }
 
     private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {

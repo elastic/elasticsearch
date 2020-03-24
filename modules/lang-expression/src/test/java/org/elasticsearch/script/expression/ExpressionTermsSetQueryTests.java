@@ -22,7 +22,7 @@ package org.elasticsearch.script.expression;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.Collections;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MapperService;
@@ -55,7 +55,7 @@ public class ExpressionTermsSetQueryTests extends ESTestCase {
         when(doubleValues.advanceExact(anyInt())).thenReturn(true);
         when(doubleValues.nextValue()).thenReturn(2.718);
 
-        AtomicNumericFieldData atomicFieldData = mock(AtomicNumericFieldData.class);
+        LeafNumericFieldData atomicFieldData = mock(LeafNumericFieldData.class);
         when(atomicFieldData.getDoubleValues()).thenReturn(doubleValues);
 
         IndexNumericFieldData fieldData = mock(IndexNumericFieldData.class);

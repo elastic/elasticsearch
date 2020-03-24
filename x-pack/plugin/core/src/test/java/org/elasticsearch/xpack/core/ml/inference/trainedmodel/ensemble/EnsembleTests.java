@@ -684,45 +684,45 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
             .build();
 
 
-        Map<String, Double> featureImportance = ensemble.featureImportance(zipObjMap(featureNames, Arrays.asList(0.0, 0.9)));
-        assertThat(featureImportance.get("foo"), closeTo(-1.653200025, eps));
-        assertThat(featureImportance.get("bar"), closeTo( -0.12444978, eps));
+        Map<String, double[]> featureImportance = ensemble.featureImportance(zipObjMap(featureNames, Arrays.asList(0.0, 0.9)));
+        assertThat(featureImportance.get("foo")[0], closeTo(-1.653200025, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo( -0.12444978, eps));
 
         featureImportance = ensemble.featureImportance(zipObjMap(featureNames, Arrays.asList(0.1, 0.8)));
-        assertThat(featureImportance.get("foo"), closeTo(-1.653200025, eps));
-        assertThat(featureImportance.get("bar"), closeTo( -0.12444978, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(-1.653200025, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo( -0.12444978, eps));
 
         featureImportance = ensemble.featureImportance(zipObjMap(featureNames, Arrays.asList(0.2, 0.7)));
-        assertThat(featureImportance.get("foo"), closeTo(-1.653200025, eps));
-        assertThat(featureImportance.get("bar"), closeTo( -0.12444978, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(-1.653200025, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo( -0.12444978, eps));
 
         featureImportance = ensemble.featureImportance(zipObjMap(featureNames, Arrays.asList(0.3, 0.6)));
-        assertThat(featureImportance.get("foo"), closeTo(-1.16997162, eps));
-        assertThat(featureImportance.get("bar"), closeTo( -0.12444978, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(-1.16997162, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo( -0.12444978, eps));
 
         featureImportance = ensemble.featureImportance(zipObjMap(featureNames, Arrays.asList(0.4, 0.5)));
-        assertThat(featureImportance.get("foo"), closeTo(-1.16997162, eps));
-        assertThat(featureImportance.get("bar"), closeTo( -0.12444978, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(-1.16997162, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo( -0.12444978, eps));
 
         featureImportance = ensemble.featureImportance(zipObjMap(featureNames, Arrays.asList(0.5, 0.4)));
-        assertThat(featureImportance.get("foo"), closeTo(0.0798679, eps));
-        assertThat(featureImportance.get("bar"), closeTo( -0.12444978, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(0.0798679, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo( -0.12444978, eps));
 
         featureImportance = ensemble.featureImportance(zipObjMap(featureNames, Arrays.asList(0.6, 0.3)));
-        assertThat(featureImportance.get("foo"), closeTo(1.80491886, eps));
-        assertThat(featureImportance.get("bar"), closeTo(-0.4355742, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(1.80491886, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo(-0.4355742, eps));
 
         featureImportance = ensemble.featureImportance(zipObjMap(featureNames, Arrays.asList(0.7, 0.2)));
-        assertThat(featureImportance.get("foo"), closeTo(2.0538184, eps));
-        assertThat(featureImportance.get("bar"), closeTo(0.1451914, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(2.0538184, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo(0.1451914, eps));
 
         featureImportance = ensemble.featureImportance(zipObjMap(featureNames, Arrays.asList(0.8, 0.1)));
-        assertThat(featureImportance.get("foo"), closeTo(2.0538184, eps));
-        assertThat(featureImportance.get("bar"), closeTo(0.1451914, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(2.0538184, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo(0.1451914, eps));
 
         featureImportance = ensemble.featureImportance(zipObjMap(featureNames, Arrays.asList(0.9, 0.0)));
-        assertThat(featureImportance.get("foo"), closeTo(2.0538184, eps));
-        assertThat(featureImportance.get("bar"), closeTo(0.1451914, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(2.0538184, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo(0.1451914, eps));
     }
 
 

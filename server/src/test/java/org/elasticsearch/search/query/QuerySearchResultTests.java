@@ -89,8 +89,8 @@ public class QuerySearchResultTests extends ESTestCase {
         assertEquals(querySearchResult.size(), deserialized.size());
         assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
         if (deserialized.hasAggs()) {
-            Aggregations aggs = querySearchResult.consumeAggs();
-            Aggregations deserializedAggs = deserialized.consumeAggs();
+            Aggregations aggs = querySearchResult.consumeAggs().get();
+            Aggregations deserializedAggs = deserialized.consumeAggs().get();
             assertEquals(aggs.asList(), deserializedAggs.asList());
             List<SiblingPipelineAggregator> pipelineAggs = ((InternalAggregations) aggs).getTopLevelPipelineAggregators();
             List<SiblingPipelineAggregator> deserializedPipelineAggs =
@@ -126,7 +126,7 @@ public class QuerySearchResultTests extends ESTestCase {
             QuerySearchResult querySearchResult = new QuerySearchResult(in);
             assertEquals(100, querySearchResult.getContextId().getId());
             assertTrue(querySearchResult.hasAggs());
-            InternalAggregations aggs = (InternalAggregations) querySearchResult.consumeAggs();
+            InternalAggregations aggs = querySearchResult.consumeAggs().get();
             assertEquals(1, aggs.asList().size());
             //top-level pipeline aggs are retrieved as part of InternalAggregations although they were serialized separately
             assertEquals(1, aggs.getTopLevelPipelineAggregators().size());

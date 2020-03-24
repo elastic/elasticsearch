@@ -31,7 +31,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -170,20 +170,20 @@ public abstract class ValuesSource {
 
                 @Override
                 public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
-                    final AtomicOrdinalsFieldData atomicFieldData = indexFieldData.load(context);
+                    final LeafOrdinalsFieldData atomicFieldData = indexFieldData.load(context);
                     return atomicFieldData.getBytesValues();
                 }
 
                 @Override
                 public SortedSetDocValues ordinalsValues(LeafReaderContext context) {
-                    final AtomicOrdinalsFieldData atomicFieldData = indexFieldData.load(context);
+                    final LeafOrdinalsFieldData atomicFieldData = indexFieldData.load(context);
                     return atomicFieldData.getOrdinalsValues();
                 }
 
                 @Override
                 public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) {
                     final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
-                    final AtomicOrdinalsFieldData atomicFieldData = global.load(context);
+                    final LeafOrdinalsFieldData atomicFieldData = global.load(context);
                     return atomicFieldData.getOrdinalsValues();
                 }
 
@@ -565,7 +565,7 @@ public abstract class ValuesSource {
             }
         }
     }
-    
+
     public abstract static class Histogram extends ValuesSource {
 
         public abstract HistogramValues getHistogramValues(LeafReaderContext context) throws IOException;

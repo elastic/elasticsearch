@@ -164,11 +164,18 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         (ns, key) -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS,
             new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope));
 
+    private final boolean enabled;
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     private final TransportService transportService;
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
+        this.enabled = ENABLE_REMOTE_CLUSTERS.get(settings);
         this.transportService = transportService;
     }
 
@@ -248,6 +255,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {
+        if (enabled == false) {
+            throw new IllegalArgumentException("remote cluster service is not enabled");
+        }
         RemoteClusterConnection connection = remoteClusters.get(cluster);
         if (connection == null) {
             throw new NoSuchRemoteClusterException(cluster);
@@ -385,6 +395,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * function on success.
      */
     public void collectNodes(Set<String> clusters, ActionListener<BiFunction<String, String, DiscoveryNode>> listener) {
+        if (enabled == false) {
+            throw new IllegalArgumentException("remote cluster service is not enabled");
+        }
         Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
         for (String cluster : clusters) {
             if (remoteClusters.containsKey(cluster) == false) {
@@ -428,6 +441,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+        if (transportService.getRemoteClusterService().isEnabled() == false) {
+            throw new IllegalArgumentException("remote cluster service is not enabled");
+        }
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }

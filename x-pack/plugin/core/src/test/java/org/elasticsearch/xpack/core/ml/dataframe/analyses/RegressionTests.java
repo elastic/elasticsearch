@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.allOf;
@@ -143,9 +144,9 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
     }
 
     public void testGetExplicitlyMappedFields() {
-        assertThat(
-            new Regression("foo").getExplicitlyMappedFields(null, "results"),
-            hasEntry("results.foo_prediction", Collections.singletonMap("type", "double")));
+        Map<String, Object> explicitlyMappedFields = new Regression("foo").getExplicitlyMappedFields(null, "results");
+        assertThat(explicitlyMappedFields, hasEntry("results.foo_prediction", Collections.singletonMap("type", "double")));
+        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", MapUtils.featureImportanceMapping()));
     }
 
     public void testGetStateDocId() {

@@ -135,7 +135,7 @@ public final class MlIndexAndAlias {
             .indices()
             .prepareCreate(index);
         if (addAlias) {
-            requestBuilder.addAlias(new Alias(alias));
+            requestBuilder.addAlias(new Alias(alias).isHidden(true));
         }
         CreateIndexRequest request = requestBuilder.request();
 
@@ -165,7 +165,7 @@ public final class MlIndexAndAlias {
         IndicesAliasesRequestBuilder requestBuilder = client.admin()
             .indices()
             .prepareAliases()
-            .addAlias(newIndex, alias);
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias).isHidden(true));
         if (currentIndex != null) {
             requestBuilder.removeAlias(currentIndex, alias);
         }

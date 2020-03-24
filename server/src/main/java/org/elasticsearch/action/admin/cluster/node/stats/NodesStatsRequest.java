@@ -323,7 +323,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         OS("os"),
         PROCESS("process"),
         JVM("jvm"),
-        THREAD_POOL("threadPool"),
+        THREAD_POOL("thread_pool"),
         FS("fs"),
         TRANSPORT("transport"),
         HTTP("http"),

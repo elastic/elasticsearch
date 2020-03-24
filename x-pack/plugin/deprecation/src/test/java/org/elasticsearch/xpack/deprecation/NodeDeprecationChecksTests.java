@@ -146,6 +146,36 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals(0, deprecationIssues.size());
     }
 
+    public void testThreadPoolListenerQueueSize() {
+        final int size = randomIntBetween(1, 4);
+        final Settings settings = Settings.builder().put("thread_pool.listener.queue_size", size).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [thread_pool.listener.queue_size] is deprecated and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool",
+            "the setting [thread_pool.listener.queue_size] is currently set to [" + size + "], remove this setting");
+        assertThat(issues, contains(expected));
+        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size"});
+    }
+
+    public void testThreadPoolListenerSize() {
+        final int size = randomIntBetween(1, 4);
+        final Settings settings = Settings.builder().put("thread_pool.listener.size", size).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [thread_pool.listener.size] is deprecated and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool",
+            "the setting [thread_pool.listener.size] is currently set to [" + size + "], remove this setting");
+        assertThat(issues, contains(expected));
+        assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
+    }
+
     public void testRemovedSettingNotSet() {
         final Settings settings = Settings.EMPTY;
         final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");

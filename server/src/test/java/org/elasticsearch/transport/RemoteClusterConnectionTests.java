@@ -348,6 +348,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testRemoteConnectionInfo() throws IOException {
         List<String> remoteAddresses = Collections.singletonList("seed:1");
+        String serverName = "the_server_name";
 
         RemoteConnectionInfo.ModeInfo modeInfo1;
         RemoteConnectionInfo.ModeInfo modeInfo2;
@@ -356,8 +357,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             modeInfo1 = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 4, 4);
             modeInfo2 = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 4, 3);
         } else {
-            modeInfo1 = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses.get(0), 18, 18);
-            modeInfo2 = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses.get(0), 18, 17);
+            modeInfo1 = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses.get(0), serverName, 18, 18);
+            modeInfo2 = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses.get(0), serverName,18, 17);
         }
 
         RemoteConnectionInfo stats =
@@ -425,6 +426,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testRenderConnectionInfoXContent() throws IOException {
         List<String> remoteAddresses = Arrays.asList("seed:1", "seed:2");
+        String serverName = "the_server_name";
 
         RemoteConnectionInfo.ModeInfo modeInfo;
 
@@ -432,7 +434,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         if (sniff) {
             modeInfo = new SniffConnectionStrategy.SniffModeInfo(remoteAddresses, 3, 2);
         } else {
-            modeInfo = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses.get(0), 18, 16);
+            modeInfo = new ProxyConnectionStrategy.ProxyModeInfo(remoteAddresses.get(0), serverName,18, 16);
         }
 
         RemoteConnectionInfo stats = new RemoteConnectionInfo("test_cluster", modeInfo, TimeValue.timeValueMinutes(30), true);
@@ -448,8 +450,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 "\"skip_unavailable\":true}}", Strings.toString(builder));
         } else {
             assertEquals("{\"test_cluster\":{\"connected\":true,\"mode\":\"proxy\",\"address\":\"seed:1\"," +
-                "\"num_sockets_connected\":16,\"max_socket_connections\":18,\"initial_connect_timeout\":\"30m\"," +
-                "\"skip_unavailable\":true}}", Strings.toString(builder));
+                "\"server_name\":\"the_server_name\",\"num_sockets_connected\":16,\"max_socket_connections\":18,"
+                +"\"initial_connect_timeout\":\"30m\",\"skip_unavailable\":true}}", Strings.toString(builder));
         }
     }
 

@@ -78,7 +78,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notANumber;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -97,10 +96,12 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 },
                 numberFieldType(NumberType.DOUBLE, "s"));
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.0, Double.NaN))));
+        assertThat(result.getTopMetrics(), hasSize(1));
+        assertThat(result.getTopMetrics().get(0).getSortValue(), equalTo(SortValue.from(1.0)));
+        assertThat(result.getTopMetrics().get(0).getMetricValues(), equalTo(singletonList(null)));
     }
 
-    public void testMissingValueForMetric() throws IOException {
+    public void testMissingValueForDoubleMetric() throws IOException {
         InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(singletonList(doubleField("s", 1.0)));
                 },
@@ -108,17 +109,36 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), hasSize(1));
         assertThat(result.getTopMetrics().get(0).getSortValue(), equalTo(SortValue.from(1.0)));
-        assertThat(result.getTopMetrics().get(0).getMetricValues().length, equalTo(1));
-        assertThat(result.getTopMetrics().get(0).getMetricValues()[0], notANumber());
+        assertThat(result.getTopMetrics().get(0).getMetricValues(), equalTo(singletonList(null)));
     }
 
-    public void testActualValueForMetric() throws IOException {
+    public void testMissingValueForLongMetric() throws IOException {
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+                    writer.addDocument(singletonList(longField("s", 1)));
+                },
+                longFields());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(result.getTopMetrics(), hasSize(1));
+        assertThat(result.getTopMetrics().get(0).getSortValue(), equalTo(SortValue.from(1)));
+        assertThat(result.getTopMetrics().get(0).getMetricValues(), equalTo(singletonList(null)));
+    }
+
+    public void testActualValueForDoubleMetric() throws IOException {
         InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
                 },
                 doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.0, 2.0))));
+    }
+
+    public void testActualValueForLongMetric() throws IOException {
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+                    writer.addDocument(Arrays.asList(longField("s", 1), longField("m", 2)));
+                },
+                longFields());
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(1, 2))));
     }
 
     private InternalTopMetrics collectFromDoubles(TopMetricsAggregationBuilder builder) throws IOException {
@@ -132,8 +152,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     public void testSortByDoubleAscending() throws IOException {
         InternalTopMetrics result = collectFromDoubles(simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC)));
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
-        assertThat(result.getTopMetrics(), equalTo(singletonList(
-                new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), new double[] {2.0}))));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.0, 2.0))));
     }
 
     public void testSortByDoubleDescending() throws IOException {
@@ -387,13 +406,14 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 ));
         InternalTopMetrics result = collect(builder, new MatchAllDocsQuery(), writer -> {
                     writer.addDocument(Arrays.asList(doubleField("s", 1.0),
-                            doubleField("m1", 12.0), doubleField("m2", 22.0), doubleField("m3", 32.0)));
+                            doubleField("m1", 12.0), longField("m2", 22), doubleField("m3", 32.0)));
                     writer.addDocument(Arrays.asList(doubleField("s", 2.0),
-                            doubleField("m1", 13.0), doubleField("m2", 23.0), doubleField("m3", 33.0)));
+                            doubleField("m1", 13.0), longField("m2", 23), doubleField("m3", 33.0)));
                 }, manyMetricsFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), equalTo(singletonList(
-                new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), new double[] {12.0, 22.0, 32.0}))));
+                new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), metricValues(
+                        SortValue.from(12.0), SortValue.from(22), SortValue.from(32.0))))));
     }
 
     private TopMetricsAggregationBuilder simpleBuilder() {
@@ -426,11 +446,15 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         return new MappedFieldType[] {numberFieldType(NumberType.DOUBLE, "s"), numberFieldType(NumberType.DOUBLE, "m")};
     }
 
+    private MappedFieldType[] longFields() {
+        return new MappedFieldType[] {numberFieldType(NumberType.LONG, "s"), numberFieldType(NumberType.LONG, "m")};
+    }
+
     private MappedFieldType[] manyMetricsFields() {
         return new MappedFieldType[] {
                 numberFieldType(NumberType.DOUBLE, "s"),
                 numberFieldType(NumberType.DOUBLE, "m1"),
-                numberFieldType(NumberType.DOUBLE, "m2"),
+                numberFieldType(NumberType.LONG, "m2"),
                 numberFieldType(NumberType.DOUBLE, "m3"),
         };
     }
@@ -516,11 +540,29 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     private InternalTopMetrics.TopMetric top(long sortValue, double... metricValues) {
-        return new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(sortValue), metricValues);
+        return new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(sortValue), metricValues(metricValues));
+    }
+
+    private InternalTopMetrics.TopMetric top(long sortValue, long... metricValues) {
+        return new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(sortValue), metricValues(metricValues));
     }
 
     private InternalTopMetrics.TopMetric top(double sortValue, double... metricValues) {
-        return new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(sortValue), metricValues);
+        return new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(sortValue), metricValues(metricValues));
+    }
+
+    private List<InternalTopMetrics.MetricValue> metricValues(double... metricValues) {
+        return metricValues(Arrays.stream(metricValues).mapToObj(SortValue::from).toArray(SortValue[]::new));
+    }
+
+    private List<InternalTopMetrics.MetricValue> metricValues(long... metricValues) {
+        return metricValues(Arrays.stream(metricValues).mapToObj(SortValue::from).toArray(SortValue[]::new));
+    }
+
+    private List<InternalTopMetrics.MetricValue> metricValues(SortValue... metricValues) {
+        return Arrays.stream(metricValues)
+                .map(v -> new InternalTopMetrics.MetricValue(DocValueFormat.RAW, v))
+                .collect(toList());
     }
 
     /**

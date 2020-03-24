@@ -105,8 +105,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
         client.multiSearch(msearch, ActionListener.wrap(msearchResponse -> {
-            InternalAggregation.ReduceContext context
-                    = new InternalAggregation.ReduceContext(bigArrays, scriptService, false);
+            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService);
             listener.onResponse(processResponses(rollupSearchContext, msearchResponse, context));
         }, listener::onFailure));
     }

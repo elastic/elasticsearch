@@ -26,7 +26,7 @@ apply plugin: 'nebula.maven-scm'
 archivesBaseName = 'elasticsearch-core'
 
 // we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 9 so we do not include this source set in our IDEs
-if (!isEclipse && !isIdea) {
+if (!isEclipse) {
   sourceSets {
     java9 {
       java {
@@ -49,12 +49,10 @@ if (!isEclipse && !isIdea) {
   }
 
   forbiddenApisJava9 {
-    rootProject.globalInfo.ready {
-      if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
-        targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
-      }
-      replaceSignatureFiles 'jdk-signatures'
+    if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
+      targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
     }
+    replaceSignatureFiles 'jdk-signatures'
   }
 
   jar {
@@ -82,7 +80,7 @@ dependencies {
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 
-  if (!isEclipse && !isIdea) {
+  if (!isEclipse) {
     java9Compile sourceSets.main.output
   }
 

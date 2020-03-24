@@ -403,30 +403,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 builder.field("mappings");
                 builder.map(documentMapping);
             } else {
-<<<<<<< HEAD
-                if (context != MetaData.XContentContext.API) {
-                    builder.startArray("mappings");
-                    for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
-                        byte[] data = cursor.value.uncompressed();
-                        builder.map(XContentHelper.convertToMap(new BytesArray(data), true).v2());
-                    }
-                    builder.endArray();
-                } else {
-                    builder.startObject("mappings");
-                    for (ObjectObjectCursor<String, CompressedXContent> cursor1 : indexTemplateMetaData.mappings()) {
-                        Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(cursor1.value.uncompressed()), false).v2();
-                        if (mapping.size() == 1 && mapping.containsKey(cursor1.key)) {
-                            // the type name is the root value, reduce it
-                            mapping = (Map<String, Object>) mapping.get(cursor1.key);
-                        }
-                        builder.field(cursor1.key);
-                        builder.map(mapping);
-                    }
-                    builder.endObject();
-                }
-=======
                 builder.startObject("mappings").endObject();
->>>>>>> elastic/master
             }
 
             builder.startObject("aliases");

@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -81,7 +82,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     protected final TaskManager taskManager;
     private final TransportInterceptor.AsyncSender asyncSender;
     private final Function<BoundTransportAddress, DiscoveryNode> localNodeFactory;
-    private final boolean connectToRemoteCluster;
+    private final boolean remoteClusterClient;
     private final Transport.ResponseHandlers responseHandlers;
     private final TransportInterceptor interceptor;
 
@@ -161,13 +162,13 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         taskManager = createTaskManager(settings, threadPool, taskHeaders);
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
-        this.connectToRemoteCluster = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
+        this.remoteClusterClient = Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
-            if (connectToRemoteCluster) {
+            if (remoteClusterClient) {
                 remoteClusterService.listenForUpdates(clusterSettings);
             }
         }
@@ -227,7 +228,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         localNode = localNodeFactory.apply(transport.boundAddress());
         transport.setLocalNode(localNode);
 
-        if (connectToRemoteCluster) {
+        if (remoteClusterClient) {
             // here we start to connect to the remote clusters
             remoteClusterService.initializeRemoteClusters();
         }

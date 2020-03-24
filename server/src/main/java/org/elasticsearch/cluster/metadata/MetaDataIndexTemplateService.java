@@ -178,7 +178,10 @@ public class MetaDataIndexTemplateService {
         }
 
         CompressedXContent mappings = template.template().mappings();
-        Map<String, Object> mappingsArray = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings.string(), false);
+        Map<String, Object> mappingsArray = Collections.emptyMap();
+        if(mappings != null) {
+            mappingsArray = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings.string(), true);
+        }
         validateTemplate(template.template().settings(), Collections.singletonMap("_doc", mappingsArray), indicesService);
 
         logger.info("adding component template [{}]", name);

@@ -29,7 +29,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-
 public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
 
     private static boolean securityEnabled;

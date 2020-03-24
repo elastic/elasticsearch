@@ -35,11 +35,12 @@ import java.util.Objects;
 /**
  * Represents a capturing function reference.  For member functions that require a this reference, ie not static.
  */
-public final class ECapturingFunctionRef extends AExpression implements ILambda {
-    private final String variable;
-    private final String call;
+public class ECapturingFunctionRef extends AExpression implements ILambda {
 
-    private FunctionRef ref;
+    protected final String variable;
+    protected final String call;
+
+    // TODO: #54015
     private Variable captured;
     private String defPointer;
 
@@ -51,9 +52,10 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        FunctionRef ref = null;
+
+        Output output = new Output();
 
         captured = scope.getVariable(location, variable);
         if (input.expected == null) {
@@ -75,11 +77,6 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             output.actual = input.expected;
         }
 
-        return output;
-    }
-
-    @Override
-    CapturingFuncRefNode write(ClassNode classNode) {
         CapturingFuncRefNode capturingFuncRefNode = new CapturingFuncRefNode();
 
         capturingFuncRefNode.setLocation(location);
@@ -87,9 +84,11 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
         capturingFuncRefNode.setCapturedName(captured.getName());
         capturingFuncRefNode.setName(call);
         capturingFuncRefNode.setPointer(defPointer);
-        capturingFuncRefNode.setFuncRef(ref);;
+        capturingFuncRefNode.setFuncRef(ref);
 
-        return capturingFuncRefNode;
+        output.expressionNode = capturingFuncRefNode;
+
+        return output;
     }
 
     @Override

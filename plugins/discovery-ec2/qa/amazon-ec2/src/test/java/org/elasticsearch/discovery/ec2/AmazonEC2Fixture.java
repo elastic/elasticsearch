@@ -22,6 +22,7 @@ import com.amazonaws.util.DateUtils;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.SuppressForbidden;
@@ -104,6 +105,13 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
             HttpGet.METHOD_NAME.equals(request.getMethod())) {
             final Map<String, String> headers = new HashMap<>(contentType("text/plain"));
             return new Response(RestStatus.OK.getStatus(), headers, "my_iam_profile".getBytes(UTF_8));
+        }
+
+        if (instanceProfile && "/latest/api/token".equals(request.getPath())
+            && HttpPut.METHOD_NAME.equals(request.getMethod())) {
+            // TODO: Implement IMDSv2 behavior here. For now this just returns a 403 which makes the SDK fall back to IMDSv1
+            //       which is implemented in this fixture
+            return new Response(RestStatus.FORBIDDEN.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
         }
 
         if ((containerCredentials &&

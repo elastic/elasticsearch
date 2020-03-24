@@ -1,8 +1,8 @@
 ---
 "Help":
   - skip:
-      version: " - 7.1.99"
-      reason:  external refresh stats were added in 7.2.0
+      version: " - 7.99.99"
+      reason:  shard path stats were added in 8.0.0
   - do:
       cat.shards:
         help: true
@@ -78,6 +78,8 @@
                     warmer.current                   .+   \n
                     warmer.total                     .+   \n
                     warmer.total_time                .+   \n
+                    path.data                        .+   \n
+                    path.state                       .+   \n
                $/
 ---
 "Test cat shards output":

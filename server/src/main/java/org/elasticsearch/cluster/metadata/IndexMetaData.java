@@ -1189,7 +1189,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            MetaData.XContentContext context = MetaData.XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_API));
+            MetaData.XContentContext context = MetaData.XContentContext.valueOf(
+                params.param(CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_API));
 
             builder.startObject(indexMetaData.getIndex().getName());
 

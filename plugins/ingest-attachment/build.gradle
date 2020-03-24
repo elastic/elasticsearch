@@ -72,6 +72,12 @@ dependencies {
   compile 'org.apache.commons:commons-lang3:3.9'
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'ingest', 'index', 'get' 
+  }
+}
+
 dependencyLicenses {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
 }

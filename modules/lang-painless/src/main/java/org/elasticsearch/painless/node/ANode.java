@@ -20,8 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.IRNode;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,12 +48,6 @@ public abstract class ANode {
     ANode(Location location) {
         this.location = Objects.requireNonNull(location);
     }
-
-    /**
-     * Writes ASM based on the data collected during the analysis phase.
-     * @param classNode the root {@link ClassNode}
-     */
-    abstract IRNode write(ClassNode classNode);
 
     /**
      * Create an error with location information pointing to this node.

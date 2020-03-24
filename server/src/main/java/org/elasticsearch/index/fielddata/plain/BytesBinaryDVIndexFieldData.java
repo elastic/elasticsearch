@@ -39,7 +39,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
-public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BytesBinaryDVAtomicFieldData> {
+public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BytesBinaryDVLeafFieldData> {
 
     public BytesBinaryDVIndexFieldData(Index index, String fieldName) {
         super(index, fieldName);
@@ -57,16 +57,16 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
     }
 
     @Override
-    public BytesBinaryDVAtomicFieldData load(LeafReaderContext context) {
+    public BytesBinaryDVLeafFieldData load(LeafReaderContext context) {
         try {
-            return new BytesBinaryDVAtomicFieldData(DocValues.getBinary(context.reader(), fieldName));
+            return new BytesBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }
     }
 
     @Override
-    public BytesBinaryDVAtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public BytesBinaryDVLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

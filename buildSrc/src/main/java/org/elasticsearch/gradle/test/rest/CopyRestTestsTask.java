@@ -20,7 +20,7 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
  * @see RestResourcesPlugin
  */
 public class CopyRestTestsTask extends DefaultTask {
-    private static final String COPY_TO = "rest-api-spec/test";
+    private static final String REST_TEST_PREFIX = "rest-api-spec/test";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
@@ -103,7 +103,7 @@ public class CopyRestTestsTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(getTestSourceSet().getOutput().getResourcesDir(), COPY_TO);
+        return new File(getTestSourceSet().getOutput().getResourcesDir(), REST_TEST_PREFIX);
     }
 
     @TaskAction
@@ -114,7 +114,7 @@ public class CopyRestTestsTask extends DefaultTask {
             if (BuildParams.isInternal()) {
                 getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", project.getPath());
                 project.copy(c -> {
-                    c.from(coreConfig.getSingleFile());
+                    c.from(coreConfig.getAsFileTree());
                     c.into(getOutputDir());
                     c.include(corePatternSet.getIncludes());
                 });
@@ -128,7 +128,9 @@ public class CopyRestTestsTask extends DefaultTask {
                 project.copy(c -> {
                     c.from(project.zipTree(coreConfig.getSingleFile()));
                     c.into(getTestSourceSet().getOutput().getResourcesDir()); // this ends up as the same dir as outputDir
-                    c.include(includeCore.get().stream().map(prefix -> COPY_TO + "/" + prefix + "*/**").collect(Collectors.toList()));
+                    c.include(
+                        includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
+                    );
                 });
             }
         }
@@ -136,7 +138,7 @@ public class CopyRestTestsTask extends DefaultTask {
         if (includeXpack.get().isEmpty() == false) {
             getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
-                c.from(xpackConfig.getSingleFile());
+                c.from(xpackConfig.getAsFileTree());
                 c.into(getOutputDir());
                 c.include(xpackPatternSet.getIncludes());
             });
@@ -144,6 +146,6 @@ public class CopyRestTestsTask extends DefaultTask {
     }
 
     private SourceSet getTestSourceSet() {
-        return Boilerplate.getJavaSourceSets(getProject()).findByName("test");
+        return GradleUtils.getJavaSourceSets(getProject()).findByName("test");
     }
 }

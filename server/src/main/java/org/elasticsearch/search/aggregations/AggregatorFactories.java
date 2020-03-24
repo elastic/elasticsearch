@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -283,8 +284,6 @@ public class AggregatorFactories {
             return false;
         }
 
-
-
         public Builder addAggregator(AggregationBuilder factory) {
             if (!names.add(factory.name)) {
                 throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
@@ -298,15 +297,51 @@ public class AggregatorFactories {
             return this;
         }
 
+        /**
+         * Validate the root of the aggregation tree.
+         */
+        public ActionRequestValidationException validate(ActionRequestValidationException e) {
+            PipelineAggregationBuilder.ValidationContext context =
+                    PipelineAggregationBuilder.ValidationContext.forTreeRoot(aggregationBuilders, pipelineAggregatorBuilders, e);
+            validatePipelines(context);
+            return validateChildren(context.getValidationException());
+        }
+
+        /**
+         * Validate a the pipeline aggregations in this factory.
+         */
+        private void validatePipelines(PipelineAggregationBuilder.ValidationContext context) {
+            List<PipelineAggregationBuilder> orderedPipelineAggregators;
+            try {
+                orderedPipelineAggregators = resolvePipelineAggregatorOrder(pipelineAggregatorBuilders, aggregationBuilders);
+            } catch (IllegalArgumentException iae) {
+                context.addValidationError(iae.getMessage());
+                return;
+            }
+            for (PipelineAggregationBuilder builder : orderedPipelineAggregators) {
+                builder.validate(context);
+            }
+        }
+
+        /**
+         * Validate a the children of this factory.
+         */
+        private ActionRequestValidationException validateChildren(ActionRequestValidationException e) {
+            for (AggregationBuilder agg : aggregationBuilders) {
+                PipelineAggregationBuilder.ValidationContext context =
+                        PipelineAggregationBuilder.ValidationContext.forInsideTree(agg, e);
+                agg.factoriesBuilder.validatePipelines(context);
+                e = agg.factoriesBuilder.validateChildren(context.getValidationException());
+            }
+            return e;
+        }
+
         public AggregatorFactories build(QueryShardContext queryShardContext, AggregatorFactory parent) throws IOException {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
                 return EMPTY;
             }
-            List<PipelineAggregationBuilder> orderedpipelineAggregators = null;
-            orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders);
-            for (PipelineAggregationBuilder builder : orderedpipelineAggregators) {
-                builder.validate(parent, aggregationBuilders, pipelineAggregatorBuilders);
-            }
+            List<PipelineAggregationBuilder> orderedPipelineAggregators =
+                    resolvePipelineAggregatorOrder(pipelineAggregatorBuilders, aggregationBuilders);
             AggregatorFactory[] aggFactories = new AggregatorFactory[aggregationBuilders.size()];
 
             int i = 0;
@@ -314,7 +349,7 @@ public class AggregatorFactories {
                 aggFactories[i] = agg.build(queryShardContext, parent);
                 ++i;
             }
-            return new AggregatorFactories(aggFactories, orderedpipelineAggregators);
+            return new AggregatorFactories(aggFactories, orderedPipelineAggregators);
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(

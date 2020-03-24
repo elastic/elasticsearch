@@ -19,8 +19,12 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.RequestConverters.Params;
+import org.elasticsearch.client.asyncsearch.DeleteAsyncSearchRequest;
+import org.elasticsearch.client.asyncsearch.GetAsyncSearchRequest;
 import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 
@@ -70,5 +74,30 @@ final class AsyncSearchRequestConverters {
             params.withAllowPartialResults(request.getAllowPartialSearchResults());
         }
         params.withBatchedReduceSize(request.getBatchedReduceSize());
+    }
+
+    static Request getAsyncSearch(GetAsyncSearchRequest asyncSearchRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_async_search")
+                .addPathPart(asyncSearchRequest.getId())
+                .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new RequestConverters.Params();
+        if (asyncSearchRequest.getKeepAlive() != null) {
+            params.putParam("keep_alive", asyncSearchRequest.getKeepAlive().getStringRep());
+        }
+        if (asyncSearchRequest.getWaitForCompletion() != null) {
+            params.putParam("wait_for_completion", asyncSearchRequest.getWaitForCompletion().getStringRep());
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request deleteAsyncSearch(DeleteAsyncSearchRequest deleteAsyncSearchRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_async_search")
+                .addPathPart(deleteAsyncSearchRequest.getId())
+                .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 }

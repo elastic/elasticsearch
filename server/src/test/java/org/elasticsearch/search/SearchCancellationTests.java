@@ -86,8 +86,8 @@ public class SearchCancellationTests extends ESTestCase {
     }
 
     public void testAddingCancellationActions() throws IOException {
-        ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
-                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+        ContextIndexSearcher searcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
         NullPointerException npe = expectThrows(NullPointerException.class, () -> searcher.addQueryCancellation(null));
         assertEquals("cancellation runnable should not be null", npe.getMessage());
 
@@ -100,8 +100,8 @@ public class SearchCancellationTests extends ESTestCase {
     public void testCancellableCollector() throws IOException {
         TotalHitCountCollector collector1 = new TotalHitCountCollector();
         Runnable cancellation = () -> { throw new TaskCancelledException("cancelled"); };
-        ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
-            IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+        ContextIndexSearcher searcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
 
         searcher.search(new MatchAllDocsQuery(), collector1);
         assertThat(collector1.getTotalHits(), equalTo(reader.numDocs()));
@@ -116,14 +116,14 @@ public class SearchCancellationTests extends ESTestCase {
         assertThat(collector2.getTotalHits(), equalTo(reader.numDocs()));
     }
 
-    public void testCancellableDirectoryReader() throws IOException {
+    public void testExitableDirectoryReader() throws IOException {
         AtomicBoolean cancelled = new AtomicBoolean(true);
         Runnable cancellation = () -> {
             if (cancelled.get()) {
                 throw new TaskCancelledException("cancelled");
         }};
-        ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
-                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+        ContextIndexSearcher searcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
         searcher.addQueryCancellation(cancellation);
         CompiledAutomaton automaton = new CompiledAutomaton(new RegExp("a.*").toAutomaton());
 

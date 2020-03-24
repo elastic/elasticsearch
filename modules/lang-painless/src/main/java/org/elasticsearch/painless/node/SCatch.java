@@ -21,8 +21,10 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -31,11 +33,11 @@ import java.util.Objects;
 /**
  * Represents a catch block as part of a try-catch block.
  */
-public final class SCatch extends AStatement {
+public class SCatch extends AStatement {
 
-    private final DType baseException;
-    private final SDeclaration declaration;
-    private final SBlock block;
+    protected final DType baseException;
+    protected final SDeclaration declaration;
+    protected final SBlock block;
 
     public SCatch(Location location, DType baseException, SDeclaration declaration, SBlock block) {
         super(location);
@@ -46,11 +48,10 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-        declaration.analyze(scriptRoot, scope, new Input());
+        Output declarationOutput = declaration.analyze(classNode, scriptRoot, scope, new Input());
 
         Class<?> baseType = baseException.resolveType(scriptRoot.getPainlessLookup()).getType();
         Class<?> type = scope.getVariable(location, declaration.name).getType();
@@ -61,12 +62,14 @@ public final class SCatch extends AStatement {
                     "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseType) + "]"));
         }
 
+        Output blockOutput = null;
+
         if (block != null) {
             Input blockInput = new Input();
             blockInput.lastSource = input.lastSource;
             blockInput.inLoop = input.inLoop;
             blockInput.lastLoop = input.lastLoop;
-            Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
+            blockOutput = block.analyze(classNode, scriptRoot, scope, blockInput);
 
             output.methodEscape = blockOutput.methodEscape;
             output.loopEscape = blockOutput.loopEscape;
@@ -76,19 +79,14 @@ public final class SCatch extends AStatement {
             output.statementCount = blockOutput.statementCount;
         }
 
-        return output;
-    }
-
-    @Override
-    CatchNode write(ClassNode classNode) {
         CatchNode catchNode = new CatchNode();
-
-        catchNode.setDeclarationNode(declaration.write(classNode));
-        catchNode.setBlockNode(block == null ? null : block.write(classNode));
-
+        catchNode.setDeclarationNode((DeclarationNode)declarationOutput.statementNode);
+        catchNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
         catchNode.setLocation(location);
 
-        return catchNode;
+        output.statementNode = catchNode;
+
+        return output;
     }
 
     @Override

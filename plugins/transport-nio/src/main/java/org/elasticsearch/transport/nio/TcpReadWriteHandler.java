@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.common.bytes.ByteBufferReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -50,7 +49,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
         Page[] pages = channelBuffer.sliceAndRetainPagesTo(channelBuffer.getIndex());
         BytesReference[] references = new BytesReference[pages.length];
         for (int i = 0; i < pages.length; ++i) {
-            references[i] = new ByteBufferReference(pages[i].byteBuffer());
+            references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
         }
         Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
         try (ReleasableBytesReference reference = new ReleasableBytesReference(new CompositeBytesReference(references), releasable)) {

@@ -257,6 +257,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     private TimeUnit randomTimeUnitObject() {
-        return randomFrom(TimeUnit.NANOSECONDS, TimeUnit.MICROSECONDS, TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
+        return randomFrom(TimeUnit.NANOSECONDS, TimeUnit.MICROSECONDS, TimeUnit.MILLISECONDS, TimeUnit.SECONDS,
+            TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
     }
 }

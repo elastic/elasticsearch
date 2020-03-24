@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.WhileNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -30,12 +31,10 @@ import java.util.Objects;
 /**
  * Represents a while loop.
  */
-public final class SWhile extends AStatement {
+public class SWhile extends AStatement {
 
-    private AExpression condition;
-    private final SBlock block;
-
-    private boolean continuous = false;
+    protected final AExpression condition;
+    protected final SBlock block;
 
     public SWhile(Location location, AExpression condition, SBlock block) {
         super(location);
@@ -45,13 +44,16 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
         scope = scope.newLocalScope();
 
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
-        condition.analyze(scriptRoot, scope, conditionInput);
-        condition.cast();
+        AExpression.Output conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
+        condition.cast(conditionInput, conditionOutput);
+
+        boolean continuous = false;
 
         if (condition instanceof EBoolean) {
             continuous = ((EBoolean)condition).constant;
@@ -65,38 +67,38 @@ public final class SWhile extends AStatement {
             }
         }
 
+        Output blockOutput = null;
+
         if (block != null) {
-            block.beginLoop = true;
-            block.inLoop = true;
+            Input blockInput = new Input();
+            blockInput.beginLoop = true;
+            blockInput.inLoop = true;
 
-            block.analyze(scriptRoot, scope);
+            blockOutput = block.analyze(classNode, scriptRoot, scope, blockInput);
 
-            if (block.loopEscape && !block.anyContinue) {
+            if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));
             }
 
-            if (continuous && !block.anyBreak) {
-                methodEscape = true;
-                allEscape = true;
+            if (continuous && blockOutput.anyBreak == false) {
+                output.methodEscape = true;
+                output.allEscape = true;
             }
 
-            block.statementCount = Math.max(1, block.statementCount);
+            blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
         }
 
-        statementCount = 1;
-    }
+        output.statementCount = 1;
 
-    @Override
-    WhileNode write(ClassNode classNode) {
         WhileNode whileNode = new WhileNode();
-
-        whileNode.setConditionNode(condition.cast(condition.write(classNode)));
-        whileNode.setBlockNode(block == null ? null : block.write(classNode));
-
+        whileNode.setConditionNode(condition.cast(conditionOutput));
+        whileNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
         whileNode.setLocation(location);
         whileNode.setContinuous(continuous);
 
-        return whileNode;
+        output.statementNode = whileNode;
+
+        return output;
     }
 
     @Override

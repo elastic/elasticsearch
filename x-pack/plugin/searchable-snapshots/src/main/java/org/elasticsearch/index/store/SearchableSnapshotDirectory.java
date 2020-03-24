@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.Directory;
@@ -15,30 +12,35 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheBufferedIndexInput;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.IndexInputStats;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
@@ -62,50 +64,92 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     private final BlobStoreIndexShardSnapshot snapshot;
     private final BlobContainer blobContainer;
+    private final SnapshotId snapshotId;
+    private final IndexId indexId;
+    private final ShardId shardId;
+    private final LongSupplier statsCurrentTimeNanosSupplier;
+    private final Map<String, IndexInputStats> stats;
+    private final CacheService cacheService;
+    private final boolean useCache;
+    private final Path cacheDir;
+    private final AtomicBoolean closed;
 
-    SearchableSnapshotDirectory(final BlobStoreIndexShardSnapshot snapshot, final BlobContainer blobContainer) {
+    public SearchableSnapshotDirectory(
+        BlobContainer blobContainer,
+        BlobStoreIndexShardSnapshot snapshot,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId shardId,
+        Settings indexSettings,
+        LongSupplier currentTimeNanosSupplier,
+        CacheService cacheService,
+        Path cacheDir
+    ) {
         super(new SingleInstanceLockFactory());
         this.snapshot = Objects.requireNonNull(snapshot);
         this.blobContainer = Objects.requireNonNull(blobContainer);
+        this.snapshotId = Objects.requireNonNull(snapshotId);
+        this.indexId = Objects.requireNonNull(indexId);
+        this.shardId = Objects.requireNonNull(shardId);
+        this.stats = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        this.statsCurrentTimeNanosSupplier = Objects.requireNonNull(currentTimeNanosSupplier);
+        this.cacheService = Objects.requireNonNull(cacheService);
+        this.cacheDir = Objects.requireNonNull(cacheDir);
+        this.closed = new AtomicBoolean(false);
+        this.useCache = SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings);
     }
 
-    private FileInfo fileInfo(final String name) throws FileNotFoundException {
-        return snapshot.indexFiles().stream()
+    public BlobContainer blobContainer() {
+        return blobContainer;
+    }
+
+    public SnapshotId getSnapshotId() {
+        return snapshotId;
+    }
+
+    public IndexId getIndexId() {
+        return indexId;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    public Map<String, IndexInputStats> getStats() {
+        return Collections.unmodifiableMap(stats);
+    }
+
+    @Nullable
+    public IndexInputStats getStats(String fileName) {
+        return stats.get(fileName);
+    }
+
+    public long statsCurrentTimeNanos() {
+        return statsCurrentTimeNanosSupplier.getAsLong();
+    }
+
+    private BlobStoreIndexShardSnapshot.FileInfo fileInfo(final String name) throws FileNotFoundException {
+        return snapshot.indexFiles()
+            .stream()
             .filter(fileInfo -> fileInfo.physicalName().equals(name))
             .findFirst()
             .orElseThrow(() -> new FileNotFoundException(name));
     }
 
     @Override
-    public String[] listAll() throws IOException {
+    public final String[] listAll() {
         ensureOpen();
-        return snapshot.indexFiles().stream()
-            .map(FileInfo::physicalName)
+        return snapshot.indexFiles()
+            .stream()
+            .map(BlobStoreIndexShardSnapshot.FileInfo::physicalName)
             .sorted(String::compareTo)
             .toArray(String[]::new);
     }
 
     @Override
-    public long fileLength(final String name) throws IOException {
+    public final long fileLength(final String name) throws IOException {
         ensureOpen();
         return fileInfo(name).length();
-    }
-
-    @Override
-    public IndexInput openInput(final String name, final IOContext context) throws IOException {
-        ensureOpen();
-        return new SearchableSnapshotIndexInput(blobContainer, fileInfo(name), blobContainer.readBlobPreferredLength(),
-            BufferedIndexInput.BUFFER_SIZE);
-    }
-
-    @Override
-    public void close() {
-        isOpen = false;
-    }
-
-    @Override
-    public String toString() {
-        return this.getClass().getSimpleName() + "@" + snapshot.snapshot() + " lockFactory=" + lockFactory;
     }
 
     @Override
@@ -144,7 +188,52 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     private static UnsupportedOperationException unsupportedException() {
+        assert false : "this operation is not supported and should have not be called";
         return new UnsupportedOperationException("Searchable snapshot directory does not support this operation");
+    }
+
+    @Override
+    public final void close() {
+        if (closed.compareAndSet(false, true)) {
+            isOpen = false;
+            // Ideally we could let the cache evict/remove cached files by itself after the
+            // directory has been closed.
+            clearCache();
+        }
+    }
+
+    public void clearCache() {
+        cacheService.removeFromCache(cacheKey -> cacheKey.belongsTo(snapshotId, indexId, shardId));
+    }
+
+    protected IndexInputStats createIndexInputStats(final long fileLength) {
+        return new IndexInputStats(fileLength);
+    }
+
+    public CacheKey createCacheKey(String fileName) {
+        return new CacheKey(snapshotId, indexId, shardId, fileName);
+    }
+
+    public CacheFile getCacheFile(CacheKey cacheKey, long fileLength) throws Exception {
+        return cacheService.get(cacheKey, fileLength, cacheDir);
+    }
+
+    @Override
+    public IndexInput openInput(final String name, final IOContext context) throws IOException {
+        ensureOpen();
+        final BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfo(name);
+        final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
+        if (useCache) {
+            return new CacheBufferedIndexInput(this, fileInfo, context, inputStats);
+        } else {
+            long preferredLength = blobContainer.readBlobPreferredLength();
+            return new SearchableSnapshotIndexInput(blobContainer, fileInfo, context, preferredLength, BufferedIndexInput.BUFFER_SIZE);
+        }
+    }
+
+    @Override
+    public String toString() {
+        return this.getClass().getSimpleName() + "@" + snapshot.snapshot() + " lockFactory=" + lockFactory;
     }
 
     public static Directory create(RepositoriesService repositories,
@@ -162,36 +251,27 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final IndexId indexId = new IndexId(indexSettings.getIndex().getName(), SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings()));
         final BlobContainer blobContainer = blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id());
 
-        final SnapshotId snapshotId = new SnapshotId(SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings.getSettings()),
-            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()));
+        final SnapshotId snapshotId = new SnapshotId(
+            SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings.getSettings()),
+            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings())
+        );
         final BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
 
-        Directory directory = new SearchableSnapshotDirectory(snapshot, blobContainer);
-        if (SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings.getSettings())) {
-            final Path cacheDir = shardPath.getDataPath().resolve("snapshots").resolve(snapshotId.getUUID());
-            directory = new CacheDirectory(directory, cache, cacheDir, snapshotId, indexId, shardPath.getShardId(),
-                currentTimeNanosSupplier);
-        }
-        directory = new InMemoryNoOpCommitDirectory(directory);
+        final Path cacheDir = shardPath.getDataPath().resolve("snapshots").resolve(snapshotId.getUUID());
+        Files.createDirectories(cacheDir);
 
-        final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(null)
-            .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(NoMergePolicy.INSTANCE);
-
-        try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
-            final Map<String, String> userData = new HashMap<>();
-            indexWriter.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
-
-            final String translogUUID = Translog.createEmptyTranslog(shardPath.resolveTranslog(),
-                Long.parseLong(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
-                shardPath.getShardId(), 0L);
-
-            userData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-            indexWriter.setLiveCommitData(userData.entrySet());
-            indexWriter.commit();
-        }
-
-        return directory;
+        return new InMemoryNoOpCommitDirectory(
+            new SearchableSnapshotDirectory(
+                blobContainer,
+                snapshot,
+                snapshotId,
+                indexId,
+                shardPath.getShardId(),
+                indexSettings.getSettings(),
+                currentTimeNanosSupplier,
+                cache,
+                cacheDir
+            )
+        );
     }
-
 }

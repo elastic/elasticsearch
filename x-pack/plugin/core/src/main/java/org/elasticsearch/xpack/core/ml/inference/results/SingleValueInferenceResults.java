@@ -8,45 +8,46 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public abstract class SingleValueInferenceResults implements InferenceResults {
 
     private final double value;
-    private final Map<String, Double> featureImportance;
+    private final List<FeatureImportance> featureImportance;
 
-    static Map<String, Double> takeTopFeatureImportances(Map<String, Double> unsortedFeatureImportances, int numTopFeatures) {
-        return unsortedFeatureImportances.entrySet()
-            .stream()
-            .sorted((l, r)-> Double.compare(Math.abs(r.getValue()), Math.abs(l.getValue())))
+    static List<FeatureImportance> takeTopFeatureImportances(List<FeatureImportance> unsortedFeatureImportances, int numTopFeatures) {
+        if (unsortedFeatureImportances == null || unsortedFeatureImportances.isEmpty()) {
+            return unsortedFeatureImportances;
+        }
+        return unsortedFeatureImportances.stream()
+            .sorted((l, r)-> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())))
             .limit(numTopFeatures)
-            .collect(LinkedHashMap::new, (h, e) -> h.put(e.getKey(), e.getValue()) , LinkedHashMap::putAll);
+            .collect(Collectors.toList());
     }
 
     SingleValueInferenceResults(StreamInput in) throws IOException {
         value = in.readDouble();
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.featureImportance = in.readMap(StreamInput::readString, StreamInput::readDouble);
+            this.featureImportance = in.readList(FeatureImportance::new);
         } else {
-            this.featureImportance = Collections.emptyMap();
+            this.featureImportance = Collections.emptyList();
         }
     }
 
-    SingleValueInferenceResults(double value, Map<String, Double> featureImportance) {
+    SingleValueInferenceResults(double value, List<FeatureImportance> featureImportance) {
         this.value = value;
-        this.featureImportance = ExceptionsHelper.requireNonNull(featureImportance, "featureImportance");
+        this.featureImportance = featureImportance == null ? Collections.emptyList() : featureImportance;
     }
 
     public Double value() {
         return value;
     }
 
-    public Map<String, Double> getFeatureImportance() {
+    public List<FeatureImportance> getFeatureImportance() {
         return featureImportance;
     }
 
@@ -58,7 +59,7 @@ public abstract class SingleValueInferenceResults implements InferenceResults {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeDouble(value);
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeMap(this.featureImportance, StreamOutput::writeString, StreamOutput::writeDouble);
+            out.writeList(this.featureImportance);
         }
     }
 

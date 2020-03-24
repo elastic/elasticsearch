@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardS
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.CacheIndexInputStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.Counter;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.TimedCounter;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.IndexInputStats;
 
 import java.io.IOException;
@@ -58,10 +58,11 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
     }
 
     @Override
-    protected SearchableSnapshotShardStats executeShardOperation(SearchableSnapshotsStatsRequest request, ShardRouting shardRouting,
-                                                                 CacheDirectory cacheDirectory) {
-        return new SearchableSnapshotShardStats(shardRouting, cacheDirectory.getSnapshotId(), cacheDirectory.getIndexId(),
-            cacheDirectory.getStats().entrySet().stream()
+    protected SearchableSnapshotShardStats executeShardOperation(SearchableSnapshotsStatsRequest request,
+                                                                 ShardRouting shardRouting,
+                                                                 SearchableSnapshotDirectory directory) {
+        return new SearchableSnapshotShardStats(shardRouting, directory.getSnapshotId(), directory.getIndexId(),
+            directory.getStats().entrySet().stream()
                 .map(entry -> toCacheIndexInputStats(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList()));
     }

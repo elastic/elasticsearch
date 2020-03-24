@@ -29,7 +29,7 @@ for option in "$@"; do
 done
 
 if [ -z "$ES_TMPDIR" ]; then
-  ES_TMPDIR=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
+  ES_TMPDIR=`"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
 fi
 
 # get keystore password before setting java options to avoid
@@ -52,12 +52,13 @@ fi
 #   - second, JVM options are read from jvm.options and jvm.options.d/*.options
 #   - third, JVM options from ES_JAVA_OPTS are applied
 #   - fourth, ergonomic JVM options are applied
-ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF"`
+ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF"`
 
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
   exec \
     "$JAVA" \
+    "$XSHARE" \
     $ES_JAVA_OPTS \
     -Des.path.home="$ES_HOME" \
     -Des.path.conf="$ES_PATH_CONF" \
@@ -70,6 +71,7 @@ if [[ $DAEMONIZE = false ]]; then
 else
   exec \
     "$JAVA" \
+    "$XSHARE" \
     $ES_JAVA_OPTS \
     -Des.path.home="$ES_HOME" \
     -Des.path.conf="$ES_PATH_CONF" \

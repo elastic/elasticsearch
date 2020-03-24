@@ -31,17 +31,16 @@ public class StratifiedCrossValidationSplitter implements CrossValidationSplitte
         this.dependentVariableIndex = findDependentVariableIndex(fieldNames, dependentVariable);
         this.samplingRatio = trainingPercent / 100.0;
         this.random = new Random(randomizeSeed);
-        this.classSamples = new HashMap<>(classCardinalities.size());
+        this.classSamples = new HashMap<>();
         classCardinalities.entrySet().forEach(entry -> classSamples.put(entry.getKey(), new ClassSample(entry.getValue())));
     }
 
     private static int findDependentVariableIndex(List<String> fieldNames, String dependentVariable) {
-        for (int i = 0; i < fieldNames.size(); i++) {
-            if (fieldNames.get(i).equals(dependentVariable)) {
-                return i;
-            }
+        int dependentVariableIndex = fieldNames.indexOf(dependentVariable);
+        if (dependentVariableIndex < 0) {
+            throw ExceptionsHelper.serverError("Could not find dependent variable [" + dependentVariable + "] in fields " + fieldNames);
         }
-        throw ExceptionsHelper.serverError("Could not find dependent variable [" + dependentVariable + "] in fields " + fieldNames);
+        return dependentVariableIndex;
     }
 
     @Override

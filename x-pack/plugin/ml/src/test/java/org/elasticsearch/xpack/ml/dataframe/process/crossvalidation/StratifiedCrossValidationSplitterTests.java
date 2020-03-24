@@ -74,7 +74,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         classCardinalities.put("c", classC);
     }
 
-    public void testConstructor_GivenMissingDependendVariable() {
+    public void testConstructor_GivenMissingDependentVariable() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new StratifiedCrossValidationSplitter(
             Collections.emptyList(), "foo", Collections.emptyMap(), 100.0, 0));
         assertThat(e.getMessage(), equalTo("Could not find dependent variable [foo] in fields []"));
@@ -127,7 +127,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
             String[] processedRow = Arrays.copyOf(row, row.length);
             splitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
 
-            // As all these rows have no dependent variable value, they're not for training and should be unaffected
+            // As training percent is 100 all rows should be unaffected
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
         assertThat(trainingDocsCount, equalTo(500L));

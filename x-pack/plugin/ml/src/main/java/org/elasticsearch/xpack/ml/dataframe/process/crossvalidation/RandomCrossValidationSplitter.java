@@ -32,12 +32,11 @@ class RandomCrossValidationSplitter implements CrossValidationSplitter {
     }
 
     private static int findDependentVariableIndex(List<String> fieldNames, String dependentVariable) {
-        for (int i = 0; i < fieldNames.size(); i++) {
-            if (fieldNames.get(i).equals(dependentVariable)) {
-                return i;
-            }
+        int dependentVariableIndex = fieldNames.indexOf(dependentVariable);
+        if (dependentVariableIndex < 0) {
+            throw ExceptionsHelper.serverError("Could not find dependent variable [" + dependentVariable + "] in fields " + fieldNames);
         }
-        throw ExceptionsHelper.serverError("Could not find dependent variable [" + dependentVariable + "] in fields " + fieldNames);
+        return dependentVariableIndex;
     }
 
     @Override

@@ -41,14 +41,18 @@ public class CrossValidationSplitterFactory {
 
     public CrossValidationSplitter create() {
         if (config.getAnalysis() instanceof Regression) {
-            Regression regression = (Regression) config.getAnalysis();
-            return new RandomCrossValidationSplitter(
-                fieldNames, regression.getDependentVariable(), regression.getTrainingPercent(), regression.getRandomizeSeed());
+            return createRandomSplitter();
         }
         if (config.getAnalysis() instanceof Classification) {
             return createStratifiedSplitter((Classification) config.getAnalysis());
         }
         return (row, incrementTrainingDocs, incrementTestDocs) -> incrementTrainingDocs.run();
+    }
+
+    private CrossValidationSplitter createRandomSplitter() {
+        Regression regression = (Regression) config.getAnalysis();
+        return new RandomCrossValidationSplitter(
+            fieldNames, regression.getDependentVariable(), regression.getTrainingPercent(), regression.getRandomizeSeed());
     }
 
     private CrossValidationSplitter createStratifiedSplitter(Classification classification) {

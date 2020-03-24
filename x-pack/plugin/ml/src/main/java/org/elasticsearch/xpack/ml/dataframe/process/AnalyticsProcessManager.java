@@ -324,7 +324,8 @@ public class AnalyticsProcessManager {
         );
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
 
-        LOGGER.debug("[{}] Refreshing indices {}", jobId, Arrays.toString(refreshRequest.indices()));
+        LOGGER.debug(() -> new ParameterizedMessage("[{}] Refreshing indices {}",
+            jobId, Arrays.toString(refreshRequest.indices())));
 
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.admin().indices().refresh(refreshRequest).actionGet();

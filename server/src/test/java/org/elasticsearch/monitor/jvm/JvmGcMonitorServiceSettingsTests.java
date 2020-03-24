@@ -67,7 +67,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         execute(settings, (command, interval, name) -> null, e -> {
             assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), equalTo("failed to parse setting [monitor.jvm.gc.collector." + collector + ".warn] " +
-                "with value [" + timeValue + "] as a time value: negative durations are not supported"));
+                "with value [" + timeValue + "] as a time value"));
         }, true, null);
     }
 

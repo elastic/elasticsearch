@@ -165,11 +165,20 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
     }
 
     private static TimeValue getValidThreshold(Settings settings, String key, String level) {
-        final String thresholdString = settings.get(level, null);
-        if (thresholdString == null) {
+        final TimeValue threshold;
+
+        try {
+            threshold = settings.getAsTime(level, null);
+        } catch (RuntimeException ex) {
+            final String settingValue = settings.get(level);
+            throw new IllegalArgumentException("failed to parse setting [" + getThresholdName(key, level) + "] with value [" +
+                settingValue + "] as a time value", ex);
+        }
+
+        if (threshold == null) {
             throw new IllegalArgumentException("missing gc_threshold for [" + getThresholdName(key, level) + "]");
         }
-        TimeValue threshold = TimeValue.parseTimeValue(thresholdString, null, getThresholdName(key, level));
+
         return threshold;
     }
 

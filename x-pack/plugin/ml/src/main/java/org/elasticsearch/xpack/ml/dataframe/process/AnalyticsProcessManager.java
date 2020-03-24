@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -178,7 +179,7 @@ public class AnalyticsProcessManager {
             processContext.setFailureReason(resultProcessor.getFailure());
 
             refreshDest(config);
-            refreshStateIndex(config.getId());
+            refreshIndices(config.getId());
             LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (Exception e) {
             if (task.isStopping()) {
@@ -316,12 +317,15 @@ public class AnalyticsProcessManager {
             () -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest().getIndex())).actionGet());
     }
 
-    private void refreshStateIndex(String jobId) {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
-        LOGGER.debug("[{}] Refresh index {}", jobId, indexName);
-
-        RefreshRequest refreshRequest = new RefreshRequest(indexName);
+    private void refreshIndices(String jobId) {
+        RefreshRequest refreshRequest = new RefreshRequest(
+            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            MlStatsIndex.indexPattern()
+        );
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+
+        LOGGER.debug("[{}] Refreshing indices {}", jobId, Arrays.toString(refreshRequest.indices()));
+
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.admin().indices().refresh(refreshRequest).actionGet();
         }

@@ -155,7 +155,7 @@ public class MetaDataIndexTemplateService {
                 }
 
                 @Override
-                public ClusterState execute(ClusterState currentState) throws Exception{
+                public ClusterState execute(ClusterState currentState) throws Exception {
                     return addComponentTemplate(currentState, create, name, template);
                 }
 

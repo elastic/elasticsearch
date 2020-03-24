@@ -139,7 +139,7 @@ public class RestRequest implements ToXContent.Params {
 
     private void addCompatibleParameter() {
         if (isRequestCompatible()) {
-            String compatibleVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_HEADER));
+            String compatibleVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER));
             params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, compatibleVersion);
             //use it so it won't fail request validation with unused parameter
             param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
@@ -147,7 +147,11 @@ public class RestRequest implements ToXContent.Params {
     }
 
     private boolean isRequestCompatible() {
-        return isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_HEADER));
+        if (hasContent()) {
+            return isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER)) &&
+                isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER));
+        }
+        return isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER));
     }
 
     private boolean isHeaderCompatible(String headerValue) {

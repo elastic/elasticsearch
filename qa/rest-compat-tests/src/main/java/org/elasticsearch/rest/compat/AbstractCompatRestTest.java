@@ -77,14 +77,18 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
             //TODO: be more selective here
             doSection.setIgnoreWarnings(true);
 
-            String compatibleHeader = createCompatibleHeader();
-            //TODO decide which one to use - Accept or Content-Type
             doSection.getApiCallSection()
-                     .addHeaders(Map.of(
-                         CompatibleConstants.COMPATIBLE_HEADER, compatibleHeader,
-                         "Content-Type", compatibleHeader
-                         ));
+                     .addHeaders(createCompatibleHeaders(doSection));
         });
+    }
+
+    private static Map<String, String> createCompatibleHeaders(DoSection doSection) {
+        String compatibleHeader = createCompatibleHeader();
+        if (doSection.getApiCallSection().hasBody()) {
+            return Map.of(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER, compatibleHeader,
+                CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER, compatibleHeader);
+        }
+        return Map.of(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER, compatibleHeader);
     }
 
     private static String createCompatibleHeader() {

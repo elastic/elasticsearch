@@ -44,6 +44,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.usage.UsageService;
+import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -654,6 +655,41 @@ public class RestControllerTests extends ESTestCase {
             }
         });
 
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testIncorrectCompatibleHandlersDoNotDispatch() {
+        final byte version = (byte) (Version.CURRENT.major - 1);
+
+        final String mimeType = randomFrom("application/vnd.elasticsearch+json;compatible-with="+version);
+        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
+        final List<String> contentTypeHeader = Collections.singletonList(mimeType);
+
+        // request to compatible api with body requires a content-type header.
+        // this one does no have it, making it non compatiblegit
+        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(content), RestRequest.parseContentType(contentTypeHeader)).withPath("/foo")
+            .withHeaders(Map.of("Accept", contentTypeHeader))
+            .build();
+        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                Assert.fail();
+            }
+
+            @Override
+            public boolean supportsContentStream() {
+                return true;
+            }
+
+            @Override
+            public boolean compatibilityRequired() {
+                return true;
+            }
+        });
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, false, RestStatus.BAD_REQUEST);
         assertFalse(channel.getSendResponseCalled());
         restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
         assertTrue(channel.getSendResponseCalled());

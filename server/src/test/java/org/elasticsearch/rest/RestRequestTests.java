@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.net.http.HttpHeaders;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,8 +42,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -243,6 +246,56 @@ public class RestRequestTests extends ESTestCase {
         e = expectThrows(IllegalStateException.class, () ->
             contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
         assertEquals("unknown content type", e.getMessage());
+    }
+
+    public void testCorrectCompatibleRequest() {
+        List<String> compatibleHeaderValue = List.of("application/vnd.elasticsearch+json;compatible-with=7");
+
+        // when no body - only Accept header is required
+        FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
+        builder.withHeaders(Map.of("Accept", compatibleHeaderValue));
+        RestRequest restRequest = builder.build();
+
+        assertThat(restRequest.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY), equalTo("7"));
+
+        // with body - both Accept and Content-Type are required
+        builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
+        builder.withHeaders(Map.of("Accept", compatibleHeaderValue, "Content-Type", compatibleHeaderValue));
+        builder.withContent(new BytesArray("some content"), null);
+        restRequest = builder.build();
+
+        assertThat(restRequest.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY), equalTo("7"));
+    }
+
+    public void testIncorrectCompatibleRequest() {
+        List<String> compatibleHeaderValue = List.of("application/vnd.elasticsearch+json;compatible-with=7");
+
+        // no body, but no Accept header - won't set compatible param
+        FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
+        RestRequest restRequest = builder.build();
+        assertThat(restRequest.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY), nullValue());
+
+        // no body, but incorrect header value
+        builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
+        builder.withHeaders(Map.of("Accept", List.of("application/json")));
+        restRequest = builder.build();
+        assertThat(restRequest.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY), nullValue());
+
+        // body provided, but no Content-Type
+        builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
+        builder.withHeaders(Map.of("Accept", compatibleHeaderValue));
+        builder.withContent(new BytesArray("some content"), null);
+        restRequest = builder.build();
+        assertThat(restRequest.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY), nullValue());
+
+
+        // body provided, but incorrect Content-Type
+        builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
+        builder.withHeaders(Map.of("Accept", compatibleHeaderValue, "Content-Type", List.of("application/json")));
+        builder.withContent(new BytesArray("some content"), null);
+        restRequest = builder.build();
+        assertThat(restRequest.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY), nullValue());
+
     }
 
     private static RestRequest contentRestRequest(String content, Map<String, String> params) {

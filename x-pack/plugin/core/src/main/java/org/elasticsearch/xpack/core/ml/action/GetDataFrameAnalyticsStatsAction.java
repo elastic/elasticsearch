@@ -203,7 +203,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 } else {
                     progress = in.readList(PhaseProgress::new);
                 }
-                if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
                     dataCounts = in.readOptionalWriteable(DataCounts::new);
                 } else {
                     dataCounts = null;
@@ -349,7 +349,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 } else {
                     out.writeList(progress);
                 }
-                if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                     out.writeOptionalWriteable(dataCounts);
                 }
                 if (out.getVersion().onOrAfter(Version.V_7_7_0)) {

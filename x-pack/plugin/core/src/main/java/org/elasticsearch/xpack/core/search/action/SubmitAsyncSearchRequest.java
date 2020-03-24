@@ -128,7 +128,7 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = request.validate();
         if (request.scroll() != null) {
-            addValidationError("[scroll] queries are not supported", validationException);
+            validationException = addValidationError("[scroll] queries are not supported", validationException);
         }
         if (request.isSuggestOnly()) {
             validationException = addValidationError("suggest-only queries are not supported", validationException);
@@ -141,6 +141,10 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
             validationException =
                 addValidationError("[ccs_minimize_roundtrips] is not supported on async search queries", validationException);
         }
+        if (request.getPreFilterShardSize() == null || request.getPreFilterShardSize() != 1) {
+            validationException =
+                addValidationError("[pre_filter_shard_size] cannot be changed for async search queries", validationException);
+        }
 
         return validationException;
     }
@@ -150,7 +154,8 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         return new CancellableTask(id, type, action, toString(), parentTaskId, headers) {
             @Override
             public boolean shouldCancelChildrenOnCancellation() {
-                return true;
+                // we cancel the underlying search action explicitly in the submit action
+                return false;
             }
         };
     }

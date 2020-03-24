@@ -45,12 +45,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.indices.IndicesModule;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
@@ -71,7 +71,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         "cluster state is empty, cluster has never been bootstrapped?";
 
     // fake the registry here, as command-line tools are not loading plugins, and ensure that it preserves the parsed XContent
-    public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(IndicesModule.getNamedXContents()) {
+    public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList()) {
 
         @SuppressWarnings("unchecked")
         @Override
@@ -81,7 +81,18 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                 return (T) new UnknownMetaDataCustom(name, parser.mapOrdered());
             }
             if (Condition.class.isAssignableFrom(categoryClass)) {
-                return super.parseNamedObject(categoryClass, name, parser, context);
+                // The parsing for conditions is a bit weird as these represent JSON primitives (strings or numbers)
+                // TODO: Make Condition non-pluggable
+                assert parser.currentToken() == XContentParser.Token.FIELD_NAME : parser.currentToken();
+                if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+                    throw new UnsupportedOperationException("Unexpected token for Condition: " + parser.currentToken());
+                }
+                parser.nextToken();
+                assert parser.currentToken().isValue() : parser.currentToken();
+                if (parser.currentToken().isValue() == false) {
+                    throw new UnsupportedOperationException("Unexpected token for Condition: " + parser.currentToken());
+                }
+                return (T) new UnknownCondition(name, parser.objectText());
             }
             assert false : "Unexpected category class " + categoryClass + " for name " + name;
             throw new UnsupportedOperationException("Unexpected category class " + categoryClass + " for name " + name);
@@ -204,6 +215,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
         @Override
         public Diff<MetaData.Custom> diff(MetaData.Custom previousState) {
+            assert false;
             throw new UnsupportedOperationException();
         }
 
@@ -214,17 +226,49 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
         @Override
         public Version getMinimalSupportedVersion() {
+            assert false;
             throw new UnsupportedOperationException();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            assert false;
             throw new UnsupportedOperationException();
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.mapContents(contents);
+        }
+    }
+
+    public static class UnknownCondition extends Condition<Object> {
+
+        public UnknownCondition(String name, Object value) {
+            super(name);
+            this.value = value;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return name;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            assert false;
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.value(value);
+        }
+
+        @Override
+        public Result evaluate(Stats stats) {
+            assert false;
+            throw new UnsupportedOperationException();
         }
     }
 }

@@ -47,6 +47,7 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
         roleMap.put("superuser", "role:superuser");
         roleMap.put("viewer", "role:viewer");
         privilegeMap.put("roles", roleMap);
+        request.put("privileges", privilegeMap);
         final Map<String, String> attributeMap = new HashMap<>();
         attributeMap.put("principal", "https://idp.test.es.elasticsearch.org/attribute/principal");
         attributeMap.put("name", "https://idp.test.es.elasticsearch.org/attribute/name");

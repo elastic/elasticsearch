@@ -477,11 +477,18 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public SnapshotsInProgress(Entry... entries) {
-        this.entries = Arrays.asList(entries);
+        this(Arrays.asList(entries));
     }
 
     public List<Entry> entries() {
         return this.entries;
+    }
+
+    public SnapshotsInProgress withAddedEntry(Entry entry) {
+        final Entry[] newEntries = new Entry[entries.size() + 1];
+        entries.toArray(newEntries);
+        newEntries[newEntries.length - 1] = entry;
+        return new SnapshotsInProgress(newEntries);
     }
 
     public Entry snapshot(final Snapshot snapshot) {

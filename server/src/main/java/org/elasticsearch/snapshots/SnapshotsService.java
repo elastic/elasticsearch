@@ -74,6 +74,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -94,9 +95,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableList;
-import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.*;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -121,6 +120,8 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * </ul>
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
+
+    public static final Version CONCURRENT_REPO_OPERATIONS_VERSION = Version.V_8_0_0;
 
     public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_7_6_0;
 
@@ -286,19 +287,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 validate(repositoryName, snapshotName, currentState);
-                SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
-                    throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
-                        "cannot snapshot while a snapshot deletion is in-progress in [" + deletionsInProgress + "]");
-                }
-                final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
-                    throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
-                        "cannot snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
-                }
-                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-                if (snapshots != null && snapshots.entries().isEmpty() == false) {
-                    throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
+                if (currentState.nodes().getMinNodeVersion().before(CONCURRENT_REPO_OPERATIONS_VERSION)) {
+                    ensureMayCreateSnapshot(currentState, repositoryName, snapshotName);
                 }
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState,
@@ -315,7 +305,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     userMeta, Version.CURRENT
                 );
                 initializingSnapshots.add(newSnapshot.snapshot());
-                snapshots = new SnapshotsInProgress(newSnapshot);
+                final SnapshotsInProgress existingSnapshots = currentState.custom(SnapshotsInProgress.TYPE);
+                SnapshotsInProgress snapshots;
+                if (existingSnapshots == null) {
+                    snapshots = new SnapshotsInProgress(newSnapshot);
+                } else {
+                    snapshots = existingSnapshots.withAddedEntry(newSnapshot);
+                }
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, snapshots).build();
             }
 
@@ -356,6 +352,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return request.masterNodeTimeout();
             }
         });
+    }
+
+    private void ensureMayCreateSnapshot(ClusterState currentState, String repositoryName, String snapshotName) {
+        SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+        if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
+            throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
+                "cannot snapshot while a snapshot deletion is in-progress in [" + deletionsInProgress + "]");
+        }
+        final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
+        if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
+            throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
+                "cannot snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
+        }
+        SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+        if (snapshots != null && snapshots.entries().isEmpty() == false) {
+            throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
+        }
     }
 
     /**
@@ -467,6 +480,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     assert entry.shards().isEmpty();
                                     hadAbortedInitializations = true;
                                 } else {
+                                    final long nextRepoGenId = Math.max(
+                                        repositoryData.getGenId(),
+                                        snapshots.entries().stream().mapToLong(SnapshotsInProgress.Entry::repositoryStateId)
+                                        .max().getAsLong() + 1L);
                                     final List<IndexId> indexIds = repositoryData.resolveNewIndices(indices);
                                     // Replace the snapshot that was just initialized
                                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards =
@@ -490,11 +507,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                 failureMessage.append(closed);
                                             }
                                             entries.add(new SnapshotsInProgress.Entry(entry, State.FAILED, indexIds,
-                                                repositoryData.getGenId(), shards, version, failureMessage.toString()));
+                                                nextRepoGenId, shards, version, failureMessage.toString()));
                                             continue;
                                         }
                                     }
-                                    entries.add(new SnapshotsInProgress.Entry(entry, State.STARTED, indexIds, repositoryData.getGenId(),
+                                    entries.add(new SnapshotsInProgress.Entry(entry, State.STARTED, indexIds, nextRepoGenId,
                                         shards, version, null));
                                 }
                             }
@@ -548,6 +565,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     new CleanupAfterErrorListener(snapshot, snapshotCreated, userCreateSnapshotListener, e));
             }
         });
+    }
+
+    private static long maxInProgressRepoGenId(ClusterState clusterState) {
+        final SnapshotsInProgress snapshotsInProgress = clusterState.custom(SnapshotsInProgress.TYPE);
+        final long maxCreate = snapshotsInProgress.entries().stream().mapToLong(RepositoryOperation::repositoryStateId)
+            .max().orElse(RepositoryData.UNKNOWN_REPO_GEN);
+        final SnapshotDeletionsInProgress snapshotDeletionsInProgress = clusterState.custom(SnapshotDeletionsInProgress.TYPE);
+        final long maxDelete = snapshotDeletionsInProgress.getEntries().stream().mapToLong(RepositoryOperation::repositoryStateId)
+            .max().orElse(RepositoryData.UNKNOWN_REPO_GEN);
+        return Math.max(maxCreate, maxDelete);
     }
 
     private class CleanupAfterErrorListener implements ActionListener<SnapshotInfo> {
@@ -767,7 +794,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         try {
             if (event.localNodeMaster()) {
                 // We don't remove old master when master flips anymore. So, we need to check for change in master
-                final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
+                final ClusterState state = event.state();
+                assert assertNoRepoStateIdCollisions(state);
+                final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
                 final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
                 if (snapshotsInProgress != null) {
                     if (newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes())) {
@@ -793,6 +822,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         } catch (Exception e) {
             logger.warn("Failed to update snapshot state ", e);
         }
+    }
+
+    private static boolean assertNoRepoStateIdCollisions(ClusterState state) {
+        final Set<Long> knownIds = new HashSet<>();
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+        if (snapshotsInProgress != null) {
+            for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                final long repoGenId = entry.repositoryStateId();
+                if (repoGenId != RepositoryData.UNKNOWN_REPO_GEN) {
+                    if (knownIds.add(repoGenId) == false) {
+                        throw new AssertionError("Repository state id collision in snapshots in progress [" + snapshotsInProgress + "]");
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     /**
@@ -1235,35 +1280,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
-                    throw new ConcurrentSnapshotExecutionException(snapshot,
-                        "cannot delete - another snapshot is currently being deleted in [" + deletionsInProgress + "]");
-                }
-                final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
-                if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
-                    throw new ConcurrentSnapshotExecutionException(snapshot.getRepository(), snapshot.getSnapshotId().getName(),
-                        "cannot delete snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
-                }
-                RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
-                if (restoreInProgress != null) {
-                    // don't allow snapshot deletions while a restore is taking place,
-                    // otherwise we could end up deleting a snapshot that is being restored
-                    // and the files the restore depends on would all be gone
-
-                    for (RestoreInProgress.Entry entry : restoreInProgress) {
-                        if (entry.snapshot().equals(snapshot)) {
-                            throw new ConcurrentSnapshotExecutionException(snapshot,
-                                "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]");
-                        }
-                    }
+                final boolean noConcurrentOperations =
+                    currentState.nodes().getMinNodeVersion().before(CONCURRENT_REPO_OPERATIONS_VERSION);
+                if (noConcurrentOperations) {
+                    ensureMayDeleteSnapshot(currentState, snapshot);
                 }
                 ClusterState.Builder clusterStateBuilder = ClusterState.builder(currentState);
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 SnapshotsInProgress.Entry snapshotEntry = snapshots != null ? snapshots.snapshot(snapshot) : null;
                 if (snapshotEntry == null) {
                     // This snapshot is not running - delete
-                    if (snapshots != null && !snapshots.entries().isEmpty()) {
+                    if (noConcurrentOperations && snapshots != null && snapshots.entries().isEmpty() == false) {
                         // However other snapshots are running - cannot continue
                         throw new ConcurrentSnapshotExecutionException(snapshot, "another snapshot is currently running cannot delete");
                     }
@@ -1273,6 +1300,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         threadPool.absoluteTimeInMillis(),
                         repositoryStateId
                     );
+                    SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                     if (deletionsInProgress != null) {
                         deletionsInProgress = deletionsInProgress.withAddedEntry(entry);
                     } else {
@@ -1328,6 +1356,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                         failure = snapshotEntry.failure();
                     }
+                    // TODO: Make aware of multiple concurrent snapshots
                     SnapshotsInProgress.Entry newSnapshot = new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure);
                     clusterStateBuilder.putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(newSnapshot));
                 }
@@ -1377,6 +1406,32 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         });
+    }
+
+    private static void ensureMayDeleteSnapshot(ClusterState currentState, Snapshot snapshot) {
+        SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+        if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
+            throw new ConcurrentSnapshotExecutionException(snapshot,
+                "cannot delete - another snapshot is currently being deleted in [" + deletionsInProgress + "]");
+        }
+        final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(RepositoryCleanupInProgress.TYPE);
+        if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
+            throw new ConcurrentSnapshotExecutionException(snapshot.getRepository(), snapshot.getSnapshotId().getName(),
+                "cannot delete snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
+        }
+        RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
+        if (restoreInProgress != null) {
+            // don't allow snapshot deletions while a restore is taking place,
+            // otherwise we could end up deleting a snapshot that is being restored
+            // and the files the restore depends on would all be gone
+
+            for (RestoreInProgress.Entry entry : restoreInProgress) {
+                if (entry.snapshot().equals(snapshot)) {
+                    throw new ConcurrentSnapshotExecutionException(snapshot,
+                        "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]");
+                }
+            }
+        }
     }
 
     /**

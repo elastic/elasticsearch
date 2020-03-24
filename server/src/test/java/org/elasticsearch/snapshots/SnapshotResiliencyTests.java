@@ -22,7 +22,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
@@ -473,31 +472,20 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createSnapshotResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2")
                 .execute(createOtherSnapshotResponseStepListener));
 
-        final StepListener<Boolean> deleteSnapshotStepListener = new StepListener<>();
+        final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
 
         continueOrDie(createOtherSnapshotResponseStepListener,
             createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
-                new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.wrap(
-                    resp -> deleteSnapshotStepListener.onResponse(true),
-                    e -> {
-                        final Throwable unwrapped =
-                            ExceptionsHelper.unwrap(e, ConcurrentSnapshotExecutionException.class);
-                        assertThat(unwrapped, instanceOf(ConcurrentSnapshotExecutionException.class));
-                        deleteSnapshotStepListener.onResponse(false);
-                    })));
+                new DeleteSnapshotRequest(repoName, snapshotName), deleteSnapshotStepListener));
 
         final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
 
-        continueOrDie(deleteSnapshotStepListener, deleted -> {
-            if (deleted) {
-                // The delete worked out, creating a third snapshot
-                client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
-                    .execute(createAnotherSnapshotResponseStepListener);
-                continueOrDie(createAnotherSnapshotResponseStepListener, createSnapshotResponse ->
-                    assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS));
-            } else {
-                createAnotherSnapshotResponseStepListener.onResponse(null);
-            }
+        continueOrDie(deleteSnapshotStepListener, acknowledgedResponse -> {
+            assertThat(acknowledgedResponse.isAcknowledged(), is(true));
+            client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
+                .execute(createAnotherSnapshotResponseStepListener);
+            continueOrDie(createAnotherSnapshotResponseStepListener, createSnapshotResponse ->
+                assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS));
         });
 
         deterministicTaskQueue.runAllRunnableTasks();

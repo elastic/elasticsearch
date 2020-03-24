@@ -287,7 +287,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         listener.onFailure(predicate.exception);
                     }
                 } else {
-                    listener.onResponse(new AcknowledgedResponse(predicate.opened));
+                    listener.onResponse(new AcknowledgedResponse(true));
                 }
             }
 
@@ -535,9 +535,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private class JobPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+    private static class JobPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
-        private volatile boolean opened;
         private volatile Exception exception;
         private volatile boolean shouldCancel;
 
@@ -584,7 +583,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 case CLOSED:
                     return false;
                 case OPENED:
-                    opened = true;
                     return true;
                 case CLOSING:
                     exception = ExceptionsHelper.conflictStatusException("The job has been " + JobState.CLOSED + " while waiting to be "

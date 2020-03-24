@@ -1388,7 +1388,10 @@ tag::state-datafeed[]
 The status of the {dfeed}, which can be one of the following values:
 +
 --
+* `starting`: The {dfeed} has been requested to start but has not yet started.
 * `started`: The {dfeed} is actively receiving data.
+* `stopping`: The {dfeed} has been requested to stop gracefully and is
+completing its final action.
 * `stopped`: The {dfeed} is stopped and will not receive data until it is
 re-started.
 --

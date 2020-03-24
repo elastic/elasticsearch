@@ -30,10 +30,10 @@ import java.util.Objects;
 /**
  * Represents an array length field load.
  */
-final class PSubArrayLength extends AStoreable {
+public class PSubArrayLength extends AStoreable {
 
-    private final String type;
-    private final String value;
+    protected final String type;
+    protected final String value;
 
     PSubArrayLength(Location location, String type, String value) {
         super(location);
@@ -43,9 +43,8 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
         if ("length".equals(value)) {
             if (input.write) {
@@ -57,27 +56,19 @@ final class PSubArrayLength extends AStoreable {
             throw createError(new IllegalArgumentException("Field [" + value + "] does not exist for type [" + type + "]."));
         }
 
-        return output;
-    }
-
-    @Override
-    DotSubArrayLengthNode write(ClassNode classNode) {
         DotSubArrayLengthNode dotSubArrayLengthNode = new DotSubArrayLengthNode();
 
         dotSubArrayLengthNode.setLocation(location);
         dotSubArrayLengthNode.setExpressionType(output.actual);
 
-        return dotSubArrayLengthNode;
+        output.expressionNode = dotSubArrayLengthNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalStateException("Illegal tree structure.");
+        return false;
     }
 
     @Override

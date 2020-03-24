@@ -32,8 +32,9 @@ import java.util.Objects;
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
  */
-final class PSubDefArray extends AStoreable {
-    private AExpression index;
+public class PSubDefArray extends AStoreable {
+
+    protected AExpression index;
 
     PSubDefArray(Location location, AExpression index) {
         super(location);
@@ -42,40 +43,32 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
-        Output indexOutput = index.analyze(scriptRoot, scope, new Input());
-        index.input.expected = indexOutput.actual;
-        index.cast();
+        Input indexInput = new Input();
+        Output indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+        indexInput.expected = indexOutput.actual;
+        index.cast(indexInput, indexOutput);
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
+
+        BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
+
+        braceSubDefNode.setChildNode(index.cast(indexOutput));
+
+        braceSubDefNode.setLocation(location);
+        braceSubDefNode.setExpressionType(output.actual);
+
+        output.expressionNode = braceSubDefNode;
 
         return output;
     }
 
     @Override
-    BraceSubDefNode write(ClassNode classNode) {
-        BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
-
-        braceSubDefNode.setChildNode(index.cast(index.write(classNode)));
-
-        braceSubDefNode.setLocation(location);
-        braceSubDefNode.setExpressionType(output.actual);
-
-        return braceSubDefNode;
-    }
-
-    @Override
     boolean isDefOptimized() {
         return true;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        this.output.actual = actual;
     }
 
     @Override

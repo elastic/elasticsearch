@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
@@ -92,6 +93,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -481,9 +483,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     hadAbortedInitializations = true;
                                 } else {
                                     final long nextRepoGenId = Math.max(
-                                        repositoryData.getGenId(),
-                                        snapshots.entries().stream().mapToLong(SnapshotsInProgress.Entry::repositoryStateId)
-                                        .max().getAsLong() + 1L);
+                                        repositoryData.getGenId(), maxInProgressRepoGenId(currentState) + 1L);
                                     final List<IndexId> indexIds = repositoryData.resolveNewIndices(indices);
                                     // Replace the snapshot that was just initialized
                                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards =
@@ -567,12 +567,30 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         });
     }
 
-    private static long maxInProgressRepoGenId(ClusterState clusterState) {
+    public static long minInProgressRepoGenId(ClusterState clusterState) {
         final SnapshotsInProgress snapshotsInProgress = clusterState.custom(SnapshotsInProgress.TYPE);
-        final long maxCreate = snapshotsInProgress.entries().stream().mapToLong(RepositoryOperation::repositoryStateId)
-            .max().orElse(RepositoryData.UNKNOWN_REPO_GEN);
+        final long minCreate = Optional.ofNullable(snapshotsInProgress).map(SnapshotsInProgress::entries).orElse(Collections.emptyList())
+            .stream().mapToLong(RepositoryOperation::repositoryStateId).min().orElse(RepositoryData.UNKNOWN_REPO_GEN);
         final SnapshotDeletionsInProgress snapshotDeletionsInProgress = clusterState.custom(SnapshotDeletionsInProgress.TYPE);
-        final long maxDelete = snapshotDeletionsInProgress.getEntries().stream().mapToLong(RepositoryOperation::repositoryStateId)
+        final long minDelete = Optional.ofNullable(snapshotDeletionsInProgress).map(SnapshotDeletionsInProgress::getEntries)
+            .orElse(Collections.emptyList()).stream().mapToLong(RepositoryOperation::repositoryStateId)
+            .min().orElse(RepositoryData.UNKNOWN_REPO_GEN);
+        if (minCreate == RepositoryData.UNKNOWN_REPO_GEN) {
+            return minDelete;
+        } else if (minDelete == RepositoryData.UNKNOWN_REPO_GEN) {
+            return minCreate;
+        } else {
+            return Math.min(minDelete, minCreate);
+        }
+    }
+
+    public static long maxInProgressRepoGenId(ClusterState clusterState) {
+        final SnapshotsInProgress snapshotsInProgress = clusterState.custom(SnapshotsInProgress.TYPE);
+        final long maxCreate = Optional.ofNullable(snapshotsInProgress).map(SnapshotsInProgress::entries).orElse(Collections.emptyList())
+            .stream().mapToLong(RepositoryOperation::repositoryStateId).max().orElse(RepositoryData.UNKNOWN_REPO_GEN);
+        final SnapshotDeletionsInProgress snapshotDeletionsInProgress = clusterState.custom(SnapshotDeletionsInProgress.TYPE);
+        final long maxDelete = Optional.ofNullable(snapshotDeletionsInProgress).map(SnapshotDeletionsInProgress::getEntries)
+            .orElse(Collections.emptyList()).stream().mapToLong(RepositoryOperation::repositoryStateId)
             .max().orElse(RepositoryData.UNKNOWN_REPO_GEN);
         return Math.max(maxCreate, maxDelete);
     }
@@ -1278,6 +1296,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             boolean waitForSnapshot = false;
 
+            long repoGen;
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final boolean noConcurrentOperations =
@@ -1298,8 +1318,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     SnapshotDeletionsInProgress.Entry entry = new SnapshotDeletionsInProgress.Entry(
                         snapshot,
                         threadPool.absoluteTimeInMillis(),
-                        repositoryStateId
+                        Math.max(repositoryStateId, maxInProgressRepoGenId(currentState) + 1L)
                     );
+                    repoGen = entry.repositoryStateId();
                     SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                     if (deletionsInProgress != null) {
                         deletionsInProgress = deletionsInProgress.withAddedEntry(entry);
@@ -1402,7 +1423,31 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     ));
                 } else {
                     logger.debug("deleted snapshot is not running - deleting files");
-                    deleteSnapshotFromRepository(snapshot, listener, repositoryStateId, newState.nodes().getMinNodeVersion());
+                    if (minInProgressRepoGenId(newState) != repoGen) {
+                        final ClusterStateObserver clusterStateObserver =
+                            new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
+                        clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+                            @Override
+                            public void onNewClusterState(ClusterState state) {
+                                threadPool.generic().execute(() -> deleteSnapshotFromRepository(
+                                    snapshot, listener, repositoryStateId, newState.nodes().getMinNodeVersion()));
+                            }
+
+                            @Override
+                            public void onClusterServiceClose() {
+                                // TODO: obv
+                                listener.onFailure(new RuntimeException("nope"));
+                            }
+
+                            @Override
+                            public void onTimeout(TimeValue timeout) {
+                                // TODO: obv
+                                listener.onFailure(new TimeoutException("nope"));
+                            }
+                        }, state -> minInProgressRepoGenId(newState) >= repoGen);
+                    } else {
+                        deleteSnapshotFromRepository(snapshot, listener, repositoryStateId, newState.nodes().getMinNodeVersion());
+                    }
                 }
             }
         });

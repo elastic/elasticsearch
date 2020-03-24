@@ -160,7 +160,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 synchronized (shardSnapshots) {
                     cancelRemoved(currentSnapshots);
                     if (currentSnapshots != null) {
-                        startNewSnapshots(currentSnapshots);
+                        final long minRepoGen = SnapshotsService.minInProgressRepoGenId(event.state());
+                        startNewSnapshots(currentSnapshots, minRepoGen);
                     }
                 }
             }
@@ -226,12 +227,15 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
-    private void startNewSnapshots(SnapshotsInProgress snapshotsInProgress) {
+    private void startNewSnapshots(SnapshotsInProgress snapshotsInProgress, long minRepoGen) {
         // For now we will be mostly dealing with a single snapshot at a time but might have multiple simultaneously running
         // snapshots in the future
         // Now go through all snapshots and update existing or create missing
         final String localNodeId = clusterService.localNode().getId();
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+            if (entry.repositoryStateId() != minRepoGen) {
+                continue;
+            }
             final State entryState = entry.state();
             if (entryState == State.STARTED) {
                 Map<ShardId, IndexShardSnapshotStatus> startedShards = null;

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -49,6 +50,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_OIDC_PATTERN = Collections.singleton("cluster:admin/xpack/security/oidc/*");
     private static final Set<String> MANAGE_TOKEN_PATTERN = Collections.singleton("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Collections.singleton("cluster:admin/xpack/security/api_key/*");
+    private static final Set<String> GRANT_API_KEY_PATTERN = Collections.singleton(GrantApiKeyAction.NAME + "*");
     private static final Set<String> MONITOR_PATTERN = Collections.singleton("cluster:monitor/*");
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:monitor/data_frame/*", "cluster:monitor/transform/*"));
@@ -118,6 +120,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_OIDC = new ActionClusterPrivilege("manage_oidc", MANAGE_OIDC_PATTERN);
     public static final NamedClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
+    public static final NamedClusterPrivilege GRANT_API_KEY = new ActionClusterPrivilege("grant_api_key", GRANT_API_KEY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege("manage_pipeline",
         Collections.singleton("cluster:admin/ingest/pipeline/*"));
     public static final NamedClusterPrivilege MANAGE_AUTOSCALING = new ActionClusterPrivilege(
@@ -160,6 +163,7 @@ public class ClusterPrivilegeResolver {
         MANAGE_SAML,
         MANAGE_OIDC,
         MANAGE_API_KEY,
+        GRANT_API_KEY,
         MANAGE_PIPELINE,
         MANAGE_ROLLUP,
         MANAGE_AUTOSCALING,

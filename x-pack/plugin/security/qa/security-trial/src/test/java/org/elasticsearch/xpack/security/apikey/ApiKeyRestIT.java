@@ -47,7 +47,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     @Before
     public void createUsers() throws IOException {
         createUser(SYSTEM_USER, SYSTEM_USER_PASSWORD, Collections.singletonList("system_role"));
-        createRole("system_role", Collections.singleton("manage_api_key"));
+        createRole("system_role", Collections.singleton("grant_api_key"));
         createUser(END_USER, END_USER_PASSWORD, Collections.singletonList("user_role"));
         createRole("user_role", Collections.singleton("monitor"));
     }

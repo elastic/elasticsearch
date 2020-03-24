@@ -286,9 +286,11 @@ public class Classification implements DataFrameAnalysis {
     @SuppressWarnings("unchecked")
     @Override
     public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
+        Map<String, Object> additionalProperties = new HashMap<>();
+        additionalProperties.put(resultsFieldName + ".feature_importance", MapUtils.featureImportanceMapping());
         Object dependentVariableMapping = extractMapping(dependentVariable, mappingsProperties);
         if ((dependentVariableMapping instanceof Map) == false) {
-            return Collections.emptyMap();
+            return additionalProperties;
         }
         Map<String, Object> dependentVariableMappingAsMap = (Map) dependentVariableMapping;
         // If the source field is an alias, fetch the concrete field that the alias points to.
@@ -299,9 +301,8 @@ public class Classification implements DataFrameAnalysis {
         // We may have updated the value of {@code dependentVariableMapping} in the "if" block above.
         // Hence, we need to check the "instanceof" condition again.
         if ((dependentVariableMapping instanceof Map) == false) {
-            return Collections.emptyMap();
+            return additionalProperties;
         }
-        Map<String, Object> additionalProperties = new HashMap<>();
         additionalProperties.put(resultsFieldName + "." + predictionFieldName, dependentVariableMapping);
         additionalProperties.put(resultsFieldName + ".top_classes.class_name", dependentVariableMapping);
         return additionalProperties;

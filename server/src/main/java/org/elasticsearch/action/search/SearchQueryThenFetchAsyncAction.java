@@ -88,7 +88,10 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     @Override
     protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
         QuerySearchResult queryResult = result.queryResult();
-        if (queryResult.isNull() == false && queryResult.topDocs().topDocs instanceof TopFieldDocs) {
+        if (queryResult.isNull() == false
+                // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
+                && getRequest().scroll() == null
+                && queryResult.topDocs().topDocs instanceof TopFieldDocs) {
             TopFieldDocs topDocs = (TopFieldDocs) queryResult.topDocs().topDocs;
             if (bottomSortCollector == null) {
                 synchronized (this) {

@@ -25,6 +25,7 @@ import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -33,9 +34,9 @@ import static java.util.Collections.emptyList;
 /**
  * Represents a set of statements as a branch of control-flow.
  */
-public final class SBlock extends AStatement {
+public class SBlock extends AStatement {
 
-    final List<AStatement> statements;
+    protected final List<AStatement> statements;
 
     public SBlock(Location location, List<AStatement> statements) {
         super(location);
@@ -44,15 +45,16 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
 
         AStatement last = statements.get(statements.size() - 1);
+
+        List<Output> statementOutputs = new ArrayList<>(statements.size());
 
         for (AStatement statement : statements) {
             // Note that we do not need to check after the last statement because
@@ -65,7 +67,8 @@ public final class SBlock extends AStatement {
             statementInput.inLoop = input.inLoop;
             statementInput.lastSource = input.lastSource && statement == last;
             statementInput.lastLoop = (input.beginLoop || input.lastLoop) && statement == last;
-            Output statementOutput = statement.analyze(scriptRoot, scope, statementInput);
+
+            Output statementOutput = statement.analyze(classNode, scriptRoot, scope, statementInput);
 
             output.methodEscape = statementOutput.methodEscape;
             output.loopEscape = statementOutput.loopEscape;
@@ -73,24 +76,23 @@ public final class SBlock extends AStatement {
             output.anyContinue |= statementOutput.anyContinue;
             output.anyBreak |= statementOutput.anyBreak;
             output.statementCount += statementOutput.statementCount;
+
+            statementOutputs.add(statementOutput);
         }
 
-        return output;
-    }
-
-    @Override
-    BlockNode write(ClassNode classNode) {
         BlockNode blockNode = new BlockNode();
 
-        for (AStatement statement : statements) {
-            blockNode.addStatementNode(statement.write(classNode));
+        for (Output statementOutput : statementOutputs) {
+            blockNode.addStatementNode(statementOutput.statementNode);
         }
 
         blockNode.setLocation(location);
         blockNode.setAllEscape(output.allEscape);
         blockNode.setStatementCount(output.statementCount);
 
-        return blockNode;
+        output.statementNode = blockNode;
+
+        return output;
     }
 
     @Override

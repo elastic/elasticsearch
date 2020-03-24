@@ -29,16 +29,15 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 /**
  * Represents a null constant.
  */
-public final class ENull extends AExpression {
+public class ENull extends AExpression {
 
     public ENull(Location location) {
         super(location);
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         if (input.read == false) {
             throw createError(new IllegalArgumentException("Must read from null constant."));
@@ -55,17 +54,14 @@ public final class ENull extends AExpression {
             output.actual = Object.class;
         }
 
-        return output;
-    }
-
-    @Override
-    NullNode write(ClassNode classNode) {
         NullNode nullNode = new NullNode();
 
         nullNode.setLocation(location);
         nullNode.setExpressionType(output.actual);
 
-        return nullNode;
+        output.expressionNode = nullNode;
+
+        return output;
     }
 
     @Override

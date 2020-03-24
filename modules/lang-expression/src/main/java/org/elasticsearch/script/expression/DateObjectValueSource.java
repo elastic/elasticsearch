@@ -19,14 +19,8 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-import java.util.function.ToIntFunction;
-
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.function.FunctionValues;
-import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
+import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -34,6 +28,10 @@ import org.elasticsearch.search.MultiValueMode;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.ReadableDateTime;
+
+import java.io.IOException;
+import java.util.Objects;
+import java.util.function.ToIntFunction;
 
 /** Extracts a portion of a date field with joda time */
 class DateObjectValueSource extends FieldDataValueSource {
@@ -52,27 +50,26 @@ class DateObjectValueSource extends FieldDataValueSource {
     }
 
     @Override
-    @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
-    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
+    public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
         LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         MutableDateTime joda = new MutableDateTime(0, DateTimeZone.UTC);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
-        return new DoubleDocValues(this) {
+        return DoubleValues.withDefault(new DoubleValues() {
             @Override
-            public double doubleVal(int docId) throws IOException {
-                if (docValues.advanceExact(docId)) {
-                    long millis = (long)docValues.doubleValue();
-                    joda.setMillis(millis);
-                    return function.applyAsInt(joda);
-                } else {
-                    return 0;
-                }
+            public double doubleValue() throws IOException {
+                joda.setMillis((long)docValues.doubleValue());
+                return function.applyAsInt(joda);
             }
-        };
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return docValues.advanceExact(doc);
+            }
+        }, 0);
     }
 
     @Override
-    public String description() {
+    public String toString() {
         return methodName + ": field(" + fieldData.getFieldName() + ")";
     }
 

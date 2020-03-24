@@ -103,9 +103,6 @@ be used to test against other JDKs as well, this is not only limited to JDK 11.
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
 and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
 
-> Warning: do not use `sdkman` for Java installations which do not have proper
-`jrunscript` for jdk distributions.
-
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the
@@ -125,10 +122,13 @@ You can access Elasticsearch with:
 
 ### Importing the project into IntelliJ IDEA
 
-Elasticsearch builds using Java 13. Before importing into IntelliJ you will need
+Elasticsearch builds using Java 13. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
 "13"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
+SDK definitions are global, so you can add the JDK from any project, or after
+project import. Importing with a missing JDK will still work, IntelliJ will
+simply report a problem and will refuse to build until resolved.
 
 You can import the Elasticsearch project into IntelliJ IDEA via:
 

@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCountsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsageTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStatsTests;
@@ -42,6 +44,7 @@ public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireS
             List<PhaseProgress> progress = new ArrayList<>(progressSize);
             IntStream.of(progressSize).forEach(progressIndex -> progress.add(
                 new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100))));
+            DataCounts dataCounts = randomBoolean() ? null : DataCountsTests.createRandom();
             MemoryUsage memoryUsage = randomBoolean() ? null : MemoryUsageTests.createRandom();
             AnalysisStats analysisStats = randomBoolean() ? null :
                 randomFrom(
@@ -50,7 +53,7 @@ public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireS
                     RegressionStatsTests.createRandom()
                 );
             Response.Stats stats = new Response.Stats(DataFrameAnalyticsConfigTests.randomValidId(),
-                randomFrom(DataFrameAnalyticsState.values()), failureReason, progress, memoryUsage, analysisStats, null,
+                randomFrom(DataFrameAnalyticsState.values()), failureReason, progress, dataCounts, memoryUsage, analysisStats, null,
                 randomAlphaOfLength(20));
             analytics.add(stats);
         }

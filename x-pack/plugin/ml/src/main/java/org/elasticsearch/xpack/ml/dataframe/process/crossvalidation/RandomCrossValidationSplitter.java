@@ -25,37 +25,40 @@ class RandomCrossValidationSplitter implements CrossValidationSplitter {
     private boolean isFirstRow = true;
 
     RandomCrossValidationSplitter(List<String> fieldNames, String dependentVariable, double trainingPercent, long randomizeSeed) {
+        assert trainingPercent >= 1.0 && trainingPercent <= 100.0;
         this.dependentVariableIndex = findDependentVariableIndex(fieldNames, dependentVariable);
         this.trainingPercent = trainingPercent;
         this.random = new Random(randomizeSeed);
     }
 
     private static int findDependentVariableIndex(List<String> fieldNames, String dependentVariable) {
-        for (int i = 0; i < fieldNames.size(); i++) {
-            if (fieldNames.get(i).equals(dependentVariable)) {
-                return i;
-            }
+        int dependentVariableIndex = fieldNames.indexOf(dependentVariable);
+        if (dependentVariableIndex < 0) {
+            throw ExceptionsHelper.serverError("Could not find dependent variable [" + dependentVariable + "] in fields " + fieldNames);
         }
-        throw ExceptionsHelper.serverError("Could not find dependent variable [" + dependentVariable + "] in fields " + fieldNames);
+        return dependentVariableIndex;
     }
 
     @Override
-    public void process(String[] row) {
-        if (canBeUsedForTraining(row)) {
-            if (isFirstRow) {
-                // Let's make sure we have at least one training row
-                isFirstRow = false;
-            } else if (isRandomlyExcludedFromTraining()) {
-                row[dependentVariableIndex] = DataFrameDataExtractor.NULL_VALUE;
-            }
+    public void process(String[] row, Runnable incrementTrainingDocs, Runnable incrementTestDocs) {
+        if (canBeUsedForTraining(row) && isPickedForTraining()) {
+            incrementTrainingDocs.run();
+        } else {
+            row[dependentVariableIndex] = DataFrameDataExtractor.NULL_VALUE;
+            incrementTestDocs.run();
         }
     }
 
     private boolean canBeUsedForTraining(String[] row) {
-        return row[dependentVariableIndex].length() > 0;
+        return row[dependentVariableIndex] != DataFrameDataExtractor.NULL_VALUE;
     }
 
-    private boolean isRandomlyExcludedFromTraining() {
-        return random.nextDouble() * 100 > trainingPercent;
+    private boolean isPickedForTraining() {
+        if (isFirstRow) {
+            // Let's make sure we have at least one training row
+            isFirstRow = false;
+            return true;
+        }
+        return random.nextDouble() * 100 <= trainingPercent;
     }
 }

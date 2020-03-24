@@ -23,8 +23,10 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationBlockNode;
+import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -33,9 +35,9 @@ import static java.util.Collections.emptyList;
 /**
  * Represents a series of declarations.
  */
-public final class SDeclBlock extends AStatement {
+public class SDeclBlock extends AStatement {
 
-    private final List<SDeclaration> declarations;
+    protected final List<SDeclaration> declarations;
 
     public SDeclBlock(Location location, List<SDeclaration> declarations) {
         super(location);
@@ -44,30 +46,28 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
+        List<Output> declarationOutputs = new ArrayList<>(declarations.size());
 
         for (SDeclaration declaration : declarations) {
-            declaration.analyze(scriptRoot, scope, new Input());
+            declarationOutputs.add(declaration.analyze(classNode, scriptRoot, scope, new Input()));
         }
 
         output.statementCount = declarations.size();
 
-        return output;
-    }
-
-    @Override
-    DeclarationBlockNode write(ClassNode classNode) {
         DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
 
-        for (SDeclaration declaration : declarations) {
-            declarationBlockNode.addDeclarationNode(declaration.write(classNode));
+        for (Output declarationOutput : declarationOutputs) {
+            declarationBlockNode.addDeclarationNode((DeclarationNode)declarationOutput.statementNode);
         }
 
         declarationBlockNode.setLocation(location);
 
-        return declarationBlockNode;
+        output.statementNode = declarationBlockNode;
+
+        return output;
     }
 
     @Override

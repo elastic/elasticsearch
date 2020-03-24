@@ -28,6 +28,15 @@ import java.util.List;
 
 public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
+    public static DataStream randomInstance() {
+        int numIndices = randomIntBetween(0, 128);
+        List<String> indices = new ArrayList<>(numIndices);
+        for (int i = 0; i < numIndices; i++) {
+            indices.add(randomAlphaOfLength(10));
+        }
+        return new DataStream(randomAlphaOfLength(10), randomAlphaOfLength(10), indices);
+    }
+
     @Override
     protected DataStream doParseInstance(XContentParser parser) throws IOException {
         return DataStream.fromXContent(parser);
@@ -40,11 +49,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     @Override
     protected DataStream createTestInstance() {
-        int numIndices = randomIntBetween(0, 128);
-        List<String> indices = new ArrayList<>(numIndices);
-        for (int i = 0; i < numIndices; i++) {
-            indices.add(randomAlphaOfLength(10));
-        }
-        return new DataStream(randomAlphaOfLength(10), randomAlphaOfLength(10), indices);
+        return randomInstance();
     }
+
 }

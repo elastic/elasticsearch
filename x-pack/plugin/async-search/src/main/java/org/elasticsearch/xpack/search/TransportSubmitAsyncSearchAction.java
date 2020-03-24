@@ -66,7 +66,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     @Override
     protected void doExecute(Task task, SubmitAsyncSearchRequest request, ActionListener<AsyncSearchResponse> submitListener) {
         CancellableTask submitTask = (CancellableTask) task;
-        final SearchRequest searchRequest = createSearchRequest(request, submitTask.getId(), request.getKeepAlive());
+        final SearchRequest searchRequest = createSearchRequest(request, submitTask, request.getKeepAlive());
         AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register("transport", SearchAction.INSTANCE.name(), searchRequest);
         searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
         searchTask.addCompletionListener(
@@ -81,7 +81,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                 // the user cancelled the submit so we don't store anything
                                 // and propagate the failure
                                 Exception cause = new TaskCancelledException(submitTask.getReasonCancelled());
-                                onFatalFailure(searchTask, cause, false, submitListener);
+                                onFatalFailure(searchTask, cause, searchResponse.isRunning(), submitListener);
                             } else {
                                 final String docId = searchTask.getSearchId().getDocId();
                                 // creates the fallback response if the node crashes/restarts in the middle of the request
@@ -129,7 +129,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             }, request.getWaitForCompletion());
     }
 
-    private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, long parentTaskId, TimeValue keepAlive) {
+    private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, CancellableTask submitTask, TimeValue keepAlive) {
         String docID = UUIDs.randomBase64UUID();
         Map<String, String> originHeaders = nodeClient.threadPool().getThreadContext().getHeaders();
         SearchRequest searchRequest = new SearchRequest(request.getSearchRequest()) {
@@ -138,16 +138,17 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 AsyncSearchId searchId = new AsyncSearchId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
                 Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
                         () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
-                return new AsyncSearchTask(id, type, action, parentTaskId, keepAlive, originHeaders, taskHeaders, searchId,
-                    store.getClient(), nodeClient.threadPool(), aggReduceContextSupplier);
+                return new AsyncSearchTask(id, type, action, parentTaskId,
+                    () -> submitTask.isCancelled(), keepAlive, originHeaders, taskHeaders, searchId, store.getClient(),
+                    nodeClient.threadPool(), aggReduceContextSupplier);
             }
         };
-        searchRequest.setParentTask(new TaskId(nodeClient.getLocalNodeId(), parentTaskId));
+        searchRequest.setParentTask(new TaskId(nodeClient.getLocalNodeId(), submitTask.getId()));
         return searchRequest;
     }
 
     private void onFatalFailure(AsyncSearchTask task, Exception error, boolean shouldCancel, ActionListener<AsyncSearchResponse> listener) {
-        if (shouldCancel) {
+        if (shouldCancel && task.isCancelled() == false) {
             task.cancelTask(() -> {
                 try {
                     task.addCompletionListener(finalResponse -> taskManager.unregister(task));

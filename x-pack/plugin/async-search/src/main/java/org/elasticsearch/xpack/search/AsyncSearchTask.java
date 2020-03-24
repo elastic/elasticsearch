@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -42,6 +43,7 @@ import java.util.function.Supplier;
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
 final class AsyncSearchTask extends SearchTask {
+    private final BooleanSupplier checkSubmitCancellation;
     private final AsyncSearchId searchId;
     private final Client client;
     private final ThreadPool threadPool;
@@ -68,6 +70,7 @@ final class AsyncSearchTask extends SearchTask {
      * @param type The type of the task.
      * @param action The action name.
      * @param parentTaskId The parent task id.
+     * @param checkSubmitCancellation A boolean supplier that checks if the submit task has been cancelled.
      * @param originHeaders All the request context headers.
      * @param taskHeaders The filtered request headers for the task.
      * @param searchId The {@link AsyncSearchId} of the task.
@@ -78,6 +81,7 @@ final class AsyncSearchTask extends SearchTask {
                     String type,
                     String action,
                     TaskId parentTaskId,
+                    BooleanSupplier checkSubmitCancellation,
                     TimeValue keepAlive,
                     Map<String, String> originHeaders,
                     Map<String, String> taskHeaders,
@@ -86,6 +90,7 @@ final class AsyncSearchTask extends SearchTask {
                     ThreadPool threadPool,
                     Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
         super(id, type, action, "async_search", parentTaskId, taskHeaders);
+        this.checkSubmitCancellation = checkSubmitCancellation;
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.originHeaders = originHeaders;
         this.searchId = searchId;
@@ -212,13 +217,13 @@ final class AsyncSearchTask extends SearchTask {
 
                 final Cancellable cancellable;
                 try {
-                    cancellable = threadPool.schedule(() -> {
+                    cancellable = threadPool.schedule(threadPool.preserveContext(() -> {
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
                             listener.onResponse(getResponse());
                         }
-                    }, waitForCompletion, "generic");
+                    }), waitForCompletion, "generic");
                 } catch (EsRejectedExecutionException exc) {
                     listener.onFailure(exc);
                     return;
@@ -291,10 +296,13 @@ final class AsyncSearchTask extends SearchTask {
         return searchResponse.get().toAsyncSearchResponse(this, expirationTimeMillis);
     }
 
-    // cancels the task if it expired
-    private void checkExpiration() {
+    // checks if the search task should be cancelled
+    private void checkCancellation() {
         long now = System.currentTimeMillis();
-        if (expirationTimeMillis < now) {
+        if (expirationTimeMillis < now || checkSubmitCancellation.getAsBoolean()) {
+            // we cancel the search task if the initial submit task was cancelled,
+            // this is needed because the task cancellation mechanism doesn't
+            // handle the cancellation of grand-children.
             cancelTask(() -> {});
         }
     }
@@ -302,30 +310,31 @@ final class AsyncSearchTask extends SearchTask {
     class Listener extends SearchProgressActionListener {
         @Override
         protected void onQueryResult(int shardIndex) {
-            checkExpiration();
+            checkCancellation();
         }
 
         @Override
         protected void onFetchResult(int shardIndex) {
-            checkExpiration();
+            checkCancellation();
         }
 
         @Override
         protected void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             // best effort to cancel expired tasks
-            checkExpiration();
-            searchResponse.get().addShardFailure(shardIndex, new ShardSearchFailure(exc, shardTarget));
+            checkCancellation();
+            searchResponse.get().addShardFailure(shardIndex,
+                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
         @Override
         protected void onFetchFailure(int shardIndex, Exception exc) {
-            checkExpiration();
+            checkCancellation();
         }
 
         @Override
         protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
             // best effort to cancel expired tasks
-            checkExpiration();
+            checkCancellation();
             searchResponse.compareAndSet(null,
                 new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, aggReduceContextSupplier));
             executeInitListeners();
@@ -334,7 +343,7 @@ final class AsyncSearchTask extends SearchTask {
         @Override
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
             // best effort to cancel expired tasks
-            checkExpiration();
+            checkCancellation();
             searchResponse.get().updatePartialResponse(shards.size(),
                 new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), aggs,
                     null, null, false, null, reducePhase), aggs == null);
@@ -343,7 +352,7 @@ final class AsyncSearchTask extends SearchTask {
         @Override
         public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
             // best effort to cancel expired tasks
-            checkExpiration();
+            checkCancellation();
             searchResponse.get().updatePartialResponse(shards.size(),
                 new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), aggs,
                     null, null, false, null, reducePhase), true);

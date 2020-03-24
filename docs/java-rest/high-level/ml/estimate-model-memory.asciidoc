@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Estimate {anomaly-job} Model Memory API
+=== Estimate {anomaly-job} model memory API
 
 Estimate the model memory an analysis config is likely to need for
 the given cardinality of the fields it references.
 
 [id="{upid}-{api}-request"]
-==== Estimate {anomaly-job} Model Memory request
+==== Estimate {anomaly-job} model memory request
 
 A +{request}+ can be set up as follows:
 
@@ -22,7 +22,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <1> Pass an `AnalysisConfig` to the constructor.
 <2> For any `by_field_name`, `over_field_name` or
     `partition_field_name` fields referenced by the
-    `Detector`s, supply overall cardinality estimates
+    detectors, supply overall cardinality estimates
     in a `Map`.
 <3> For any `influencers`, supply a `Map` containing
     estimates of the highest cardinality expected in
@@ -31,7 +31,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Estimate {anomaly-job} Model Memory response
+==== Estimate {anomaly-job} model memory response
 
 The returned +{response}+ contains the model memory estimate:
 

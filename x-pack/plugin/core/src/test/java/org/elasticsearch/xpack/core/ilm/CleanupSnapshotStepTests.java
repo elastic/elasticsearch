@@ -79,7 +79,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
                 @Override
                 public void onFailure(Exception e) {
                     fail("expecting the step to report success if repository information is missing from the ILM execution state as there" +
-                        " is no snapshot to deleter");
+                        " is no snapshot to delete");
                 }
             });
         }

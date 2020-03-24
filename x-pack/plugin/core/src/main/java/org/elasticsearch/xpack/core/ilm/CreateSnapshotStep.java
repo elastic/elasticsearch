@@ -53,6 +53,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             return;
         }
         CreateSnapshotRequest request = new CreateSnapshotRequest(snapshotRepository, snapshotName);
+        request.indices(indexName);
         // we'll not wait for the snapshot to complete in this step as the async steps are executed from threads that shouldn't perform
         // expensive operations (ie. clusterStateProcessed)
         request.waitForCompletion(false);

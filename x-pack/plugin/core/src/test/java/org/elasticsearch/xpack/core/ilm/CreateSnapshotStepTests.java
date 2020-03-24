@@ -134,7 +134,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         ClusterState clusterState =
             ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
 
-        try (NoOpClient client = getCreateSnapshotRequestAssertingClient(repository, snapshotName)) {
+        try (NoOpClient client = getCreateSnapshotRequestAssertingClient(repository, snapshotName, indexName)) {
             CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), randomStepKey(), client);
             step.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
                 @Override
@@ -148,7 +148,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         }
     }
 
-    private NoOpClient getCreateSnapshotRequestAssertingClient(String expectedRepoName, String expectedSnapshotName) {
+    private NoOpClient getCreateSnapshotRequestAssertingClient(String expectedRepoName, String expectedSnapshotName, String indexName) {
         return new NoOpClient(getTestName()) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
@@ -157,6 +157,8 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                 assertThat(action.name(), is(CreateSnapshotAction.NAME));
                 assertTrue(request instanceof CreateSnapshotRequest);
                 CreateSnapshotRequest createSnapshotRequest = (CreateSnapshotRequest) request;
+                assertThat(createSnapshotRequest.indices().length, is(1));
+                assertThat(createSnapshotRequest.indices()[0], is(indexName));
                 assertThat(createSnapshotRequest.repository(), is(expectedRepoName));
                 assertThat(createSnapshotRequest.snapshot(), is(expectedSnapshotName));
                 assertThat("another ILM step will wait for completion. the " + CreateSnapshotStep.NAME + " step should not",

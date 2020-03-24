@@ -49,8 +49,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_PARAM;
-
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
 
     private final String name;

@@ -141,8 +141,8 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                 Collections.singletonMap("alias", AliasMetaData.builder("alias").build()))));
     }
 
-    private static final String MAPPING_SOURCE1 = "{\"_doc\":{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}}";
-    private static final String MAPPING_SOURCE2 = "{\"_doc\":{\"mapping2\":{\"text2\":{\"type\":\"string\"}}}}";
+    private static final String MAPPING_SOURCE1 = "{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}";
+    private static final String MAPPING_SOURCE2 = "{\"mapping2\":{\"text2\":{\"type\":\"string\"}}}";
     private static final String ALIAS_FILTER1 = "{\"field1\":\"value1\"}";
     private static final String ALIAS_FILTER2 = "{\"field2\":\"value2\"}";
 

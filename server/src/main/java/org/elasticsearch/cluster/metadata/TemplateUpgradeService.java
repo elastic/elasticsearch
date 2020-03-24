@@ -57,8 +57,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 
-import static java.util.Collections.singletonMap;
-
 /**
  * Upgrades Templates on behalf of installed {@link Plugin}s when a node joins the cluster
  */
@@ -248,14 +246,12 @@ public class TemplateUpgradeService implements ClusterStateListener {
         return Optional.empty();
     }
 
-    private static final ToXContent.Params PARAMS = new ToXContent.MapParams(singletonMap("reduce_mappings", "true"));
+    private static final ToXContent.Params PARAMS
+        = new ToXContent.MapParams(Map.of(IndexTemplateMetaData.INCLUDE_TEMPLATE_NAME, "false"));
 
     private BytesReference toBytesReference(IndexTemplateMetaData templateMetaData) {
         try {
-            return XContentHelper.toXContent((builder, params) -> {
-                IndexTemplateMetaData.Builder.toInnerXContentWithTypes(templateMetaData, builder, params);
-                return builder;
-            }, XContentType.JSON, PARAMS, false);
+            return XContentHelper.toXContent(templateMetaData, XContentType.JSON, PARAMS, false);
         } catch (IOException ex) {
             throw new IllegalStateException("Cannot serialize template [" + templateMetaData.getName() + "]", ex);
         }

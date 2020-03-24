@@ -436,7 +436,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
-        client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
+        client().admin().indices().prepareCreate("data").addMapping("type", "time", "type=date").get();
 
         DatafeedConfig config = createDatafeed(datafeedId, jobId, Collections.singletonList("data"));
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);

@@ -66,13 +66,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            return filter.transformExpressionsUp(e -> {
-                if (e instanceof Wildcard) {
-                    e = ((Wildcard) e).asLikes();
-                }
-
-                return e;
-            });
+            return filter.transformExpressionsUp(e -> e instanceof Wildcard ? ((Wildcard) e).asLikes() : e);
         }
     }
 

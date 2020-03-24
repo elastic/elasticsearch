@@ -25,8 +25,6 @@ public class EqlFunctionRegistry extends FunctionRegistry {
         // String
             new FunctionDefinition[] {
                 def(Substring.class, Substring::new, "substring"),
-            },
-            new FunctionDefinition[] {
                 def(Wildcard.class, Wildcard::new, "wildcard"),
             },
         };

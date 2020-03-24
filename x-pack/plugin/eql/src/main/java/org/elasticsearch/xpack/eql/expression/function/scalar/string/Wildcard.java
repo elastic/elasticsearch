@@ -73,17 +73,22 @@ public class Wildcard extends ScalarFunction {
             return lastResolution;
         }
 
+        int index = 1;
+
         for (Expression p: patterns) {
+
             if (p.foldable() == false) {
                 return new TypeResolution(format(null, "wildcard against variables are not (currently) supported; offender [{}] in [{}]",
                     Expressions.name(p),
                     sourceText()));
             }
 
-            lastResolution = isString(p, sourceText(), ParamOrdinal.DEFAULT);
+            lastResolution = isString(p, sourceText(), ParamOrdinal.fromIndex(index));
             if (lastResolution.unresolved()) {
                 break;
             }
+
+            index++;
         }
 
         return lastResolution;

@@ -39,4 +39,20 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("Found 1 problem\nline 1:15: wildcard against variables are not (currently) supported;" +
             " offender [parent_process_name] in [wildcard(process_name, parent_process_name)]", msg);
     }
+
+    public void testWildcardWithNumericPattern() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where wildcard(process_name, 1)"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\n" +
+            "line 1:15: second argument of [wildcard(process_name, 1)] must be [string], found value [1] type [integer]", msg);
+    }
+
+    public void testWildcardWithNumericField() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where wildcard(0, '*.exe')"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\n" +
+            "line 1:15: first argument of [wildcard(0, '*.exe')] must be [string], found value [0] type [integer]", msg);
+    }
 }

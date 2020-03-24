@@ -209,7 +209,14 @@ registry where length(bytes_written_string_list) == 2 and bytes_written_string_l
 
 [[queries]]
 query = '''
-registry where key_path == "*\\MACHINE\\SAM\\SAM\\*\\Account\\Us*ers\\00*03E9\\F"'''
+registry where key_path == "*\\MACHINE\\SAM\\SAM\\*\\Account\\Us*ers\\00*03E9\\F"
+'''
+expected_event_ids  = [79]
+
+[[queries]]
+query = '''
+registry where wildcard(key_path, "*\\MACHINE\\SAM\\SAM\\*\\Account\\Us*ers\\00*03E9\\F")
+'''
 expected_event_ids  = [79]
 
 [[queries]]

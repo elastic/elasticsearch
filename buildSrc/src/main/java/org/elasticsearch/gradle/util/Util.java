@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,10 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle;
+package org.elasticsearch.gradle.util;
 
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.gradle.api.GradleException;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.util.Locale;
 
 public class Util {
@@ -36,6 +41,24 @@ public class Util {
             return false;
         } else {
             throw new GradleException("Sysprop [" + property + "] must be [true] or [false] but was [" + propertyValue + "]");
+        }
+    }
+
+    public static String getResourceContents(String resourcePath) {
+        try (
+            BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))
+        ) {
+            StringBuilder b = new StringBuilder();
+            for (String line = reader.readLine(); line != null; line = reader.readLine()) {
+                if (b.length() != 0) {
+                    b.append('\n');
+                }
+                b.append(line);
+            }
+
+            return b.toString();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Error trying to read classpath resource: " + resourcePath, e);
         }
     }
 

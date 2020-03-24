@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
@@ -77,10 +77,9 @@ public class Wildcard extends ScalarFunction {
 
         for (Expression p: patterns) {
 
-            if (p.foldable() == false) {
-                return new TypeResolution(format(null, "wildcard against variables are not (currently) supported; offender [{}] in [{}]",
-                    Expressions.name(p),
-                    sourceText()));
+            lastResolution = isFoldable(p, sourceText(), ParamOrdinal.fromIndex(index));
+            if (lastResolution.unresolved()) {
+                break;
             }
 
             lastResolution = isString(p, sourceText(), ParamOrdinal.fromIndex(index));

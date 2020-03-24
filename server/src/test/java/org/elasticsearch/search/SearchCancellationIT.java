@@ -39,7 +39,9 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.LeafFieldsLookup;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,7 +55,6 @@ import java.util.function.Function;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -116,15 +117,21 @@ public class SearchCancellationIT extends ESIntegTestCase {
         }
     }
 
-    private void cancelSearch(String action) {
+    private ActionFuture<CancelTasksResponse> cancelSearch(String action) throws Exception {
         ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks().setActions(action).get();
         assertThat(listTasksResponse.getTasks(), hasSize(1));
         TaskInfo searchTask = listTasksResponse.getTasks().get(0);
 
         logger.info("Cancelling search");
-        CancelTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTaskId(searchTask.getTaskId()).get();
-        assertThat(cancelTasksResponse.getTasks(), hasSize(1));
-        assertThat(cancelTasksResponse.getTasks().get(0).getTaskId(), equalTo(searchTask.getTaskId()));
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks()
+            .setTaskId(searchTask.getTaskId()).execute();
+        assertBusy(() -> {
+            for (String node : internalCluster().getNodeNames()) {
+                final TaskManager taskManager = internalCluster().getInstance(TransportService.class, node).getTaskManager();
+                assertTrue(taskManager.childTasksCancelledOrBanned(searchTask.getTaskId()));
+            }
+        });
+        return cancelFuture;
     }
 
     private SearchResponse ensureSearchWasCancelled(ActionFuture<SearchResponse> searchResponse) {
@@ -151,8 +158,9 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
+        cancelFuture.actionGet();
         logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
     }
@@ -169,8 +177,9 @@ public class SearchCancellationIT extends ESIntegTestCase {
             ).execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
+        cancelFuture.actionGet();
         logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
     }
@@ -190,8 +199,9 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
+        cancelFuture.actionGet();
         SearchResponse response = ensureSearchWasCancelled(searchResponse);
         if (response != null) {
             // The response might not have failed on all shards - we need to clean scroll
@@ -233,9 +243,9 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .setScroll(keepAlive).execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchScrollAction.NAME);
+        ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchScrollAction.NAME);
         disableBlocks(plugins);
-
+        cancelFuture.actionGet();
         SearchResponse response = ensureSearchWasCancelled(scrollResponse);
         if (response != null) {
             // The response didn't fail completely - update scroll id

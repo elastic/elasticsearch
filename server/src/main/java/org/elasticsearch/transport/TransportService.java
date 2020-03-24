@@ -33,6 +33,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -560,6 +561,33 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
         try {
+            if (request.getParentTask().isSet()) {
+                final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
+                final TransportResponseHandler<T> delegate = handler;
+                handler = new TransportResponseHandler<>() {
+                    @Override
+                    public void handleResponse(T response) {
+                        unregisterChildNode.close();
+                        delegate.handleResponse(response);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        unregisterChildNode.close();
+                        delegate.handleException(exp);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return delegate.executor();
+                    }
+
+                    @Override
+                    public T read(StreamInput in) throws IOException {
+                        return delegate.read(in);
+                    }
+                };
+            }
             asyncSender.sendRequest(connection, action, request, options, handler);
         } catch (final Exception ex) {
             // the caller might not handle this so we invoke the handler
@@ -689,7 +717,31 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
-        final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this, threadPool);
+        final Releasable unregisterChildNode;
+        if (request.getParentTask().isSet()) {
+            unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), localNode);
+        } else {
+            unregisterChildNode = () -> {};
+        }
+        final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this, threadPool) {
+            @Override
+            protected void processResponse(TransportResponseHandler handler, TransportResponse response) {
+                try {
+                    super.processResponse(handler, response);
+                }finally {
+                    unregisterChildNode.close();
+                }
+            }
+
+            @Override
+            protected void processException(TransportResponseHandler handler, RemoteTransportException rtx) {
+                try {
+                    super.processException(handler, rtx);
+                }finally {
+                    unregisterChildNode.close();
+                }
+            }
+        };
         try {
             onRequestSent(localNode, requestId, action, request, options);
             onRequestReceived(requestId, action);

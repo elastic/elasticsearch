@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tasks;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -33,6 +35,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -53,6 +57,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -163,7 +169,7 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
         assert oldHolder == null;
         // Check if this task was banned before we start it
-        if (task.getParentTaskId().isSet() && banedParents.isEmpty() == false) {
+        if (task.getParentTaskId().isSet()) {
             String reason = banedParents.get(task.getParentTaskId());
             if (reason != null) {
                 try {
@@ -210,6 +216,19 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             return tasks.remove(task.getId());
         }
+    }
+
+    /**
+     * Register a node on which a child task will execute. The returned {@link Releasable} must be called
+     * to unregister the child node once the child task is completed or failed.
+     */
+    public Releasable registerChildNode(long taskId, DiscoveryNode node) {
+        final CancellableTaskHolder holder = cancellableTasks.get(taskId);
+        if (holder != null) {
+            holder.registerChildNode(node);
+            return Releasables.releaseOnce(() -> holder.unregisterChildNode(node));
+        }
+        return () -> {};
     }
 
     /**
@@ -369,6 +388,25 @@ public class TaskManager implements ClusterStateApplier {
         banedParents.remove(parentTaskId);
     }
 
+    // for testing
+    public boolean childTasksCancelledOrBanned(TaskId parentTaskId) {
+        if (banedParents.containsKey(parentTaskId)) {
+            return true;
+        }
+        return cancellableTasks.values().stream().noneMatch(task -> task.hasParent(parentTaskId));
+    }
+
+    public Set<DiscoveryNode> startBanOnChildrenNodes(long taskId) {
+        CancellableTaskHolder holder = cancellableTasks.get(taskId);
+        if (holder != null) {
+            return holder.startBan();
+        }
+        logger.warn("Trying to cancel task without registered cancellable task " + taskId);
+        assert false : "Should not start ban for non cancellable task";
+        // We still need to set ban on local node for persistent tasks
+        return Collections.emptySet();
+    }
+
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         lastDiscoveryNodes = event.state().getNodes();
@@ -423,9 +461,10 @@ public class TaskManager implements ClusterStateApplier {
 
         private final CancellableTask task;
 
-        private volatile String cancellationReason = null;
-
-        private volatile Runnable cancellationListener = null;
+        private String cancellationReason = null;
+        private Runnable cancellationListener = null;
+        private ObjectIntMap<DiscoveryNode> childTasksPerNode = null;
+        private boolean banChildren = false;
 
         CancellableTaskHolder(CancellableTask task) {
             this.task = task;
@@ -494,6 +533,36 @@ public class TaskManager implements ClusterStateApplier {
 
         public CancellableTask getTask() {
             return task;
+        }
+
+        synchronized void registerChildNode(DiscoveryNode node) {
+            if (banChildren) {
+                throw new TaskCancelledException("The parent task was cancelled, shouldn't start any children tasks");
+            }
+            if (childTasksPerNode == null) {
+                childTasksPerNode = new ObjectIntHashMap<>();
+            }
+            childTasksPerNode.addTo(node, 1);
+        }
+
+        synchronized void unregisterChildNode(DiscoveryNode node) {
+            if (childTasksPerNode.addTo(node, -1) == 0) {
+                childTasksPerNode.remove(node);
+            }
+        }
+
+        synchronized Set<DiscoveryNode> startBan() {
+            synchronized (this) {
+                if (banChildren) {
+                    logger.warn("Trying to start ban twice for task " + task.getId());
+                    return Collections.emptySet();
+                }
+                banChildren = true;
+                if (childTasksPerNode == null) {
+                    return Collections.emptySet();
+                }
+                return StreamSupport.stream(childTasksPerNode.spliterator(), false).map(e -> e.key).collect(Collectors.toUnmodifiableSet());
+            }
         }
     }
 

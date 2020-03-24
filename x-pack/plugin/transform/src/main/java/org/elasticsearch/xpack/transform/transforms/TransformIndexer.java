@@ -231,7 +231,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     pageSize = pivot.getInitialPageSize();
                 }
 
-                runState = determineRunStateAtStart();
+                runState = determineRunState();
                 listener.onResponse(true);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -584,7 +584,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             changedBuckets = Collections.emptyMap();
 
             // reset the runState to fetch changed buckets
-            runState = determineRunStateAtStart();
+            runState = determineRunState();
 
             // advance the cursor for changed bucket detection
             return new IterationResult<>(Collections.emptyList(), new TransformIndexerPosition(null, changedBucketsAfterKey), false);
@@ -612,23 +612,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         return result;
-    }
-
-    private IterationResult<TransformIndexerPosition> processPartialBucketUpdates(final CompositeAggregation agg) {
-        // we reached the end
-        if (agg.getBuckets().isEmpty()) {
-            // cleanup changed Buckets
-            changedBuckets = Collections.emptyMap();
-
-            // reset the runState to fetch changed buckets
-            runState = determineRunStateAtStart();
-
-            // RunState.PARTIAL_RUN_IDENTIFY_CHANGES;
-            // advance the cursor for changed bucket detection
-            return new IterationResult<>(Collections.emptyList(), new TransformIndexerPosition(null, changedBucketsAfterKey), false);
-        }
-
-        return processBuckets(agg);
     }
 
     private IterationResult<TransformIndexerPosition> processChangedBuckets(final CompositeAggregation agg) {
@@ -893,7 +876,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return true;
     }
 
-    private RunState determineRunStateAtStart() {
+    private RunState determineRunState() {
         // either 1st run or not a continuous transform
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
             return RunState.APPLY_BUCKET_RESULTS;

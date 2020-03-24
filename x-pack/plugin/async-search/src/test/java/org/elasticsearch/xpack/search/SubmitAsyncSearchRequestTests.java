@@ -109,4 +109,13 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         assertThat(exc.validationErrors().size(), equalTo(1));
         assertThat(exc.validationErrors().get(0), containsString("suggest"));
     }
+
+    public void testValidatePreFilterShardSize() {
+        SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
+        req.getSearchRequest().setPreFilterShardSize(randomIntBetween(2, Integer.MAX_VALUE));
+        ActionRequestValidationException exc = req.validate();
+        assertNotNull(exc);
+        assertThat(exc.validationErrors().size(), equalTo(1));
+        assertThat(exc.validationErrors().get(0), containsString("[pre_filter_shard_size]"));
+    }
 }

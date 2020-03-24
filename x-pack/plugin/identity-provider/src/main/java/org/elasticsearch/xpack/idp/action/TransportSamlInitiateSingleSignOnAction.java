@@ -113,6 +113,7 @@ public class TransportSamlInitiateSingleSignOnAction
                         if (userPrivileges.hasAccess == false) {
                             listener.onResponse(null);
                         } else {
+                            logger.debug("Resolved [{}] for [{}]", userPrivileges, user);
                             listener.onResponse(new UserServiceAuthentication(user.principal(), user.fullName(), user.email(),
                                 userPrivileges.roles, serviceProvider));
                         }

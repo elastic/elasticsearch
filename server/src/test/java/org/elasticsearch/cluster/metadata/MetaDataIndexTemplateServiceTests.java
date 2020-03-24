@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.fasterxml.jackson.core.JsonParseException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutRequest;
@@ -221,7 +221,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         template = new Template(Settings.builder().build(), new CompressedXContent("{\"invalid\"}"),
             ComponentTemplateTests.randomAliases());
         ComponentTemplate componentTemplate2 = new ComponentTemplate(template, 1L, new HashMap<>());
-        expectThrows(JsonParseException.class,
+        expectThrows(ElasticsearchParseException.class,
             () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate2));
 
         template = new Template(Settings.builder().build(), new CompressedXContent("{\"invalid\":\"invalid\"}"),

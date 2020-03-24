@@ -230,6 +230,10 @@ public class ILMHistoryStore implements Closeable {
                 // The alias does not have a write index, so we can't index into it
                 listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS + "does not have a write index"));
             }
+        } else if (ilmHistory.getType() != AliasOrIndex.Type.ALIAS) {
+            // This is not an alias, error out
+            listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS +
+                "] already exists as concrete index"));
         } else {
             logger.error("unexpected IndexOrAlias for [{}]: [{}]", ILM_HISTORY_ALIAS, ilmHistory);
             assert false : ILM_HISTORY_ALIAS + " cannot be both an alias and not an alias simultaneously";

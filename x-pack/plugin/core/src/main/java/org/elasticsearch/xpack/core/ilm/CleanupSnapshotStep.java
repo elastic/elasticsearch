@@ -29,7 +29,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
     @Override
     public boolean isRetryable() {
-        return false;
+        return true;
     }
 
     @Override

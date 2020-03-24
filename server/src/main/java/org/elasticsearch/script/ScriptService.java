@@ -686,8 +686,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 return new ScriptCacheStats(general.stats());
             }
             Map<String, ScriptStats> context = new HashMap<>(contextCache.size());
-            for (String name: contexts) {
-                context.put(name, contextCache.get(name).get().stats());
+            for (ScriptContext<?> ctx: contexts) {
+                context.put(ctx.name, contextCache.get(ctx.name).get().stats());
             }
             return new ScriptCacheStats(context);
         }

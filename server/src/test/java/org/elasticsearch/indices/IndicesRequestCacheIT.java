@@ -101,6 +101,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     @TestIssueLogging(
         value = "org.elasticsearch.indices.IndicesRequestCache:TRACE",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/32827")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32827")
     public void testQueryRewrite() throws Exception {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index").setMapping("s", "type=date")

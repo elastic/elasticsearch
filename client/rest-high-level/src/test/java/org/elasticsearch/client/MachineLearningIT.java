@@ -46,6 +46,8 @@ import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
@@ -1242,6 +1244,27 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertThat(remainingIds.size(), equalTo(2));
         assertThat(remainingIds, not(hasItem(deletedEvent)));
+    }
+
+    public void testEstimateModelMemory() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        String byFieldName = randomAlphaOfLength(10);
+        String influencerFieldName = randomAlphaOfLength(10);
+        AnalysisConfig analysisConfig = AnalysisConfig.builder(
+            Collections.singletonList(
+                Detector.builder().setFunction("count").setByFieldName(byFieldName).build()
+            )).setInfluencers(Collections.singletonList(influencerFieldName)).build();
+        EstimateModelMemoryRequest estimateModelMemoryRequest = new EstimateModelMemoryRequest(analysisConfig);
+        estimateModelMemoryRequest.setOverallCardinality(Collections.singletonMap(byFieldName, randomNonNegativeLong()));
+        estimateModelMemoryRequest.setMaxBucketCardinality(Collections.singletonMap(influencerFieldName, randomNonNegativeLong()));
+
+        EstimateModelMemoryResponse estimateModelMemoryResponse = execute(
+            estimateModelMemoryRequest,
+            machineLearningClient::estimateModelMemory, machineLearningClient::estimateModelMemoryAsync);
+
+        ByteSizeValue modelMemoryEstimate = estimateModelMemoryResponse.getModelMemoryEstimate();
+        assertThat(modelMemoryEstimate.getBytes(), greaterThanOrEqualTo(10000000L));
     }
 
     public void testPutDataFrameAnalyticsConfig_GivenOutlierDetectionAnalysis() throws Exception {

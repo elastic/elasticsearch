@@ -7,6 +7,9 @@ Also see <<breaking-changes-7.6,Breaking changes in 7.6>>.
 [float]
 === Bug fixes
 
+Allocation::
+* Improve performance of shards limits decider {pull}53577[#53577] (issue: {issue}53559[#53559])
+
 Authentication::
 * Fix potential bug in concurrent token refresh support {pull}53668[#53668]
 
@@ -15,6 +18,9 @@ Authorization::
 
 CCR::
 * Handle no such remote cluster exception in ccr {pull}53415[#53415] (issue: {issue}53225[#53225])
+
+Distributed::
+* Execute retention lease syncs under system context {pull}53838[#53838] (issues: {issue}48430[#48430], {issue}53751[#53751])
 
 Engine::
 * Fix doc_stats and segment_stats of ReadOnlyEngine {pull}53345[#53345] (issues: {issue}51303[#51303], {issue}51331[#51331])
@@ -27,6 +33,7 @@ Features/Ingest::
 * Fix ingest pipeline _simulate api with empty docs never returns a res… {pull}52937[#52937] (issue: {issue}52833[#52833])
 
 Features/Java High Level REST Client::
+* Add unsupported parameters to HLRC search request {pull}53745[#53745]
 * Fix AbstractBulkByScrollRequest slices parameter via Rest {pull}53068[#53068] (issue: {issue}53044[#53044])
 
 Features/Watcher::

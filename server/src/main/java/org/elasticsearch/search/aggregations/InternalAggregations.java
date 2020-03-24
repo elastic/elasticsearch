@@ -93,7 +93,8 @@ public final class InternalAggregations extends Aggregations implements Writeabl
          * Setting the pipeline tree source to null is here is correct but
          * only because we don't immediately pass the InternalAggregations
          * off to another node. Instead, we always reduce together with
-         * many aggregations and that always adds the 
+         * many aggregations and that always adds the tree read from the
+         * current request.
          */
         pipelineTreeForBwcSerialization = null;
     }

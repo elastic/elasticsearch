@@ -42,6 +42,9 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -176,8 +179,8 @@ public class MetaDataIndexTemplateService {
         }
 
         CompressedXContent mappings = template.template().mappings();
-        String stringMappings = mappings == null ? null : mappings.string();
-        validateTemplate(template.template().settings(), stringMappings, indicesService, xContentRegistry);
+        Map<String, Object> mappingsArray = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings.string(), false);
+        validateTemplate(template.template().settings(), Collections.singletonMap("_doc", mappingsArray), indicesService);
 
         logger.info("adding component template [{}]", name);
         return ClusterState.builder(currentState)
@@ -283,15 +286,17 @@ public class MetaDataIndexTemplateService {
                 templateBuilder.patterns(request.indexPatterns);
                 templateBuilder.settings(request.settings);
 
-                if (request.mappings != null) {
+                Map<String, Map<String, Object>> mappingsForValidation = new HashMap<>();
+                for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
                     try {
-                        templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
+                        templateBuilder.putMapping(entry.getKey(), entry.getValue());
                     } catch (Exception e) {
-                        throw new MapperParsingException("Failed to parse mapping: {}", e, request.mappings);
+                        throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
                     }
+                    mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
                 }
 
-                validateTemplate(request.settings, request.mappings, indicesService, xContentRegistry);
+                validateTemplate(request.settings, mappingsForValidation, indicesService);
 
                 for (Alias alias : request.aliases) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
@@ -372,8 +377,8 @@ public class MetaDataIndexTemplateService {
         return matchedTemplates;
     }
 
-    private static void validateTemplate(Settings settings, String mappings,
-                                         IndicesService indicesService, NamedXContentRegistry xContentRegistry) throws Exception {
+    private static void validateTemplate(Settings settings, Map<String, Map<String, Object>> mappings,
+                                         IndicesService indicesService) throws Exception {
         Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
         try {
@@ -395,12 +400,7 @@ public class MetaDataIndexTemplateService {
             IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList(), false);
             createdIndex = dummyIndexService.index();
 
-            if (mappings != null) {
-                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME,
-                    MapperService.parseMapping(xContentRegistry, mappings), MergeReason.MAPPING_UPDATE);
-            }
-
-            dummyIndexService.mapperService().merge(mappingsForValidation, MergeReason.MAPPING_UPDATE);
+            dummyIndexService.mapperService().merge(mappings, MergeReason.MAPPING_UPDATE);
 
         } finally {
             if (createdIndex != null) {

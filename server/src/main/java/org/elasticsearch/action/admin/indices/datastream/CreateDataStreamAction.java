@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,7 +48,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
@@ -161,15 +165,63 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         static ClusterState createDataStream(ClusterState currentState, Request request) {
+            List<String> validationErrors = new ArrayList<>();
             if (currentState.metaData().dataStreams().containsKey(request.name)) {
-                throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
+                validationErrors.add("data_stream [" + request.name + "] already exists");
             }
 
-            MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(
-                new DataStream(request.name, request.timestampFieldName, Collections.emptyList()));
+            validationErrors.addAll(validateDataStreamName(request.name));
 
-            logger.info("adding data stream [{}]", request.name);
-            return ClusterState.builder(currentState).metaData(builder).build();
+            if (currentState.metaData().hasIndex(request.name)) {
+                validationErrors.add("data_stream [" + request.name + "] conflicts with existing index");
+            }
+
+            if (currentState.metaData().hasAlias(request.name)) {
+                validationErrors.add("data_stream [" + request.name + "] conflicts with existing alias");
+            }
+
+            final String backingIndexPrefix = (request.name.startsWith(".") ? "" : ".") + request.name + "-";
+            for (String indexName : currentState.metaData().getConcreteAllIndices()) {
+                if (indexName.startsWith(backingIndexPrefix)) {
+                    validationErrors.add(
+                        "data_stream [" + request.name + "] could create backing indices that conflict with existing indices");
+                    break;
+                }
+            }
+
+            if (validationErrors.isEmpty()) {
+                MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(
+                    new DataStream(request.name, request.timestampFieldName, Collections.emptyList()));
+                logger.info("adding data stream [{}]", request.name);
+                return ClusterState.builder(currentState).metaData(builder).build();
+            } else {
+                ValidationException ex = new ValidationException();
+                ex.addValidationErrors(validationErrors);
+                throw new IllegalArgumentException(ex);
+            }
+        }
+
+        private static List<String> validateDataStreamName(String name) {
+            List<String> validationErrors = new ArrayList<>();
+            if (name.contains(" ")) {
+                validationErrors.add("name must not contain a space");
+            }
+            if (name.contains(",")) {
+                validationErrors.add("name must not contain a ','");
+            }
+            if (name.contains("#")) {
+                validationErrors.add("name must not contain a '#'");
+            }
+            if (name.startsWith("_")) {
+                validationErrors.add("name must not start with '_'");
+            }
+            if (name.endsWith("-")) {
+                validationErrors.add("name must not end with '-'");
+            }
+            if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
+                validationErrors.add("name must be lower cased");
+            }
+            return validationErrors;
         }
 
         @Override

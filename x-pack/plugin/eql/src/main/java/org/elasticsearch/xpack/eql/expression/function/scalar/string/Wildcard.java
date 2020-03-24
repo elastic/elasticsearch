@@ -25,11 +25,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
 /**
  * EQL wildcard function. Matches the form:
- *     wildcard(field, "*wildcard*pattern*", "*wildcard*pattern*")
+ *     wildcard(field, "*wildcard*pattern*", ...)
  */
 public class Wildcard extends ScalarFunction {
 
@@ -63,7 +64,7 @@ public class Wildcard extends ScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
@@ -73,15 +74,15 @@ public class Wildcard extends ScalarFunction {
         }
 
         for (Expression p: patterns) {
-            lastResolution = isStringAndExact(p, sourceText(), ParamOrdinal.DEFAULT);
-            if (lastResolution.unresolved()) {
-                break;
-            }
-
             if (p.foldable() == false) {
                 return new TypeResolution(format(null, "wildcard against variables are not (currently) supported; offender [{}] in [{}]",
                     Expressions.name(p),
                     sourceText()));
+            }
+
+            lastResolution = isString(p, sourceText(), ParamOrdinal.DEFAULT);
+            if (lastResolution.unresolved()) {
+                break;
             }
         }
 
@@ -90,7 +91,7 @@ public class Wildcard extends ScalarFunction {
 
     @Override
     public boolean foldable() {
-        return Expressions.foldable(arguments());
+        return Expressions.foldable(children()) && asLikes().foldable();
     }
 
     @Override

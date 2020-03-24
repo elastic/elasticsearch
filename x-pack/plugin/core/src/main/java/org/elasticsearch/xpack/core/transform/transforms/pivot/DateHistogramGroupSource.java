@@ -345,9 +345,13 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     }
 
     @Override
-    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
-        // no need for an extra range filter as this is already done by checkpoints
-        return null;
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets, long synchronizationTimestamp) {
+        if (synchronizationTimestamp > 0) {
+
+            return new RangeQueryBuilder(field).gte(rounding.round(synchronizationTimestamp)).format("epoch_millis");
+        } else {
+            return null;
+        }
     }
 
     @Override

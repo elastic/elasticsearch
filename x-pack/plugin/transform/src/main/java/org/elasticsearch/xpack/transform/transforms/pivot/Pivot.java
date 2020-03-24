@@ -189,44 +189,37 @@ public class Pivot {
         );
     }
 
-    public QueryBuilder filterBuckets(Map<String, Set<String>> changedBuckets) {
-
-        if (changedBuckets == null || changedBuckets.isEmpty()) {
-            return null;
-        }
+    public QueryBuilder filterBuckets(
+        Map<String, Set<String>> changedBuckets,
+        String synchronizationField,
+        long lastSynchronizationCheckpoint
+    ) {
 
         if (config.getGroupConfig().getGroups().size() == 1) {
             Entry<String, SingleGroupSource> entry = config.getGroupConfig().getGroups().entrySet().iterator().next();
-            // it should not be possible to get into this code path
-            assert (entry.getValue().supportsIncrementalBucketUpdate());
 
             logger.trace("filter by bucket: " + entry.getKey() + "/" + entry.getValue().getField());
-            if (changedBuckets.containsKey(entry.getKey())) {
-                return entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBuckets.get(entry.getKey()));
-            } else {
-                // should never happen
-                throw new RuntimeException("Could not find bucket value for key " + entry.getKey());
-            }
+            Set<String> changedBucketsByGroup = changedBuckets.get(entry.getKey());
+
+            // important: the fields must match to apply this optimization
+            long synchronizationTimestamp = entry.getKey().equals(synchronizationField) ? lastSynchronizationCheckpoint : 0;
+
+            return entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationTimestamp);
         }
 
         // else: more than 1 group by, need to nest it
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
         for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
-            if (entry.getValue().supportsIncrementalBucketUpdate() == false) {
-                continue;
-            }
+            Set<String> changedBucketsByGroup = changedBuckets.get(entry.getKey());
+            // important: the fields must match to apply this optimization
+            long synchronizationTimestamp = entry.getKey().equals(synchronizationField) ? lastSynchronizationCheckpoint : 0;
 
-            if (changedBuckets.containsKey(entry.getKey())) {
-                QueryBuilder sourceQueryFilter = entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBuckets.get(entry.getKey()));
-                // the source might not define an filter optimization
-                if (sourceQueryFilter != null) {
-                    filteredQuery.filter(sourceQueryFilter);
-                }
-            } else {
-                // should never happen
-                throw new RuntimeException("Could not find bucket value for key " + entry.getKey());
+            QueryBuilder sourceQueryFilter = entry.getValue()
+                .getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationTimestamp);
+            // the source might not define a filter optimization
+            if (sourceQueryFilter != null) {
+                filteredQuery.filter(sourceQueryFilter);
             }
-
         }
 
         return filteredQuery;

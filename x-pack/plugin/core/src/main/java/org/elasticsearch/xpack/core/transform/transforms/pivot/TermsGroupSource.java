@@ -54,8 +54,11 @@ public class TermsGroupSource extends SingleGroupSource {
     }
 
     @Override
-    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
-        return new TermsQueryBuilder(field, changedBuckets);
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets, long synchronizationTimestamp) {
+        if (changedBuckets != null && changedBuckets.isEmpty() == false) {
+            return new TermsQueryBuilder(field, changedBuckets);
+        }
+        return null;
     }
 
     @Override

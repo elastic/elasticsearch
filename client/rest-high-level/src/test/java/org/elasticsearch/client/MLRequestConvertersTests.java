@@ -36,6 +36,7 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequestTests;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
@@ -107,6 +108,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -693,6 +695,25 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.deleteCalendarEvent(deleteCalendarEventRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/calendars/" + calendarId + "/events/" + eventId, request.getEndpoint());
+    }
+
+    public void testEstimateModelMemory() throws Exception {
+        String byFieldName = randomAlphaOfLength(10);
+        String influencerFieldName = randomAlphaOfLength(10);
+        AnalysisConfig analysisConfig = AnalysisConfig.builder(
+            Collections.singletonList(
+                Detector.builder().setFunction("count").setByFieldName(byFieldName).build()
+            )).setInfluencers(Collections.singletonList(influencerFieldName)).build();
+        EstimateModelMemoryRequest estimateModelMemoryRequest = new EstimateModelMemoryRequest(analysisConfig);
+        estimateModelMemoryRequest.setOverallCardinality(Collections.singletonMap(byFieldName, randomNonNegativeLong()));
+        estimateModelMemoryRequest.setMaxBucketCardinality(Collections.singletonMap(influencerFieldName, randomNonNegativeLong()));
+        Request request = MLRequestConverters.estimateModelMemory(estimateModelMemoryRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/anomaly_detectors/_estimate_model_memory", request.getEndpoint());
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder = estimateModelMemoryRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(Strings.toString(builder), requestEntityToString(request));
     }
 
     public void testPutDataFrameAnalytics() throws IOException {

@@ -234,38 +234,6 @@ POST /_security/role_mapping/mapping5
 <2> Because the template produces a JSON array, the format must be
     set to `json`.
 
-In addition to an inline script, you can also use a stored script for the
-`template` field. Above role mapping can also be created with the follows:
-
-[source,console]
-------------------------------------------------------------
-POST /_scripts/derive-roles
-{
-  "script": {
-      "lang": "mustache",
-      "source" : "{{#tojson}}groups{{/tojson}}"
-  }
-}
-------------------------------------------------------------
-
-[source,console]
-------------------------------------------------------------
-POST /_security/role_mapping/mapping5
-{
-  "role_templates": [
-    {
-      "template": { "id": "derive-roles" },
-      "format" : "json"
-    }
-  ],
-  "rules": {
-    "field" : { "realm.name" : "saml1" }
-  },
-  "enabled": true
-}
-------------------------------------------------------------
-// TEST[continued]
-
 The following example matches users within a specific LDAP sub-tree:
 
 [source,console]

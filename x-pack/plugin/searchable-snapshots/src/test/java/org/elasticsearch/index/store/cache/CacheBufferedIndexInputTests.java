@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.searchablesnapshots.cache;
+package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
@@ -18,6 +18,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -28,10 +29,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
+import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
+import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.createCacheService;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.numberOfRanges;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.singleBlobContainer;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
@@ -71,7 +71,7 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
                 }
 
                 if (blobContainer instanceof CountingBlobContainer) {
-                    long numberOfRanges = numberOfRanges(input.length, cacheService.getRangeSize());
+                    long numberOfRanges = TestUtils.numberOfRanges(input.length, cacheService.getRangeSize());
                     assertThat("Expected " + numberOfRanges + " ranges fetched from the source",
                         ((CountingBlobContainer) blobContainer).totalOpens.sum(), equalTo(numberOfRanges));
                     assertThat("All bytes should have been read from source",

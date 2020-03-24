@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.searchablesnapshots.cache;
+package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
@@ -19,22 +19,23 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
+import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
+import static org.elasticsearch.index.store.cache.TestUtils.randomCacheRangeSize;
+import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.assertCounter;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.createCacheService;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.numberOfRanges;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.randomCacheRangeSize;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.singleBlobContainer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -87,7 +88,7 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
 
                     final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
                     assertThat("Inner IndexInput should have been opened for each cached range to write",
-                        inputStats.getInnerOpened().longValue(), equalTo(numberOfRanges(input.length(), rangeSize.getBytes())));
+                        inputStats.getInnerOpened().longValue(), equalTo(TestUtils.numberOfRanges(input.length(), rangeSize.getBytes())));
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }
@@ -127,7 +128,7 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
                 assertThat(inputStats, notNullValue());
 
                 randomReadAndSlice(input, Math.toIntExact(length));
-                final long cachedBytesWriteCount = numberOfRanges(length, rangeSize.getBytes());
+                final long cachedBytesWriteCount = TestUtils.numberOfRanges(length, rangeSize.getBytes());
 
                 assertThat(inputStats.getCachedBytesWritten(), notNullValue());
                 assertThat(inputStats.getCachedBytesWritten().total(), equalTo(length));
@@ -430,7 +431,7 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
     private static void executeTestCase(
         final CacheService cacheService,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
-    ) throws Exception {
+    ) {
 
         final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
         final String fileName = randomAlphaOfLength(10);

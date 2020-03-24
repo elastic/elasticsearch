@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.searchablesnapshots.cache;
+package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
@@ -59,7 +59,7 @@ public class CacheFile {
     @Nullable // if evicted, or there are no listeners
     private volatile FileChannel channel;
 
-    CacheFile(String description, long length, Path file, int rangeSize) {
+    public CacheFile(String description, long length, Path file, int rangeSize) {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
@@ -82,7 +82,7 @@ public class CacheFile {
         return file;
     }
 
-    public ReleasableLock fileLock() {
+    ReleasableLock fileLock() {
         try (ReleasableLock ignored = evictionLock.acquire()) {
             ensureOpen();
             // check if we have a channel under eviction lock

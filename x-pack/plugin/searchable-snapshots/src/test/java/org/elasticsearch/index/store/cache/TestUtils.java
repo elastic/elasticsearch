@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.searchablesnapshots.cache;
+package org.elasticsearch.index.store.cache;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -12,6 +12,8 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.store.IndexInputStats;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
@@ -26,7 +28,7 @@ import static com.carrotsearch.randomizedtesting.generators.RandomPicks.randomFr
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-final class TestUtils {
+public final class TestUtils {
     private TestUtils() {
     }
 
@@ -56,7 +58,7 @@ final class TestUtils {
         return numberOfRanges;
     }
 
-    static void assertCounter(IndexInputStats.Counter counter, long total, long count, long min, long max) {
+    public static void assertCounter(IndexInputStats.Counter counter, long total, long count, long min, long max) {
         assertThat(counter.total(), equalTo(total));
         assertThat(counter.count(), equalTo(count));
         assertThat(counter.min(), equalTo(min));

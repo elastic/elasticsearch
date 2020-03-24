@@ -3,11 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.searchablesnapshots.cache;
+package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheFile.EvictionListener;
+import org.elasticsearch.index.store.cache.CacheFile.EvictionListener;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;

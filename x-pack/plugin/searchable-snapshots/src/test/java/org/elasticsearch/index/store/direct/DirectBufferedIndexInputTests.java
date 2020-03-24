@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.index.store;
+package org.elasticsearch.index.store.direct;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IndexInput;
@@ -13,6 +13,8 @@ import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.direct.DirectBufferedIndexInput;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -35,15 +37,15 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SearchableSnapshotIndexInputTests extends ESIndexInputTestCase {
+public class DirectBufferedIndexInputTests extends ESIndexInputTestCase {
 
-    private SearchableSnapshotIndexInput createIndexInput(final byte[] input) throws IOException {
+    private DirectBufferedIndexInput createIndexInput(final byte[] input) throws IOException {
         return createIndexInput(input, randomBoolean() ? input.length : randomIntBetween(1, input.length), randomIntBetween(1, 1000),
             () -> {});
     }
 
-    private SearchableSnapshotIndexInput createIndexInput(final byte[] input, long partSize, long minimumReadSize,
-                                                          Runnable onReadBlob) throws IOException {
+    private DirectBufferedIndexInput createIndexInput(final byte[] input, long partSize, long minimumReadSize,
+                                                      Runnable onReadBlob) throws IOException {
         final FileInfo fileInfo = new FileInfo(randomAlphaOfLength(5),
             new StoreFileMetaData("test", (long) input.length, "_checksum", Version.LATEST),
             partSize == input.length
@@ -93,7 +95,7 @@ public class SearchableSnapshotIndexInputTests extends ESIndexInputTestCase {
                     };
                 }
             });
-        return new SearchableSnapshotIndexInput(blobContainer, fileInfo, newIOContext(random()), minimumReadSize,
+        return new DirectBufferedIndexInput(blobContainer, fileInfo, newIOContext(random()), minimumReadSize,
             randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE));
     }
 

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots.cache;
+package org.elasticsearch.index.store.cache;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.index.store.IndexInputStats;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -129,7 +130,7 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
         lastSeekPosition = lastReadPosition;
     }
 
-    int readCacheFile(FileChannel fc, long end, long position, byte[] buffer, int offset, long length) throws IOException {
+    private int readCacheFile(FileChannel fc, long end, long position, byte[] buffer, int offset, long length) throws IOException {
         assert assertFileChannelOpen(fc);
         int bytesRead = Channels.readFromFileChannel(fc, position, buffer, offset, Math.toIntExact(Math.min(length, end - position)));
         stats.addCachedBytesRead(bytesRead);
@@ -137,7 +138,7 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
     }
 
     @SuppressForbidden(reason = "Use positional writes on purpose")
-    void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
+    private void writeCacheFile(FileChannel fc, long start, long end) throws IOException {
         assert assertFileChannelOpen(fc);
         final long length = end - start;
         final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];

@@ -151,6 +151,8 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                         .putAlias(newAliasMetaDataBuilder("alias-bar1"))
                         .putAlias(newAliasMetaDataBuilder("alias-bar2").filter("{\"term\":{\"user\":\"kimchy\"}}"))
                         .putAlias(newAliasMetaDataBuilder("alias-bar3").routing("routing-bar")))
+                .put(new DataStream("data-stream1", "@timestamp", Collections.emptyList()))
+                .put(new DataStream("data-stream2", "@timestamp2", Collections.emptyList()))
                 .build();
 
         String metaDataSource = MetaData.Builder.toXContent(metaData);
@@ -323,6 +325,16 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
             equalTo(new Template(Settings.builder().put("setting", "value").build(),
                 new CompressedXContent("{\"baz\":\"eggplant\"}"),
                 Collections.singletonMap("alias", AliasMetaData.builder("alias").build()))));
+
+        // data streams
+        assertNotNull(parsedMetaData.dataStreams().get("data-stream1"));
+        assertThat(parsedMetaData.dataStreams().get("data-stream1").getName(), is("data-stream1"));
+        assertThat(parsedMetaData.dataStreams().get("data-stream1").getTimeStampField(), is("@timestamp"));
+        assertThat(parsedMetaData.dataStreams().get("data-stream1").getIndices(), is(Collections.emptyList()));
+        assertNotNull(parsedMetaData.dataStreams().get("data-stream2"));
+        assertThat(parsedMetaData.dataStreams().get("data-stream2").getName(), is("data-stream2"));
+        assertThat(parsedMetaData.dataStreams().get("data-stream2").getTimeStampField(), is("@timestamp2"));
+        assertThat(parsedMetaData.dataStreams().get("data-stream2").getIndices(), is(Collections.emptyList()));
     }
 
     private static final String MAPPING_SOURCE1 = "{\"mapping1\":{\"text1\":{\"type\":\"string\"}}}";

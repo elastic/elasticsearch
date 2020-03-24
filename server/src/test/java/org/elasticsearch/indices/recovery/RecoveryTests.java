@@ -103,8 +103,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             recoveryBlocked.await();
             IndexMetaData.Builder builder = IndexMetaData.builder(replica.indexSettings().getIndexMetaData());
             builder.settings(Settings.builder().put(replica.indexSettings().getSettings())
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
                 // force a roll and flush
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "100b")
             );
@@ -204,21 +202,17 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
             Map<String, String> userData = new HashMap<>(replica.store().readLastCommittedSegmentsInfo().getUserData());
             final String translogUUIDtoUse;
-            final long translogGenToUse;
             final String historyUUIDtoUse = UUIDs.randomBase64UUID(random());
             if (randomBoolean()) {
                 // create a new translog
                 translogUUIDtoUse = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), flushedDocs,
                     replica.shardId(), replica.getPendingPrimaryTerm());
-                translogGenToUse = 1;
             } else {
                 translogUUIDtoUse = translogGeneration.translogUUID;
-                translogGenToUse = translogGeneration.translogFileGeneration;
             }
             try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
                 userData.put(Engine.HISTORY_UUID_KEY, historyUUIDtoUse);
                 userData.put(Translog.TRANSLOG_UUID_KEY, translogUUIDtoUse);
-                userData.put(Translog.TRANSLOG_GENERATION_KEY, Long.toString(translogGenToUse));
                 writer.setLiveCommitData(userData.entrySet());
                 writer.commit();
             }

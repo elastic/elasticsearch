@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -19,10 +20,13 @@ import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 
-public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<VectorDVAtomicFieldData> {
+public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<VectorDVLeafFieldData> {
 
     public VectorDVIndexFieldData(Index index, String fieldName) {
         super(index, fieldName);
@@ -34,12 +38,18 @@ public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements I
     }
 
     @Override
-    public VectorDVAtomicFieldData load(LeafReaderContext context) {
-        return new VectorDVAtomicFieldData(context.reader(), fieldName);
+    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+        throw new IllegalArgumentException("only supported on numeric fields");
     }
 
     @Override
-    public VectorDVAtomicFieldData loadDirect(LeafReaderContext context) {
+    public VectorDVLeafFieldData load(LeafReaderContext context) {
+        return new VectorDVLeafFieldData(context.reader(), fieldName);
+    }
+
+    @Override
+    public VectorDVLeafFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 

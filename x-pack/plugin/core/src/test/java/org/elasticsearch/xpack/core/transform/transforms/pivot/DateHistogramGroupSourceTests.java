@@ -19,14 +19,21 @@ import java.io.IOException;
 public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<DateHistogramGroupSource> {
 
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
-        String field = randomAlphaOfLengthBetween(1, 20);
+        String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+        ScriptConfig scriptConfig = randomBoolean() ? null : ScriptConfigTests.randomScriptConfig();
         DateHistogramGroupSource dateHistogramGroupSource;
         if (randomBoolean()) {
-            dateHistogramGroupSource = new DateHistogramGroupSource(field, new DateHistogramGroupSource.FixedInterval(
-                    new DateHistogramInterval(randomPositiveTimeValue())));
+            dateHistogramGroupSource = new DateHistogramGroupSource(
+                field,
+                scriptConfig,
+                new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval(randomPositiveTimeValue()))
+            );
         } else {
-            dateHistogramGroupSource = new DateHistogramGroupSource(field, new DateHistogramGroupSource.CalendarInterval(
-                    new DateHistogramInterval(randomTimeValue(1, 1, "m", "h", "d", "w"))));
+            dateHistogramGroupSource = new DateHistogramGroupSource(
+                field,
+                scriptConfig,
+                new DateHistogramGroupSource.CalendarInterval(new DateHistogramInterval(randomTimeValue(1, 1, "m", "h", "d", "w")))
+            );
         }
 
         if (randomBoolean()) {

@@ -19,6 +19,17 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import static java.util.Map.entry;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.zone.ZoneOffsetTransition;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -26,14 +37,13 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -54,17 +64,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.zone.ZoneOffsetTransition;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
-import static java.util.Map.entry;
-
 /**
  * A builder for histograms on date fields.
  */
@@ -72,7 +71,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         implements MultiBucketAggregationBuilder, DateIntervalConsumer {
 
     public static final String NAME = "date_histogram";
-    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS = Map.ofEntries(
             entry("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY),
@@ -92,11 +90,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             entry("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
             entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE));
 
-    private static final ObjectParser<DateHistogramAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<DateHistogramAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, DateHistogramAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(DateHistogramAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareAnyFields(PARSER, true, true, true);
-
         DateIntervalWrapper.declareIntervalFields(PARSER);
 
         PARSER.declareField(DateHistogramAggregationBuilder::offset, p -> {
@@ -116,10 +113,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
         PARSER.declareObjectArray(DateHistogramAggregationBuilder::order, (p, c) -> InternalOrder.Parser.parseOrderParam(p),
                 Histogram.ORDER_FIELD);
-    }
-
-    public static DateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new DateHistogramAggregationBuilder(aggregationName), null);
     }
 
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();
@@ -286,7 +279,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     /**
-     * Parse the string specification of an offset. 
+     * Parse the string specification of an offset.
      */
     public static long parseStringOffset(String offset) {
         if (offset.charAt(0) == '-') {
@@ -404,85 +397,117 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         return NAME;
     }
 
-    /*
+    /**
+     * Returns a {@linkplain ZoneId} that functions the same as
+     * {@link #timeZone()} on the data in the shard referred to by
+     * {@code context}. It <strong>attempts</strong> to convert zones that
+     * have non-fixed offsets into fixed offset zones that produce the
+     * same results on all data in the shard.
+     * <p>
+     * We go about this in three phases:
+     * <ol>
+     * <li>A bunch of preflight checks to see if we *can* optimize it
+     * <li>Find the any Instant in shard
+     * <li>Find the DST transition before and after that Instant
+     * <li>Round those into the interval
+     * <li>Check if the rounded value include all values within shard
+     * <li>If they do then return a fixed offset time zone because it
+     *     will return the same values for all time in the shard as the
+     *     original time zone, but faster
+     * <li>Otherwise return the original time zone. It'll be slower, but
+     *     correct.
+     * </ol>
+     * <p>
      * NOTE: this can't be done in rewrite() because the timezone is then also used on the
      * coordinating node in order to generate missing buckets, which may cross a transition
      * even though data on the shards doesn't.
      */
     ZoneId rewriteTimeZone(QueryShardContext context) throws IOException {
         final ZoneId tz = timeZone();
-        if (field() != null &&
-                tz != null &&
-                tz.getRules().isFixedOffset() == false &&
-                field() != null &&
-                script() == null) {
-            final MappedFieldType ft = context.fieldMapper(field());
-            final IndexReader reader = context.getIndexReader();
-            if (ft != null && reader != null) {
-                Long anyInstant = null;
-                final IndexNumericFieldData fieldData = context.getForField(ft);
-                for (LeafReaderContext ctx : reader.leaves()) {
-                    AtomicNumericFieldData leafFD = fieldData.load(ctx);
-                    SortedNumericDocValues values = leafFD.getLongValues();
-                    if (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        anyInstant = values.nextValue();
-                        break;
-                    }
-                }
+        if (tz == null || tz.getRules().isFixedOffset()) {
+            // This time zone is already as fast as it is going to get.
+            return tz;
+        }
+        if (script() != null) {
+            // We can't be sure what dates the script will return so we don't attempt to optimize anything
+            return tz;
+        }
+        if (field() == null) {
+            // Without a field we're not going to be able to look anything up.
+            return tz;
+        }
+        MappedFieldType ft = context.fieldMapper(field());
+        if (ft == null || false == ft instanceof DateFieldMapper.DateFieldType) {
+            // If the field is unmapped or not a date then we can't get its range.
+            return tz;
+        }
+        DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) ft;
+        final IndexReader reader = context.getIndexReader();
+        if (reader == null) {
+            return tz;
+        }
 
-                if (anyInstant != null) {
-                    Instant instant = Instant.ofEpochMilli(anyInstant);
-                    ZoneOffsetTransition prevOffsetTransition = tz.getRules().previousTransition(instant);
-                    final long prevTransition;
-                    if (prevOffsetTransition  != null) {
-                        prevTransition = prevOffsetTransition.getInstant().toEpochMilli();
-                    } else {
-                        prevTransition = instant.toEpochMilli();
-                    }
-                    ZoneOffsetTransition nextOffsetTransition = tz.getRules().nextTransition(instant);
-                    final long nextTransition;
-                    if (nextOffsetTransition != null) {
-                        nextTransition = nextOffsetTransition.getInstant().toEpochMilli();
-                    } else {
-                        nextTransition = instant.toEpochMilli();
-                    }
-
-                    // We need all not only values but also rounded values to be within
-                    // [prevTransition, nextTransition].
-                    final long low;
-
-
-                    DateIntervalWrapper.IntervalTypeEnum intervalType = dateHistogramInterval.getIntervalType();
-                    if (intervalType.equals(DateIntervalWrapper.IntervalTypeEnum.FIXED)) {
-                        low = Math.addExact(prevTransition, dateHistogramInterval.tryIntervalAsFixedUnit().millis());
-                    } else if (intervalType.equals(DateIntervalWrapper.IntervalTypeEnum.CALENDAR)) {
-                        final Rounding.DateTimeUnit intervalAsUnit = dateHistogramInterval.tryIntervalAsCalendarUnit();
-                        final Rounding rounding = Rounding.builder(intervalAsUnit).timeZone(timeZone()).build();
-                        low = rounding.nextRoundingValue(prevTransition);
-                    } else {
-                        // We're not sure what the interval was originally (legacy) so use old behavior of assuming
-                        // calendar first, then fixed. Required because fixed/cal overlap in places ("1h")
-                        Rounding.DateTimeUnit intervalAsUnit = dateHistogramInterval.tryIntervalAsCalendarUnit();
-                        if (intervalAsUnit != null) {
-                            final Rounding rounding = Rounding.builder(intervalAsUnit).timeZone(timeZone()).build();
-                            low = rounding.nextRoundingValue(prevTransition);
-                        } else {
-                            final TimeValue intervalAsMillis =  dateHistogramInterval.tryIntervalAsFixedUnit();
-                            low = Math.addExact(prevTransition, intervalAsMillis.millis());
-                        }
-                    }
-                    // rounding rounds down, so 'nextTransition' is a good upper bound
-                    final long high = nextTransition;
-
-                    if (ft.isFieldWithinQuery(reader, low, high, true, false, ZoneOffset.UTC, EPOCH_MILLIS_PARSER,
-                            context) == Relation.WITHIN) {
-                        // All values in this reader have the same offset despite daylight saving times.
-                        // This is very common for location-based timezones such as Europe/Paris in
-                        // combination with time-based indices.
-                        return ZoneOffset.ofTotalSeconds(tz.getRules().getOffset(instant).getTotalSeconds());
-                    }
-                }
+        Instant instant = null;
+        final IndexNumericFieldData fieldData = context.getForField(ft);
+        for (LeafReaderContext ctx : reader.leaves()) {
+            LeafNumericFieldData leafFD = fieldData.load(ctx);
+            SortedNumericDocValues values = leafFD.getLongValues();
+            if (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                instant = Instant.ofEpochMilli(values.nextValue());
+                break;
             }
+        }
+        if (instant == null) {
+            return tz;
+        }
+
+        ZoneOffsetTransition prevOffsetTransition = tz.getRules().previousTransition(instant);
+        final long prevTransition;
+        if (prevOffsetTransition  != null) {
+            prevTransition = prevOffsetTransition.getInstant().toEpochMilli();
+        } else {
+            prevTransition = instant.toEpochMilli();
+        }
+        ZoneOffsetTransition nextOffsetTransition = tz.getRules().nextTransition(instant);
+        final long nextTransition;
+        if (nextOffsetTransition != null) {
+            nextTransition = nextOffsetTransition.getInstant().toEpochMilli();
+        } else {
+            nextTransition = instant.toEpochMilli();
+        }
+
+        // We need all not only values but also rounded values to be within
+        // [prevTransition, nextTransition].
+        final long low;
+
+        DateIntervalWrapper.IntervalTypeEnum intervalType = dateHistogramInterval.getIntervalType();
+        if (intervalType.equals(DateIntervalWrapper.IntervalTypeEnum.FIXED)) {
+            low = Math.addExact(prevTransition, dateHistogramInterval.tryIntervalAsFixedUnit().millis());
+        } else if (intervalType.equals(DateIntervalWrapper.IntervalTypeEnum.CALENDAR)) {
+            final Rounding.DateTimeUnit intervalAsUnit = dateHistogramInterval.tryIntervalAsCalendarUnit();
+            final Rounding rounding = Rounding.builder(intervalAsUnit).timeZone(timeZone()).build();
+            low = rounding.nextRoundingValue(prevTransition);
+        } else {
+            // We're not sure what the interval was originally (legacy) so use old behavior of assuming
+            // calendar first, then fixed. Required because fixed/cal overlap in places ("1h")
+            Rounding.DateTimeUnit intervalAsUnit = dateHistogramInterval.tryIntervalAsCalendarUnit();
+            if (intervalAsUnit != null) {
+                final Rounding rounding = Rounding.builder(intervalAsUnit).timeZone(timeZone()).build();
+                low = rounding.nextRoundingValue(prevTransition);
+            } else {
+                final TimeValue intervalAsMillis =  dateHistogramInterval.tryIntervalAsFixedUnit();
+                low = Math.addExact(prevTransition, intervalAsMillis.millis());
+            }
+        }
+        // rounding rounds down, so 'nextTransition' is a good upper bound
+        final long high = nextTransition;
+
+        if (dft.isFieldWithinRange(
+                        reader, Instant.ofEpochMilli(low), Instant.ofEpochMilli(high - 1)) == Relation.WITHIN) {
+            // All values in this reader have the same offset despite daylight saving times.
+            // This is very common for location-based timezones such as Europe/Paris in
+            // combination with time-based indices.
+            return ZoneOffset.ofTotalSeconds(tz.getRules().getOffset(instant).getTotalSeconds());
         }
         return tz;
     }
@@ -493,14 +518,13 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                                                                         AggregatorFactory parent,
                                                                         Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();
-        // TODO use offset here rather than explicitly in the aggregation
-        final Rounding rounding = dateHistogramInterval.createRounding(tz, 0);
+        final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
         final ZoneId rewrittenTimeZone = rewriteTimeZone(queryShardContext);
         final Rounding shardRounding;
         if (tz == rewrittenTimeZone) {
             shardRounding = rounding;
         } else {
-            shardRounding = dateHistogramInterval.createRounding(rewrittenTimeZone, 0);
+            shardRounding = dateHistogramInterval.createRounding(rewrittenTimeZone, offset);
         }
 
         ExtendedBounds roundedBounds = null;
@@ -508,7 +532,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             // parse any string bounds to longs and round
             roundedBounds = this.extendedBounds.parseAndValidate(name, queryShardContext, config.format()).round(rounding);
         }
-        return new DateHistogramAggregatorFactory(name, config, offset, order, keyed, minDocCount,
+        return new DateHistogramAggregatorFactory(name, config, order, keyed, minDocCount,
                 rounding, shardRounding, roundedBounds, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 

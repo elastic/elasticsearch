@@ -250,12 +250,12 @@ public class MetaDataTests extends ESTestCase {
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putAlias(AliasMetaData.builder(aliasName).build());
+            .putAlias(AliasMetaData.builder(aliasName).isHidden(indexAHidden).build());
         IndexMetaData.Builder indexBMeta = IndexMetaData.builder(indexBName)
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putAlias(AliasMetaData.builder(aliasName).build());
+            .putAlias(AliasMetaData.builder(aliasName).isHidden(indexBHidden).build());
         return MetaData.builder().put(indexAMeta).put(indexBMeta);
     }
 
@@ -936,6 +936,8 @@ public class MetaDataTests extends ESTestCase {
             .clusterUUIDCommitted(randomBoolean())
             .indexGraveyard(IndexGraveyardTests.createRandom())
             .version(randomNonNegativeLong())
+            .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
+            .put("index_template_v2_" + randomAlphaOfLength(3), IndexTemplateV2Tests.randomInstance())
             .build();
     }
 }

@@ -534,7 +534,7 @@ public class SSLService {
         assert prefix.endsWith(".ssl");
         SSLConfiguration configuration = getSSLConfiguration(prefix);
         final String enabledSetting = prefix + ".enabled";
-        if (settings.getAsBoolean(enabledSetting, false) == true) {
+        if (settings.getAsBoolean(enabledSetting, false)) {
             // Client Authentication _should_ be required, but if someone turns it off, then this check is no longer relevant
             final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".");
             if (isConfigurationValidForServerUsage(configuration) == false) {

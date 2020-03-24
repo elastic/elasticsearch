@@ -92,16 +92,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -114,8 +111,6 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -126,9 +121,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
@@ -335,7 +328,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(shard.shouldPeriodicallyFlush());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(190 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+                new ByteSizeValue(135 /* size of the operation + one generation header&footer*/, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test").setId("0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
@@ -345,14 +338,18 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = getTranslog(shard);
         assertEquals(2, translog.stats().getUncommittedOperations());
+        assertThat(shard.flushStats().getTotal(), equalTo(0L));
         client().prepareIndex("test").setId("2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
+        assertThat(shard.getLastKnownGlobalCheckpoint(), equalTo(2L));
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldPeriodicallyFlush());
-            assertThat(shard.flushStats().getPeriodic(), greaterThan(0L));
+            assertThat(shard.flushStats().getPeriodic(), equalTo(1L));
+            assertThat(shard.flushStats().getTotal(), equalTo(1L));
         });
-        assertEquals(0, translog.stats().getUncommittedOperations());
-        translog.sync();
+        shard.sync();
+        assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(2L));
+        assertThat("last commit [" + shard.commitStats().getUserData() + "]", translog.stats().getUncommittedOperations(), equalTo(0));
         long size = Math.max(translog.stats().getUncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
         logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]",
             translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
@@ -371,6 +368,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 commitStats.getUserData(), flushStats.getPeriodic(), flushStats.getTotal());
             assertFalse(shard.shouldPeriodicallyFlush());
         });
+        shard.sync();
         assertEquals(0, translog.stats().getUncommittedOperations());
     }
 
@@ -417,8 +415,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final boolean flush = randomBoolean();
         final Settings settings;
         if (flush) {
-            // size of the operation plus two generations of overhead.
-            settings = Settings.builder().put("index.translog.flush_threshold_size", "180b").build();
+            // size of the operation plus the overhead of one generation.
+            settings = Settings.builder().put("index.translog.flush_threshold_size", "125b").build();
         } else {
             // size of the operation plus header and footer
             settings = Settings.builder().put("index.translog.generation_threshold_size", "117b").build();
@@ -666,83 +664,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         return shardRouting;
     }
 
-    public void testGlobalCheckpointListeners() throws Exception {
-        createIndex("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0).build());
-        ensureGreen();
-        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final IndexService test = indicesService.indexService(resolveIndex("test"));
-        final IndexShard shard = test.getShardOrNull(0);
-        final int numberOfUpdates = randomIntBetween(1, 128);
-        for (int i = 0; i < numberOfUpdates; i++) {
-            final int index = i;
-            final AtomicLong globalCheckpoint = new AtomicLong();
-            shard.addGlobalCheckpointListener(
-                    i,
-                    (g, e) -> {
-                        assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
-                        assertNull(e);
-                        globalCheckpoint.set(g);
-                    },
-                    null);
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
-            assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
-            // adding a listener expecting a lower global checkpoint should fire immediately
-            final AtomicLong immediateGlobalCheckpint = new AtomicLong();
-            shard.addGlobalCheckpointListener(
-                    randomLongBetween(0, i),
-                    (g, e) -> {
-                        assertThat(g, greaterThanOrEqualTo(NO_OPS_PERFORMED));
-                        assertNull(e);
-                        immediateGlobalCheckpint.set(g);
-                    },
-                    null);
-            assertBusy(() -> assertThat(immediateGlobalCheckpint.get(), equalTo((long) index)));
-        }
-        final AtomicBoolean invoked = new AtomicBoolean();
-        shard.addGlobalCheckpointListener(
-                numberOfUpdates,
-                (g, e) -> {
-                    invoked.set(true);
-                    assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
-                    assertThat(e, instanceOf(IndexShardClosedException.class));
-                    assertThat(((IndexShardClosedException)e).getShardId(), equalTo(shard.shardId()));
-                },
-                null);
-        shard.close("closed", randomBoolean());
-        assertBusy(() -> assertTrue(invoked.get()));
-    }
-
-    public void testGlobalCheckpointListenerTimeout() throws InterruptedException {
-        createIndex("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0).build());
-        ensureGreen();
-        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final IndexService test = indicesService.indexService(resolveIndex("test"));
-        final IndexShard shard = test.getShardOrNull(0);
-        final AtomicBoolean notified = new AtomicBoolean();
-        final CountDownLatch latch = new CountDownLatch(1);
-        final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
-        shard.addGlobalCheckpointListener(
-                0,
-                (g, e) -> {
-                    try {
-                        notified.set(true);
-                        assertThat(g, equalTo(UNASSIGNED_SEQ_NO));
-                        assertNotNull(e);
-                        assertThat(e, instanceOf(TimeoutException.class));
-                        assertThat(e.getMessage(), equalTo(timeout.getStringRep()));
-                    } finally {
-                        latch.countDown();
-                    }
-                },
-                timeout);
-        latch.await();
-        assertTrue(notified.get());
-    }
-
     public void testInvalidateIndicesRequestCacheWhenRollbackEngine() throws Exception {
         createIndex("test", Settings.builder()
             .put("index.number_of_shards", 1)
@@ -836,42 +757,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (IndexShard indexShard : indexService) {
             assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
         }
-    }
-
-    public void testLimitNumberOfRetainedTranslogFiles() throws Exception {
-        String indexName = "test";
-        int translogRetentionTotalFiles = randomIntBetween(0, 50);
-        Settings.Builder settings = Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.getKey(), translogRetentionTotalFiles);
-        if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1024 * 1024)));
-        }
-        if (randomBoolean()) {
-            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), TimeValue.timeValueMillis(between(1, 10_000)));
-        }
-        IndexService indexService = createIndex(indexName, settings.build());
-        IndexShard shard = indexService.getShard(0);
-        shard.rollTranslogGeneration();
-        CheckedRunnable<IOException> checkTranslog = () -> {
-            try (Stream<Path> files = Files.list(getTranslog(shard).location()).sorted(Comparator.reverseOrder())) {
-                long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
-                assertThat(totalFiles, either(lessThanOrEqualTo((long) translogRetentionTotalFiles)).or(equalTo(1L)));
-            }
-        };
-        for (int i = 0; i < 100; i++) {
-            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
-            if (randomInt(100) < 10) {
-                client().admin().indices().prepareFlush(indexName).setWaitIfOngoing(true).get();
-                checkTranslog.run();
-            }
-            if (randomInt(100) < 10) {
-                shard.rollTranslogGeneration();
-            }
-        }
-        client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
-        checkTranslog.run();
     }
 
     /**

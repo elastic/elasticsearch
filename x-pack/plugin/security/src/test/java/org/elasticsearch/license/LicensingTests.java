@@ -180,7 +180,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         // generate a new license with a mode that enables auth
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
+                License.OperationMode.PLATINUM, License.OperationMode.STANDARD, License.OperationMode.ENTERPRISE);
         enableLicensing(mode);
         e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(new Request("GET", "/")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
@@ -204,7 +204,8 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testNodeJoinWithoutSecurityExplicitlyEnabled() throws Exception {
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
+        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
+            License.OperationMode.ENTERPRISE, License.OperationMode.STANDARD);
         enableLicensing(mode);
 
         final List<String> seedHosts = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()

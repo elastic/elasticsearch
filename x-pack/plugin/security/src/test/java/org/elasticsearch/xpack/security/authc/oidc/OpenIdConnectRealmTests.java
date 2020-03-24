@@ -16,11 +16,13 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -33,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +49,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
@@ -253,9 +257,33 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         // Random strings, as we will not validate the token here
         final JWT idToken = generateIdToken(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
         final OpenIdConnectLogoutResponse logoutResponse = realm.buildLogoutResponse(idToken);
-        assertThat(logoutResponse.getEndSessionUrl(), containsString("https://op.example.org/logout?id_token_hint="));
-        assertThat(logoutResponse.getEndSessionUrl(),
-            containsString("&post_logout_redirect_uri=https%3A%2F%2Frp.elastic.co%2Fsucc_logout&state="));
+        final String endSessionUrl = logoutResponse.getEndSessionUrl();
+        final Map<String, String> parameters = new HashMap<>();
+        RestUtils.decodeQueryString(endSessionUrl, endSessionUrl.indexOf("?") + 1, parameters);
+        assertThat(parameters.size(), equalTo(3));
+        assertThat(parameters, hasKey("id_token_hint"));
+        assertThat(parameters, hasKey("post_logout_redirect_uri"));
+        assertThat(parameters, hasKey("state"));
+    }
+
+    public void testBuildLogoutResponseFromEndsessionEndpointWithExistingParameters() throws Exception {
+        final Settings.Builder realmSettingsWithFunkyEndpoint = getBasicRealmSettings();
+        realmSettingsWithFunkyEndpoint.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ENDSESSION_ENDPOINT),
+            "https://op.example.org/logout?parameter=123");
+        final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(realmSettingsWithFunkyEndpoint.build(), threadContext), null,
+            null);
+
+        // Random strings, as we will not validate the token here
+        final JWT idToken = generateIdToken(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
+        final OpenIdConnectLogoutResponse logoutResponse = realm.buildLogoutResponse(idToken);
+        final String endSessionUrl = logoutResponse.getEndSessionUrl();
+        final Map<String, String> parameters = new HashMap<>();
+        RestUtils.decodeQueryString(endSessionUrl, endSessionUrl.indexOf("?") + 1, parameters);
+        assertThat(parameters.size(), equalTo(4));
+        assertThat(parameters, hasKey("parameter"));
+        assertThat(parameters, hasKey("post_logout_redirect_uri"));
+        assertThat(parameters, hasKey("state"));
+        assertThat(parameters, hasKey("id_token_hint"));
     }
 
     public void testBuildingAuthenticationRequestWithExistingStateAndNonce() {
@@ -308,8 +336,12 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
                                                       boolean useAuthorizingRealm
         ,String authenticatingRealm)
         throws Exception {
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("mock", "mock_lookup");
         final MockLookupRealm lookupRealm = new MockLookupRealm(
-            new RealmConfig(new RealmConfig.RealmIdentifier("mock", "mock_lookup"), globalSettings, env, threadContext));
+            new RealmConfig(realmIdentifier,
+                Settings.builder().put(globalSettings)
+                    .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+                env, threadContext));
         final OpenIdConnectAuthenticator authenticator = mock(OpenIdConnectAuthenticator.class);
 
         final Settings.Builder builder = getBasicRealmSettings();

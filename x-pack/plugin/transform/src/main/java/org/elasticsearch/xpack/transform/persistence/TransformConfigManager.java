@@ -149,4 +149,5 @@ public interface TransformConfigManager {
 
     void getTransformStoredDocs(Collection<String> transformIds, ActionListener<List<TransformStoredDoc>> listener);
 
+    void refresh(ActionListener<Boolean> listener);
 }

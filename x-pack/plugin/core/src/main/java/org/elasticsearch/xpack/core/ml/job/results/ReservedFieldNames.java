@@ -233,6 +233,7 @@ public final class ReservedFieldNames {
             Job.MODEL_SNAPSHOT_ID.getPreferredName(),
             Job.MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(),
             Job.RESULTS_INDEX_NAME.getPreferredName(),
+            Job.ALLOW_LAZY_OPEN.getPreferredName(),
 
             AnalysisConfig.BUCKET_SPAN.getPreferredName(),
             AnalysisConfig.CATEGORIZATION_FIELD_NAME.getPreferredName(),
@@ -285,6 +286,7 @@ public final class ReservedFieldNames {
             DatafeedConfig.CHUNKING_CONFIG.getPreferredName(),
             DatafeedConfig.HEADERS.getPreferredName(),
             DatafeedConfig.DELAYED_DATA_CHECK_CONFIG.getPreferredName(),
+            DatafeedConfig.INDICES_OPTIONS.getPreferredName(),
             DelayedDataCheckConfig.ENABLED.getPreferredName(),
             DelayedDataCheckConfig.CHECK_WINDOW.getPreferredName(),
 
@@ -315,12 +317,13 @@ public final class ReservedFieldNames {
             Classification.NAME.getPreferredName(),
             Classification.DEPENDENT_VARIABLE.getPreferredName(),
             Classification.PREDICTION_FIELD_NAME.getPreferredName(),
+            Classification.CLASS_ASSIGNMENT_OBJECTIVE.getPreferredName(),
             Classification.NUM_TOP_CLASSES.getPreferredName(),
             Classification.TRAINING_PERCENT.getPreferredName(),
             BoostedTreeParams.LAMBDA.getPreferredName(),
             BoostedTreeParams.GAMMA.getPreferredName(),
             BoostedTreeParams.ETA.getPreferredName(),
-            BoostedTreeParams.MAXIMUM_NUMBER_TREES.getPreferredName(),
+            BoostedTreeParams.MAX_TREES.getPreferredName(),
             BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName(),
             BoostedTreeParams.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(),
 

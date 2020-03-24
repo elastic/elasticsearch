@@ -19,68 +19,69 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.CallSubNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a method call.
  */
-final class PSubCallInvoke extends AExpression {
+public class PSubCallInvoke extends AExpression {
 
-    private final PainlessMethod method;
-    private final Class<?> box;
-    private final List<AExpression> arguments;
+    protected final PainlessMethod method;
+    protected final Class<?> box;
+    protected final List<AExpression> arguments;
 
     PSubCallInvoke(Location location, PainlessMethod method, Class<?> box, List<AExpression> arguments) {
         super(location);
 
         this.method = Objects.requireNonNull(method);
         this.box = box;
-        this.arguments = Objects.requireNonNull(arguments);
+        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        List<Output> argumentOutputs = new ArrayList<>();
+
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = method.typeParameters.get(argument);
-            expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            arguments.set(argument, expression.cast(scriptRoot, locals));
+            Input expressionInput = new Input();
+            expressionInput.expected = method.typeParameters.get(argument);
+            expressionInput.internal = true;
+            Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            expression.cast(expressionInput, expressionOutput);
+            argumentOutputs.add(expressionOutput);
         }
 
-        statement = true;
-        actual = method.returnType;
-    }
+        output.statement = true;
+        output.actual = method.returnType;
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+        CallSubNode callSubNode = new CallSubNode();
 
-        if (box.isPrimitive()) {
-            methodWriter.box(MethodWriter.getType(box));
+        for (int argument = 0; argument < arguments.size(); ++ argument) {
+            callSubNode.addArgumentNode(arguments.get(argument).cast(argumentOutputs.get(argument)));
         }
 
-        for (AExpression argument : arguments) {
-            argument.write(classWriter, methodWriter, globals);
-        }
+        callSubNode.setLocation(location);
+        callSubNode.setExpressionType(output.actual);
+        callSubNode.setMethod(method);
+        callSubNode .setBox(box);
 
-        methodWriter.invokeMethodCall(method);
+        output.expressionNode = callSubNode;
+
+        return output;
     }
 
     @Override

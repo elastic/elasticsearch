@@ -50,7 +50,7 @@ GET /_enrich/policy/my-policy
 [[get-enrich-policy-api-request]]
 ==== {api-request-title}
 
-`GET /_enrich/policy/<enrich-policy>`
+`GET /_enrich/policy/<name>`
 
 `GET /_enrich/policy`
 
@@ -64,7 +64,7 @@ include::put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
 [[get-enrich-policy-api-path-params]]
 ==== {api-path-parms-title}
 
-`<enrich-policy>`::
+`<name>`::
 +
 --
 (Optional, string)

@@ -21,6 +21,7 @@ package org.elasticsearch.common.network;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
@@ -117,7 +118,8 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
-                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
+                                                                                HttpServerTransport.Dispatcher requestDispatcher,
+                                                                                ClusterSettings clusterSettings) {
                 return Collections.singletonMap("custom", custom);
             }
         });
@@ -154,7 +156,8 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
-                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
+                                                                                HttpServerTransport.Dispatcher requestDispatcher,
+                                                                                ClusterSettings clusterSettings) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -189,7 +192,8 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
-                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
+                                                                                HttpServerTransport.Dispatcher requestDispatcher,
+                                                                                ClusterSettings clusterSettings) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -254,6 +258,7 @@ public class NetworkModuleTests extends ESTestCase {
 
     private NetworkModule newNetworkModule(Settings settings, NetworkPlugin... plugins) {
         return new NetworkModule(settings, Arrays.asList(plugins), threadPool, null, null, null, null,
-            xContentRegistry(), null, new NullDispatcher());
+            xContentRegistry(), null, new NullDispatcher(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 }

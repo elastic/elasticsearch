@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -272,6 +273,12 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         FieldParser fieldParser = null;
         String currentFieldName = null;
         XContentLocation currentPosition = null;
+        List<String[]> requiredFields = new ArrayList<>(this.requiredFieldSets);
+        List<List<String>> exclusiveFields = new ArrayList<>();
+        for (int i = 0; i < this.exclusiveFieldSets.size(); i++) {
+            exclusiveFields.add(new ArrayList<>());
+        }
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -285,11 +292,55 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                     unknownFieldParser.acceptUnknownField(this, currentFieldName, currentPosition, parser, value, context);
                 } else {
                     fieldParser.assertSupports(name, parser, currentFieldName);
+
+                    // Check to see if this field is a required field, if it is we can
+                    // remove the entry as the requirement is satisfied
+                    Iterator<String[]> iter = requiredFields.iterator();
+                    while (iter.hasNext()) {
+                        String[] requriedFields = iter.next();
+                        for (String field : requriedFields) {
+                            if (field.equals(currentFieldName)) {
+                                iter.remove();
+                                break;
+                            }
+                        }
+                    }
+
+                    // Check if this field is in an exclusive set, if it is then mark
+                    // it as seen.
+                    for (int i = 0; i < this.exclusiveFieldSets.size(); i++) {
+                        for (String field : this.exclusiveFieldSets.get(i)) {
+                            if (field.equals(currentFieldName)) {
+                                exclusiveFields.get(i).add(currentFieldName);
+                            }
+                        }
+                    }
+
                     parseSub(parser, fieldParser, currentFieldName, value, context);
                 }
                 fieldParser = null;
             }
         }
+
+        // Check for a) multiple entries appearing in exclusive field sets and b) empty
+        // required field entries
+        StringBuilder message = new StringBuilder();
+        for (List<String> fieldset : exclusiveFields) {
+            if (fieldset.size() > 1) {
+                message.append("The following fields are not allowed together: ").append(fieldset.toString()).append(" ");
+            }
+        }
+        if (message.length() > 0) {
+            throw new IllegalArgumentException(message.toString());
+        }
+
+        if (requiredFields.isEmpty() == false) {
+            for (String[] fields : requiredFields) {
+                message.append("Required one of fields ").append(Arrays.toString(fields)).append(", but none were specified. ");
+            }
+            throw new IllegalArgumentException(message.toString());
+        }
+
         return value;
     }
 
@@ -344,6 +395,32 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     @Override
+    public <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser,
+                                       ParseField field) {
+
+        BiFunction<XContentParser, Context, T> objectParser = (XContentParser p, Context c) -> {
+            try {
+                XContentParser.Token token = p.nextToken();
+                assert token == XContentParser.Token.FIELD_NAME;
+                String name = p.currentName();
+                try {
+                    T namedObject = namedObjectParser.parse(p, c, name);
+                    // consume the end object token
+                    token = p.nextToken();
+                    assert token == XContentParser.Token.END_OBJECT;
+                    return namedObject;
+                } catch (Exception e) {
+                    throw new XContentParseException(p.getTokenLocation(), "[" + field + "] failed to parse field [" + name + "]", e);
+                }
+            } catch (IOException e) {
+                throw new XContentParseException(p.getTokenLocation(), "[" + field + "] error while parsing named object", e);
+            }
+        };
+
+        declareField((XContentParser p, Value v, Context c) -> consumer.accept(v, objectParser.apply(p, c)), field, ValueType.OBJECT);
+    }
+
+    @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             Consumer<Value> orderedModeCallback, ParseField field) {
         // This creates and parses the named object
@@ -352,7 +429,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 throw new XContentParseException(p.getTokenLocation(), "[" + field + "] can be a single object with any number of "
                         + "fields or an array where each entry is an object with a single field");
             }
-            // This messy exception nesting has the nice side effect of telling the use which field failed to parse
+            // This messy exception nesting has the nice side effect of telling the user which field failed to parse
             try {
                 String name = p.currentName();
                 try {
@@ -494,7 +571,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
 
         void assertSupports(String parserName, XContentParser parser, String currentFieldName) {
-            if (parseField.match(currentFieldName, parser.getDeprecationHandler()) == false) {
+            if (parseField.match(parserName, parser::getTokenLocation, currentFieldName, parser.getDeprecationHandler()) == false) {
                 throw new XContentParseException(parser.getTokenLocation(),
                         "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }

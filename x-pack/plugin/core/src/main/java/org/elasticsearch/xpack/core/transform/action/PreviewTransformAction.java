@@ -12,11 +12,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PreviewTransformAction extends ActionType<PreviewTransformAction.Response> {
 
@@ -74,7 +77,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                 }
             }
             content.put(TransformField.DESTINATION.getPreferredName(), tempDestination);
-            content.put(TransformField.ID.getPreferredName(), "transform-preview");
+            content.putIfAbsent(TransformField.ID.getPreferredName(), "transform-preview");
             try (
                 XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
                 XContentParser newParser = XContentType.JSON.xContent()
@@ -84,7 +87,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                         BytesReference.bytes(xContentBuilder).streamInput()
                     )
             ) {
-                return new Request(TransformConfig.fromXContent(newParser, "transform-preview", false));
+                return new Request(TransformConfig.fromXContent(newParser, null, false));
             }
         }
 
@@ -140,18 +143,36 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private List<Map<String, Object>> docs;
-        private Map<String, Object> mappings;
-        public static ParseField PREVIEW = new ParseField("preview");
-        public static ParseField MAPPINGS = new ParseField("mappings");
+        public static final ParseField PREVIEW = new ParseField("preview");
+        public static final ParseField GENERATED_DEST_INDEX_SETTINGS = new ParseField("generated_dest_index");
 
-        static final ObjectParser<Response, Void> PARSER = new ObjectParser<>("data_frame_transform_preview", Response::new);
+        private final List<Map<String, Object>> docs;
+        private final TransformDestIndexSettings generatedDestIndexSettings;
+
+        private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
+            "data_frame_transform_preview",
+            true,
+            args -> {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> docs = (List<Map<String, Object>>) args[0];
+                TransformDestIndexSettings generatedDestIndex = (TransformDestIndexSettings) args[1];
+
+                return new Response(docs, generatedDestIndex);
+            }
+        );
         static {
-            PARSER.declareObjectArray(Response::setDocs, (p, c) -> p.mapOrdered(), PREVIEW);
-            PARSER.declareObject(Response::setMappings, (p, c) -> p.mapOrdered(), MAPPINGS);
+            PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.mapOrdered(), PREVIEW);
+            PARSER.declareObject(
+                optionalConstructorArg(),
+                (p, c) -> TransformDestIndexSettings.fromXContent(p),
+                GENERATED_DEST_INDEX_SETTINGS
+            );
         }
 
-        public Response() {}
+        public Response(List<Map<String, Object>> docs, TransformDestIndexSettings generatedDestIndexSettings) {
+            this.docs = docs;
+            this.generatedDestIndexSettings = generatedDestIndexSettings;
+        }
 
         public Response(StreamInput in) throws IOException {
             int size = in.readInt();
@@ -159,50 +180,22 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             for (int i = 0; i < size; i++) {
                 this.docs.add(in.readMap());
             }
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                this.generatedDestIndexSettings = new TransformDestIndexSettings(in);
+            } else if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 Map<String, Object> objectMap = in.readMap();
-                this.mappings = objectMap == null ? null : Map.copyOf(objectMap);
+                this.generatedDestIndexSettings = new TransformDestIndexSettings(objectMap, null, null);
+            } else {
+                this.generatedDestIndexSettings = new TransformDestIndexSettings(null, null, null);
             }
         }
 
-        public Response(List<Map<String, Object>> docs) {
-            this.docs = new ArrayList<>(docs);
+        public List<Map<String, Object>> getDocs() {
+            return docs;
         }
 
-        public void setDocs(List<Map<String, Object>> docs) {
-            this.docs = new ArrayList<>(docs);
-        }
-
-        public void setMappings(Map<String, Object> mappings) {
-            this.mappings = Map.copyOf(mappings);
-        }
-
-        /**
-         * This takes the a {@code Map<String, String>} of the type "fieldname: fieldtype" and transforms it into the
-         * typical mapping format.
-         *
-         * Example:
-         *
-         * input:
-         * {"field1.subField1": "long", "field2": "keyword"}
-         *
-         * output:
-         * {
-         *     "properties": {
-         *         "field1.subField1": {
-         *             "type": "long"
-         *         },
-         *         "field2": {
-         *             "type": "keyword"
-         *         }
-         *     }
-         * }
-         * @param mappings A Map of the form {"fieldName": "fieldType"}
-         */
-        public void setMappingsFromStringMap(Map<String, String> mappings) {
-            Map<String, Object> fieldMappings = new HashMap<>();
-            mappings.forEach((k, v) -> fieldMappings.put(k, Map.of("type", v)));
-            this.mappings = Map.of("properties", fieldMappings);
+        public TransformDestIndexSettings getGeneratedDestIndexSettings() {
+            return generatedDestIndexSettings;
         }
 
         @Override
@@ -211,8 +204,10 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             for (Map<String, Object> doc : docs) {
                 out.writeMapWithConsistentOrder(doc);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeMap(mappings);
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                generatedDestIndexSettings.writeTo(out);
+            } else if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeMap(generatedDestIndexSettings.getMappings());
             }
         }
 
@@ -220,9 +215,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(PREVIEW.getPreferredName(), docs);
-            if (mappings != null) {
-                builder.field(MAPPINGS.getPreferredName(), mappings);
-            }
+            builder.field(GENERATED_DEST_INDEX_SETTINGS.getPreferredName(), generatedDestIndexSettings);
             builder.endObject();
             return builder;
         }
@@ -238,12 +231,17 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             }
 
             Response other = (Response) obj;
-            return Objects.equals(other.docs, docs) && Objects.equals(other.mappings, mappings);
+            return Objects.equals(other.docs, docs) && Objects.equals(other.generatedDestIndexSettings, generatedDestIndexSettings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(docs, mappings);
+            return Objects.hash(docs, generatedDestIndexSettings);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
         }
 
         public static Response fromXContent(final XContentParser parser) throws IOException {

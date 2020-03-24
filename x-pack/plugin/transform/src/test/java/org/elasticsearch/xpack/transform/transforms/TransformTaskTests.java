@@ -69,7 +69,7 @@ public class TransformTaskTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
-        TransformConfig transformConfig = TransformConfigTests.randomDataFrameTransformConfigWithoutHeaders();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
         TransformAuditor auditor = new MockTransformAuditor();
         TransformConfigManager transformsConfigManager = new InMemoryTransformConfigManager();
         TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(
@@ -96,7 +96,7 @@ public class TransformTaskTests extends ESTestCase {
             "some_type",
             "some_action",
             TaskId.EMPTY_TASK_ID,
-            new TransformTaskParams(transformConfig.getId(), Version.CURRENT, TimeValue.timeValueSeconds(10)),
+            new TransformTaskParams(transformConfig.getId(), Version.CURRENT, TimeValue.timeValueSeconds(10), false),
             transformState,
             mock(SchedulerEngine.class),
             auditor,
@@ -157,7 +157,7 @@ public class TransformTaskTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
-        TransformConfig transformConfig = TransformConfigTests.randomDataFrameTransformConfigWithoutHeaders();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
         TransformAuditor auditor = new MockTransformAuditor();
 
         TransformState transformState = new TransformState(
@@ -176,7 +176,7 @@ public class TransformTaskTests extends ESTestCase {
             "some_type",
             "some_action",
             TaskId.EMPTY_TASK_ID,
-            new TransformTaskParams(transformConfig.getId(), Version.CURRENT, TimeValue.timeValueSeconds(10)),
+            new TransformTaskParams(transformConfig.getId(), Version.CURRENT, TimeValue.timeValueSeconds(10), false),
             transformState,
             mock(SchedulerEngine.class),
             auditor,

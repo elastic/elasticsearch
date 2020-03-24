@@ -484,7 +484,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             "          \"target_field\": \"regression_value\",\n" +
             "          \"model_id\": \"modelprocessorlicensetest\",\n" +
             "          \"inference_config\": {\"regression\": {}},\n" +
-            "          \"field_mappings\": {}\n" +
+            "          \"field_map\": {}\n" +
             "        }\n" +
             "      }]}\n";
         // Creating a pipeline should work
@@ -689,7 +689,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
     }
 
     private static OperationMode randomValidLicenseType() {
-        return randomFrom(License.OperationMode.TRIAL, License.OperationMode.PLATINUM);
+        return randomFrom(License.OperationMode.TRIAL, License.OperationMode.PLATINUM, OperationMode.ENTERPRISE);
     }
 
     private static OperationMode randomLicenseType() {

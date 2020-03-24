@@ -201,10 +201,18 @@ public class RoundingTests extends ESTestCase {
         Rounding rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).offset(twoHours).build();
         assertThat(rounding.round(0), equalTo(-oneDay + twoHours));
         assertThat(rounding.round(twoHours), equalTo(twoHours));
+        assertThat(rounding.nextRoundingValue(-oneDay), equalTo(-oneDay + twoHours));
+        assertThat(rounding.nextRoundingValue(0), equalTo(twoHours));
+        assertThat(rounding.withoutOffset().round(0), equalTo(0L));
+        assertThat(rounding.withoutOffset().nextRoundingValue(0), equalTo(oneDay));
 
         rounding = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).offset(-twoHours).build();
         assertThat(rounding.round(0), equalTo(-twoHours));
         assertThat(rounding.round(oneDay - twoHours), equalTo(oneDay - twoHours));
+        assertThat(rounding.nextRoundingValue(-oneDay), equalTo(-twoHours));
+        assertThat(rounding.nextRoundingValue(0), equalTo(oneDay - twoHours));
+        assertThat(rounding.withoutOffset().round(0), equalTo(0L));
+        assertThat(rounding.withoutOffset().nextRoundingValue(0), equalTo(oneDay));
     }
 
     /**

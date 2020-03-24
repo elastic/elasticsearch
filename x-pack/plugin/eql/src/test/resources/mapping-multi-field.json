@@ -1,0 +1,75 @@
+{
+    "properties" : {
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "@timestamp" : {
+            "type" : "date"
+        },
+        "multi_field" : {
+            "type" : "text",
+            "fields" : {
+                "raw" : {
+                    "type" : "keyword"
+                },
+                "english" : {
+                    "type" : "text",
+                    "analyzer" : "english"
+                }
+            }
+        },
+        "multi_field_options" : {
+            "type" : "text",
+            "fields" : {
+                "raw" : {
+                    "type" : "keyword"
+                },
+                "key" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "multi_field_ambiguous" : {
+            "type" : "text",
+            "fields" : {
+                "one" : {
+                    "type" : "keyword"
+                },
+                "two" : {
+                    "type" : "keyword"
+                },
+                "normalized" : {
+                    "type" : "keyword",
+                    "normalizer" : "some_normalizer"
+                }
+            }
+        },
+        "multi_field_nested" : {
+            "type" : "nested",
+            "properties" : {
+                "dep_name" : {
+                    "type" : "text"
+                },
+                "dep_id" : {
+                    "type" : "text",
+                    "fields" : {
+                        "keyword" : {
+                            "type" : "keyword",
+                            "ignore_above" : 256
+                        }
+                    }
+                },
+                "end_date" : {
+                    "type" : "date"
+                },
+                "start_date" : {
+                    "type" : "date"
+                }
+            }
+        }
+    }
+}

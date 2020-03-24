@@ -165,7 +165,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         relocatingShards = in.readVInt();
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
-        status = ClusterHealthStatus.fromValue(in.readByte());
+        status = ClusterHealthStatus.readFrom(in);
 
         int size = in.readVInt();
         shards = new HashMap<>(size);

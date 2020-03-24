@@ -21,9 +21,11 @@ package org.elasticsearch.search.scroll;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,12 +36,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.After;
 
@@ -53,10 +58,11 @@ import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -326,9 +332,9 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(clearResponse.status(), equalTo(RestStatus.OK));
         assertToXContentResponse(clearResponse, true, clearResponse.getNumFreed());
 
-        assertThrows(client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
+        assertRequestBuilderThrows(client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
                 RestStatus.NOT_FOUND);
-        assertThrows(client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
+        assertRequestBuilderThrows(client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)),
                 RestStatus.NOT_FOUND);
     }
 
@@ -434,9 +440,9 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(clearResponse.status(), equalTo(RestStatus.OK));
         assertToXContentResponse(clearResponse, true, clearResponse.getNumFreed());
 
-        assertThrows(internalCluster().client().prepareSearchScroll(searchResponse1.getScrollId())
+        assertRequestBuilderThrows(internalCluster().client().prepareSearchScroll(searchResponse1.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
-        assertThrows(internalCluster().client().prepareSearchScroll(searchResponse2.getScrollId())
+        assertRequestBuilderThrows(internalCluster().client().prepareSearchScroll(searchResponse2.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
     }
 
@@ -484,7 +490,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         ClearScrollResponse clearScrollResponse = client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
         assertThat(clearScrollResponse.isSucceeded(), is(true));
 
-        assertThrows(internalCluster().client().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
+        assertRequestBuilderThrows(internalCluster().client().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
     }
 
     public void testStringSortMissingAscTerminates() throws Exception {
@@ -614,6 +620,79 @@ public class SearchScrollIT extends ESIntegTestCase {
             (IllegalArgumentException) ExceptionsHelper.unwrap(exc, IllegalArgumentException.class);
         assertNotNull(illegalArgumentException);
         assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for scroll (3h) is too large"));
+    }
+
+    /**
+     * Ensures that we always create and retain search contexts on every target shards for a scroll request
+     * regardless whether that query can be written to match_no_docs on some target shards or not.
+     */
+    public void testScrollRewrittenToMatchNoDocs() {
+        final int numShards = randomIntBetween(3, 5);
+        assertAcked(
+            client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards))
+                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}"));
+        client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
+        client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
+        client().prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
+        client().admin().indices().prepareRefresh("test").get();
+        SearchResponse resp = null;
+        try {
+            int totalHits = 0;
+            resp = client().prepareSearch("test")
+                .setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
+                .setMaxConcurrentShardRequests(randomIntBetween(1, 3)) // sometimes fan out shard requests one by one
+                .setSize(randomIntBetween(1, 2))
+                .setScroll(TimeValue.timeValueMinutes(1))
+                .get();
+            assertNoFailures(resp);
+            while (resp.getHits().getHits().length > 0) {
+                totalHits += resp.getHits().getHits().length;
+                resp = client().prepareSearchScroll(resp.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+                assertNoFailures(resp);
+            }
+            assertThat(totalHits, equalTo(2));
+        } finally {
+            if (resp != null && resp.getScrollId() != null) {
+                client().prepareClearScroll().addScrollId(resp.getScrollId()).get();
+            }
+        }
+    }
+
+    public void testRestartDataNodesDuringScrollSearch() throws Exception {
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createIndex("demo", Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.include._name", dataNode)
+            .build());
+        createIndex("prod", Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.include._name", dataNode)
+            .build());
+        int numDocs = randomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            index("demo", "demo-" + i, Map.of());
+            index("prod", "prod-" + i, Map.of());
+        }
+        client().admin().indices().prepareRefresh().get();
+        SearchResponse respFromDemoIndex = client().prepareSearch("demo")
+            .setSize(randomIntBetween(1, 10))
+            .setQuery(new MatchAllQueryBuilder()).setScroll(TimeValue.timeValueMinutes(5)).get();
+
+        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback());
+        ensureGreen("demo", "prod");
+        SearchResponse respFromProdIndex = client().prepareSearch("prod")
+            .setSize(randomIntBetween(1, 10))
+            .setQuery(new MatchAllQueryBuilder()).setScroll(TimeValue.timeValueMinutes(5)).get();
+        assertNoFailures(respFromProdIndex);
+        SearchPhaseExecutionException error = expectThrows(SearchPhaseExecutionException.class,
+            () -> client().prepareSearchScroll(respFromDemoIndex.getScrollId()).get());
+        for (ShardSearchFailure shardSearchFailure : error.shardFailures()) {
+            assertThat(shardSearchFailure.getCause().getMessage(), containsString("No search context found for id [1]"));
+        }
+        client().prepareSearchScroll(respFromProdIndex.getScrollId()).get();
     }
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {

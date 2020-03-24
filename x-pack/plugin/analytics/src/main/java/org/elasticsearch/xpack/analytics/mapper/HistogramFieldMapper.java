@@ -24,12 +24,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicHistogramFieldData;
+import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -47,7 +49,12 @@ import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -197,8 +204,8 @@ public class HistogramFieldMapper extends FieldMapper {
                     return new IndexHistogramFieldData(indexSettings.getIndex(), fieldType.name()) {
 
                         @Override
-                        public AtomicHistogramFieldData load(LeafReaderContext context) {
-                            return new AtomicHistogramFieldData() {
+                        public LeafHistogramFieldData load(LeafReaderContext context) {
+                            return new LeafHistogramFieldData() {
                                 @Override
                                 public HistogramValues getHistogramValues() throws IOException {
                                     try {
@@ -251,7 +258,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public AtomicHistogramFieldData loadDirect(LeafReaderContext context) throws Exception {
+                        public LeafHistogramFieldData loadDirect(LeafReaderContext context) throws Exception {
                             return load(context);
                         }
 
@@ -260,9 +267,21 @@ public class HistogramFieldMapper extends FieldMapper {
                                                    XFieldComparatorSource.Nested nested, boolean reverse) {
                             throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
+
+                        @Override
+                        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
+                                Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+                            throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
+                        }
                     };
                 }
             };
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            // TODO: Histogram ValuesSourceType should move into this plugin.
+            return CoreValuesSourceType.HISTOGRAM;
         }
 
         @Override
@@ -373,7 +392,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     }
                 }
                 BytesRef docValue = new BytesRef(dataOutput.toArrayCopy(), 0, Math.toIntExact(dataOutput.size()));
-                Field field = new BinaryDocValuesField(simpleName(), docValue);
+                Field field = new BinaryDocValuesField(name(), docValue);
                 if (context.doc().getByKey(fieldType().name()) != null) {
                     throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                         "] doesn't not support indexing multiple values for the same field in the same document");

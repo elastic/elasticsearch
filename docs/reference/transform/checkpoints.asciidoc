@@ -5,8 +5,6 @@
 <titleabbrev>How checkpoints work</titleabbrev>
 ++++
 
-beta[]
-
 Each time a {transform} examines the source indices and creates or
 updates the destination index, it generates a _checkpoint_.
 

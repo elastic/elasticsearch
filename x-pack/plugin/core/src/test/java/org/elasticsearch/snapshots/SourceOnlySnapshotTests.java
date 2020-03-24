@@ -37,6 +37,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.lucene.Lucene;
@@ -48,7 +49,7 @@ import java.util.List;
 
 public class SourceOnlySnapshotTests extends ESTestCase {
     public void testSourceOnlyRandom() throws IOException {
-        try (Directory dir = newDirectory(); Directory targetDir = newDirectory()) {
+        try (Directory dir = newDirectory(); BaseDirectoryWrapper targetDir = newDirectory()) {
             SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
             IndexWriterConfig indexWriterConfig = newIndexWriterConfig().setIndexDeletionPolicy
                 (deletionPolicy).setSoftDeletesField(random().nextBoolean() ? null : Lucene.SOFT_DELETES_FIELD);
@@ -56,7 +57,9 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 final String softDeletesField = writer.w.getConfig().getSoftDeletesField();
                 // we either use the soft deletes directly or manually delete them to test the additional delete functionality
                 boolean modifyDeletedDocs = softDeletesField != null && randomBoolean();
-                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir,
+                targetDir.setCheckIndexOnClose(false);
+                final SourceOnlySnapshot.LinkedFilesDirectory wrappedDir = new SourceOnlySnapshot.LinkedFilesDirectory(targetDir);
+                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(wrappedDir,
                     modifyDeletedDocs ? () -> new DocValuesFieldExistsQuery(softDeletesField) : null) {
                     @Override
                     DirectoryReader wrapReader(DirectoryReader reader) throws IOException {
@@ -92,7 +95,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 IndexCommit snapshot = deletionPolicy.snapshot();
                 try {
                     snapshoter.syncSnapshot(snapshot);
-                    try (DirectoryReader snapReader = snapshoter.wrapReader(DirectoryReader.open(targetDir));
+                    try (DirectoryReader snapReader = snapshoter.wrapReader(DirectoryReader.open(wrappedDir));
                          DirectoryReader wrappedReader = snapshoter.wrapReader(DirectoryReader.open(snapshot))) {
                          DirectoryReader reader = modifyDeletedDocs
                              ? new SoftDeletesDirectoryReaderWrapper(wrappedReader, softDeletesField) :
@@ -111,6 +114,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                     }
                 } finally {
                     deletionPolicy.release(snapshot);
+                    wrappedDir.close();
                 }
             }
         }
@@ -165,13 +169,15 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             doc.add(new StoredField("src", "the quick brown fox"));
             writer.softUpdateDocument(new Term("id", "1"), doc, new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1));
             writer.commit();
-            Directory targetDir = newDirectory();
+            BaseDirectoryWrapper targetDir = newDirectory();
+            targetDir.setCheckIndexOnClose(false);
             IndexCommit snapshot = deletionPolicy.snapshot();
-            SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir);
+            SourceOnlySnapshot.LinkedFilesDirectory wrappedDir = new SourceOnlySnapshot.LinkedFilesDirectory(targetDir);
+            SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(wrappedDir);
             snapshoter.syncSnapshot(snapshot);
 
             StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(snapshot);
-            try (DirectoryReader snapReader = DirectoryReader.open(targetDir)) {
+            try (DirectoryReader snapReader = DirectoryReader.open(wrappedDir)) {
                 assertEquals(snapReader.maxDoc(), 3);
                 assertEquals(snapReader.numDocs(), 2);
                 for (int i = 0; i < 3; i++) {
@@ -182,7 +188,12 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 assertEquals(0, id.totalHits.value);
             }
 
-            snapshoter = new SourceOnlySnapshot(targetDir);
+            targetDir = newDirectory(targetDir);
+            targetDir.setCheckIndexOnClose(false);
+            wrappedDir.close();
+            wrappedDir = new SourceOnlySnapshot.LinkedFilesDirectory(targetDir);
+
+            snapshoter = new SourceOnlySnapshot(wrappedDir);
             List<String> createdFiles = snapshoter.syncSnapshot(snapshot);
             assertEquals(0, createdFiles.size());
             deletionPolicy.release(snapshot);
@@ -200,16 +211,18 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             doc.add(new StoredField("src", "the quick blue fox"));
             writer.addDocument(doc);
             writer.commit();
+            targetDir = newDirectory(targetDir);
+            targetDir.setCheckIndexOnClose(false);
+            wrappedDir.close();
+            wrappedDir = new SourceOnlySnapshot.LinkedFilesDirectory(targetDir);
             {
                 snapshot = deletionPolicy.snapshot();
-                snapshoter = new SourceOnlySnapshot(targetDir);
+                snapshoter = new SourceOnlySnapshot(wrappedDir);
                 createdFiles = snapshoter.syncSnapshot(snapshot);
-                assertEquals(4, createdFiles.size());
+                assertEquals(2, createdFiles.size());
                 for (String file : createdFiles) {
                     String extension = IndexFileNames.getExtension(file);
                     switch (extension) {
-                        case "fdt":
-                        case "fdx":
                         case "fnm":
                         case "si":
                             break;
@@ -217,7 +230,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                             fail("unexpected extension: " + extension);
                     }
                 }
-                try(DirectoryReader snapReader = DirectoryReader.open(targetDir)) {
+                try(DirectoryReader snapReader = DirectoryReader.open(wrappedDir)) {
                     assertEquals(snapReader.maxDoc(), 5);
                     assertEquals(snapReader.numDocs(), 4);
                 }
@@ -225,9 +238,13 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             }
             writer.deleteDocuments(new Term("id", "5"));
             writer.commit();
+            targetDir = newDirectory(targetDir);
+            targetDir.setCheckIndexOnClose(false);
+            wrappedDir.close();
+            wrappedDir = new SourceOnlySnapshot.LinkedFilesDirectory(targetDir);
             {
                 snapshot = deletionPolicy.snapshot();
-                snapshoter = new SourceOnlySnapshot(targetDir);
+                snapshoter = new SourceOnlySnapshot(wrappedDir);
                 createdFiles = snapshoter.syncSnapshot(snapshot);
                 assertEquals(1, createdFiles.size());
                 for (String file : createdFiles) {
@@ -239,15 +256,15 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                             fail("unexpected extension: " + extension);
                     }
                 }
-                try(DirectoryReader snapReader = DirectoryReader.open(targetDir)) {
+                try(DirectoryReader snapReader = DirectoryReader.open(wrappedDir)) {
                     assertEquals(snapReader.maxDoc(), 5);
                     assertEquals(snapReader.numDocs(), 3);
                 }
                 deletionPolicy.release(snapshot);
             }
             writer.close();
-            targetDir.close();
             reader.close();
+            wrappedDir.close();
         }
     }
 
@@ -283,12 +300,14 @@ public class SourceOnlySnapshotTests extends ESTestCase {
             doc.add(new StoredField("src", "the quick brown fox"));
             writer.softUpdateDocument(new Term("id", "1"), doc, new NumericDocValuesField(Lucene.SOFT_DELETES_FIELD, 1));
             writer.commit();
-            try (Directory targetDir = newDirectory()) {
+            try (BaseDirectoryWrapper targetDir = newDirectory()) {
+                targetDir.setCheckIndexOnClose(false);
                 IndexCommit snapshot = deletionPolicy.snapshot();
-                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(targetDir);
+                SourceOnlySnapshot.LinkedFilesDirectory wrappedDir = new SourceOnlySnapshot.LinkedFilesDirectory(targetDir);
+                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(wrappedDir);
                 snapshoter.syncSnapshot(snapshot);
 
-                try (DirectoryReader snapReader = DirectoryReader.open(targetDir)) {
+                try (DirectoryReader snapReader = DirectoryReader.open(wrappedDir)) {
                     assertEquals(snapReader.maxDoc(), 1);
                     assertEquals(snapReader.numDocs(), 1);
                     assertEquals("3", snapReader.document(0).getField("rank").stringValue());
@@ -297,6 +316,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                     assertEquals(writerReader.maxDoc(), 2);
                     assertEquals(writerReader.numDocs(), 1);
                 }
+                wrappedDir.close();
             }
             writer.close();
         }

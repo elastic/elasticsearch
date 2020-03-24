@@ -131,6 +131,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
         return new SslChannelInitializer(name, sslConfiguration);
     }
 
+    @Override
+    public boolean isSecure() {
+        return this.sslEnabled;
+    }
+
     private class SecurityClientChannelInitializer extends ClientChannelInitializer {
 
         private final boolean hostnameVerificationEnabled;

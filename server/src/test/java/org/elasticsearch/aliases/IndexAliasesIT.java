@@ -27,7 +27,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
@@ -52,6 +54,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -76,6 +79,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -909,7 +913,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .setMapping("field", "type=text")
                 .addAlias(new Alias("alias1"))
                 .addAlias(new Alias("alias2").filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("field"))))
-                .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search")));
+                .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search"))
+                .addAlias(new Alias("alias4").isHidden(true)));
 
         checkAliases();
     }
@@ -919,7 +924,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 "    \"aliases\" : {\n" +
                 "        \"alias1\" : {},\n" +
                 "        \"alias2\" : {\"filter\" : {\"match_all\": {}}},\n" +
-                "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
+                "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"},\n" +
+                "        \"alias4\" : {\"is_hidden\":  true}\n" +
                 "    }\n" +
                 "}", XContentType.JSON));
 
@@ -932,7 +938,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .setAliases("{\n" +
                         "        \"alias1\" : {},\n" +
                         "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n" +
-                        "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
+                        "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"},\n" +
+                        "        \"alias4\" : {\"is_hidden\":  true}\n" +
                         "}"));
 
         checkAliases();
@@ -1119,6 +1126,104 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("test").get(), 1);
     }
 
+    public void testHiddenAliasesMustBeConsistent() {
+        final String index1 = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        final String index2 = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String alias = randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
+        createIndex(index1, index2);
+
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias)));
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
+            AcknowledgedResponse res = admin().indices().prepareAliases()
+                .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true)).get();
+        });
+        logger.error("exception: {}", ex.getMessage());
+        assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));
+
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.remove().index(index1).alias(alias)));
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(false)));
+        expectThrows(IllegalStateException.class,
+            () -> admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true)).get());
+
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.remove().index(index1).alias(alias)));
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(true)));
+        expectThrows(IllegalStateException.class,
+            () -> admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(false)).get());
+        expectThrows(IllegalStateException.class,
+            () -> admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias)).get());
+
+        // Both visible
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.remove().index(index1).alias(alias)));
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(false)));
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(false)));
+
+        // Both hidden
+        assertAcked(admin().indices().prepareAliases()
+            .addAliasAction(AliasActions.remove().index(index1).alias(alias))
+            .addAliasAction(AliasActions.remove().index(index2).alias(alias)));
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(true)));
+        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true)));
+
+        // Visible on one, then update it to hidden & add to a second as hidden simultaneously
+        assertAcked(admin().indices().prepareAliases()
+            .addAliasAction(AliasActions.remove().index(index1).alias(alias))
+            .addAliasAction(AliasActions.remove().index(index2).alias(alias)));
+        assertAcked(admin().indices().prepareAliases()
+            .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(false)));
+        assertAcked(admin().indices().prepareAliases()
+            .addAliasAction(AliasActions.add().index(index1).alias(alias).isHidden(true))
+            .addAliasAction(AliasActions.add().index(index2).alias(alias).isHidden(true)));
+    }
+
+    public void testIndexingAndQueryingHiddenAliases() throws Exception {
+        final String writeIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        final String nonWriteIndex = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String alias = "alias-" + randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
+        createIndex(writeIndex, nonWriteIndex);
+
+        assertAcked(admin().indices().prepareAliases()
+            .addAliasAction(AliasActions.add().index(writeIndex).alias(alias).isHidden(true).writeIndex(true))
+            .addAliasAction(AliasActions.add().index(nonWriteIndex).alias(alias).isHidden(true)));
+
+        ensureGreen();
+
+        // Put a couple docs in each index directly
+        IndexResponse res = client().index(indexRequest(nonWriteIndex).id("1").source(source("1", "nonwrite"), XContentType.JSON)).get();
+        assertThat(res.status().getStatus(), equalTo(201));
+        res = client().index(indexRequest(writeIndex).id("2").source(source("2", "writeindex"), XContentType.JSON)).get();
+        assertThat(res.status().getStatus(), equalTo(201));
+        // And through the alias
+        res = client().index(indexRequest(alias).id("3").source(source("3", "through alias"), XContentType.JSON)).get();
+        assertThat(res.status().getStatus(), equalTo(201));
+
+        refresh(writeIndex, nonWriteIndex);
+
+        // Make sure that the doc written to the alias made it
+        SearchResponse searchResponse = client().prepareSearch(writeIndex).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertHits(searchResponse.getHits(), "2", "3");
+
+        // Ensure that all docs can be gotten through the alias
+        searchResponse = client().prepareSearch(alias).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertHits(searchResponse.getHits(), "1", "2", "3");
+
+        // And querying using a wildcard with indices options set to expand hidden
+        searchResponse = client().prepareSearch("alias*")
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setIndicesOptions(IndicesOptions.fromOptions(false, false, true, false, true, true, true, false, false)).get();
+        assertHits(searchResponse.getHits(), "1", "2", "3");
+
+        // And that querying the alias with a wildcard and no expand options fails
+        searchResponse = client().prepareSearch("alias*").setQuery(QueryBuilders.matchAllQuery()).get();
+        assertThat(searchResponse.getHits().getHits(), emptyArray());
+    }
+
+    public void testGetAliasAndAliasExistsForHiddenAliases() {
+        final String writeIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        final String nonWriteIndex = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String alias = "alias-" + randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
+    }
+
     private void checkAliases() {
         GetAliasesResponse getAliasesResponse = admin().indices().prepareGetAliases("alias1").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
@@ -1127,6 +1232,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(aliasMetaData.filter(), nullValue());
         assertThat(aliasMetaData.indexRouting(), nullValue());
         assertThat(aliasMetaData.searchRouting(), nullValue());
+        assertThat(aliasMetaData.isHidden(), nullValue());
 
         getAliasesResponse = admin().indices().prepareGetAliases("alias2").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
@@ -1135,6 +1241,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(aliasMetaData.filter(), notNullValue());
         assertThat(aliasMetaData.indexRouting(), nullValue());
         assertThat(aliasMetaData.searchRouting(), nullValue());
+        assertThat(aliasMetaData.isHidden(), nullValue());
 
         getAliasesResponse = admin().indices().prepareGetAliases("alias3").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
@@ -1143,6 +1250,16 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(aliasMetaData.filter(), nullValue());
         assertThat(aliasMetaData.indexRouting(), equalTo("index"));
         assertThat(aliasMetaData.searchRouting(), equalTo("search"));
+        assertThat(aliasMetaData.isHidden(), nullValue());
+
+        getAliasesResponse = admin().indices().prepareGetAliases("alias4").get();
+        assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));
+        aliasMetaData = getAliasesResponse.getAliases().get("test").get(0);
+        assertThat(aliasMetaData.alias(), equalTo("alias4"));
+        assertThat(aliasMetaData.filter(), nullValue());
+        assertThat(aliasMetaData.indexRouting(), nullValue());
+        assertThat(aliasMetaData.searchRouting(), nullValue());
+        assertThat(aliasMetaData.isHidden(), equalTo(true));
     }
 
     private void assertHits(SearchHits hits, String... ids) {

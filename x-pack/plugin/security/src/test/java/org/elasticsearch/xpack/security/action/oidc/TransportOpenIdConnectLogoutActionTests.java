@@ -40,10 +40,12 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -88,9 +90,11 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
 
     @Before
     public void setup() throws Exception {
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("oidc", REALM_NAME);
         final Settings settings = getBasicRealmSettings()
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put("path.home", createTempDir())
+            .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
             .build();
         final Settings sslSettings = Settings.builder()
             .put("xpack.security.authc.realms.oidc.oidc-realm.ssl.verification_mode", "certificate")
@@ -169,7 +173,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
 
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState,
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, new SecurityContext(settings, threadContext),
                                         securityIndex, securityIndex, clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
@@ -178,8 +182,6 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         action = new TransportOpenIdConnectLogoutAction(transportService, mock(ActionFilters.class), realms, tokenService);
 
         final Environment env = TestEnvironment.newEnvironment(settings);
-
-        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("oidc", REALM_NAME);
 
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
         oidcRealm = new OpenIdConnectRealm(realmConfig, new SSLService(TestEnvironment.newEnvironment(sslSettings)),

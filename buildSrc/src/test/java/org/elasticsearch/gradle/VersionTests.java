@@ -38,6 +38,7 @@ public class VersionTests extends GradleUnitTestCase {
         assertVersionEquals("5.1.2-rc3", 5, 1, 2);
         assertVersionEquals("6.1.2-SNAPSHOT", 6, 1, 2);
         assertVersionEquals("6.1.2-beta1-SNAPSHOT", 6, 1, 2);
+        assertVersionEquals("17.03.11", 17, 3, 11);
     }
 
     public void testRelaxedVersionParsing() {
@@ -46,6 +47,7 @@ public class VersionTests extends GradleUnitTestCase {
         assertVersionEquals("6.1.2-beta1-SNAPSHOT", 6, 1, 2, Version.Mode.RELAXED);
         assertVersionEquals("6.1.2-foo", 6, 1, 2, Version.Mode.RELAXED);
         assertVersionEquals("6.1.2-foo-bar", 6, 1, 2, Version.Mode.RELAXED);
+        assertVersionEquals("16.01.22", 16, 1, 22, Version.Mode.RELAXED);
     }
 
     public void testCompareWithStringVersions() {
@@ -91,6 +93,7 @@ public class VersionTests extends GradleUnitTestCase {
 
     public void testCompareVersions() {
         assertEquals(0, new Version(7, 0, 0).compareTo(new Version(7, 0, 0)));
+        assertOrder(Version.fromString("19.0.1"), Version.fromString("20.0.3"));
     }
 
     public void testExceptionEmpty() {

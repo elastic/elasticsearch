@@ -81,11 +81,18 @@ public class TransformRobustnessIT extends TransformRestTestCase {
             containsString("Detected transforms with no config [" + transformId + "]. Use force to stop/delete them.")
         );
         stopTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(true));
+
+        // make sync, to avoid in-flux state, see gh#51347
+        stopTransformRequest.addParameter(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
+
         Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
         assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         // the task is gone
-        assertEquals(1, getNumberOfTransformTasks());
+        assertEquals(0, getNumberOfTransformTasks());
+
+        // delete the transform because the task might have written a state doc, cleanup fails if the index isn't empty
+        deleteTransform(transformId);
     }
 
     @SuppressWarnings("unchecked")

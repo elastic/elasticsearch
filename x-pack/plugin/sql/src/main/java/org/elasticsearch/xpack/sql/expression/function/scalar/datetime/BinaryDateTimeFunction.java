@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -54,10 +53,7 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
                 }
             }
         }
-        resolution = isDate(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
+
         return TypeResolution.TYPE_RESOLVED;
     }
 

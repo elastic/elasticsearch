@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.util.List;
@@ -40,7 +41,7 @@ public class Score extends Function {
 
     @Override
     public DataType dataType() {
-        return DataType.FLOAT;
+        return DataTypes.FLOAT;
     }
 
     @Override

@@ -40,8 +40,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -95,30 +97,37 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         Setting.affixKeySetting(
             "cluster.remote.",
             "skip_unavailable",
-            key -> boolSetting(
+            (ns, key) -> boolSetting(
                 key,
                 false,
+                new RemoteConnectionEnabled<>(ns, key),
                 Setting.Property.Dynamic,
-                Setting.Property.NodeScope),
-            () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
+                Setting.Property.NodeScope));
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
         "cluster.remote.",
         "transport.ping_schedule",
-        key -> timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.Dynamic, Setting.Property.NodeScope),
-        () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
+        (ns, key) -> timeSetting(key, TransportSettings.PING_SCHEDULE, new RemoteConnectionEnabled<>(ns, key),
+            Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
         "cluster.remote.",
         "transport.compress",
-        key -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.Dynamic, Setting.Property.NodeScope),
-        () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
+        (ns, key) -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS,
+            new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope));
+
+    private final boolean enabled;
+
+    public boolean isEnabled() {
+        return enabled;
+    }
 
     private final TransportService transportService;
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
+        this.enabled = ENABLE_REMOTE_CLUSTERS.get(settings);
         this.transportService = transportService;
     }
 
@@ -198,6 +207,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {
+        if (enabled == false) {
+            throw new IllegalArgumentException("remote cluster service is not enabled");
+        }
         RemoteClusterConnection connection = remoteClusters.get(cluster);
         if (connection == null) {
             throw new NoSuchRemoteClusterException(cluster);
@@ -334,6 +346,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * function on success.
      */
     public void collectNodes(Set<String> clusters, ActionListener<BiFunction<String, String, DiscoveryNode>> listener) {
+        if (enabled == false) {
+            throw new IllegalArgumentException("remote cluster service is not enabled");
+        }
         Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
         for (String cluster : clusters) {
             if (remoteClusters.containsKey(cluster) == false) {
@@ -377,6 +392,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+        if (transportService.getRemoteClusterService().isEnabled() == false) {
+            throw new IllegalArgumentException("remote cluster service is not enabled");
+        }
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
@@ -386,4 +404,38 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     Collection<RemoteClusterConnection> getConnections() {
         return remoteClusters.values();
     }
+
+    private static class RemoteConnectionEnabled<T> implements Setting.Validator<T> {
+
+        private final String clusterAlias;
+        private final String key;
+
+        private RemoteConnectionEnabled(String clusterAlias, String key) {
+            this.clusterAlias = clusterAlias;
+            this.key = key;
+        }
+
+        @Override
+        public void validate(T value) {
+        }
+
+        @Override
+        public void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            if (isPresent && RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings) == false) {
+                throw new IllegalArgumentException("Cannot configure setting [" + key + "] if remote cluster is not enabled.");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return Stream.concat(Stream.of(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias)),
+                settingsStream()).iterator();
+        }
+
+        private Stream<Setting<?>> settingsStream() {
+            return Arrays.stream(RemoteConnectionStrategy.ConnectionStrategy.values())
+                .flatMap(strategy -> strategy.getEnablementSettings().get())
+                .map(as -> as.getConcreteSettingForNamespace(clusterAlias));
+        }
+    };
 }

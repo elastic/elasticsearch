@@ -208,18 +208,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     }
 
-    /**
-     * Loads the maximum sequence number and local checkpoint from the given Lucene commit point or the latest if not provided.
-     *
-     * @param commit the commit point to load seqno stats, or the last commit in the store if the parameter is null
-     * @return {@link SequenceNumbers.CommitInfo} containing information about the last commit
-     * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
-     */
-    public static SequenceNumbers.CommitInfo loadSeqNoInfo(final IndexCommit commit) throws IOException {
-        final Map<String, String> userData = commit.getUserData();
-        return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
-    }
-
     final void ensureOpen() {
         if (this.refCounter.refCount() <= 0) {
             throw new AlreadyClosedException("store is already closed");
@@ -1449,10 +1437,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (translogUUID.equals(getUserData(writer).get(Translog.TRANSLOG_UUID_KEY))) {
                 throw new IllegalArgumentException("a new translog uuid can't be equal to existing one. got [" + translogUUID + "]");
             }
-            final Map<String, String> map = new HashMap<>();
-            map.put(Translog.TRANSLOG_GENERATION_KEY, "1");
-            map.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-            updateCommitData(writer, map);
+            updateCommitData(writer, Map.of(Translog.TRANSLOG_UUID_KEY, translogUUID));
         } finally {
             metadataLock.writeLock().unlock();
         }

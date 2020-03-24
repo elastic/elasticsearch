@@ -8,13 +8,13 @@
 
 #### Classes
 
-class org.elasticsearch.xpack.ql.expression.function.scalar.geo.GeoShape {
+class org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape {
 }
 
-class org.elasticsearch.xpack.ql.expression.literal.IntervalDayTime {
+class org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime {
 }
 
-class org.elasticsearch.xpack.ql.expression.literal.IntervalYearMonth {
+class org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth {
 }
 
 class java.time.OffsetTime {
@@ -118,7 +118,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Integer weekOfYear(Object, String)
   ZonedDateTime dateAdd(String, Integer, Object, String)
   Integer dateDiff(String, Object, Object, String)
-  ZonedDateTime dateTrunc(String, Object, String)
+  def dateTrunc(String, Object, String)
   Integer datePart(String, Object, String)
   IntervalDayTime intervalDayTime(String, String)
   IntervalYearMonth intervalYearMonth(String, String)

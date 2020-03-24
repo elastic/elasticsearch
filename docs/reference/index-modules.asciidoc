@@ -79,7 +79,7 @@ indices.
     Indicates whether <<query-filter-context, cached filters>> are pre-loaded for
     nested queries. Possible values are `true` (default) and `false`.
 
-`index.hidden`::
+[[index-hidden]] `index.hidden`::
 
     Indicates whether the index should be hidden by default. Hidden indices are not
     returned by default when using a wildcard expression. This behavior is controlled

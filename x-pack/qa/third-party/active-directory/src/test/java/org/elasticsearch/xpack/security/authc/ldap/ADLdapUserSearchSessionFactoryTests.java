@@ -58,6 +58,7 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
     }
 
     public void testUserSearchWithActiveDirectory() throws Exception {
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ad-as-ldap-test");
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = Settings.builder()
@@ -69,16 +70,16 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
                 .put("user_search.filter", "(cn={0})")
                 .put("user_search.pool.enabled", randomBoolean())
                 .put("follow_referrals", ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
+                .put("order", 0)
                 .build();
         Settings.Builder builder = Settings.builder()
                 .put(globalSettings);
         settings.keySet().forEach(k -> {
             builder.copy("xpack.security.authc.realms.ldap.ad-as-ldap-test." + k, k, settings);
-
         });
         Settings fullSettings = builder.build();
         sslService = new SSLService(TestEnvironment.newEnvironment(fullSettings));
-        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ad-as-ldap-test"), fullSettings,
+        RealmConfig config = new RealmConfig(realmIdentifier, fullSettings,
                 TestEnvironment.newEnvironment(fullSettings), new ThreadContext(fullSettings));
         LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 

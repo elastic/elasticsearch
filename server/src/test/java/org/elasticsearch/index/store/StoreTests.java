@@ -40,6 +40,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.BaseDirectoryWrapper;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -47,7 +48,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
@@ -67,7 +67,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -842,9 +841,7 @@ public class StoreTests extends ESTestCase {
         writer.addDocument(doc);
         Map<String, String> commitData = new HashMap<>(2);
         String syncId = "a sync id";
-        String translogId = "a translog id";
         commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-        commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogId);
         writer.setLiveCommitData(commitData.entrySet());
         writer.commit();
         writer.close();
@@ -853,7 +850,6 @@ public class StoreTests extends ESTestCase {
         assertFalse(metadata.asMap().isEmpty());
         // do not check for correct files, we have enough tests for that above
         assertThat(metadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
-        assertThat(metadata.getCommitUserData().get(Translog.TRANSLOG_GENERATION_KEY), equalTo(translogId));
         TestUtil.checkIndex(store.directory());
         assertDeleteContent(store, store.directory());
         IOUtils.close(store);
@@ -952,7 +948,7 @@ public class StoreTests extends ESTestCase {
 
     public void testDeserializeCorruptionException() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        final Directory dir = new RAMDirectory(); // I use ram dir to prevent that virusscanner being a PITA
+        final Directory dir = new ByteBuffersDirectory(); // I use ram dir to prevent that virusscanner being a PITA
         Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
         CorruptIndexException ex = new CorruptIndexException("foo", "bar");
         store.markStoreCorrupted(ex);
@@ -981,7 +977,7 @@ public class StoreTests extends ESTestCase {
 
     public void testCorruptionMarkerVersionCheck() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
-        final Directory dir = new RAMDirectory(); // I use ram dir to prevent that virusscanner being a PITA
+        final Directory dir = new ByteBuffersDirectory(); // I use ram dir to prevent that virusscanner being a PITA
 
         try (Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId))) {
             final String corruptionMarkerName = Store.CORRUPTED_MARKER_NAME_PREFIX + UUIDs.randomBase64UUID();

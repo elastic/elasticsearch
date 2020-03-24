@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
@@ -98,6 +99,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private final JobResultsProvider jobResultsProvider;
     private final AutodetectProcessFactory autodetectProcessFactory;
     private final NormalizerFactory normalizerFactory;
+    private final IndexNameExpressionResolver expressionResolver;
 
     private final JobResultsPersister jobResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
@@ -117,7 +119,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
                                     NamedXContentRegistry xContentRegistry, AnomalyDetectionAuditor auditor, ClusterService clusterService,
                                     JobManager jobManager, JobResultsProvider jobResultsProvider, JobResultsPersister jobResultsPersister,
                                     JobDataCountsPersister jobDataCountsPersister, AutodetectProcessFactory autodetectProcessFactory,
-                                    NormalizerFactory normalizerFactory, NativeStorageProvider nativeStorageProvider) {
+                                    NormalizerFactory normalizerFactory, NativeStorageProvider nativeStorageProvider,
+                                    IndexNameExpressionResolver expressionResolver) {
         this.environment = environment;
         this.client = client;
         this.threadPool = threadPool;
@@ -125,6 +128,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.maxAllowedRunningJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.normalizerFactory = normalizerFactory;
+        this.expressionResolver = expressionResolver;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
         this.jobResultsPersister = jobResultsPersister;
@@ -435,13 +439,13 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
         // Make sure the state index and alias exist
         ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
-            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, stateAliasHandler),
+            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, stateAliasHandler),
             e -> closeHandler.accept(e, true)
         );
 
         // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
         ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-            ElasticsearchMappings::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+            AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
     }
 
     private boolean createProcessAndSetRunning(ProcessContext processContext,

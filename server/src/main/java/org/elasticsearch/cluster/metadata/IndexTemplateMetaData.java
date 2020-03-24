@@ -38,8 +38,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -134,12 +136,15 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         return this.settings;
     }
 
-    public ImmutableOpenMap<String, CompressedXContent> mappings() {
-        return this.mappings;
+    public CompressedXContent mappings() {
+        if (this.mappings.isEmpty()) {
+            return null;
+        }
+        return this.mappings.iterator().next().value;
     }
 
-    public ImmutableOpenMap<String, CompressedXContent> getMappings() {
-        return this.mappings;
+    public CompressedXContent getMappings() {
+        return this.mappings();
     }
 
     public ImmutableOpenMap<String, AliasMetaData> aliases() {
@@ -221,6 +226,19 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         out.writeOptionalVInt(version);
     }
 
+    @Override
+    public String toString() {
+        try {
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            builder.startObject();
+            IndexTemplateMetaData.Builder.toXContentWithTypes(this, builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     public static class Builder {
 
         private static final Set<String> VALID_FIELDS = Sets.newHashSet(
@@ -253,7 +271,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             patterns(indexTemplateMetaData.patterns());
             settings(indexTemplateMetaData.settings());
 
-            mappings = ImmutableOpenMap.builder(indexTemplateMetaData.mappings());
+            mappings = ImmutableOpenMap.builder(indexTemplateMetaData.mappings);
             aliases = ImmutableOpenMap.builder(indexTemplateMetaData.aliases());
         }
 
@@ -374,35 +392,18 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             indexTemplateMetaData.settings().toXContent(builder, params);
             builder.endObject();
 
-            if (params.paramAsBoolean("reduce_mappings", false)) {
-                // The parameter include_type_name is only ever used in the REST API, where reduce_mappings is
-                // always set to true. We therefore only check for include_type_name in this branch.
-                if (includeTypeName == false) {
-                    Map<String, Object> documentMapping = null;
-                    for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
-                        assert documentMapping == null;
-                        byte[] mappingSource = cursor.value.uncompressed();
-                        Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
-                        documentMapping = reduceMapping(cursor.key, mapping);
-                    }
+            includeTypeName &= (params.paramAsBoolean("reduce_mappings", false) == false);
 
-                    if (documentMapping != null) {
-                        builder.field("mappings", documentMapping);
-                    } else {
-                        builder.startObject("mappings").endObject();
-                    }
-                } else {
-                    builder.startObject("mappings");
-                    for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
-                        byte[] mappingSource = cursor.value.uncompressed();
-                        Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mappingSource), true).v2();
-                        mapping = reduceMapping(cursor.key, mapping);
-                        builder.field(cursor.key);
-                        builder.map(mapping);
-                    }
-                    builder.endObject();
+            CompressedXContent m = indexTemplateMetaData.mappings();
+            if (m != null) {
+                Map<String, Object> documentMapping = XContentHelper.convertToMap(new BytesArray(m.uncompressed()), true).v2();
+                if (includeTypeName == false) {
+                    documentMapping = reduceMapping(documentMapping);
                 }
+                builder.field("mappings");
+                builder.map(documentMapping);
             } else {
+<<<<<<< HEAD
                 if (context != MetaData.XContentContext.API) {
                     builder.startArray("mappings");
                     for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
@@ -423,6 +424,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                     }
                     builder.endObject();
                 }
+=======
+                builder.startObject("mappings").endObject();
+>>>>>>> elastic/master
             }
 
             builder.startObject("aliases");
@@ -433,13 +437,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         }
 
         @SuppressWarnings("unchecked")
-        private static Map<String, Object> reduceMapping(String type, Map<String, Object> mapping) {
-            if (mapping.size() == 1 && mapping.containsKey(type)) {
-                // the type name is the root value, reduce it
-                return (Map<String, Object>) mapping.get(type);
-            } else {
-                return mapping;
-            }
+        private static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
+            assert mapping.keySet().size() == 1;
+            return (Map<String, Object>) mapping.values().iterator().next();
         }
 
         public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName) throws IOException {

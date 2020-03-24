@@ -19,60 +19,50 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.MemberCallNode;
+import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
  * Represents a user-defined call.
  */
-public final class ECallLocal extends AExpression {
+public class ECallLocal extends AExpression {
 
-    private final String name;
-    private final List<AExpression> arguments;
-
-    private FunctionTable.LocalFunction localFunction = null;
-    private PainlessMethod importedMethod = null;
-    private PainlessClassBinding classBinding = null;
-    private int classBindingOffset = 0;
-    private PainlessInstanceBinding instanceBinding = null;
-    private String bindingName = null;
+    protected final String name;
+    protected final List<AExpression> arguments;
 
     public ECallLocal(Location location, String name, List<AExpression> arguments) {
         super(location);
 
         this.name = Objects.requireNonNull(name);
-        this.arguments = Objects.requireNonNull(arguments);
+        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        FunctionTable.LocalFunction localFunction = null;
+        PainlessMethod importedMethod = null;
+        PainlessClassBinding classBinding = null;
+        int classBindingOffset = 0;
+        PainlessInstanceBinding instanceBinding = null;
+        String bindingName = null;
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        Output output = new Output();
+
         localFunction = scriptRoot.getFunctionTable().getFunction(name, arguments.size());
 
         // user cannot call internal functions, reset to null if an internal function is found
@@ -126,107 +116,77 @@ public final class ECallLocal extends AExpression {
 
         if (localFunction != null) {
             typeParameters = new ArrayList<>(localFunction.getTypeParameters());
-            actual = localFunction.getReturnType();
+            output.actual = localFunction.getReturnType();
         } else if (importedMethod != null) {
             scriptRoot.markNonDeterministic(importedMethod.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(importedMethod.typeParameters);
-            actual = importedMethod.returnType;
+            output.actual = importedMethod.returnType;
         } else if (classBinding != null) {
             scriptRoot.markNonDeterministic(classBinding.annotations.containsKey(NonDeterministicAnnotation.class));
             typeParameters = new ArrayList<>(classBinding.typeParameters);
-            actual = classBinding.returnType;
+            output.actual = classBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("class_binding");
-            scriptRoot.getClassNode().addField(new SField(location,
-                    Modifier.PRIVATE, bindingName, classBinding.javaConstructor.getDeclaringClass(), null));
+
+            FieldNode fieldNode = new FieldNode();
+            fieldNode.setLocation(location);
+            fieldNode.setModifiers(Modifier.PRIVATE);
+            fieldNode.setFieldType(classBinding.javaConstructor.getDeclaringClass());
+            fieldNode.setName(bindingName);
+
+            classNode.addFieldNode(fieldNode);
         } else if (instanceBinding != null) {
             typeParameters = new ArrayList<>(instanceBinding.typeParameters);
-            actual = instanceBinding.returnType;
+            output.actual = instanceBinding.returnType;
             bindingName = scriptRoot.getNextSyntheticName("instance_binding");
-            scriptRoot.getClassNode().addField(new SField(location, Modifier.STATIC | Modifier.PUBLIC,
-                    bindingName, instanceBinding.targetInstance.getClass(), instanceBinding.targetInstance));
+
+            FieldNode fieldNode = new FieldNode();
+            fieldNode.setLocation(location);
+            fieldNode.setModifiers(Modifier.PUBLIC | Modifier.STATIC);
+            fieldNode.setFieldType(instanceBinding.targetInstance.getClass());
+            fieldNode.setName(bindingName);
+
+            classNode.addFieldNode(fieldNode);
+
+            scriptRoot.addStaticConstant(bindingName, instanceBinding.targetInstance);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
 
+        List<Output> argumentOutputs = new ArrayList<>(arguments.size());
         // if the class binding is using an implicit this reference then the arguments counted must
         // be incremented by 1 as the this reference will not be part of the arguments passed into
         // the class binding call
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = typeParameters.get(argument + classBindingOffset);
-            expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            arguments.set(argument, expression.cast(scriptRoot, locals));
+            Input argumentInput = new Input();
+            argumentInput.expected = typeParameters.get(argument + classBindingOffset);
+            argumentInput.internal = true;
+            Output argumentOutput = expression.analyze(classNode, scriptRoot, scope, argumentInput);
+            expression.cast(argumentInput, argumentOutput);
+            argumentOutputs.add(argumentOutput);
         }
 
-        statement = true;
-    }
+        output.statement = true;
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
+        MemberCallNode memberCallNode = new MemberCallNode();
 
-        if (localFunction != null) {
-            for (AExpression argument : arguments) {
-                argument.write(classWriter, methodWriter, globals);
-            }
-
-            methodWriter.invokeStatic(CLASS_TYPE, localFunction.getAsmMethod());
-        } else if (importedMethod != null) {
-            for (AExpression argument : arguments) {
-                argument.write(classWriter, methodWriter, globals);
-            }
-
-            methodWriter.invokeStatic(Type.getType(importedMethod.targetClass),
-                    new Method(importedMethod.javaMethod.getName(), importedMethod.methodType.toMethodDescriptorString()));
-        } else if (classBinding != null) {
-            Type type = Type.getType(classBinding.javaConstructor.getDeclaringClass());
-            int javaConstructorParameterCount = classBinding.javaConstructor.getParameterCount() - classBindingOffset;
-
-            Label nonNull = new Label();
-
-            methodWriter.loadThis();
-            methodWriter.getField(CLASS_TYPE, bindingName, type);
-            methodWriter.ifNonNull(nonNull);
-            methodWriter.loadThis();
-            methodWriter.newInstance(type);
-            methodWriter.dup();
-
-            if (classBindingOffset == 1) {
-                methodWriter.loadThis();
-            }
-
-            for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
-                arguments.get(argument).write(classWriter, methodWriter, globals);
-            }
-
-            methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
-            methodWriter.putField(CLASS_TYPE, bindingName, type);
-
-            methodWriter.mark(nonNull);
-            methodWriter.loadThis();
-            methodWriter.getField(CLASS_TYPE, bindingName, type);
-
-            for (int argument = 0; argument < classBinding.javaMethod.getParameterCount(); ++argument) {
-                arguments.get(argument + javaConstructorParameterCount).write(classWriter, methodWriter, globals);
-            }
-
-            methodWriter.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
-        } else if (instanceBinding != null) {
-            Type type = Type.getType(instanceBinding.targetInstance.getClass());
-
-            methodWriter.loadThis();
-            methodWriter.getStatic(CLASS_TYPE, bindingName, type);
-
-            for (int argument = 0; argument < instanceBinding.javaMethod.getParameterCount(); ++argument) {
-                arguments.get(argument).write(classWriter, methodWriter, globals);
-            }
-
-            methodWriter.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod));
-        } else {
-            throw new IllegalStateException("Illegal tree structure.");
+        for (int argument = 0; argument < arguments.size(); ++argument) {
+            memberCallNode.addArgumentNode(arguments.get(argument).cast(argumentOutputs.get(argument)));
         }
+
+        memberCallNode.setLocation(location);
+        memberCallNode.setExpressionType(output.actual);
+        memberCallNode.setLocalFunction(localFunction);
+        memberCallNode.setImportedMethod(importedMethod);
+        memberCallNode.setClassBinding(classBinding);
+        memberCallNode.setClassBindingOffset(classBindingOffset);
+        memberCallNode.setBindingName(bindingName);
+        memberCallNode.setInstanceBinding(instanceBinding);
+
+        output.expressionNode = memberCallNode;
+
+        return output;
     }
 
     @Override

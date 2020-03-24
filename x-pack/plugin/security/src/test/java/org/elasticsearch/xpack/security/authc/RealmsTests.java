@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -65,18 +64,34 @@ public class RealmsTests extends ESTestCase {
         factories.put(FileRealmSettings.TYPE, config -> new DummyRealm(FileRealmSettings.TYPE, config));
         factories.put(NativeRealmSettings.TYPE, config -> new DummyRealm(NativeRealmSettings.TYPE, config));
         factories.put(KerberosRealmSettings.TYPE, config -> new DummyRealm(KerberosRealmSettings.TYPE, config));
-        randomRealmTypesCount = randomIntBetween(1, 5);
+        randomRealmTypesCount = randomIntBetween(2, 5);
         for (int i = 0; i < randomRealmTypesCount; i++) {
             String name = "type_" + i;
             factories.put(name, config -> new DummyRealm(name, config));
         }
         licenseState = mock(XPackLicenseState.class);
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         threadContext = new ThreadContext(Settings.EMPTY);
         reservedRealm = mock(ReservedRealm.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.ALL);
+        allowAllRealms();
         when(reservedRealm.type()).thenReturn(ReservedRealm.TYPE);
         when(reservedRealm.name()).thenReturn("reserved");
+    }
+
+    private void allowAllRealms() {
+        when(licenseState.areAllRealmsAllowed()).thenReturn(true);
+        when(licenseState.areStandardRealmsAllowed()).thenReturn(true);
+    }
+
+    private void allowOnlyStandardRealms() {
+        when(licenseState.areAllRealmsAllowed()).thenReturn(false);
+        when(licenseState.areStandardRealmsAllowed()).thenReturn(true);
+    }
+
+    private void allowOnlyNativeRealms() {
+        when(licenseState.areAllRealmsAllowed()).thenReturn(false);
+        when(licenseState.areStandardRealmsAllowed()).thenReturn(false);
     }
 
     public void testWithSettings() throws Exception {
@@ -134,26 +149,10 @@ public class RealmsTests extends ESTestCase {
         }
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
-
-        Iterator<Realm> iterator = realms.iterator();
-        assertThat(iterator.hasNext(), is(true));
-        Realm realm = iterator.next();
-        assertThat(realm, is(reservedRealm));
-
-        // As order is same for all realms, it should fall back secondary comparison on name
-        // Verify that realms are iterated in order based on name
-        Iterator<String> expectedSortedOrderNames = nameToRealmId.keySet().iterator();
-        while (iterator.hasNext()) {
-            realm = iterator.next();
-            String expectedRealmName = expectedSortedOrderNames.next();
-            assertThat(realm.order(), equalTo(1));
-            assertThat(realm.type(), equalTo("type_" + nameToRealmId.get(expectedRealmName)));
-            assertThat(realm.name(), equalTo(expectedRealmName));
-        }
-
-        assertThat(realms.getUnlicensedRealms(), empty());
-        assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->{
+            new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        });
+        assertThat(e.getMessage(), containsString("Found multiple realms configured with the same order"));
     }
 
     public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
@@ -241,7 +240,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.getUnlicensedRealms(), empty());
         assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
 
-        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);
+        allowOnlyNativeRealms();
 
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
@@ -269,7 +268,7 @@ public class RealmsTests extends ESTestCase {
             i++;
         }
 
-        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NATIVE);
+        allowOnlyNativeRealms();
 
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
@@ -325,7 +324,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.getUnlicensedRealms(), empty());
         assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
 
-        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);
+        allowOnlyStandardRealms();
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
@@ -343,7 +342,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.type(), equalTo("type_0"));
         assertThat(realm.name(), equalTo("custom"));
 
-        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NATIVE);
+        allowOnlyNativeRealms();
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
@@ -390,7 +389,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(false));
         assertThat(realms.getUnlicensedRealms(), empty());
 
-        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NATIVE);
+        allowOnlyNativeRealms();
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
@@ -425,7 +424,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(false));
         assertThat(realms.getUnlicensedRealms(), empty());
 
-        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);
+        allowOnlyStandardRealms();
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
@@ -443,7 +442,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.type(), equalTo(selectedRealmType));
         assertThat(realm.name(), equalTo("foo"));
 
-        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NATIVE);
+        allowOnlyNativeRealms();
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
         realm = iter.next();
@@ -513,7 +512,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.getUnlicensedRealms(), empty());
 
         // check that disabled realms are not included in unlicensed realms
-        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NATIVE);
+        allowOnlyNativeRealms();
         assertThat(realms.getUnlicensedRealms(), hasSize(orderToIndex.size()));
     }
 
@@ -566,23 +565,9 @@ public class RealmsTests extends ESTestCase {
             assertThat(typeMap.size(), is(2));
         }
 
-        // disable ALL using license
-        when(licenseState.isAuthAllowed()).thenReturn(false);
-        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NONE);
-        future = new PlainActionFuture<>();
-        realms.usageStats(future);
-        usageStats = future.get();
-        assertThat(usageStats.size(), is(factories.size()));
-        for (Entry<String, Object> entry : usageStats.entrySet()) {
-            Map<String, Object> typeMap = (Map<String, Object>) entry.getValue();
-            assertThat(typeMap, hasEntry("enabled", false));
-            assertThat(typeMap, hasEntry("available", false));
-            assertThat(typeMap.size(), is(2));
-        }
-
-        // check native or internal realms enabled only
+        // check standard realms include native
         when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.allowedRealmType()).thenReturn(randomFrom(AllowedRealmType.NATIVE, AllowedRealmType.DEFAULT));
+        allowOnlyStandardRealms();
         future = new PlainActionFuture<>();
         realms.usageStats(future);
         usageStats = future.get();

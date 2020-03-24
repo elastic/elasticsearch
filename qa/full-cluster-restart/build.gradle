@@ -24,11 +24,7 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
-
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
 for (Version bwcVersion : bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
@@ -38,10 +34,9 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
       versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 2
       // some tests rely on the translog not being flushed
-      setting 'indices.memory.shard_inactive_time', '20m'
+      setting 'indices.memory.shard_inactive_time', '60m'
       setting 'http.content_type.required', 'true'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 
@@ -71,24 +66,10 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn(
-      tasks.register("${baseName}#bwcTest") {
-        dependsOn tasks.named("${baseName}#upgradedClusterTest")
-      }
-    )
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn tasks.named("${baseName}#upgradedClusterTest")
   }
 }
-
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedIndexCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-
-check.dependsOn(bwcTestSnapshots)
 
 configurations {
   testArtifacts.extendsFrom testRuntime
@@ -102,5 +83,3 @@ task testJar(type: Jar) {
 artifacts {
   testArtifacts testJar
 }
-
-test.enabled = false

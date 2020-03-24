@@ -46,11 +46,16 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         }
 
         public boolean resolved() {
-            return !failed;
+            return failed == false;
         }
 
         public String message() {
             return message;
+        }
+
+        @Override
+        public String toString() {
+            return resolved() ? "" : message;
         }
     }
 

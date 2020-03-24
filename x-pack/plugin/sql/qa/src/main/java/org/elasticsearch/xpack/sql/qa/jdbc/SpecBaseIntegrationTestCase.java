@@ -28,9 +28,11 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.TimeZone;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
@@ -118,7 +120,11 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     @Override
     protected Properties connectionProperties() {
         Properties connectionProperties = new Properties();
-        connectionProperties.setProperty(JDBC_TIMEZONE, "UTC");
+        // H2 runs with test JVM's set (randomized) timezone, while the ES node with local test machine's. H2 will not take into account
+        // TZ offsets for some time functions (YEAR/MONTH/HOUR) with timestamps, while ES will normalize the value to the given timezone.
+        // So ES will need to be given the corresponding timezone (i.e. same as with H2's), in order to produce the same results.
+        final String timeZoneID = testName.toUpperCase(Locale.ROOT).endsWith("TZSYNC") ? TimeZone.getDefault().getID() : "UTC";
+        connectionProperties.setProperty(JDBC_TIMEZONE, timeZoneID);
         return connectionProperties;
     }
 

@@ -80,6 +80,9 @@ sourceSets {
 compileMinimumRuntimeJava {
   targetCompatibility = 8
   sourceCompatibility = 8
+  tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+  }
 }
 
 jar {
@@ -184,8 +187,10 @@ if (project != rootProject) {
     distribution project(':distribution:archives:oss-windows-zip')
     distribution project(':distribution:archives:darwin-tar')
     distribution project(':distribution:archives:oss-darwin-tar')
+    distribution project(':distribution:archives:linux-aarch64-tar')
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:oss-linux-tar')
+    distribution project(':distribution:archives:oss-linux-aarch64-tar')
   }
 
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
@@ -193,6 +198,18 @@ if (project != rootProject) {
     exclude 'buildSrc.marker'
     into('META-INF') {
       from configurations.reaper
+    }
+  }
+
+  // Track reaper jar as a test input using runtime classpath normalization strategy
+  tasks.withType(Test).configureEach {
+    inputs.files(configurations.reaper).withNormalizer(ClasspathNormalizer)
+  }
+
+  normalization {
+    runtimeClasspath {
+      // We already include the reaper jar as part of our runtime classpath. Ignore the copy in META-INF.
+      ignore('META-INF/reaper.jar')
     }
   }
 
@@ -273,8 +290,17 @@ class VersionPropertiesLoader {
       }
       elasticsearch += "-" + qualifier
     }
-    if ("true".equals(systemProperties.getProperty("build.snapshot", "true"))) {
-      elasticsearch += "-SNAPSHOT"
+    final String buildSnapshotSystemProperty = systemProperties.getProperty("build.snapshot", "true");
+    switch (buildSnapshotSystemProperty) {
+      case "true":
+        elasticsearch += "-SNAPSHOT"
+        break;
+      case "false":
+        // do nothing
+        break;
+      default:
+        throw new IllegalArgumentException(
+          "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]");
     }
     loadedProps.put("elasticsearch", elasticsearch)
   }

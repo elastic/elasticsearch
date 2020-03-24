@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
@@ -35,14 +36,14 @@ public class TopHitsAggExtractor implements BucketExtractor {
 
     TopHitsAggExtractor(StreamInput in) throws IOException {
         name = in.readString();
-        fieldDataType = in.readEnum(DataType.class);
+        fieldDataType = SqlDataTypes.fromTypeName(in.readString());
         zoneId = SqlStreamInput.asSqlStream(in).zoneId();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeEnum(fieldDataType);
+        out.writeString(fieldDataType.typeName());
     }
 
     String name() {
@@ -74,9 +75,9 @@ public class TopHitsAggExtractor implements BucketExtractor {
         }
 
         Object value = agg.getHits().getAt(0).getFields().values().iterator().next().getValue();
-        if (fieldDataType.isDateBased()) {
+        if (SqlDataTypes.isDateBased(fieldDataType)) {
             return DateUtils.asDateTime(Long.parseLong(value.toString()), zoneId);
-        } else if (fieldDataType.isTimeBased()) {
+        } else if (SqlDataTypes.isTimeBased(fieldDataType)) {
             return DateUtils.asTimeOnly(Long.parseLong(value.toString()), zoneId);
         } else {
             return value;

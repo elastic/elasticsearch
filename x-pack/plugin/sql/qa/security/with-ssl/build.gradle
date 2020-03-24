@@ -1,14 +1,5 @@
-import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.info.BuildParams
-
-import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.KeyManagerFactory
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManagerFactory
-import java.nio.charset.StandardCharsets
-import java.security.KeyStore
-import java.security.SecureRandom
 
 // Tell the tests we're running with ssl enabled
 integTest.runner {
@@ -213,14 +204,18 @@ class SanEvaluator {
   private static String getSubjectAlternativeNameString() {
     List<InetAddress> list = new ArrayList<>();
     for (NetworkInterface intf : getInterfaces()) {
-      if (intf.isUp()) {
-        // NOTE: some operating systems (e.g. BSD stack) assign a link local address to the loopback interface
-        // while technically not a loopback address, some of these treat them as one (e.g. OS X "localhost") so we must too,
-        // otherwise things just won't work out of box. So we include all addresses from loopback interfaces.
-        for (InetAddress address : Collections.list(intf.getInetAddresses())) {
-          if (intf.isLoopback() || address.isLoopbackAddress()) {
-            list.add(address);
-          }
+      for (final InetAddress address : Collections.list(intf.getInetAddresses())) {
+        /*
+         * Some OS (e.g., BSD) assign a link-local address to the loopback interface. While technically not a loopback interface, some of
+         * these OS treat them as one (e.g., localhost on macOS), so we must too. Otherwise, things just won't work out of the box. So we
+         * include all addresses from loopback interfaces.
+         *
+         * By checking if the interface is a loopback interface or the address is a loopback address first, we avoid having to check if the
+         * interface is up unless necessary. This means we can avoid checking if the interface is up for virtual ethernet devices which have
+         * a tendency to disappear outside of our control (e.g., due to Docker).
+         */
+        if ((intf.isLoopback() || address.isLoopbackAddress()) && isUp(intf, address)) {
+          list.add(address)
         }
       }
     }
@@ -249,6 +244,19 @@ class SanEvaluator {
     }
 
     return builder.toString();
+  }
+
+  private static boolean isUp(final NetworkInterface intf, final InetAddress address) throws IOException {
+    try {
+      return intf.isUp();
+    } catch (final SocketException e) {
+      /*
+       * In Elasticsearch production code (NetworkUtils) we suppress this if the device is a virtual ethernet device. That should not happen
+       * here since the interface must be a loopback device or the address a loopback address to get here to begin with.
+       */
+      assert intf.isLoopback() || address.isLoopbackAddress()
+      throw new IOException("failed to check if interface [" + intf.getName() + "] is up", e)
+    }
   }
 
   private static String compressedIPV6Address(Inet6Address inet6Address) {

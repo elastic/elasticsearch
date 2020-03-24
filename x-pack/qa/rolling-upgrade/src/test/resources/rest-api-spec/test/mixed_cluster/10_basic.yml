@@ -32,7 +32,7 @@
         rest_total_hits_as_int: true
         index: upgraded_scroll
         size: 1
-        scroll: 10m
+        scroll: 60m
         sort: foo
         body:
           query:

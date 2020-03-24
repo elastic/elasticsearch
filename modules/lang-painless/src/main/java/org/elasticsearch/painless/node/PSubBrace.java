@@ -19,23 +19,21 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BraceSubNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array load/store.
  */
-final class PSubBrace extends AStoreable {
+public class PSubBrace extends AStoreable {
 
-    private final Class<?> clazz;
-    private AExpression index;
+    protected final Class<?> clazz;
+    protected final AExpression index;
 
     PSubBrace(Location location, Class<?> clazz, AExpression index) {
         super(location);
@@ -45,56 +43,31 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("illegal tree structure"));
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        index.expected = int.class;
-        index.analyze(scriptRoot, locals);
-        index = index.cast(scriptRoot, locals);
+        Input indexInput = new Input();
+        indexInput.expected = int.class;
+        Output indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+        index.cast(indexInput, indexOutput);
 
-        actual = clazz.getComponentType();
-    }
+        output.actual = clazz.getComponentType();
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        setup(classWriter, methodWriter, globals);
-        load(classWriter, methodWriter, globals);
-    }
+        BraceSubNode braceSubNode = new BraceSubNode();
 
-    @Override
-    int accessElementCount() {
-        return 2;
+        braceSubNode.setChildNode(index.cast(indexOutput));
+
+        braceSubNode.setLocation(location);
+        braceSubNode.setExpressionType(output.actual);
+
+        output.expressionNode = braceSubNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
         return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        index.write(classWriter, methodWriter, globals);
-        writeIndexFlip(methodWriter, MethodWriter::arrayLength);
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-        methodWriter.arrayLoad(MethodWriter.getType(actual));
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-        methodWriter.arrayStore(MethodWriter.getType(actual));
     }
 
     @Override

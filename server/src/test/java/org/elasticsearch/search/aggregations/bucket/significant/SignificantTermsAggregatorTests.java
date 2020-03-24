@@ -86,7 +86,10 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BYTES);
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.IP);
     }
 
     @Override

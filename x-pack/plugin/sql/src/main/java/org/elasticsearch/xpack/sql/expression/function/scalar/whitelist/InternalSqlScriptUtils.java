@@ -9,10 +9,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
@@ -66,23 +62,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     InternalSqlScriptUtils() {}
 
-
-    //
-    // Logical
-    //
-
-    public static Boolean isNull(Object expression) {
-        return CheckNullOperation.IS_NULL.apply(expression);
-    }
-
-    public static Boolean isNotNull(Object expression) {
-        return CheckNullOperation.IS_NOT_NULL.apply(expression);
-    }
-
-    public static Boolean in(Object value, List<Object> values) {
-        return InProcessor.apply(value, values);
-    }
-
     //
     // Conditional
     //
@@ -107,14 +86,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     //
-    // Regex
-    //
-    public static Boolean regex(String value, String pattern) {
-        // TODO: this needs to be improved to avoid creating the pattern on every call
-        return RegexOperation.match(value, pattern);
-    }
-
-    //
     // Math
     //
     public static Object add(Object left, Object right) {
@@ -131,10 +102,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     public static Object mul(Object left, Object right) {
         return SqlBinaryArithmeticOperation.MUL.apply(left, right);
-    }
-
-    public static Number neg(Number value) {
-        return UnaryArithmeticOperation.NEGATE.apply(value);
     }
 
     public static Object sub(Object left, Object right) {

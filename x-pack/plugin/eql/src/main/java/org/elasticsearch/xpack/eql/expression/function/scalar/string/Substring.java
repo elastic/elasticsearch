@@ -3,12 +3,15 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.expression.function.scalar.string;
+
+package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -23,22 +26,24 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor.doProcess;
 
 /**
- * Search the source string for occurrences of the pattern, and replace with the replacement string.
+ * EQL specific substring function - similar to the one in Python.
+ * Note this is different than the one in SQL.
  */
-public class Replace extends ScalarFunction {
+public class Substring extends ScalarFunction implements OptionalArgument {
 
-    private final Expression source, pattern, replacement;
+    private final Expression source, start, end;
 
-    public Replace(Source source, Expression src, Expression pattern, Expression replacement) {
-        super(source, Arrays.asList(src, pattern, replacement));
+    public Substring(Source source, Expression src, Expression start, Expression end) {
+        super(source, Arrays.asList(src, start, end != null ? end : new Literal(source, null, DataTypes.NULL)));
         this.source = src;
-        this.pattern = pattern;
-        this.replacement = replacement;
+        this.start = start;
+        this.end = arguments().get(2);
     }
 
     @Override
@@ -52,58 +57,53 @@ public class Replace extends ScalarFunction {
             return sourceResolution;
         }
 
-        TypeResolution patternResolution = isStringAndExact(pattern, sourceText(), ParamOrdinal.SECOND);
-        if (patternResolution.unresolved()) {
-            return patternResolution;
+        TypeResolution startResolution = isInteger(start, sourceText(), ParamOrdinal.SECOND);
+        if (startResolution.unresolved()) {
+            return startResolution;
         }
 
-        return isStringAndExact(replacement, sourceText(), ParamOrdinal.THIRD);
+        return isInteger(end, sourceText(), ParamOrdinal.THIRD);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new ReplaceFunctionPipe(source(), this,
-                Expressions.pipe(source),
-                Expressions.pipe(pattern),
-                Expressions.pipe(replacement));
-    }
-
-    @Override
-    protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Replace::new, source, pattern, replacement);
+        return new SubstringFunctionPipe(source(), this, Expressions.pipe(source), Expressions.pipe(start), Expressions.pipe(end));
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable()
-                && pattern.foldable()
-                && replacement.foldable();
+        return source.foldable() && start.foldable() && end.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold(), pattern.fold(), replacement.fold());
+        return doProcess(source.fold(), start.fold(), end.fold());
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, Substring::new, source, start, end);
     }
 
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate sourceScript = asScript(source);
-        ScriptTemplate patternScript = asScript(pattern);
-        ScriptTemplate replacementScript = asScript(replacement);
+        ScriptTemplate startScript = asScript(start);
+        ScriptTemplate endScript = asScript(end);
 
-        return asScriptFrom(sourceScript, patternScript, replacementScript);
+        return asScriptFrom(sourceScript, startScript, endScript);
     }
 
-    private ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate patternScript, ScriptTemplate replacementScript) {
-        // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"),
-                "replace",
+    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate startScript, ScriptTemplate endScript) {
+        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s)"),
+                "substring",
                 sourceScript.template(),
-                patternScript.template(),
-                replacementScript.template()),
+                startScript.template(),
+                endScript.template()),
                 paramsBuilder()
-                    .script(sourceScript.params()).script(patternScript.params())
-                    .script(replacementScript.params())
+                    .script(sourceScript.params())
+                    .script(startScript.params())
+                    .script(endScript.params())
                     .build(), dataType());
     }
 
@@ -125,6 +125,6 @@ public class Replace extends ScalarFunction {
             throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
         }
 
-        return new Replace(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Substring(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }

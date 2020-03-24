@@ -26,14 +26,12 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -70,7 +68,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         implements MultiBucketAggregationBuilder, DateIntervalConsumer {
 
     public static final String NAME = "date_histogram";
-    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS = Map.ofEntries(
             entry("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY),
@@ -90,11 +87,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             entry("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
             entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE));
 
-    private static final ObjectParser<DateHistogramAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<DateHistogramAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, DateHistogramAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(DateHistogramAggregationBuilder.NAME);
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
-
         DateIntervalWrapper.declareIntervalFields(PARSER);
 
         PARSER.declareField(DateHistogramAggregationBuilder::offset, p -> {

@@ -86,7 +86,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private DateHistogramInterval dateHistogramInterval;
     private IntervalTypeEnum intervalType = IntervalTypeEnum.NONE;
 
-    public static <T extends DateIntervalConsumer> void declareIntervalFields(ObjectParser<T, Void> parser) {
+    public static <T extends DateIntervalConsumer> void declareIntervalFields(ObjectParser<T, String> parser) {
 
         // NOTE: this field is deprecated and will be removed
         parser.declareField((wrapper, interval) -> {

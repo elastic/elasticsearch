@@ -421,31 +421,34 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(SignificantTextAggregationBuilder.NAME, SignificantTextAggregationBuilder::new,
                 SignificantTextAggregationBuilder::parse));
         registerAggregation(new AggregationSpec(RangeAggregationBuilder.NAME, RangeAggregationBuilder::new,
-                RangeAggregationBuilder::parse)
+                RangeAggregationBuilder.PARSER)
                     .addResultReader(InternalRange::new)
                     .setAggregatorRegistrar(RangeAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(DateRangeAggregationBuilder.NAME, DateRangeAggregationBuilder::new,
-                DateRangeAggregationBuilder::parse)
+                DateRangeAggregationBuilder.PARSER)
                     .addResultReader(InternalDateRange::new)
                     .setAggregatorRegistrar(DateRangeAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(IpRangeAggregationBuilder.NAME, IpRangeAggregationBuilder::new,
-                IpRangeAggregationBuilder::parse).addResultReader(InternalBinaryRange::new));
+                IpRangeAggregationBuilder.PARSER).addResultReader(InternalBinaryRange::new));
         registerAggregation(new AggregationSpec(HistogramAggregationBuilder.NAME, HistogramAggregationBuilder::new,
-                HistogramAggregationBuilder::parse).addResultReader(InternalHistogram::new)
-            .setAggregatorRegistrar(HistogramAggregationBuilder::registerAggregators));
+                HistogramAggregationBuilder.PARSER)
+                    .addResultReader(InternalHistogram::new)
+                    .setAggregatorRegistrar(HistogramAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(DateHistogramAggregationBuilder.NAME, DateHistogramAggregationBuilder::new,
-                DateHistogramAggregationBuilder::parse)
+                DateHistogramAggregationBuilder.PARSER)
                     .addResultReader(InternalDateHistogram::new)
                     .setAggregatorRegistrar(DateHistogramAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(AutoDateHistogramAggregationBuilder.NAME, AutoDateHistogramAggregationBuilder::new,
-                AutoDateHistogramAggregationBuilder::parse).addResultReader(InternalAutoDateHistogram::new));
+                AutoDateHistogramAggregationBuilder.PARSER).addResultReader(InternalAutoDateHistogram::new));
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,
                 GeoDistanceAggregationBuilder::parse).addResultReader(InternalGeoDistance::new));
         registerAggregation(new AggregationSpec(GeoHashGridAggregationBuilder.NAME, GeoHashGridAggregationBuilder::new,
-                GeoHashGridAggregationBuilder::parse).addResultReader(InternalGeoHashGrid::new)
+                GeoHashGridAggregationBuilder.PARSER)
+                    .addResultReader(InternalGeoHashGrid::new)
                     .setAggregatorRegistrar(GeoHashGridAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(GeoTileGridAggregationBuilder.NAME, GeoTileGridAggregationBuilder::new,
-                GeoTileGridAggregationBuilder::parse).addResultReader(InternalGeoTileGrid::new)
+                GeoTileGridAggregationBuilder.PARSER)
+                    .addResultReader(InternalGeoTileGrid::new)
                     .setAggregatorRegistrar(GeoTileGridAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(NestedAggregationBuilder.NAME, NestedAggregationBuilder::new,
                 NestedAggregationBuilder::parse).addResultReader(InternalNested::new));
@@ -454,10 +457,12 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(TopHitsAggregationBuilder.NAME, TopHitsAggregationBuilder::new,
                 TopHitsAggregationBuilder::parse).addResultReader(InternalTopHits::new));
         registerAggregation(new AggregationSpec(GeoBoundsAggregationBuilder.NAME, GeoBoundsAggregationBuilder::new,
-                GeoBoundsAggregationBuilder::parse).addResultReader(InternalGeoBounds::new)
-                .setAggregatorRegistrar(GeoBoundsAggregationBuilder::registerAggregators));
+                GeoBoundsAggregationBuilder.PARSER)
+                    .addResultReader(InternalGeoBounds::new)
+                    .setAggregatorRegistrar(GeoBoundsAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(GeoCentroidAggregationBuilder.NAME, GeoCentroidAggregationBuilder::new,
-                GeoCentroidAggregationBuilder::parse).addResultReader(InternalGeoCentroid::new)
+                GeoCentroidAggregationBuilder.PARSER)
+                    .addResultReader(InternalGeoCentroid::new)
                     .setAggregatorRegistrar(GeoCentroidAggregationBuilder::registerAggregators));
         registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder.NAME, ScriptedMetricAggregationBuilder::new,
                 ScriptedMetricAggregationBuilder.PARSER).addResultReader(InternalScriptedMetric::new));

@@ -171,6 +171,28 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testMissingField() throws IOException {
+        BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot").field("number").missing(10L);
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("other", 2)));
+            iw.addDocument(singleton(new NumericDocValuesField("other", 2)));
+            iw.addDocument(singleton(new NumericDocValuesField("other", 3)));
+            iw.addDocument(singleton(new NumericDocValuesField("other", 4)));
+            iw.addDocument(singleton(new NumericDocValuesField("other", 5)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 0)));
+        },  (Consumer<InternalBoxplot>) boxplot -> {
+            assertEquals(0, boxplot.getMin(), 0);
+            assertEquals(10, boxplot.getMax(), 0);
+            assertEquals(10, boxplot.getQ1(), 0);
+            assertEquals(10, boxplot.getQ2(), 0);
+            assertEquals(10, boxplot.getQ3(), 0);
+        }, fieldType);
+    }
+
     public void testUnmappedWithMissingField() throws IOException {
         BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot")
             .field("does_not_exist").missing(0L);

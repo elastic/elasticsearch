@@ -33,9 +33,9 @@ import java.util.Objects;
 /**
  * Represents a field load/store.
  */
-final class PSubField extends AStoreable {
+public class PSubField extends AStoreable {
 
-    private final PainlessField field;
+    protected final PainlessField field;
 
     PSubField(Location location, PainlessField field) {
         super(location);
@@ -44,9 +44,8 @@ final class PSubField extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
          if (input.write && Modifier.isFinal(field.javaField.getModifiers())) {
              throw createError(new IllegalArgumentException("Cannot write to read-only field [" + field.javaField.getName() + "] " +
@@ -55,28 +54,20 @@ final class PSubField extends AStoreable {
 
          output.actual = field.typeParameter;
 
-         return output;
-    }
-
-    @Override
-    DotSubNode write(ClassNode classNode) {
         DotSubNode dotSubNode = new DotSubNode();
 
         dotSubNode.setLocation(location);
         dotSubNode.setExpressionType(output.actual);
         dotSubNode.setField(field);
 
-        return dotSubNode;
+        output.expressionNode = dotSubNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
         return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
     }
 
     @Override

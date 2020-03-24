@@ -21,36 +21,50 @@ package org.elasticsearch.client.asyncsearch;
 
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
 
-    public void testSubmitAsyncSearchRequest() throws IOException {
+    public void testAsyncSearch() throws IOException {
         String index = "test-index";
         createIndex(index, Settings.EMPTY);
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
-        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(sourceBuilder, index);
-        // 15 sec should be enough to make sure we always complete right away
-        request.setWaitForCompletion(new TimeValue(15, TimeUnit.SECONDS));
-        AsyncSearchResponse response = highLevelClient().asyncSearch().submitAsyncSearch(request, RequestOptions.DEFAULT);
-        assertFalse(response.isPartial());
-        assertTrue(response.getStartTime() > 0);
-        assertTrue(response.getExpirationTime() > 0);
-        assertNotNull(response.getSearchResponse());
-        if (response.isRunning() == false) {
-            assertNull(response.getId());
-            assertFalse(response.isPartial());
+        SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(sourceBuilder, index);
+        submitRequest.setCleanOnCompletion(false);
+        AsyncSearchResponse submitResponse = highLevelClient().asyncSearch().submit(submitRequest, RequestOptions.DEFAULT);
+        assertNotNull(submitResponse.getId());
+        assertFalse(submitResponse.isPartial());
+        assertTrue(submitResponse.getStartTime() > 0);
+        assertTrue(submitResponse.getExpirationTime() > 0);
+        assertNotNull(submitResponse.getSearchResponse());
+        if (submitResponse.isRunning() == false) {
+            assertFalse(submitResponse.isPartial());
         } else {
-            assertTrue(response.isPartial());
-            assertNotNull(response.getId());
+            assertTrue(submitResponse.isPartial());
         }
-    }
 
+        GetAsyncSearchRequest getRequest = new GetAsyncSearchRequest(submitResponse.getId());
+        AsyncSearchResponse getResponse = highLevelClient().asyncSearch().get(getRequest, RequestOptions.DEFAULT);
+        while (getResponse.isRunning()) {
+            getResponse = highLevelClient().asyncSearch().get(getRequest, RequestOptions.DEFAULT);
+        }
+
+        assertFalse(getResponse.isRunning());
+        assertFalse(getResponse.isPartial());
+        assertTrue(getResponse.getStartTime() > 0);
+        assertTrue(getResponse.getExpirationTime() > 0);
+        assertNotNull(getResponse.getSearchResponse());
+
+        DeleteAsyncSearchRequest deleteRequest = new DeleteAsyncSearchRequest(submitResponse.getId());
+        AcknowledgedResponse deleteAsyncSearchResponse = highLevelClient().asyncSearch().delete(deleteRequest,
+                RequestOptions.DEFAULT);
+        assertNotNull(deleteAsyncSearchResponse);
+        assertNotNull(deleteAsyncSearchResponse.isAcknowledged());
+    }
 }

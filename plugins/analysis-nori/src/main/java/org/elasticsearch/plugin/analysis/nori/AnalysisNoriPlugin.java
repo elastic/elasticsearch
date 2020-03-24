@@ -22,6 +22,7 @@ package org.elasticsearch.plugin.analysis.nori;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.NoriAnalyzerProvider;
+import org.elasticsearch.index.analysis.NoriNumberFilterFactory;
 import org.elasticsearch.index.analysis.NoriPartOfSpeechStopFilterFactory;
 import org.elasticsearch.index.analysis.NoriReadingFormFilterFactory;
 import org.elasticsearch.index.analysis.NoriTokenizerFactory;
@@ -42,6 +43,7 @@ public class AnalysisNoriPlugin extends Plugin implements AnalysisPlugin {
         Map<String, AnalysisProvider<TokenFilterFactory>> extra = new HashMap<>();
         extra.put("nori_part_of_speech", NoriPartOfSpeechStopFilterFactory::new);
         extra.put("nori_readingform", NoriReadingFormFilterFactory::new);
+        extra.put("nori_number", NoriNumberFilterFactory::new);
         return extra;
     }
 

@@ -19,11 +19,13 @@ public class StatsHolder {
     private final ProgressTracker progressTracker;
     private final AtomicReference<MemoryUsage> memoryUsageHolder;
     private final AtomicReference<AnalysisStats> analysisStatsHolder;
+    private final DataCountsTracker dataCountsTracker;
 
     public StatsHolder() {
         progressTracker = new ProgressTracker();
         memoryUsageHolder = new AtomicReference<>();
         analysisStatsHolder = new AtomicReference<>();
+        dataCountsTracker = new DataCountsTracker();
     }
 
     public ProgressTracker getProgressTracker() {
@@ -44,5 +46,9 @@ public class StatsHolder {
 
     public AnalysisStats getAnalysisStats() {
         return analysisStatsHolder.get();
+    }
+
+    public DataCountsTracker getDataCountsTracker() {
+        return dataCountsTracker;
     }
 }

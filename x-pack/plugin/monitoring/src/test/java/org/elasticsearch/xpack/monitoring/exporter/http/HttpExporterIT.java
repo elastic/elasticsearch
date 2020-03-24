@@ -972,7 +972,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, internalRepresentation)) {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            IndexTemplateMetaData.fromXContent(parser, "").toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ToXContent.Params params = new ToXContent.MapParams(Map.of(IndexTemplateMetaData.INCLUDE_TEMPLATE_NAME, "false"));
+            builder.startObject();
+            IndexTemplateMetaData.fromXContent(parser, "").toXContent(builder, params);
+            builder.endObject();
             return BytesReference.bytes(builder).utf8ToString();
         }
     }

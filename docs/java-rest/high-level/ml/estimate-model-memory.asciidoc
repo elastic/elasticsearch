@@ -8,7 +8,7 @@
 === Estimate {anomaly-job} Model Memory API
 
 Estimate the model memory an analysis config is likely to need for
-given cardinality of the fields it references.
+the given cardinality of the fields it references.
 
 [id="{upid}-{api}-request"]
 ==== Estimate {anomaly-job} Model Memory request

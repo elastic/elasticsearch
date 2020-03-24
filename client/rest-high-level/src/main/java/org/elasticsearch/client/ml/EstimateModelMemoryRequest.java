@@ -40,7 +40,7 @@ public class EstimateModelMemoryRequest implements Validatable, ToXContentObject
     public static final String OVERALL_CARDINALITY = "overall_cardinality";
     public static final String MAX_BUCKET_CARDINALITY = "max_bucket_cardinality";
 
-    private AnalysisConfig analysisConfig;
+    private final AnalysisConfig analysisConfig;
     private Map<String, Long> overallCardinality = Collections.emptyMap();
     private Map<String, Long> maxBucketCardinality = Collections.emptyMap();
 
@@ -55,10 +55,6 @@ public class EstimateModelMemoryRequest implements Validatable, ToXContentObject
 
     public AnalysisConfig getAnalysisConfig() {
         return analysisConfig;
-    }
-
-    public void setAnalysisConfig(AnalysisConfig analysisConfig) {
-        this.analysisConfig = Objects.requireNonNull(analysisConfig);
     }
 
     public Map<String, Long> getOverallCardinality() {

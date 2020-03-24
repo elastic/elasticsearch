@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
@@ -43,9 +44,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     private final XPackLicenseState licenseState;
     private final String field;
     private final Set<Property> properties;
+    private final boolean escCompliant;
 
     public SetSecurityUserProcessor(String tag, SecurityContext securityContext, XPackLicenseState licenseState, String field,
-                                    Set<Property> properties) {
+                                    Set<Property> properties, boolean escCompliant) {
         super(tag);
         this.securityContext = securityContext;
         this.licenseState = Objects.requireNonNull(licenseState, "license state cannot be null");
@@ -57,6 +59,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         }
         this.field = field;
         this.properties = properties;
+        this.escCompliant = escCompliant;
     }
 
     @Override
@@ -93,7 +96,11 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             switch (property) {
                 case USERNAME:
                     if (user.principal() != null) {
-                        userObject.put("username", user.principal());
+                        if (escCompliant && "user".equals(field)) {
+                            userObject.put("name", user.principal());
+                        } else {
+                            userObject.put("username", user.principal());
+                        }
                     }
                     break;
                 case FULL_NAME:
@@ -179,6 +186,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         return properties;
     }
 
+    boolean isEscCompliant() {
+        return escCompliant;
+    }
+
     public static final class Factory implements Processor.Factory {
 
         private final Supplier<SecurityContext> securityContext;
@@ -203,7 +214,8 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             } else {
                 properties = EnumSet.allOf(Property.class);
             }
-            return new SetSecurityUserProcessor(tag, securityContext.get(), licenseState.get(), field, properties);
+            return new SetSecurityUserProcessor(tag, securityContext.get(), licenseState.get(), field, properties,
+                readBooleanProperty(TYPE, tag, config, "ecs_compliant", true));
         }
     }
 

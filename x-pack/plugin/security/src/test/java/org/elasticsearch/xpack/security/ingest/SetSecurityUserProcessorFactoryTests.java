@@ -84,4 +84,21 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         assertThat(processor, notNullValue());
     }
 
+    public void testEscCompliantDefaultToTrue() throws Exception {
+        SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, () -> licenseState);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        SetSecurityUserProcessor processor = factory.create(null, "_tag", config);
+        assertTrue(processor.isEscCompliant());
+    }
+
+    public void testEscCompliantCanBeTurnedOff() throws Exception {
+        SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, () -> licenseState);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("ecs_compliant", false);
+        SetSecurityUserProcessor processor = factory.create(null, "_tag", config);
+        assertFalse(processor.isEscCompliant());
+    }
+
 }

@@ -51,8 +51,8 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -661,7 +661,7 @@ public class AuthenticationService {
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
                 final Authentication finalAuth = new Authentication(
-                    maybeMergeRolesForUser(finalUser), authenticatedBy, lookedupBy);
+                    maybeConsolidateRolesForUser(finalUser), authenticatedBy, lookedupBy);
                 writeAuthToContext(finalAuth);
             }
         }
@@ -695,7 +695,7 @@ public class AuthenticationService {
             this.consumeToken(token);
         }
 
-        private User maybeMergeRolesForUser(User user) {
+        private User maybeConsolidateRolesForUser(User user) {
             if (User.isInternal(user)) {
                 return user;
             } else if (isAnonymousUserEnabled && anonymousUser.equals(user) == false) {
@@ -710,18 +710,26 @@ public class AuthenticationService {
                 }
                 return userWithMergedRoles;
             } else {
-                return maybeDedupUserRoles(user);
+                return dedupUserRoles(user);
             }
         }
 
-        private User maybeDedupUserRoles(User user) {
-            final Set<String> userRoles = new HashSet<>(Arrays.asList(user.roles()));
+        private String[] mergeRoles(String[] existingRoles, String[] otherRoles) {
+            Set<String> roles = new LinkedHashSet<>(Arrays.asList(existingRoles));
+            if (otherRoles != null) {
+                Collections.addAll(roles, otherRoles);
+            }
+            return roles.toArray(new String[0]);
+        }
+
+        private User dedupUserRoles(User user) {
+            final Set<String> userRoles = new LinkedHashSet<>(Arrays.asList(user.roles()));
             User userWithDedupRoles = userRoles.size() == user.roles().length
                 ? user
                 : user.withRoles(userRoles.toArray(new String[0]));
 
             if (user.isRunAs()) {
-                final Set <String> authUserRoles = new HashSet<>(Arrays.asList(user.authenticatedUser().roles()));
+                final Set <String> authUserRoles = new LinkedHashSet<>(Arrays.asList(user.authenticatedUser().roles()));
                 User authUserWithDedupRoles = authUserRoles.size() == user.authenticatedUser().roles().length
                     ? user.authenticatedUser()
                     : user.authenticatedUser().withRoles(authUserRoles.toArray(new String[0]));
@@ -730,15 +738,6 @@ public class AuthenticationService {
                 }
             }
             return userWithDedupRoles;
-        }
-
-        private String[] mergeRoles(String[] existingRoles, String[] otherRoles) {
-            Set<String> roles = new HashSet<>();
-            Collections.addAll(roles, existingRoles);
-            if (otherRoles != null) {
-                Collections.addAll(roles, otherRoles);
-            }
-            return roles.toArray(new String[0]);
         }
     }
 

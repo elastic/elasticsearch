@@ -669,6 +669,20 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertTrue(completed.get());
     }
 
+    public void testAuthenticateWillDeduplicateRoles() throws Exception {
+        User user1 = new User("username", "r1", "r1", "r2", "r2");
+        when(firstRealm.token(threadContext)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(firstRealm, token, user1);
+        // this call does not actually go async
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        service.authenticate(restRequest, ActionListener.wrap(authentication -> {
+            assertThat(authentication.getUser().roles(), arrayContainingInAnyOrder("r1", "r2"));
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        assertTrue(completed.get());
+    }
+
     public void testAuthenticateTransportContextAndHeader() throws Exception {
         User user1 = new User("username", "r1", "r2");
         when(firstRealm.token(threadContext)).thenReturn(token);
@@ -913,7 +927,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         service = new AuthenticationService(settings, realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, anonymousUser, tokenService, apiKeyService);
-        User user1 = new User("username", "r1", "r2");
+        User user1 = new User("username", "r1", "r2", "r3");
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         mockAuthenticate(firstRealm, token, user1);

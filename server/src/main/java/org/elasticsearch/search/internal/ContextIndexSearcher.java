@@ -82,23 +82,20 @@ public class ContextIndexSearcher extends IndexSearcher {
     private MutableQueryTimeout cancellable;
 
     public ContextIndexSearcher(IndexReader reader, Similarity similarity,
-                                QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout());
+                                QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                                boolean wrapWithExitableDirectoryReader) throws IOException {
+        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader);
     }
 
-    // TODO: Make the 2nd constructor private so that the IndexReader is always wrapped.
-    // Some issues must be fixed:
-    //   - regarding tests deriving from AggregatorTestCase and more specifically the use of searchAndReduce and
-    //     the ShardSearcher sub-searchers.
-    //   - tests that use a MultiReader
-    public ContextIndexSearcher(IndexReader reader, Similarity similarity,
-                                QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                                MutableQueryTimeout cancellable) throws IOException {
-        super(cancellable != null ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
+    private ContextIndexSearcher(IndexReader reader, Similarity similarity,
+                                 QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                                 MutableQueryTimeout cancellable,
+                                 boolean wrapWithExitableDirectoryReader) throws IOException {
+        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
-        this.cancellable = cancellable != null ? cancellable : new MutableQueryTimeout();
+        this.cancellable = cancellable;
     }
 
     public void setProfiler(QueryProfiler profiler) {

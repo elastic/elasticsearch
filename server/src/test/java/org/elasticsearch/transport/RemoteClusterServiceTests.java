@@ -850,10 +850,34 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
+    public void testRemoteClusterServiceNotEnabledGetRemoteClusterConnection() {
+        final Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), false).build();
+        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+            service.start();
+            service.acceptIncomingRequests();
+            final IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> service.getRemoteClusterService().getRemoteClusterConnection("test"));
+            assertThat(e.getMessage(), equalTo("remote cluster service is not enabled"));
+        }
+    }
+
+    public void testRemoteClusterServiceNotEnabledGetCollectNodes() {
+        final Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), false).build();
+        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+            service.start();
+            service.acceptIncomingRequests();
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> service.getRemoteClusterService().collectNodes(Collections.emptySet(), ActionListener.wrap(r -> {}, r -> {})));
+            assertThat(e.getMessage(), equalTo("remote cluster service is not enabled"));
+        }
+    }
+
     private static Settings createSettings(String clusterAlias, List<String> seeds) {
         Settings.Builder builder = Settings.builder();
         builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
             Strings.collectionToCommaDelimitedString(seeds));
         return builder.build();
     }
+
 }

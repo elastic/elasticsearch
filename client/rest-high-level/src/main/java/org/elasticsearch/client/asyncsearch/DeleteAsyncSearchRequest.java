@@ -17,15 +17,39 @@
  * under the License.
  */
 
-esplugin {
-  description 'Plugin exposing APIs for Kibana system indices'
-  classname 'org.elasticsearch.kibana.KibanaPlugin'
+
+package org.elasticsearch.client.asyncsearch;
+
+import org.elasticsearch.client.Validatable;
+
+import java.util.Objects;
+
+public class DeleteAsyncSearchRequest implements Validatable {
+
+    private final String id;
+
+    public DeleteAsyncSearchRequest(String id) {
+        this.id = id;
 }
 
-dependencies {
-  compile project(path: ':modules:reindex', configuration: 'runtime')
-}
+    public String getId() {
+        return this.id;
+    }
 
-testClusters.integTest {
-  module file(project(':modules:reindex').tasks.bundlePlugin.archiveFile)
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        DeleteAsyncSearchRequest request = (DeleteAsyncSearchRequest) o;
+        return Objects.equals(getId(), request.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getId());
+    }
 }

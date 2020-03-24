@@ -281,7 +281,7 @@ public class MetaDataIndexTemplateService {
                 templateBuilder.patterns(request.indexPatterns);
                 templateBuilder.settings(request.settings);
 
-                if(request.mappings!=null) {
+                if (request.mappings != null) {
                     try {
                         templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
                     } catch (Exception e) {

@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
@@ -41,6 +42,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,6 +95,18 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             final List<HttpHost> hosts,
             final Version esVersion) {
         return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, this::getClientBuilderWithSniffedHosts);
+    }
+
+    @Before
+    public void waitForRequirements() throws Exception {
+        if (isCcrTest()) {
+            ESRestTestCase.waitForActiveLicense(adminClient());
+        }
+    }
+
+    protected boolean isCcrTest() {
+        String testName = getTestName();
+        return testName != null && testName.contains("/ccr/");
     }
 
     /**

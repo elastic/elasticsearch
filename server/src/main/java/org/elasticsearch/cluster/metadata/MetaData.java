@@ -1343,8 +1343,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 currentFieldName = parser.currentName();
             }
 
-            if (!"meta-data".equals(parser.currentName()) &&
-                !"metadata".equals(parser.currentName())) {
+            if (!"meta-data".equals(parser.currentName())) {
                 throw new IllegalArgumentException("Expected [meta-data] as a field name but got " + currentFieldName);
             }
             if (token != XContentParser.Token.START_OBJECT) {

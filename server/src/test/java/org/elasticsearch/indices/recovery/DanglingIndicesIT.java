@@ -82,13 +82,6 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
-
-        assertBusy(() -> assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME)));
-        if (refreshIntervalChanged) {
-            assertThat(client().admin().indices().prepareGetSettings(INDEX_NAME).get().getSetting(INDEX_NAME, "index.refresh_interval"),
-                equalTo("42s"));
-        }
-        ensureGreen(INDEX_NAME);
     }
 
     /**

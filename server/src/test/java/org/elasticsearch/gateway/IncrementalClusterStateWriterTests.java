@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -430,11 +429,6 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
             }
 
             metaStateService.noFailures();
-
-            Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
-            MetaData loadedMetaData = manifestAndMetaData.v2();
-
-            assertTrue(possibleMetaData.stream().anyMatch(md -> metaDataEquals(md, loadedMetaData)));
         }
     }
 

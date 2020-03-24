@@ -23,13 +23,8 @@ import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -98,42 +93,6 @@ public class IndexMetaDataTests extends ESTestCase {
         metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        final IndexMetaData fromXContentMeta = IndexMetaData.fromXContent(parser);
-        assertEquals("expected: " + Strings.toString(metaData) + "\nactual  : " + Strings.toString(fromXContentMeta),
-            metaData, fromXContentMeta);
-        assertEquals(metaData.hashCode(), fromXContentMeta.hashCode());
-
-        assertEquals(metaData.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
-        assertEquals(metaData.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
-        assertEquals(metaData.getCreationVersion(), fromXContentMeta.getCreationVersion());
-        assertEquals(metaData.getRoutingNumShards(), fromXContentMeta.getRoutingNumShards());
-        assertEquals(metaData.getCreationDate(), fromXContentMeta.getCreationDate());
-        assertEquals(metaData.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
-        assertEquals(metaData.primaryTerm(0), fromXContentMeta.primaryTerm(0));
-        ImmutableOpenMap.Builder<String, DiffableStringMap> expectedCustomBuilder = ImmutableOpenMap.builder();
-        expectedCustomBuilder.put("my_custom", new DiffableStringMap(customMap));
-        ImmutableOpenMap<String, DiffableStringMap> expectedCustom = expectedCustomBuilder.build();
-        assertEquals(metaData.getCustomData(), expectedCustom);
-        assertEquals(metaData.getCustomData(), fromXContentMeta.getCustomData());
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        metaData.writeTo(out);
-        try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
-            IndexMetaData deserialized = IndexMetaData.readFrom(in);
-            assertEquals(metaData, deserialized);
-            assertEquals(metaData.hashCode(), deserialized.hashCode());
-
-            assertEquals(metaData.getNumberOfReplicas(), deserialized.getNumberOfReplicas());
-            assertEquals(metaData.getNumberOfShards(), deserialized.getNumberOfShards());
-            assertEquals(metaData.getCreationVersion(), deserialized.getCreationVersion());
-            assertEquals(metaData.getRoutingNumShards(), deserialized.getRoutingNumShards());
-            assertEquals(metaData.getCreationDate(), deserialized.getCreationDate());
-            assertEquals(metaData.getRoutingFactor(), deserialized.getRoutingFactor());
-            assertEquals(metaData.primaryTerm(0), deserialized.primaryTerm(0));
-            assertEquals(metaData.getRolloverInfos(), deserialized.getRolloverInfos());
-            assertEquals(deserialized.getCustomData(), expectedCustom);
-            assertEquals(metaData.getCustomData(),  deserialized.getCustomData());
-        }
     }
 
     public void testGetRoutingFactor() {

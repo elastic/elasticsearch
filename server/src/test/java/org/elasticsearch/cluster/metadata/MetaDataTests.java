@@ -34,7 +34,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -400,33 +399,6 @@ public class MetaDataTests extends ESTestCase {
         assertTrue("metadata equal when not adding index deletions", MetaData.isGlobalStateEquals(metaData2, metaData3));
     }
 
-    public void testXContentWithIndexGraveyard() throws IOException {
-        final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
-        final MetaData originalMeta = MetaData.builder().indexGraveyard(graveyard).build();
-        final XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject();
-        originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final MetaData fromXContentMeta = MetaData.fromXContent(parser);
-            assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
-        }
-    }
-
-    public void testXContentClusterUUID() throws IOException {
-        final MetaData originalMeta = MetaData.builder().clusterUUID(UUIDs.randomBase64UUID())
-            .clusterUUIDCommitted(randomBoolean()).build();
-        final XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject();
-        originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final MetaData fromXContentMeta = MetaData.fromXContent(parser);
-            assertThat(fromXContentMeta.clusterUUID(), equalTo(originalMeta.clusterUUID()));
-            assertThat(fromXContentMeta.clusterUUIDCommitted(), equalTo(originalMeta.clusterUUIDCommitted()));
-        }
-    }
-
     public void testSerializationClusterUUID() throws IOException {
         final MetaData originalMeta = MetaData.builder().clusterUUID(UUIDs.randomBase64UUID())
             .clusterUUIDCommitted(randomBoolean()).build();
@@ -461,23 +433,6 @@ public class MetaDataTests extends ESTestCase {
             assertTrue(nodes.add(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))));
         }
         return nodes;
-    }
-
-    public void testXContentWithCoordinationMetaData() throws IOException {
-        CoordinationMetaData originalMeta = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
-                randomVotingConfigExclusions());
-
-        MetaData metaData = MetaData.builder().coordinationMetaData(originalMeta).build();
-
-        final XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject();
-        metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final CoordinationMetaData fromXContentMeta = MetaData.fromXContent(parser).coordinationMetaData();
-            assertThat(fromXContentMeta, equalTo(originalMeta));
-        }
     }
 
     public void testGlobalStateEqualsCoordinationMetaData() {

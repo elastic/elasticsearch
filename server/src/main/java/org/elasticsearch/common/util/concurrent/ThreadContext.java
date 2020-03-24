@@ -243,10 +243,9 @@ public final class ThreadContext implements Writeable {
         if (requestHeaders.isEmpty() && responseHeaders.isEmpty()) {
             struct = ThreadContextStruct.EMPTY;
         } else {
-            struct = new ThreadContextStruct(requestHeaders, responseHeaders, Collections.emptyMap(), false, 0L);
+            struct = new ThreadContextStruct(requestHeaders, responseHeaders, Collections.emptyMap(), false);
         }
         threadLocal.set(struct);
-
     }
 
     public static Tuple<Map<String, String>, Map<String, Set<String>>> readHeadersFromStream(StreamInput in) throws IOException {

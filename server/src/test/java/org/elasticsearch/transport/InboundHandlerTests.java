@@ -19,11 +19,11 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,7 +44,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "FIX")
 public class InboundHandlerTests extends ESTestCase {
 
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -80,7 +79,7 @@ public class InboundHandlerTests extends ESTestCase {
             (request, channel, task) -> channelCaptor.set(channel), ThreadPool.Names.SAME, false, true);
         handler.registerRequestHandler(registry);
 
-//        handler.inboundMessage(channel, new AggregatedMessage(null, BytesArray.EMPTY, true));
+        handler.inboundMessage(channel, new InboundMessage(null, true));
         assertEquals(1, handler.getReadBytes().count());
         assertEquals(6, handler.getReadBytes().sum());
         if (channel.isServerChannel()) {
@@ -93,7 +92,7 @@ public class InboundHandlerTests extends ESTestCase {
     public void testRequestAndResponse() throws Exception {
         String action = "test-request";
         int headerSize = TcpHeader.headerSize(version);
-        boolean isError = true;
+        boolean isError = randomBoolean();
         AtomicReference<TestRequest> requestCaptor = new AtomicReference<>();
         AtomicReference<TestResponse> responseCaptor = new AtomicReference<>();
         AtomicReference<Exception> exceptionCaptor = new AtomicReference<>();
@@ -133,8 +132,8 @@ public class InboundHandlerTests extends ESTestCase {
         BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
-        InboundMessage requestMessage = new InboundMessage(requestHeader, null);
-//        AggregatedMessage requestMessage = new AggregatedMessage(requestHeader, requestContent, false);
+        InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent));
+        requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
 
         TransportChannel transportChannel = channelCaptor.get();
@@ -145,7 +144,7 @@ public class InboundHandlerTests extends ESTestCase {
         String responseValue = randomAlphaOfLength(10);
         byte responseStatus = TransportStatus.setResponse((byte) 0);
         if (isError) {
-            responseStatus = TransportStatus.setError((byte) 0);
+            responseStatus = TransportStatus.setError(responseStatus);
             transportChannel.sendResponse(new ElasticsearchException("boom"));
         } else {
             transportChannel.sendResponse(new TestResponse(responseValue));
@@ -154,8 +153,8 @@ public class InboundHandlerTests extends ESTestCase {
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
         Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, version);
-        InboundMessage responseMessage = new InboundMessage(responseHeader, null);
-//        AggregatedMessage responseMessage = new AggregatedMessage(responseHeader, responseContent, false);
+        InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent));
+        responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, responseMessage);
 
         if (isError) {

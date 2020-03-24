@@ -67,7 +67,6 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, buffer::release)) {
             pipeline.handleBytes(channel, reference);
         }
-        buffer.readerIndex(buffer.readerIndex() + wrapped.length());
     }
 
     @Override

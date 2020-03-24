@@ -50,7 +50,7 @@ public class InboundAggregatorTests extends ESTestCase {
     public void testCannotReceiveHeaderTwice() {
         long requestId = randomLong();
         Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
-        header.finishHeader(new Tuple<>(Collections.emptyMap(), Collections.emptyMap()));
+        header.setHeaders(new Tuple<>(Collections.emptyMap(), Collections.emptyMap()));
         aggregator.headerReceived(header);
 
         expectThrows(IllegalStateException.class, () -> aggregator.headerReceived(header));
@@ -71,7 +71,7 @@ public class InboundAggregatorTests extends ESTestCase {
     public void testInboundAggregation() throws IOException {
         long requestId = randomNonNegativeLong();
         Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
-        header.finishHeader(new Tuple<>(Collections.emptyMap(), Collections.emptyMap()));
+        header.setHeaders(new Tuple<>(Collections.emptyMap(), Collections.emptyMap()));
         // Initiate Message
         aggregator.headerReceived(header);
 

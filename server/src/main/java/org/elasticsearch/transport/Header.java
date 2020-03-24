@@ -95,20 +95,24 @@ public class Header {
     }
 
     void finishParsingHeader(StreamInput input) throws IOException {
-        finishHeader(ThreadContext.readHeadersFromStream(input));
+        setHeaders(ThreadContext.readHeadersFromStream(input));
 
         if (isRequest()) {
             if (version.before(Version.V_8_0_0)) {
                 // discard features
                 input.readStringArray();
             }
-            actionName = input.readString();
+            setActionName(input.readString());
         } else {
-            actionName = RESPONSE_NAME;
+            setActionName(RESPONSE_NAME);
         }
     }
 
-    void finishHeader(Tuple<Map<String, String>, Map<String, Set<String>>> headers) {
+    void setHeaders(Tuple<Map<String, String>, Map<String, Set<String>>> headers) {
         this.headers = headers;
+    }
+
+    void setActionName(String actionName) {
+        this.actionName = actionName;
     }
 }

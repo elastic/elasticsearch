@@ -156,7 +156,7 @@ public class SamlRequestHandler {
                     }
                 });
             } catch (PrivilegedActionException e) {
-                throw new SecurityException("failed to sign SAML object ", e);
+                throw new SecurityException("SecurityException while attempting to validate SAML signature", e);
             }
         }, signatureText);
     }

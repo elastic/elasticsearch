@@ -101,7 +101,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     @TestIssueLogging(
         value = "org.elasticsearch.indices.IndicesRequestCache:TRACE",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/32827")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32827")
     public void testQueryRewrite() throws Exception {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index").setMapping("s", "type=date")
@@ -132,7 +131,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
             .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25"))
             // to ensure that query is executed even if it rewrites to match_no_docs
             .addAggregation(new GlobalAggregationBuilder("global"))
-            .setPreFilterShardSize(Integer.MAX_VALUE).get();
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 0, 5);
@@ -140,7 +139,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
             .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
             .addAggregation(new GlobalAggregationBuilder("global"))
-            .setPreFilterShardSize(Integer.MAX_VALUE).get();
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(7L));
         assertCacheState(client, "index", 3, 7);
@@ -148,7 +147,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
             .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27"))
             .addAggregation(new GlobalAggregationBuilder("global"))
-            .setPreFilterShardSize(Integer.MAX_VALUE)
             .get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(7L));
@@ -224,29 +222,35 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
 
         assertCacheState(client, "index", 0, 0);
 
-        final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
-                .get();
+        final SearchResponse r1 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
+            // to ensure that query is executed even if it rewrites to match_no_docs
+            .addAggregation(new GlobalAggregationBuilder("global"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 0, 1);
 
-        final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
-                .get();
+        final SearchResponse r2 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
+            .addAggregation(new GlobalAggregationBuilder("global"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 1, 1);
 
-        final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
-                .get();
+        final SearchResponse r3 = client.prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("2013-01-01T00:00:00").lte("now"))
+            .addAggregation(new GlobalAggregationBuilder("global"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(9L));
         assertCacheState(client, "index", 2, 1);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32827")
     public void testQueryRewriteDatesWithNow() throws Exception {
         Client client = client();
         Settings settings = Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
@@ -284,8 +288,10 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index-2", 0, 0);
         assertCacheState(client, "index-3", 0, 0);
 
-        final SearchResponse r1 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
+        final SearchResponse r1 = client.prepareSearch("index-*")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
         ElasticsearchAssertions.assertAllSuccessful(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 0, 1);
@@ -295,16 +301,22 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         // cache miss or cache hit since queries containing now can't be cached
         assertCacheState(client, "index-3", 0, 0);
 
-        final SearchResponse r2 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
+        final SearchResponse r2 = client.prepareSearch("index-*")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 1, 1);
         assertCacheState(client, "index-2", 1, 1);
         assertCacheState(client, "index-3", 0, 0);
 
-        final SearchResponse r3 = client.prepareSearch("index-*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
-                .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now")).get();
+        final SearchResponse r3 = client.prepareSearch("index-*")
+            .setSearchType(SearchType.QUERY_THEN_FETCH)
+            .setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("d").gte("now-7d/d").lte("now"))
+            .get();
         ElasticsearchAssertions.assertAllSuccessful(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(8L));
         assertCacheState(client, "index-1", 2, 1);

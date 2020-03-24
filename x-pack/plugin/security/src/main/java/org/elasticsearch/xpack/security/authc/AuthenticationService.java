@@ -704,7 +704,7 @@ public class AuthenticationService {
                 }
                 User userWithMergedRoles = new User(
                     user.principal(),
-                    mergeAnonymousRoles(user.roles()),
+                    mergeRoles(user.roles(), anonymousUser.roles()),
                     user.fullName(),
                     user.email(),
                     user.metadata(),
@@ -713,7 +713,7 @@ public class AuthenticationService {
                 if (user.isRunAs()) {
                     final User authenticatedUserWithMergedRoles = new User(
                         user.authenticatedUser().principal(),
-                        mergeAnonymousRoles(user.authenticatedUser().roles()),
+                        mergeRoles(user.authenticatedUser().roles(), anonymousUser.roles()),
                         user.authenticatedUser().fullName(),
                         user.authenticatedUser().email(),
                         user.authenticatedUser().metadata(),
@@ -727,10 +727,10 @@ public class AuthenticationService {
             }
         }
 
-        private String[] mergeAnonymousRoles(String[] existingRoles) {
-            String[] mergedRoles = new String[existingRoles.length + anonymousUser.roles().length];
+        private String[] mergeRoles(String[] existingRoles, String[] otherRoles) {
+            String[] mergedRoles = new String[existingRoles.length + otherRoles.length];
             System.arraycopy(existingRoles, 0, mergedRoles, 0, existingRoles.length);
-            System.arraycopy(anonymousUser.roles(), 0, mergedRoles, existingRoles.length, anonymousUser.roles().length);
+            System.arraycopy(otherRoles, 0, mergedRoles, existingRoles.length, otherRoles.length);
             return mergedRoles;
         }
     }

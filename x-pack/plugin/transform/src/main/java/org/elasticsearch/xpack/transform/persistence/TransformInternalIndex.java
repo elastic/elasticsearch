@@ -99,13 +99,13 @@ public final class TransformInternalIndex {
         return transformTemplate;
     }
 
-    public static IndexTemplateMetaData getAuditIndexTemplateMetaData(Version compatabilityVersion) throws IOException {
+    public static IndexTemplateMetaData getAuditIndexTemplateMetaData(Version compatibilityVersion) throws IOException {
         final Settings.Builder auditIndexSettings = Settings.builder()
             // the audits are expected to be small
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
         final AliasMetaData.Builder alias = AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS);
-        if (compatabilityVersion.onOrAfter(HIDDEN_INTRODUCED_VERSION)) {
+        if (compatibilityVersion.onOrAfter(HIDDEN_INTRODUCED_VERSION)) {
             auditIndexSettings.put(SETTING_INDEX_HIDDEN, true);
             alias.isHidden(true);
         }

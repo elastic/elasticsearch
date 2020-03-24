@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.stats;
 
+import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -17,10 +18,14 @@ public class StatsHolder {
 
     private final ProgressTracker progressTracker;
     private final AtomicReference<MemoryUsage> memoryUsageHolder;
+    private final AtomicReference<AnalysisStats> analysisStatsHolder;
+    private final DataCountsTracker dataCountsTracker;
 
     public StatsHolder() {
         progressTracker = new ProgressTracker();
         memoryUsageHolder = new AtomicReference<>();
+        analysisStatsHolder = new AtomicReference<>();
+        dataCountsTracker = new DataCountsTracker();
     }
 
     public ProgressTracker getProgressTracker() {
@@ -33,5 +38,17 @@ public class StatsHolder {
 
     public MemoryUsage getMemoryUsage() {
         return memoryUsageHolder.get();
+    }
+
+    public void setAnalysisStats(AnalysisStats analysisStats) {
+        analysisStatsHolder.set(analysisStats);
+    }
+
+    public AnalysisStats getAnalysisStats() {
+        return analysisStatsHolder.get();
+    }
+
+    public DataCountsTracker getDataCountsTracker() {
+        return dataCountsTracker;
     }
 }

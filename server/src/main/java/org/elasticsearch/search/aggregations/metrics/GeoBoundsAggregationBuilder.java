@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -41,15 +40,11 @@ import java.util.Objects;
 public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
 
-    private static final ObjectParser<GeoBoundsAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<GeoBoundsAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, GeoBoundsAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(GeoBoundsAggregationBuilder.NAME);
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
         PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
-    }
-
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new GeoBoundsAggregationBuilder(aggregationName), null);
     }
 
     public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {

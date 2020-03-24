@@ -9,6 +9,7 @@ dependencies {
 // bring in graph rest test suite
 restResources {
   restApi {
+    includeCore '_common', 'cluster', 'indices', 'index'
     includeXpack 'graph'
   }
   restTests {

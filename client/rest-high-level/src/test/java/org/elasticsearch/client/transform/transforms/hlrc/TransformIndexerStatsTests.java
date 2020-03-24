@@ -30,17 +30,31 @@ import static org.elasticsearch.client.transform.transforms.hlrc.TransformStatsT
 
 public class TransformIndexerStatsTests extends AbstractResponseTestCase<
     org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats,
-        TransformIndexerStats> {
+    TransformIndexerStats> {
+
+    public static org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats randomStats() {
+        return new org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats(
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomDouble(),
+            randomDouble(),
+            randomDouble()
+        );
+    }
 
     @Override
     protected org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats createServerTestInstance(XContentType xContentType) {
-        return new org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats(randomLongBetween(10L, 10000L),
-            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomBoolean() ? null : randomDouble(),
-            randomBoolean() ? null : randomDouble(),
-            randomBoolean() ? null : randomDouble());
+        return randomStats();
     }
 
     @Override
@@ -49,8 +63,10 @@ public class TransformIndexerStatsTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats serverTestInstance,
-                                   TransformIndexerStats clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats serverTestInstance,
+        TransformIndexerStats clientInstance
+    ) {
         assertTransformIndexerStats(serverTestInstance, clientInstance);
     }
 }

@@ -71,7 +71,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
@@ -156,6 +158,20 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(
+            CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN);
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new MaxAggregationBuilder("_name")
+            .field(fieldName);
     }
 
     public void testNoDocs() throws IOException {

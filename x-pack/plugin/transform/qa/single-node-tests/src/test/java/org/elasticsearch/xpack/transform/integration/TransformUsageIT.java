@@ -100,11 +100,6 @@ public class TransformUsageIT extends TransformRestTestCase {
             assertEquals(2, XContentMapValues.extractValue("transform.transforms.stopped", statsMap));
             assertEquals(1, XContentMapValues.extractValue("transform.transforms.started", statsMap));
             for (String statName : PROVIDED_STATS) {
-                if (statName.equals(TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName())
-                    || statName.equals(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())) {
-                    continue;
-                }
-
                 // the trigger count can be higher if the scheduler kicked before usage has been called, therefore check for gte
                 if (statName.equals(TransformIndexerStats.NUM_INVOCATIONS.getPreferredName())) {
                     assertThat(

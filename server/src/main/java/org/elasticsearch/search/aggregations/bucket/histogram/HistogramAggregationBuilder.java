@@ -61,9 +61,9 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
     }
 
-    private static final ObjectParser<HistogramAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<HistogramAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, HistogramAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(HistogramAggregationBuilder.NAME);
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
 
         PARSER.declareDouble(HistogramAggregationBuilder::interval, Histogram.INTERVAL_FIELD);

@@ -35,6 +35,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -58,7 +60,12 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -106,9 +113,34 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
+/**
+ * TODO this class uses indexSearcher.search() extensively, and should instead
+ * use {@link AggregatorTestCase#searchAndReduce(IndexSettings, IndexSearcher, Query, AggregationBuilder, int, MappedFieldType...)}
+ * instead because that also performs reductions, incremental reductions, extra assertions, etc
+ */
 public class TermsAggregatorTests extends AggregatorTestCase {
 
     private boolean randomizeAggregatorImpl = true;
+
+    /** Script to return the {@code _value} provided by aggs framework. */
+    private static final String VALUE_SCRIPT = "_value";
+    private static final String SINGLE_SCRIPT = "single";
+
+    @Override
+    protected ScriptService getMockScriptService() {
+        Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+        scripts.put(VALUE_SCRIPT, vars -> (Double.valueOf((Double) vars.get("_value")) + 1));
+        scripts.put(SINGLE_SCRIPT, vars -> 1);
+
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+            scripts,
+            Collections.emptyMap());
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
             IndexSearcher indexSearcher, MappedFieldType... fieldTypes) throws IOException {
@@ -907,6 +939,52 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testMissing() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+
+                Document document = new Document();
+                document.add(new NumericDocValuesField("field", 100));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+
+                    MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType();
+                    fieldType1.setName("string");
+                    fieldType1.setHasDocValues(true);
+
+                    MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+                    fieldType2.setName("long");
+                    fieldType2.setHasDocValues(true);
+
+                    MappedFieldType fieldType3 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
+                    fieldType3.setName("double");
+                    fieldType3.setHasDocValues(true);
+
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    ValueType[] valueTypes = new ValueType[]{ValueType.STRING, ValueType.LONG, ValueType.DOUBLE};
+                    String[] fieldNames = new String[]{"string", "long", "double"};
+                    Object[] missingValues = new Object[]{"abc", 19L, 19.2};
+
+
+                    for (int i = 0; i < fieldNames.length; i++) {
+                        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", valueTypes[i])
+                            .field(fieldNames[i]).missing(missingValues[i]);
+                        Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2, fieldType3);
+                        aggregator.preCollection();
+                        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        aggregator.postCollection();
+                        Terms result = (Terms) aggregator.buildAggregation(0L);
+                        assertEquals("_name", result.getName());
+                        assertEquals(1, result.getBuckets().size());
+                        assertEquals(missingValues[i], result.getBuckets().get(0).getKey());
+                        assertEquals(1, result.getBuckets().get(0).getDocCount());
+                    }
+                }
+            }
+        }
+    }
+
     public void testRangeField() throws Exception {
         try (Directory directory = newDirectory()) {
             double start = randomDouble();
@@ -1255,6 +1333,74 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals("Invalid aggregation order path [script]. The provided aggregation [script] " +
                         "either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets.",
                         e.getMessage());
+                }
+            }
+        }
+    }
+
+    public void testSingleValuedFieldWithScript() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+
+                Document document = new Document();
+                document.add(new NumericDocValuesField("value", 100));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+
+                    MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+                    fieldType1.setName("value");
+                    fieldType1.setHasDocValues(true);
+
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.NUMERIC)
+                        .field("value")
+                        .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SINGLE_SCRIPT, Collections.emptyMap()));
+
+                    Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1);
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+                    Terms result = (Terms) aggregator.buildAggregation(0L);
+                    assertEquals("_name", result.getName());
+                    assertEquals(1, result.getBuckets().size());
+                    assertEquals(1.0, result.getBuckets().get(0).getKey());
+                    assertEquals(1, result.getBuckets().get(0).getDocCount());
+                }
+            }
+        }
+    }
+
+    public void testSingleValuedFieldWithValueScript() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+
+                Document document = new Document();
+                document.add(new NumericDocValuesField("value", 100));
+                indexWriter.addDocument(document);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+
+                    MappedFieldType fieldType1 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+                    fieldType1.setName("value");
+                    fieldType1.setHasDocValues(true);
+
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.NUMERIC)
+                        .field("value")
+                        .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
+
+                    Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1);
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+                    Terms result = (Terms) aggregator.buildAggregation(0L);
+                    assertEquals("_name", result.getName());
+                    assertEquals(1, result.getBuckets().size());
+                    assertEquals(101.0, result.getBuckets().get(0).getKey());
+                    assertEquals(1, result.getBuckets().get(0).getDocCount());
                 }
             }
         }

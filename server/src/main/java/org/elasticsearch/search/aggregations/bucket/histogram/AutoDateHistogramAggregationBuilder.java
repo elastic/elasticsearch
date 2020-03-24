@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -58,9 +57,9 @@ public class AutoDateHistogramAggregationBuilder
     private static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
     private static final ParseField MINIMUM_INTERVAL_FIELD = new ParseField("minimum_interval");
 
-    private static final ObjectParser<AutoDateHistogramAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<AutoDateHistogramAggregationBuilder, String> PARSER =
+        ObjectParser.fromBuilder(NAME, AutoDateHistogramAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(AutoDateHistogramAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
         PARSER.declareInt(AutoDateHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
         PARSER.declareStringOrNull(AutoDateHistogramAggregationBuilder::setMinimumIntervalExpression, MINIMUM_INTERVAL_FIELD);
@@ -108,10 +107,6 @@ public class AutoDateHistogramAggregationBuilder
             }
         }
         return Arrays.copyOfRange(roundings, indexToSliceFrom, roundings.length);
-    }
-
-    public static AutoDateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new AutoDateHistogramAggregationBuilder(aggregationName), null);
     }
 
     private int numBuckets = 10;

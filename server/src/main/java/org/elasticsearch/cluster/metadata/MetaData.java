@@ -668,6 +668,18 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             .orElse(Collections.emptyMap());
     }
 
+    public Map<String, IndexTemplateV2> templatesV2() {
+        return Optional.ofNullable((IndexTemplateV2Metadata) this.custom(IndexTemplateV2Metadata.TYPE))
+            .map(IndexTemplateV2Metadata::indexTemplates)
+            .orElse(Collections.emptyMap());
+    }
+
+    public Map<String, DataStream> dataStreams() {
+        return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
+            .map(DataStreamMetadata::dataStreams)
+            .orElse(Collections.emptyMap());
+    }
+
     public ImmutableOpenMap<String, Custom> customs() {
         return this.customs;
     }
@@ -1084,6 +1096,60 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         public Builder componentTemplates(Map<String, ComponentTemplate> componentTemplates) {
             this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(componentTemplates));
+            return this;
+        }
+
+        public Builder indexTemplates(Map<String, IndexTemplateV2> indexTemplates) {
+            this.customs.put(IndexTemplateV2Metadata.TYPE, new IndexTemplateV2Metadata(indexTemplates));
+            return this;
+        }
+
+        public Builder put(String name, IndexTemplateV2 indexTemplate) {
+            Objects.requireNonNull(indexTemplate, "it is invalid to add a null index template: " + name);
+            // ಠ_ಠ at ImmutableOpenMap
+            Map<String, IndexTemplateV2> existingTemplates =
+                Optional.ofNullable((IndexTemplateV2Metadata) this.customs.get(IndexTemplateV2Metadata.TYPE))
+                    .map(itmd -> new HashMap<>(itmd.indexTemplates()))
+                    .orElse(new HashMap<>());
+            existingTemplates.put(name, indexTemplate);
+            this.customs.put(IndexTemplateV2Metadata.TYPE, new IndexTemplateV2Metadata(existingTemplates));
+            return this;
+        }
+
+        public Builder removeIndexTemplate(String name) {
+            // ಠ_ಠ at ImmutableOpenMap
+            Map<String, IndexTemplateV2> existingTemplates =
+                Optional.ofNullable((IndexTemplateV2Metadata) this.customs.get(IndexTemplateV2Metadata.TYPE))
+                    .map(itmd -> new HashMap<>(itmd.indexTemplates()))
+                    .orElse(new HashMap<>());
+            existingTemplates.remove(name);
+            this.customs.put(IndexTemplateV2Metadata.TYPE, new IndexTemplateV2Metadata(existingTemplates));
+            return this;
+        }
+
+        public Builder dataStreams(Map<String, DataStream> dataStreams) {
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams));
+            return this;
+        }
+
+        public Builder put(DataStream dataStream) {
+            Objects.requireNonNull(dataStream, "it is invalid to add a null data stream");
+            Map<String, DataStream> existingDataStreams =
+                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
+                    .orElse(new HashMap<>());
+            existingDataStreams.put(dataStream.getName(), dataStream);
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
+            return this;
+        }
+
+        public Builder removeDataStream(String name) {
+            Map<String, DataStream> existingDataStreams =
+                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
+                    .orElse(new HashMap<>());
+            existingDataStreams.remove(name);
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
             return this;
         }
 

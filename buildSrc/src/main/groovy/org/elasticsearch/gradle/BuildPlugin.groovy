@@ -32,7 +32,7 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
-import org.elasticsearch.gradle.tool.Boilerplate
+import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -46,6 +46,7 @@ import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.repositories.ExclusiveContentRepository
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
@@ -81,7 +82,7 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
-import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
+import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -147,7 +148,7 @@ class BuildPlugin implements Plugin<Project> {
             File securityPolicy = buildResources.copy("fips_java.policy")
             File bcfksKeystore = buildResources.copy("cacerts.bcfks")
             // This configuration can be removed once system modules are available
-            Boilerplate.maybeCreate(project.configurations, 'extraJars') {
+            GradleUtils.maybeCreate(project.configurations, 'extraJars') {
                 project.dependencies.add('extraJars', "org.bouncycastle:bc-fips:1.0.1")
                 project.dependencies.add('extraJars', "org.bouncycastle:bctls-fips:1.0.9")
             }
@@ -234,7 +235,7 @@ class BuildPlugin implements Plugin<Project> {
     static String getJavaHome(final Task task, final int version) {
         requireJavaHome(task, version)
         JavaHome java = BuildParams.javaVersions.find { it.version == version }
-        return java == null ? null : java.javaHome.absolutePath
+        return java == null ? null : java.javaHome.get().absolutePath
     }
 
     /**
@@ -327,9 +328,15 @@ class BuildPlugin implements Plugin<Project> {
             // extract the revision number from the version with a regex matcher
             List<String> matches = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/).getAt(0) as List<String>
             String revision = matches.get(1)
-            repos.maven { MavenArtifactRepository repo ->
+            MavenArtifactRepository luceneRepo = repos.maven { MavenArtifactRepository repo ->
                 repo.name = 'lucene-snapshots'
                 repo.url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+            }
+            repos.exclusiveContent { ExclusiveContentRepository exclusiveRepo ->
+                exclusiveRepo.filter {
+                    it.includeVersionByRegex(/org\.apache\.lucene/, '.*', ".*-snapshot-${revision}")
+                }
+                exclusiveRepo.forRepositories(luceneRepo)
             }
         }
     }
@@ -446,7 +453,9 @@ class BuildPlugin implements Plugin<Project> {
 
         project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
             // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile classpath
-            project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).extendsFrom(project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME))
+            project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).dependencies.all { Dependency dependency ->
+                project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).dependencies.add(dependency)
+            }
         }
     }
 

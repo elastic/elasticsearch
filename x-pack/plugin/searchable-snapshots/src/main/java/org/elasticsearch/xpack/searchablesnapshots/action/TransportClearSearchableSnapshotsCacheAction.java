@@ -14,10 +14,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,9 +53,10 @@ public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransp
     }
 
     @Override
-    protected EmptyResult executeShardOperation(ClearSearchableSnapshotsCacheRequest request, ShardRouting shardRouting,
-                                                CacheDirectory cacheDirectory) {
-        cacheDirectory.clearCache();
+    protected EmptyResult executeShardOperation(ClearSearchableSnapshotsCacheRequest request,
+                                                ShardRouting shardRouting,
+                                                SearchableSnapshotDirectory directory) {
+        directory.clearCache();
         return EmptyResult.INSTANCE;
     }
 }

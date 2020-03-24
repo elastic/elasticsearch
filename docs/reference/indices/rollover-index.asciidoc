@@ -300,7 +300,7 @@ POST /logs_write/_rollover <2>
   }
 }
 --------------------------------------------------
-// TEST[s/now/2016.10.31||/]
+// TEST[s/now/2016.10.31%7C%7C/]
 
 <1> Creates an index named with today's date (e.g.) `logs-2016.10.31-1`
 <2> Rolls over to a new index with today's date, e.g. `logs-2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
@@ -339,7 +339,7 @@ over indices created in the last three days, you could do the following:
 GET /%3Clogs-%7Bnow%2Fd%7D-*%3E%2C%3Clogs-%7Bnow%2Fd-1d%7D-*%3E%2C%3Clogs-%7Bnow%2Fd-2d%7D-*%3E/_search
 --------------------------------------------------
 // TEST[continued]
-// TEST[s/now/2016.10.31||/]
+// TEST[s/now/2016.10.31%7C%7C/]
 
 
 [[rollover-index-api-dry-run-ex]]

@@ -1313,6 +1313,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public void preRecovery() {
+        assert state == IndexShardState.RECOVERING : "expected a recovering shard " + shardId + " but got " + state;
+        indexEventListener.beforeIndexShardRecovery(this, indexSettings);
+    }
+
     public void postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
         synchronized (postRecoveryMutex) {
             // we need to refresh again to expose all operations that were index until now. Otherwise

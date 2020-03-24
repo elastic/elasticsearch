@@ -31,11 +31,11 @@ import java.util.Objects;
 /**
  * Represents a boolean expression.
  */
-public final class EBool extends AExpression {
+public class EBool extends AExpression {
 
-    private final Operation operation;
-    private AExpression left;
-    private AExpression right;
+    protected final Operation operation;
+    protected final AExpression left;
+    protected final AExpression right;
 
     public EBool(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
@@ -46,37 +46,33 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         Input leftInput = new Input();
         leftInput.expected = boolean.class;
-        left.analyze(scriptRoot, scope, leftInput);
-        left.cast();
+        Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
+        left.cast(leftInput, leftOutput);
 
         Input rightInput = new Input();
         rightInput.expected = boolean.class;
-        right.analyze(scriptRoot, scope, rightInput);
-        right.cast();
+        Output rightOutput = right.analyze(classNode, scriptRoot, scope, rightInput);
+        right.cast(rightInput, rightOutput);
 
         output.actual = boolean.class;
 
-        return output;
-    }
-
-    @Override
-    BooleanNode write(ClassNode classNode) {
         BooleanNode booleanNode = new BooleanNode();
 
-        booleanNode.setLeftNode(left.cast(left.write(classNode)));
-        booleanNode.setRightNode(right.cast(right.write(classNode)));
+        booleanNode.setLeftNode(left.cast(leftOutput));
+        booleanNode.setRightNode(right.cast(rightOutput));
 
         booleanNode.setLocation(location);
         booleanNode.setExpressionType(output.actual);
         booleanNode.setOperation(operation);
 
-        return booleanNode;
+        output.expressionNode = booleanNode;
+
+        return output;
     }
 
     @Override

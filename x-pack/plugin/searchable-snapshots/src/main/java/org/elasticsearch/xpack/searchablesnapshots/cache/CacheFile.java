@@ -27,7 +27,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-class CacheFile {
+public class CacheFile {
 
     @FunctionalInterface
     public interface EvictionListener {

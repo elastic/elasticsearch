@@ -79,4 +79,20 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         static final String CACHE_EVICTIONS = "cache_evictions";
         static final String COMPILATION_LIMIT_TRIGGERED = "compilation_limit_triggered";
     }
+
+    public static ScriptStats sum(Iterable<ScriptStats> stats) {
+        long compilations = 0;
+        long cacheEvictions = 0;
+        long compilationLimitTriggered = 0;
+        for (ScriptStats stat: stats) {
+            compilations += stat.compilations;
+            cacheEvictions += stat.cacheEvictions;
+            compilationLimitTriggered += stat.compilationLimitTriggered;
+        }
+        return new ScriptStats(
+            compilations,
+            cacheEvictions,
+            compilationLimitTriggered
+        );
+    }
 }

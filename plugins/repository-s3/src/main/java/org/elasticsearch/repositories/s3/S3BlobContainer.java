@@ -105,13 +105,9 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public long readBlobPreferredLength(boolean cachedRead) {
+    public long readBlobPreferredLength() {
         // This container returns streams that must be fully consumed, so we tell consumers to make bounded requests.
-        if (cachedRead) {
-            return new ByteSizeValue(32, ByteSizeUnit.MB).getBytes();
-        } else {
-            return new ByteSizeValue(512, ByteSizeUnit.KB).getBytes();
-        }
+        return new ByteSizeValue(32, ByteSizeUnit.MB).getBytes();
     }
 
     /**

@@ -25,9 +25,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.InMemoryNoOpCommitDirectory;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheDirectory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,20 +91,21 @@ public abstract class AbstractTransportSearchableSnapshotsAction
     @Override
     protected ShardOperationResult shardOperation(Request request, ShardRouting shardRouting) throws IOException {
         final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
-        final CacheDirectory cacheDirectory = unwrapCacheDirectory(indexShard.store().directory());
-        assert cacheDirectory != null;
-        assert cacheDirectory.getShardId().equals(shardRouting.shardId());
-        return executeShardOperation(request, shardRouting, cacheDirectory);
+        final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
+        assert directory != null;
+        assert directory.getShardId().equals(shardRouting.shardId());
+        return executeShardOperation(request, shardRouting, directory);
     }
 
-    protected abstract ShardOperationResult executeShardOperation(Request request, ShardRouting shardRouting,
-                                                                  CacheDirectory cacheDirectory) throws IOException;
+    protected abstract ShardOperationResult executeShardOperation(Request request,
+                                                                  ShardRouting shardRouting,
+                                                                  SearchableSnapshotDirectory directory) throws IOException;
 
     @Nullable
-    private static CacheDirectory unwrapCacheDirectory(Directory dir) {
+    private static SearchableSnapshotDirectory unwrapDirectory(Directory dir) {
         while (dir != null) {
-            if (dir instanceof CacheDirectory) {
-                return (CacheDirectory) dir;
+            if (dir instanceof SearchableSnapshotDirectory) {
+                return (SearchableSnapshotDirectory) dir;
             } else if (dir instanceof InMemoryNoOpCommitDirectory) {
                 dir = ((InMemoryNoOpCommitDirectory) dir).getRealDirectory();
             } else if (dir instanceof FilterDirectory) {

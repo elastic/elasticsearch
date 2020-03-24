@@ -19,9 +19,11 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -40,8 +42,8 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction;
@@ -80,6 +82,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     public static final Setting<List<String>> SNAPSHOT_CACHE_BLACKLIST_SETTING =
         Setting.listSetting("index.store.snapshot.cache.blacklist", Collections.emptyList(), Function.identity(),
             Setting.Property.IndexScope, Setting.Property.NodeScope);
+    public static final Setting<ByteSizeValue> SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING =
+        Setting.byteSizeSetting("index.store.snapshot.uncached_chunk_size", ByteSizeValue.ZERO,
+            Setting.Property.IndexScope, Setting.Property.NodeScope);
 
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
@@ -101,6 +106,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
             SNAPSHOT_INDEX_ID_SETTING,
             SNAPSHOT_CACHE_ENABLED_SETTING,
             SNAPSHOT_CACHE_BLACKLIST_SETTING,
+            SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING
         );
@@ -131,6 +137,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     }
 
     @Override
+    public void onIndexModule(IndexModule indexModule) {
+        if (isSearchableSnapshotStore(indexModule.getSettings())) {
+            indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener());
+        }
+    }
+
+    @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
             final RepositoriesService repositories = repositoriesService.get();
@@ -143,7 +156,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings.getSettings()))
+        if (isSearchableSnapshotStore(indexSettings.getSettings())
                 && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
             return Optional.of(engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity()));
         }
@@ -173,6 +186,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     @Override
     public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
         return Collections.singletonMap(SearchableSnapshotAllocator.ALLOCATOR_NAME, new SearchableSnapshotAllocator());
+    }
+
+    static boolean isSearchableSnapshotStore(Settings indexSettings) {
+        return SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings));
     }
 }
 

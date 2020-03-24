@@ -11,18 +11,20 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.SerializationTestUtils;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndexTests;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
@@ -83,7 +85,10 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         final SamlServiceProviderDocument doc = SamlServiceProviderIndexTests.randomDocument();
         final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, RefreshPolicy.NONE);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
-        SerializationTestUtils.assertRoundTrip(request, PutSamlServiceProviderRequest::new, version);
+        final PutSamlServiceProviderRequest read = copyWriteable(request, new NamedWriteableRegistry(List.of()),
+            PutSamlServiceProviderRequest::new, version);
+        MatcherAssert.assertThat("Serialized request with version [" + version + "] does not match original object",
+            read, equalTo(request));
     }
 
     public void testParseRequestBodySuccessfully() throws Exception {

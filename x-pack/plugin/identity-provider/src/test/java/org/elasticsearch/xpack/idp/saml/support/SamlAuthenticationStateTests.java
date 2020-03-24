@@ -8,19 +8,22 @@ package org.elasticsearch.xpack.idp.saml.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.SerializationTestUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.opensaml.saml.saml2.core.NameID;
 
 import java.io.IOException;
+import java.util.List;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -97,8 +100,11 @@ public class SamlAuthenticationStateTests extends IdpSamlTestCase {
         }
     }
 
-    private SamlAuthenticationState assertSerializationRoundTrip(SamlAuthenticationState obj1) throws IOException {
+    private SamlAuthenticationState assertSerializationRoundTrip(SamlAuthenticationState state) throws IOException {
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
-        return SerializationTestUtils.assertRoundTrip(obj1, SamlAuthenticationState::new, version);
+        final SamlAuthenticationState read = copyWriteable(state, new NamedWriteableRegistry(List.of()),
+            SamlAuthenticationState::new, version);
+        MatcherAssert.assertThat("Serialized state with version [" + version + "] does not match original object", read, equalTo(state));
+        return read;
     }
 }

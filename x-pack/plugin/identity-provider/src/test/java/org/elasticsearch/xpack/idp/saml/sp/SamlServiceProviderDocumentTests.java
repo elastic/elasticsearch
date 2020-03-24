@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.idp.saml.sp;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.SerializationTestUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -149,9 +151,12 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         }
     }
 
-    private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument obj1) throws IOException {
+    private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
-        return SerializationTestUtils.assertRoundTrip(obj1, SamlServiceProviderDocument::new, version);
+        final SamlServiceProviderDocument read = copyWriteable(doc, new NamedWriteableRegistry(List.of()),
+            SamlServiceProviderDocument::new, version);
+        MatcherAssert.assertThat("Serialized document with version [" + version + "] does not match original object", read, equalTo(doc));
+        return read;
     }
 
 }

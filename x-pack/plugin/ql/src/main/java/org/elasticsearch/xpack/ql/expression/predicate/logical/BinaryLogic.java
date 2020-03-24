@@ -34,7 +34,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public Pipe makePipe() {
+    protected Pipe makePipe() {
         return new BinaryLogicPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 

@@ -1404,11 +1404,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 builder.endObject();
             }
 
-            ToXContent.Params typedParams
-                = new ToXContent.DelegatingMapParams(Map.of(IndexTemplateMetaData.INCLUDE_TYPE_NAME, "true"), params);
             builder.startObject("templates");
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
-                cursor.value.toXContent(builder, typedParams);
+                IndexTemplateMetaData.Builder.toXContentWithTypes(cursor.value, builder, params);
             }
             builder.endObject();
 
@@ -1473,7 +1471,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                         builder.hashesOfConsistentSettings(parser.mapStrings());
                     } else if ("templates".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexTemplateMetaData.fromXContent(parser, parser.currentName()));
+                            builder.put(IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName()));
                         }
                     } else {
                         try {

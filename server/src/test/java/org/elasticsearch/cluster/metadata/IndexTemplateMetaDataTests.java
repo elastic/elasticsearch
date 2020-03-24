@@ -34,7 +34,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
@@ -55,15 +54,13 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
         final IndexTemplateMetaData indexTemplateMetaData;
         try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateBytes, XContentType.JSON)) {
-            indexTemplateMetaData = IndexTemplateMetaData.fromXContent(parser, "test");
+            indexTemplateMetaData = IndexTemplateMetaData.Builder.fromXContent(parser, "test");
         }
 
         final BytesReference templateBytesRoundTrip;
-        final ToXContent.Params params = new ToXContent.MapParams(
-            Map.of(IndexTemplateMetaData.INCLUDE_TYPE_NAME, "true", IndexTemplateMetaData.INCLUDE_TEMPLATE_NAME, "false"));
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
             builder.startObject();
-            indexTemplateMetaData.toXContent(builder, params);
+            IndexTemplateMetaData.Builder.toXContentWithTypes(indexTemplateMetaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             templateBytesRoundTrip = BytesReference.bytes(builder);
         }
@@ -71,7 +68,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
         final IndexTemplateMetaData indexTemplateMetaDataRoundTrip;
         try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateBytesRoundTrip, XContentType.JSON)) {
-            indexTemplateMetaDataRoundTrip = IndexTemplateMetaData.fromXContent(parser, "test");
+            indexTemplateMetaDataRoundTrip = IndexTemplateMetaData.Builder.fromXContent(parser, "test");
         }
         assertThat(indexTemplateMetaData, equalTo(indexTemplateMetaDataRoundTrip));
     }
@@ -100,7 +97,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
                  XContentHelper.createParser(NamedXContentRegistry.EMPTY,
                      DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new BytesArray(templateWithEmptyPattern), XContentType.JSON)) {
             final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> IndexTemplateMetaData.fromXContent(parser, randomAlphaOfLengthBetween(1, 100)));
+                () -> IndexTemplateMetaData.Builder.fromXContent(parser, randomAlphaOfLengthBetween(1, 100)));
             assertThat(ex.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
         }
 
@@ -115,7 +112,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
                  XContentHelper.createParser(NamedXContentRegistry.EMPTY,
                      DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new BytesArray(templateWithoutPattern), XContentType.JSON)) {
             final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> IndexTemplateMetaData.fromXContent(parser, randomAlphaOfLengthBetween(1, 100)));
+                () -> IndexTemplateMetaData.Builder.fromXContent(parser, randomAlphaOfLengthBetween(1, 100)));
             assertThat(ex.getMessage(), equalTo("Index patterns must not be null or empty; got null"));
         }
     }
@@ -125,7 +122,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
         try (XContentParser parser =
                  XContentHelper.createParser(NamedXContentRegistry.EMPTY,
                      DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new BytesArray(templateInJSON), XContentType.JSON)) {
-            IndexTemplateMetaData template = IndexTemplateMetaData.fromXContent(parser, randomAlphaOfLengthBetween(1, 100));
+            IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContent(parser, randomAlphaOfLengthBetween(1, 100));
             assertThat(template.aliases().containsKey("log"), equalTo(true));
             assertThat(template.patterns(), contains("pattern-1"));
         }
@@ -160,14 +157,12 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
             templateBuilder.putMapping("doc", "{\"doc\":{\"properties\":{\"type\":\"text\"}}}");
         }
         IndexTemplateMetaData template = templateBuilder.build();
-        final ToXContent.Params params = new ToXContent.MapParams(
-            Map.of(IndexTemplateMetaData.INCLUDE_TYPE_NAME, "true", IndexTemplateMetaData.INCLUDE_TEMPLATE_NAME, "false"));
         XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON.xContent()));
         builder.startObject();
-        template.toXContent(builder, params);
+        IndexTemplateMetaData.Builder.toXContentWithTypes(template, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         try (XContentParser parser = createParser(shuffleXContent(builder))) {
-            IndexTemplateMetaData parsed = IndexTemplateMetaData.fromXContent(parser, templateName);
+            IndexTemplateMetaData parsed = IndexTemplateMetaData.Builder.fromXContent(parser, templateName);
             assertThat(parsed, equalTo(template));
         }
     }

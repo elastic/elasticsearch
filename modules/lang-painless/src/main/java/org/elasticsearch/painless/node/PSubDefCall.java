@@ -28,51 +28,55 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a method call made on a def type. (Internal only.)
  */
-final class PSubDefCall extends AExpression {
+public class PSubDefCall extends AExpression {
 
-    private final String name;
-    private final List<AExpression> arguments;
-
-    private final StringBuilder recipe = new StringBuilder();
-    private final List<String> pointers = new ArrayList<>();
-    private final List<Class<?>> parameterTypes = new ArrayList<>();
+    protected final String name;
+    protected final List<AExpression> arguments;
 
     PSubDefCall(Location location, String name, List<AExpression> arguments) {
         super(location);
 
         this.name = Objects.requireNonNull(name);
-        this.arguments = Objects.requireNonNull(arguments);
+        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
+        StringBuilder recipe = new StringBuilder();
+        List<String> pointers = new ArrayList<>();
+        List<Class<?>> parameterTypes = new ArrayList<>();
 
         parameterTypes.add(Object.class);
         int totalCaptures = 0;
+
+        List<Output> argumentOutputs = new ArrayList<>(arguments.size());
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
             Input expressionInput = new Input();
             expressionInput.internal = true;
-            Output expressionOutput = expression.analyze(scriptRoot, scope, expressionInput);
+            Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            argumentOutputs.add(expressionOutput);
 
             if (expressionOutput.actual == void.class) {
                 throw createError(new IllegalArgumentException("Argument(s) cannot be of [void] type when calling method [" + name + "]."));
             }
 
-            expression.input.expected = expressionOutput.actual;
-            expression.cast();
+            expressionInput.expected = expressionOutput.actual;
+            expression.cast(expressionInput, expressionOutput);
             parameterTypes.add(expressionOutput.actual);
 
+            // TODO: #54015
             if (expression instanceof ILambda) {
                 ILambda lambda = (ILambda) expression;
                 pointers.add(lambda.getPointer());
@@ -87,15 +91,10 @@ final class PSubDefCall extends AExpression {
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
 
-        return output;
-    }
-
-    @Override
-    CallSubDefNode write(ClassNode classNode) {
         CallSubDefNode callSubDefNode = new CallSubDefNode();
 
-        for (AExpression argument : arguments) {
-            callSubDefNode.addArgumentNode(argument.cast(argument.write(classNode)));
+        for (int argument = 0; argument < arguments.size(); ++ argument) {
+            callSubDefNode.addArgumentNode(arguments.get(argument).cast(argumentOutputs.get(argument)));
         }
 
         callSubDefNode.setLocation(location);
@@ -105,7 +104,9 @@ final class PSubDefCall extends AExpression {
         callSubDefNode.getPointers().addAll(pointers);
         callSubDefNode.getTypeParameters().addAll(parameterTypes);
 
-        return callSubDefNode;
+        output.expressionNode = callSubDefNode;
+
+        return output;
     }
 
     @Override

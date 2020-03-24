@@ -153,7 +153,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             final Path[] dataPaths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(dataPaths, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L, true).createWriter()) {
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
                 writer.writeFullStateAndCommit(1L, clusterState);
             }
         }

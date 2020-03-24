@@ -82,7 +82,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.SCRIPT_CONTEXT_STATS);
+        builder.startObject(Fields.SCRIPT_CACHE_STATS);
         builder.startObject(Fields.SUM);
         if (general != null) {
             builder.field(ScriptStats.Fields.COMPILATIONS, general.getCompilations());
@@ -115,7 +115,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
     }
 
     static final class Fields {
-        static final String SCRIPT_CONTEXT_STATS = "script_context";
+        static final String SCRIPT_CACHE_STATS = "script_cache";
         static final String CONTEXT = "context";
         static final String SUM = "sum";
         static final String CONTEXTS = "contexts";

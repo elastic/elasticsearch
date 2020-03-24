@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,6 +50,7 @@ public class Phase implements ToXContentObject, Writeable {
                 // when the phase is read from the cluster state during startup (even before negative timevalues were strictly
                 // disallowed) so this is a hack to treat negative `min_age`s as 0 to prevent those errors.
                 // They will be saved as `0` so this hack can be removed once we no longer have to read cluster states from 7.x.
+                assert Version.CURRENT.major < 9 : "remove this hack now that we don't have to read 7.x cluster states";
                 final String timeValueString = p.text();
                 if (timeValueString.startsWith("-")) {
                     logger.warn("phase has negative min_age value of [{}] - this will be treated as a min_age of 0",

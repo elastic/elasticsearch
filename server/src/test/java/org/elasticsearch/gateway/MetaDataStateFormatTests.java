@@ -238,6 +238,22 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
+    public void testLoadStateWithoutMissingCustoms() throws IOException {
+        runLoadStateTest(false, false);
+    }
+
+    public void testLoadStateWithoutMissingCustomsButPreserved() throws IOException {
+        runLoadStateTest(false, true);
+    }
+
+    public void testLoadStateWithMissingCustomsButPreserved() throws IOException {
+        runLoadStateTest(true, true);
+    }
+
+    public void testLoadStateWithMissingCustomsAndNotPreserved() throws IOException {
+        runLoadStateTest(true, false);
+    }
+
     private void runLoadStateTest(boolean hasMissingCustoms, boolean preserveUnknownCustoms) throws IOException {
         final Path[] dirs = new Path[randomIntBetween(1, 5)];
         int numStates = randomIntBetween(1, 5);

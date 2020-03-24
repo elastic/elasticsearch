@@ -43,13 +43,13 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -59,7 +59,7 @@ public class MetaDataTests extends ESTestCase {
 
     public void testFindAliases() {
         MetaData metaData = MetaData.builder().put(IndexMetaData.builder("index")
-            .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetaData.builder("alias1").build())
@@ -119,7 +119,7 @@ public class MetaDataTests extends ESTestCase {
     public void testFindAliasWithExclusion() {
         MetaData metaData = MetaData.builder().put(
             IndexMetaData.builder("index")
-                .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putAlias(AliasMetaData.builder("alias1").build())
@@ -134,7 +134,7 @@ public class MetaDataTests extends ESTestCase {
     public void testFindAliasWithExclusionAndOverride() {
         MetaData metaData = MetaData.builder().put(
             IndexMetaData.builder("index")
-                .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putAlias(AliasMetaData.builder("aa").build())
@@ -150,7 +150,7 @@ public class MetaDataTests extends ESTestCase {
 
     public void testIndexAndAliasWithSameName() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
-                .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putAlias(AliasMetaData.builder("index").build());
@@ -180,7 +180,7 @@ public class MetaDataTests extends ESTestCase {
         MetaData.Builder metaDataBuilder = MetaData.builder();
         for (String index : indices) {
             IndexMetaData.Builder indexBuilder = IndexMetaData.builder(index)
-                .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             aliasToIndices.forEach((key, value) -> {
@@ -226,9 +226,42 @@ public class MetaDataTests extends ESTestCase {
         assertThat(exception.getMessage(), startsWith("alias [" + alias + "] has more than one write index ["));
     }
 
+    public void testValidateHiddenAliasConsistency() {
+        String alias = randomAlphaOfLength(5);
+        String indexA = randomAlphaOfLength(6);
+        String indexB = randomAlphaOfLength(7);
+
+        {
+            Exception ex = expectThrows(IllegalStateException.class,
+                () -> buildMetadataWithHiddenIndexMix(alias, indexA, true, indexB, randomFrom(false, null)).build());
+            assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));
+        }
+
+        {
+            Exception ex = expectThrows(IllegalStateException.class,
+                () -> buildMetadataWithHiddenIndexMix(alias, indexA, randomFrom(false, null), indexB, true).build());
+            assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));
+        }
+    }
+
+    private MetaData.Builder buildMetadataWithHiddenIndexMix(String aliasName, String indexAName, Boolean indexAHidden,
+                                                             String indexBName, Boolean indexBHidden) {
+        IndexMetaData.Builder indexAMeta = IndexMetaData.builder(indexAName)
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder(aliasName).build());
+        IndexMetaData.Builder indexBMeta = IndexMetaData.builder(indexBName)
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder(aliasName).build());
+        return MetaData.builder().put(indexAMeta).put(indexBMeta);
+    }
+
     public void testResolveIndexRouting() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
-                .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .putAlias(AliasMetaData.builder("alias0").build())
@@ -276,7 +309,7 @@ public class MetaDataTests extends ESTestCase {
         }
 
         IndexMetaData.Builder builder2 = IndexMetaData.builder("index2")
-            .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetaData.builder("alias0").build());
@@ -294,7 +327,7 @@ public class MetaDataTests extends ESTestCase {
             aliasZeroBuilder.writeIndex(true);
         }
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
-            .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(aliasZeroBuilder.build())
@@ -345,7 +378,7 @@ public class MetaDataTests extends ESTestCase {
             aliasZeroBuilder.writeIndex(false);
         }
         IndexMetaData.Builder builder2 = IndexMetaData.builder("index2")
-            .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(aliasZeroBuilderTwo.build())
@@ -399,6 +432,33 @@ public class MetaDataTests extends ESTestCase {
         assertTrue("metadata equal when not adding index deletions", MetaData.isGlobalStateEquals(metaData2, metaData3));
     }
 
+    public void testXContentWithIndexGraveyard() throws IOException {
+        final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
+        final MetaData originalMeta = MetaData.builder().indexGraveyard(graveyard).build();
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        MetaData.FORMAT.toXContent(builder, originalMeta);
+        builder.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final MetaData fromXContentMeta = MetaData.fromXContent(parser);
+            assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
+        }
+    }
+
+    public void testXContentClusterUUID() throws IOException {
+        final MetaData originalMeta = MetaData.builder().clusterUUID(UUIDs.randomBase64UUID())
+            .clusterUUIDCommitted(randomBoolean()).build();
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        MetaData.FORMAT.toXContent(builder, originalMeta);
+        builder.endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final MetaData fromXContentMeta = MetaData.fromXContent(parser);
+            assertThat(fromXContentMeta.clusterUUID(), equalTo(originalMeta.clusterUUID()));
+            assertThat(fromXContentMeta.clusterUUIDCommitted(), equalTo(originalMeta.clusterUUIDCommitted()));
+        }
+    }
+
     public void testSerializationClusterUUID() throws IOException {
         final MetaData originalMeta = MetaData.builder().clusterUUID(UUIDs.randomBase64UUID())
             .clusterUUIDCommitted(randomBoolean()).build();
@@ -435,6 +495,23 @@ public class MetaDataTests extends ESTestCase {
         return nodes;
     }
 
+    public void testXContentWithCoordinationMetaData() throws IOException {
+        CoordinationMetaData originalMeta = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(), randomVotingConfig(),
+                randomVotingConfigExclusions());
+
+        MetaData metaData = MetaData.builder().coordinationMetaData(originalMeta).build();
+
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        MetaData.FORMAT.toXContent(builder, metaData);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final CoordinationMetaData fromXContentMeta = MetaData.fromXContent(parser).coordinationMetaData();
+            assertThat(fromXContentMeta, equalTo(originalMeta));
+        }
+    }
+
     public void testGlobalStateEqualsCoordinationMetaData() {
         CoordinationMetaData coordinationMetaData1 = new CoordinationMetaData(randomNonNegativeLong(), randomVotingConfig(),
                 randomVotingConfig(), randomVotingConfigExclusions());
@@ -462,11 +539,11 @@ public class MetaDataTests extends ESTestCase {
     public void testFindMappings() throws IOException {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("index1")
-                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                     .putMapping(FIND_MAPPINGS_TEST_ITEM))
                 .put(IndexMetaData.builder("index2")
-                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                     .putMapping(FIND_MAPPINGS_TEST_ITEM)).build();
 
@@ -497,7 +574,7 @@ public class MetaDataTests extends ESTestCase {
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("index1")
-                        .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)
+                        .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                         .putMapping(originalMappingMetaData)).build();
 
@@ -529,15 +606,15 @@ public class MetaDataTests extends ESTestCase {
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("index1")
-                        .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)
+                        .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                 .putMapping(mapping))
                 .put(IndexMetaData.builder("index2")
-                        .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)
+                        .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                         .putMapping(mapping))
                 .put(IndexMetaData.builder("index3")
-                        .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)
+                        .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                         .putMapping(mapping)).build();
 
@@ -646,7 +723,7 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
-    private IndexMetaData.Builder buildIndexMetaData(String name, String alias, Boolean writeIndex) {
+    private static IndexMetaData.Builder buildIndexMetaData(String name, String alias, Boolean writeIndex) {
         return IndexMetaData.builder(name)
             .settings(settings(Version.CURRENT)).creationDate(randomNonNegativeLong())
             .putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex))
@@ -828,5 +905,37 @@ public class MetaDataTests extends ESTestCase {
         mapBuilder.put(key, null);
         final ImmutableOpenMap<String, MetaData.Custom> map = mapBuilder.build();
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+    }
+
+    public void testSerialization() throws IOException {
+        final MetaData orig = randomMetaData();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        orig.writeTo(out);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        final MetaData fromStreamMeta = MetaData.readFrom(new NamedWriteableAwareStreamInput(out.bytes().streamInput(),
+            namedWriteableRegistry));
+        assertTrue(MetaData.isGlobalStateEquals(orig, fromStreamMeta));
+    }
+
+    public static MetaData randomMetaData() {
+        return MetaData.builder()
+            .put(buildIndexMetaData("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
+            .put(IndexTemplateMetaData.builder("template" + randomAlphaOfLength(3))
+                .patterns(Arrays.asList("bar-*", "foo-*"))
+                .settings(Settings.builder()
+                    .put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5))
+                    .build())
+                .build())
+            .persistentSettings(Settings.builder()
+                .put("setting" + randomAlphaOfLength(3), randomAlphaOfLength(4))
+                .build())
+            .transientSettings(Settings.builder()
+                .put("other_setting" + randomAlphaOfLength(3), randomAlphaOfLength(4))
+                .build())
+            .clusterUUID("uuid" + randomAlphaOfLength(3))
+            .clusterUUIDCommitted(randomBoolean())
+            .indexGraveyard(IndexGraveyardTests.createRandom())
+            .version(randomNonNegativeLong())
+            .build();
     }
 }

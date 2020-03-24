@@ -65,6 +65,7 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -1451,7 +1452,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         return builder.build();
     }
 
-    private static final ToXContent.Params FORMAT_PARAMS = new MapParams(Collections.singletonMap("binary", "true"));
+    private static final ToXContent.Params FORMAT_PARAMS;
+    static {
+        Map<String, String> params = new HashMap<>(2);
+        params.put("binary", "true");
+        params.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
+        FORMAT_PARAMS = new MapParams(params);
+    }
 
     /**
      * State format for {@link IndexMetaData} to write to and load from disk

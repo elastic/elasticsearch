@@ -346,6 +346,15 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         logger.info("--> start data-only only node and ensure 2 nodes stable cluster");
         internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
         ensureStableCluster(2);
+
+        logger.info("--> verify that the dangling index exists and has green status");
+        assertBusy(() -> {
+            assertThat(indexExists("test"), equalTo(true));
+        });
+        ensureGreen("test");
+
+        logger.info("--> verify the doc is there");
+        assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {

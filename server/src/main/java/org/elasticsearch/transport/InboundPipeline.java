@@ -41,6 +41,7 @@ public class InboundPipeline implements Releasable {
     private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
     private final BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler;
     private ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
+    private boolean isClosed = false;
 
     public InboundPipeline(Version version, PageCacheRecycler recycler, BiConsumer<TcpChannel, InboundMessage> messageHandler,
                            BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
@@ -58,8 +59,10 @@ public class InboundPipeline implements Releasable {
 
     @Override
     public void close() {
-        Releasables.closeWhileHandlingException(pending);
+        isClosed = true;
         Releasables.closeWhileHandlingException(decoder, aggregator);
+        Releasables.closeWhileHandlingException(pending);
+        pending.clear();
     }
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
@@ -78,9 +81,9 @@ public class InboundPipeline implements Releasable {
         final ArrayList<Object> fragments = new ArrayList<>();
         boolean continueHandling = true;
 
-        while (continueHandling) {
+        while (continueHandling && isClosed == false) {
             boolean continueDecoding = true;
-            while (continueDecoding) {
+            while (continueDecoding && isClosed == false) {
                 final int remaining = composite.length() - bytesConsumed;
                 if (remaining != 0) {
                     try (ReleasableBytesReference slice = composite.retainedSlice(bytesConsumed, remaining)) {
@@ -148,6 +151,10 @@ public class InboundPipeline implements Releasable {
     }
 
     private void releasePendingBytes(int bytesConsumed) {
+        if (isClosed) {
+            // Are released by the close method
+            return;
+        }
         int bytesToRelease = bytesConsumed;
         while (bytesToRelease != 0) {
             try (ReleasableBytesReference reference = pending.pollFirst()) {

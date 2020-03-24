@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,7 +74,7 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
         final String dataStreamName = "my-data-stream";
         DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
+            .metaData(MetaData.builder().dataStreams(Collections.singletonMap(dataStreamName, existingDataStream)).build()).build();
         CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

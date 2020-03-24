@@ -29,7 +29,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -55,7 +54,7 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
         final String dataStreamName = "my-data-stream";
         DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
+            .metaData(MetaData.builder().dataStreams(Collections.singletonMap(dataStreamName, existingDataStream)).build()).build();
         GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(new String[]{dataStreamName});
         List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
         assertThat(dataStreams.size(), equalTo(1));

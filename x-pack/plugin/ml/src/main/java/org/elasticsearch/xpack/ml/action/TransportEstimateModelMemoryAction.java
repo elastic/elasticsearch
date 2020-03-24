@@ -23,6 +23,17 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Calculates the estimated model memory requirement of an anomaly detection job
+ * from its analysis config and estimates of the cardinality of the various fields
+ * referenced in it.
+ *
+ * Answers are capped at <code>Long.MAX_VALUE</code> bytes, to avoid returning
+ * values with bigger units that cannot trivially be converted back to bytes.
+ * (In reality if the memory estimate is greater than <code>Long.MAX_VALUE</code>
+ * bytes then the job will be impossible to run successfully, so this is not a
+ * major limitation.)
+ */
 public class TransportEstimateModelMemoryAction
     extends HandledTransportAction<EstimateModelMemoryAction.Request, EstimateModelMemoryAction.Response> {
 
@@ -89,7 +100,8 @@ public class TransportEstimateModelMemoryAction
                 answer = 1; // TODO add realistic number
                 break;
             case METRIC:
-                answer = 1; // TODO add realistic number
+                // metric analyses mean, min and max simultaneously, and uses about 2.5 times the memory of one of these
+                answer = new ByteSizeValue(160, ByteSizeUnit.KB).getBytes();
                 break;
             case MEAN:
             case LOW_MEAN:
@@ -136,9 +148,10 @@ public class TransportEstimateModelMemoryAction
 
         String overFieldName = detector.getOverFieldName();
         if (overFieldName != null) {
-            long multiplier =
+            long cardinalityEstimate =
                 cardinalityEstimate(Detector.OVER_FIELD_NAME_FIELD.getPreferredName(), overFieldName, overallCardinality, true);
-            // TODO - how should "over" field cardinality affect estimate?
+            // Over fields don't multiply the whole estimate, just add a small amount (estimate 512 bytes) per value
+            answer = addNonNegativeLongsWithMaxValueCap(answer, multiplyNonNegativeLongsWithMaxValueCap(cardinalityEstimate, 512));
         }
 
         String partitionFieldName = detector.getPartitionFieldName();

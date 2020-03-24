@@ -50,9 +50,9 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
 
     public void testWildcardWithNumericField() {
         VerificationException e = expectThrows(VerificationException.class,
-            () -> plan("process where wildcard(0, '*.exe')"));
+            () -> plan("process where wildcard(pid, '*.exe')"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-            "line 1:15: first argument of [wildcard(0, '*.exe')] must be [string], found value [0] type [integer]", msg);
+            "line 1:15: first argument of [wildcard(pid, '*.exe')] must be [string], found value [pid] type [long]", msg);
     }
 }

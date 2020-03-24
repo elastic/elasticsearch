@@ -10,6 +10,8 @@ import org.elasticsearch.xpack.idp.authc.AuthenticationMethod;
 import org.elasticsearch.xpack.idp.authc.NetworkControl;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -32,14 +34,15 @@ public class UserServiceAuthentication {
         this.principal = principal;
         this.name = name;
         this.email = email;
-        this.roles = Set.copyOf(roles);
+        this.roles = Collections.unmodifiableSet(roles);
         this.serviceProvider = serviceProvider;
         this.authenticationMethods = authenticationMethods;
         this.networkControls = networkControls;
     }
 
     public UserServiceAuthentication(String principal, String name, String email, Set<String> roles, SamlServiceProvider serviceProvider) {
-        this(principal, name, email, roles, serviceProvider, Set.of(AuthenticationMethod.PASSWORD), Set.of(NetworkControl.TLS));
+        this(principal, name, email, roles, serviceProvider, new HashSet<>(Collections.singletonList(AuthenticationMethod.PASSWORD)),
+            new HashSet<>(Collections.singletonList(NetworkControl.TLS)));
     }
 
     public String getPrincipal() {

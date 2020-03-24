@@ -21,9 +21,8 @@ import org.hamcrest.Matchers;
 import org.opensaml.saml.saml2.core.NameID;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -102,7 +101,7 @@ public class SamlAuthenticationStateTests extends IdpSamlTestCase {
 
     private SamlAuthenticationState assertSerializationRoundTrip(SamlAuthenticationState state) throws IOException {
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
-        final SamlAuthenticationState read = copyWriteable(state, new NamedWriteableRegistry(List.of()),
+        final SamlAuthenticationState read = copyWriteable(state, new NamedWriteableRegistry(Collections.emptyList()),
             SamlAuthenticationState::new, version);
         MatcherAssert.assertThat("Serialized state with version [" + version + "] does not match original object", read, equalTo(state));
         return read;

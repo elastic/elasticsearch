@@ -33,7 +33,8 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.Set;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
@@ -66,7 +67,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         when(sp2.getEntityId()).thenReturn("https://sp2.kibana.org");
         when(sp2.getAssertionConsumerService()).thenReturn(new URL("https://sp2.kibana.org/saml/acs"));
         when(sp2.getAllowedNameIdFormat()).thenReturn(PERSISTENT);
-        when(sp2.getSpSigningCredentials()).thenReturn(Set.of(readCredentials("RSA", 4096)));
+        when(sp2.getSpSigningCredentials()).thenReturn(new HashSet<>(Collections.singletonList(readCredentials("RSA", 4096))));
         when(sp2.shouldSignAuthnRequests()).thenReturn(true);
         mockRegisteredServiceProvider(idp, "https://sp1.kibana.org", sp1);
         mockRegisteredServiceProvider(idp, "https://sp2.kibana.org", sp2);

@@ -22,6 +22,7 @@ import org.opensaml.xmlsec.signature.support.SignatureValidator;
 import org.w3c.dom.Element;
 
 import java.net.URL;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -94,7 +95,8 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
             + "  </md:IDPSSODescriptor>"
             + "</md:EntityDescriptor>";
 
-        final Map<String, Object> replacements = Map.of("signingCertificate", signingCertificate);
+        final Map<String, Object> replacements = new HashMap<>();
+        replacements.put("signingCertificate", signingCertificate);
 
         final String expectedXmlWithCertificate = NamedFormatter.format(expectedXml, replacements);
         assertThat(xml, Matchers.equalTo(normaliseXml(expectedXmlWithCertificate)));

@@ -29,7 +29,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -55,7 +57,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateCompositeXPackPlugin.class, IdentityProviderPlugin.class);
+        return Collections.unmodifiableList(Arrays.asList(LocalStateCompositeXPackPlugin.class, IdentityProviderPlugin.class));
     }
 
     @Override
@@ -195,7 +197,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     private Set<SamlServiceProviderDocument> getAllDocs() {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
         serviceProviderIndex.findAll(ActionListener.wrap(
-            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
+            set -> future.onResponse(set.stream().map(doc -> doc.document.get())
+                .collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet))),
             future::onFailure
         ));
         return future.actionGet();
@@ -231,7 +234,8 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     private Set<SamlServiceProviderDocument> findAllByEntityId(String entityId) {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
         serviceProviderIndex.findByEntityId(entityId, ActionListener.wrap(
-            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
+            set -> future.onResponse(set.stream().map(doc -> doc.document.get())
+                .collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet))),
             future::onFailure
         ));
         return future.actionGet();

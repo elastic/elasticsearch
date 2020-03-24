@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.idp.privileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -21,7 +22,7 @@ public class ServiceProviderPrivileges {
     public ServiceProviderPrivileges(String applicationName, String resource, Map<String, String> roles) {
         this.applicationName = Objects.requireNonNull(applicationName, "Application name cannot be null");
         this.resource = Objects.requireNonNull(resource, "Resource cannot be null");
-        this.roles = Map.copyOf(roles);
+        this.roles = Collections.unmodifiableMap(roles);
     }
 
     /**

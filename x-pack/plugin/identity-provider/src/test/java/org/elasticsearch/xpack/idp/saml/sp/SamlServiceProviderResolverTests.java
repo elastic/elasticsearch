@@ -18,6 +18,9 @@ import org.junit.Before;
 import org.opensaml.saml.saml2.core.NameID;
 
 import java.net.URL;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -56,7 +59,8 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final String principalAttribute = randomAlphaOfLengthBetween(6, 36);
         final String rolesAttribute = randomAlphaOfLengthBetween(6, 36);
         final String resource = "ece:" + randomAlphaOfLengthBetween(6, 12);
-        final Map<String, String> rolePrivileges = Map.of(randomAlphaOfLengthBetween(3, 6), "role:" + randomAlphaOfLengthBetween(4, 8));
+        final Map<String, String> rolePrivileges = new HashMap<>();
+        rolePrivileges.put(randomAlphaOfLengthBetween(3, 6), "role:" + randomAlphaOfLengthBetween(4, 8));
 
         final DocumentVersion docVersion = new DocumentVersion(
             randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
@@ -162,7 +166,8 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
 
             ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener
                 = (ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>>) args[args.length - 1];
-            listener.onResponse(Set.of(new SamlServiceProviderIndex.DocumentSupplier(docVersion, () -> document)));
+            listener.onResponse(
+                new HashSet<>(Collections.singletonList(new SamlServiceProviderIndex.DocumentSupplier(docVersion, () -> document))));
             return null;
         }).when(index).findByEntityId(anyString(), any(ActionListener.class));
     }

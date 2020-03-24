@@ -42,7 +42,9 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -220,7 +222,7 @@ public class SamlAuthnRequestValidator {
                     e, javaSigAlgorithm, queryString.sigAlg);
             } catch (InvalidKeyException | SignatureException e) {
                 logger.warn(new ParameterizedMessage("Signature verification failed for credential [{}]",
-                    samlFactory.describeCredentials(Set.of(credential))), e);
+                    samlFactory.describeCredentials(new HashSet<>(Collections.singletonList(credential)))), e);
                 return false;
             }
         });

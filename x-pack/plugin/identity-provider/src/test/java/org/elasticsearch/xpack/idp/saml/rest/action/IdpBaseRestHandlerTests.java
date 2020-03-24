@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -51,7 +52,7 @@ public class IdpBaseRestHandlerTests extends ESTestCase {
 
             @Override
             public List<Route> routes() {
-                return List.of();
+                return Collections.emptyList();
             }
         };
     }

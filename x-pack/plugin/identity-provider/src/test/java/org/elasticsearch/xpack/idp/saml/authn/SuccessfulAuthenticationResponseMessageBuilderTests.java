@@ -19,7 +19,8 @@ import org.opensaml.saml.saml2.core.Response;
 
 import java.net.URL;
 import java.time.Clock;
-import java.util.Set;
+import java.util.Arrays;
+import java.util.HashSet;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
@@ -65,7 +66,8 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
 
         final UserServiceAuthentication user = mock(UserServiceAuthentication.class);
         when(user.getPrincipal()).thenReturn(randomAlphaOfLengthBetween(4, 12));
-        when(user.getRoles()).thenReturn(Set.of(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(4, 12))));
+        when(user.getRoles()).thenReturn(new HashSet<>(Arrays.asList(randomArray(1, 5, String[]::new,
+            () -> randomAlphaOfLengthBetween(4, 12)))));
         when(user.getEmail()).thenReturn(randomAlphaOfLength(8) + "@elastic.co");
         when(user.getName()).thenReturn(randomAlphaOfLength(6) + " " + randomAlphaOfLength(8));
         when(user.getServiceProvider()).thenReturn(sp);

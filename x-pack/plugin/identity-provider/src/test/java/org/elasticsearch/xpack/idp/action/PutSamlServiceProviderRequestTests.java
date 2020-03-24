@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndexTests;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
@@ -85,28 +85,30 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         final SamlServiceProviderDocument doc = SamlServiceProviderIndexTests.randomDocument();
         final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, RefreshPolicy.NONE);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
-        final PutSamlServiceProviderRequest read = copyWriteable(request, new NamedWriteableRegistry(List.of()),
+        final PutSamlServiceProviderRequest read = copyWriteable(request, new NamedWriteableRegistry(Collections.emptyList()),
             PutSamlServiceProviderRequest::new, version);
         MatcherAssert.assertThat("Serialized request with version [" + version + "] does not match original object",
             read, equalTo(request));
     }
 
     public void testParseRequestBodySuccessfully() throws Exception {
+        final Map<String, String> attributeMap = new HashMap<>();
+        attributeMap.put("principal", "urn:oid:0.1." + randomLongBetween(1, 1000));
+        attributeMap.put("email", "urn:oid:0.2." + randomLongBetween(1001, 2000));
+        attributeMap.put("name", "urn:oid:0.3." + randomLongBetween(2001, 3000));
+        attributeMap.put("roles", "urn:oid:0.4." + randomLongBetween(3001, 4000));
+        final Map<String, String> roleMap = new HashMap<>();
+        roleMap.put("role_name", "role:" + randomAlphaOfLengthBetween(4, 8));
+        final Map<String, Object> privilegeMap = new HashMap<>();
+        privilegeMap.put("resource", "ece:deployment:" + randomLongBetween(1_000_000, 999_999_999));
+        privilegeMap.put("roles", roleMap);
         final Map<String, Object> fields = new HashMap<>();
         fields.put("name", randomAlphaOfLengthBetween(3, 30));
         fields.put("acs", "https://www." + randomAlphaOfLengthBetween(3, 30) + ".fake/saml/acs");
         fields.put("enabled", randomBoolean());
-        fields.put("attributes", Map.of(
-            "principal", "urn:oid:0.1." + randomLongBetween(1, 1000),
-            "email", "urn:oid:0.2." + randomLongBetween(1001, 2000),
-            "name", "urn:oid:0.3." + randomLongBetween(2001, 3000),
-            "roles", "urn:oid:0.4." + randomLongBetween(3001, 4000)
-        ));
-        fields.put("privileges", Map.of(
-            "resource", "ece:deployment:" + randomLongBetween(1_000_000, 999_999_999),
-            "roles", Map.of("role_name", "role:" + randomAlphaOfLengthBetween(4, 8))
-        ));
-        fields.put("certificates", Map.of());
+        fields.put("attributes", attributeMap);
+        fields.put("privileges", privilegeMap);
+        fields.put("certificates", Collections.emptyMap());
         final String entityId = "https://www." + randomAlphaOfLengthBetween(5, 12) + ".app/";
         final PutSamlServiceProviderRequest request = parseRequest(entityId, fields);
         assertThat(request.getDocument().docId, nullValue());

@@ -33,8 +33,11 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,11 +52,11 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
     public static final String SIGN_AUTHN = "authn";
     public static final String SIGN_LOGOUT = "logout";
-    private static final Set<String> ALLOWED_SIGN_MESSAGES = Set.of(SIGN_AUTHN, SIGN_LOGOUT);
+    private static final Set<String> ALLOWED_SIGN_MESSAGES = new HashSet<>(Arrays.asList(SIGN_AUTHN, SIGN_LOGOUT));
 
     public static class Privileges {
         public String resource;
-        public Map<String, String> roleActions = Map.of();
+        public Map<String, String> roleActions = Collections.emptyMap();
 
         public void setResource(String resource) {
             this.resource = resource;
@@ -121,21 +124,25 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     }
 
     public static class Certificates {
-        public List<String> serviceProviderSigning = List.of();
-        public List<String> identityProviderSigning = List.of();
-        public List<String> identityProviderMetadataSigning = List.of();
+        public List<String> serviceProviderSigning = Collections.emptyList();
+        public List<String> identityProviderSigning = Collections.emptyList();
+        public List<String> identityProviderMetadataSigning = Collections.emptyList();
 
         public void setServiceProviderSigning(Collection<String> serviceProviderSigning) {
-            this.serviceProviderSigning = serviceProviderSigning == null ? List.of() : List.copyOf(serviceProviderSigning);
+            this.serviceProviderSigning = serviceProviderSigning == null ? Collections.emptyList() :
+                serviceProviderSigning.stream().collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
         }
 
         public void setIdentityProviderSigning(Collection<String> identityProviderSigning) {
-            this.identityProviderSigning = identityProviderSigning == null ? List.of() : List.copyOf(identityProviderSigning);
+            this.identityProviderSigning = identityProviderSigning == null ? Collections.emptyList() :
+                identityProviderSigning.stream().collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
         }
 
         public void setIdentityProviderMetadataSigning(Collection<String> identityProviderMetadataSigning) {
             this.identityProviderMetadataSigning
-                = identityProviderMetadataSigning == null ? List.of() : List.copyOf(identityProviderMetadataSigning);
+                = identityProviderMetadataSigning == null ? Collections.emptyList() :
+                identityProviderMetadataSigning.stream().collect(Collectors.collectingAndThen(Collectors.toList(),
+                    Collections::unmodifiableList));
         }
 
         public void setServiceProviderX509SigningCertificates(Collection<X509Certificate> certificates) {
@@ -163,7 +170,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         }
 
         private List<String> encodeCertificates(Collection<X509Certificate> certificates) {
-            return certificates == null ? List.of() : certificates.stream()
+            return certificates == null ? Collections.emptyList() : certificates.stream()
                 .map(cert -> {
                     try {
                         return cert.getEncoded();
@@ -172,14 +179,15 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
                     }
                 })
                 .map(Base64.getEncoder()::encodeToString)
-                .collect(Collectors.toUnmodifiableList());
+                .collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
         }
 
         private List<X509Certificate> decodeCertificates(List<String> encodedCertificates) {
             if (encodedCertificates == null || encodedCertificates.isEmpty()) {
-                return List.of();
+                return Collections.emptyList();
             }
-            return encodedCertificates.stream().map(this::decodeCertificate).collect(Collectors.toUnmodifiableList());
+            return encodedCertificates.stream().map(this::decodeCertificate).collect(Collectors.collectingAndThen(Collectors.toList(),
+                Collections::unmodifiableList));
         }
 
         private X509Certificate decodeCertificate(String base64Cert) {
@@ -227,7 +235,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     public String entityId;
 
     public String acs;
-    
+
     @Nullable
     public String nameIdFormat;
 
@@ -235,7 +243,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     public Instant created;
     public Instant lastModified;
 
-    public Set<String> signMessages = Set.of();
+    public Set<String> signMessages = Collections.emptySet();
 
     @Nullable
     public Long authenticationExpiryMillis;
@@ -284,7 +292,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         out.writeOptionalVLong(authenticationExpiryMillis);
 
         out.writeString(privileges.resource);
-        out.writeMap(privileges.roleActions == null ? Map.of() : privileges.roleActions,
+        out.writeMap(privileges.roleActions == null ? Collections.emptyMap() : privileges.roleActions,
             StreamOutput::writeString, StreamOutput::writeString);
 
         out.writeString(attributeNames.principal);
@@ -338,7 +346,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     }
 
     public void setSignMessages(Collection<String> signMessages) {
-        this.signMessages = signMessages == null ? Set.of() : Set.copyOf(signMessages);
+        this.signMessages = signMessages == null ? Collections.emptySet() :
+            signMessages.stream().collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet));
     }
 
     public void setAuthenticationExpiryMillis(Long authenticationExpiryMillis) {
@@ -473,7 +482,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         builder.field(Fields.CREATED_DATE.getPreferredName(), created == null ? null : created.toEpochMilli());
         builder.field(Fields.LAST_MODIFIED.getPreferredName(), lastModified == null ? null : lastModified.toEpochMilli());
         builder.field(Fields.NAME_ID.getPreferredName(), nameIdFormat);
-        builder.field(Fields.SIGN_MSGS.getPreferredName(), signMessages == null ? List.of() : signMessages);
+        builder.field(Fields.SIGN_MSGS.getPreferredName(), signMessages == null ? Collections.emptyList() : signMessages);
         builder.field(Fields.AUTHN_EXPIRY.getPreferredName(), authenticationExpiryMillis);
 
         builder.startObject(Fields.PRIVILEGES.getPreferredName());

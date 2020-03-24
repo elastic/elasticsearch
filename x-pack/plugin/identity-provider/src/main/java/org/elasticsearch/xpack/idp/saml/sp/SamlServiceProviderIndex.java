@@ -54,6 +54,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -309,11 +310,11 @@ public class SamlServiceProviderIndex implements Closeable {
             }
             final Set<DocumentSupplier> docs = Stream.of(response.getHits().getHits())
                 .map(hit -> new DocumentSupplier(new DocumentVersion(hit), () -> toDocument(hit.getId(), hit.getSourceRef())))
-                .collect(Collectors.toUnmodifiableSet());
+                .collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet));
             listener.onResponse(docs);
         }, ex -> {
             if (ex instanceof IndexNotFoundException) {
-                listener.onResponse(Set.of());
+                listener.onResponse(Collections.emptySet());
             } else {
                 listener.onFailure(ex);
             }

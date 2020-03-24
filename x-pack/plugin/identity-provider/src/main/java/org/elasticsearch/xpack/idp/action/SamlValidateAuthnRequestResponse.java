@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -29,7 +30,7 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
     public SamlValidateAuthnRequestResponse(String spEntityId, boolean forceAuthn, Map<String, Object> authnState) {
         this.spEntityId = Objects.requireNonNull(spEntityId, "spEntityId is required for successful responses");
         this.forceAuthn = forceAuthn;
-        this.authnState = Map.copyOf(Objects.requireNonNull(authnState));
+        this.authnState = Collections.unmodifiableMap(Objects.requireNonNull(authnState));
     }
 
     public String getSpEntityId() {

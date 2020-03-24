@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -24,7 +24,7 @@ public class DeleteSamlServiceProviderRequestTests extends IdpSamlTestCase {
         final DeleteSamlServiceProviderRequest request = new DeleteSamlServiceProviderRequest(randomAlphaOfLengthBetween(1, 100),
             randomFrom(WriteRequest.RefreshPolicy.values()));
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
-        final DeleteSamlServiceProviderRequest read = copyWriteable(request, new NamedWriteableRegistry(List.of()),
+        final DeleteSamlServiceProviderRequest read = copyWriteable(request, new NamedWriteableRegistry(Collections.emptyList()),
             DeleteSamlServiceProviderRequest::new, version);
         MatcherAssert.assertThat("Serialized request with version [" + version + "] does not match original object",
             read, equalTo(request));

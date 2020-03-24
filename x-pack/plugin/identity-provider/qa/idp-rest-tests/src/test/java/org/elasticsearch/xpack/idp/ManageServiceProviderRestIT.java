@@ -16,8 +16,10 @@ import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -36,19 +38,21 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
 
     public void testCreateAndDeleteServiceProvider() throws Exception {
         final String entityId = "ec:" + randomAlphaOfLength(8) + ":" + randomAlphaOfLength(12);
-        final Map<String, Object> request = Map.ofEntries(
-            Map.entry("name", "Test SP"),
-            Map.entry("acs", "https://sp1.test.es.elasticsearch.org/saml/acs"),
-            Map.entry("privileges", Map.ofEntries(
-                Map.entry("resource", entityId),
-                Map.entry("roles", Map.of("superuser", "role:superuser", "viewer", "role:viewer"))
-            )),
-            Map.entry("attributes", Map.ofEntries(
-                Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
-                Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
-                Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
-                Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
-            )));
+        final Map<String, Object> request = new HashMap<>();
+        request.put("name", "Test SP");
+        request.put("acs", "https://sp1.test.es.elasticsearch.org/saml/acs");
+        final Map<String, Object> privilegeMap = new HashMap<>();
+        privilegeMap.put("resource", entityId);
+        final Map<String, String> roleMap = new HashMap<>();
+        roleMap.put("superuser", "role:superuser");
+        roleMap.put("viewer", "role:viewer");
+        privilegeMap.put("roles", roleMap);
+        final Map<String, String> attributeMap = new HashMap<>();
+        attributeMap.put("principal", "https://idp.test.es.elasticsearch.org/attribute/principal");
+        attributeMap.put("name", "https://idp.test.es.elasticsearch.org/attribute/name");
+        attributeMap.put("email", "https://idp.test.es.elasticsearch.org/attribute/email");
+        attributeMap.put("roles", "https://idp.test.es.elasticsearch.org/attribute/roles");
+        request.put("attributes", attributeMap);
         final DocumentVersion docVersion = createServiceProvider(entityId, request);
         checkIndexDoc(docVersion);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
@@ -116,8 +120,8 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
         assertThat((String) metadata, containsString(REDIRECT_BINDING));
     }
 
-    private String encode(String param) {
-        return URLEncoder.encode(param, StandardCharsets.UTF_8);
+    private String encode(String param) throws UnsupportedEncodingException {
+        return URLEncoder.encode(param, StandardCharsets.UTF_8.name());
     }
 
     private Long asLong(Object val) {

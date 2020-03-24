@@ -12,6 +12,7 @@ import org.joda.time.ReadableDuration;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
+import java.util.Collections;
 import java.util.Set;
 
 
@@ -43,7 +44,8 @@ public class CloudServiceProvider implements SamlServiceProvider {
         this.authnExpiry = authnExpiry;
         this.privileges = privileges;
         this.attributeNames = attributeNames;
-        this.spSigningCredentials = spSigningCredentials == null ? Set.of() : Set.copyOf(spSigningCredentials);
+        this.spSigningCredentials = spSigningCredentials == null ? Collections.emptySet() :
+            Collections.unmodifiableSet(spSigningCredentials);
         this.signLogoutRequests = signLogoutRequests;
         this.signAuthnRequests = signAuthnRequests;
     }

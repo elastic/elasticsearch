@@ -22,9 +22,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.test.IdentityProviderIntegTestCase;
@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.joda.time.DateTime.now;
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0, numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0, numDataNodes = 0, transportClientRatio = 0)
 public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
 
     private final SamlFactory samlFactory = new SamlFactory();
@@ -241,12 +241,15 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         spFields.put(SamlServiceProviderDocument.Fields.ENTITY_ID.getPreferredName(), entityId);
         spFields.put(SamlServiceProviderDocument.Fields.NAME_ID.getPreferredName(), TRANSIENT);
         spFields.put(SamlServiceProviderDocument.Fields.NAME.getPreferredName(), "Dummy SP");
-        spFields.put("attributes", Map.of(
-            "principal", "https://saml.elasticsearch.org/attributes/principal"));
-        spFields.put("privileges", Map.of(
-            "resource", entityId,
-            "roles", Map.of("superuser", "sso:superuser")
-        ));
+        Map<String, String> attributeMap = new HashMap<>();
+        attributeMap.put("principal", "https://saml.elasticsearch.org/attributes/principal");
+        Map<String, Object> privilegeMap = new HashMap<>();
+        Map<String, String> roleMap = new HashMap<>();
+        roleMap.put("superuser", "sso:superuser");
+        privilegeMap.put("resource", entityId);
+        privilegeMap.put("roles", roleMap);
+        spFields.put("attributes", attributeMap);
+        spFields.put("privileges", privilegeMap);
         Request request =
             new Request("PUT", "/_idp/saml/sp/" + urlEncode(entityId) + "?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue());
         request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
@@ -269,7 +272,8 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
     private String getApiKeyFromCredentials(String username, SecureString password) {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(username, password)));
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client)
+        SecurityClient securityClient = new SecurityClient(client);
+        final CreateApiKeyResponse response = securityClient.prepareCreateApiKey()
             .setName("test key")
             .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
             .get();

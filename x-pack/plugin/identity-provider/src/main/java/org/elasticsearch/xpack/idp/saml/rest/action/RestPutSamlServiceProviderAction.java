@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.idp.action.PutSamlServiceProviderRequest;
 import org.elasticsearch.xpack.idp.action.PutSamlServiceProviderResponse;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class RestPutSamlServiceProviderAction extends IdpBaseRestHandler {
@@ -37,10 +39,10 @@ public class RestPutSamlServiceProviderAction extends IdpBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
+        return Collections.unmodifiableList(Arrays.asList(
             new Route(Method.PUT, "/_idp/saml/sp/{sp_entity_id}"),
             new Route(Method.POST, "/_idp/saml/sp/{sp_entity_id}")
-        );
+        ));
     }
 
     @Override
@@ -51,7 +53,7 @@ public class RestPutSamlServiceProviderAction extends IdpBaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             final PutSamlServiceProviderRequest request = PutSamlServiceProviderRequest.fromXContent(entityId, refreshPolicy, parser);
             return channel -> client.execute(PutSamlServiceProviderAction.INSTANCE, request,
-                new RestBuilderListener<>(channel) {
+                new RestBuilderListener<PutSamlServiceProviderResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(PutSamlServiceProviderResponse response, XContentBuilder builder) throws Exception {
                         response.toXContent(builder, restRequest);

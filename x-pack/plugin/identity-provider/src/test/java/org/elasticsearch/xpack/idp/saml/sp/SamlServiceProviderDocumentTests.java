@@ -25,6 +25,7 @@ import org.opensaml.security.x509.X509Credential;
 import java.io.IOException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,7 +91,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         final List<X509Credential> credentials = readCredentials();
         final List<X509Certificate> certificates = credentials.stream()
             .map(X509Credential::getEntityCertificate)
-            .collect(Collectors.toUnmodifiableList());
+            .collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
         final List<X509Certificate> spCertificates = randomSubsetOf(certificates);
         final List<X509Certificate> idpCertificates = randomSubsetOf(certificates);
         final List<X509Certificate> idpMetadataCertificates = randomSubsetOf(certificates);
@@ -153,7 +154,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
     private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
-        final SamlServiceProviderDocument read = copyWriteable(doc, new NamedWriteableRegistry(List.of()),
+        final SamlServiceProviderDocument read = copyWriteable(doc, new NamedWriteableRegistry(Collections.emptyList()),
             SamlServiceProviderDocument::new, version);
         MatcherAssert.assertThat("Serialized document with version [" + version + "] does not match original object", read, equalTo(doc));
         return read;

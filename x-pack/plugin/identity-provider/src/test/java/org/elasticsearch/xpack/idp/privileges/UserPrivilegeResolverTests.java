@@ -25,9 +25,9 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -55,8 +55,11 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         setupUser(username);
         setupHasPrivileges(username, app);
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
+        final HashMap<String, String> roles = new HashMap<>();
+        roles.put("viewer", "role:cluster:view");
+        roles.put("admin", "role:cluster:admin");
         resolver.resolve(service(app, "cluster:" + randomLong(),
-            Map.of("viewer", "role:cluster:view", "admin", "role:cluster:admin")), future);
+            roles), future);
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
         assertThat(privileges.hasAccess, equalTo(false));
@@ -72,9 +75,11 @@ public class UserPrivilegeResolverTests extends ESTestCase {
 
         setupUser(username);
         setupHasPrivileges(username, app, access(resource, viewerAction, false), access(resource, adminAction, false));
-
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        resolver.resolve(service(app, resource, Map.of("viewer", viewerAction, "admin", adminAction)), future);
+        final HashMap<String, String> roles = new HashMap<>();
+        roles.put("viewer", viewerAction);
+        roles.put("admin", adminAction);
+        resolver.resolve(service(app, resource, roles), future);
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
         assertThat(privileges.hasAccess, equalTo(false));
@@ -92,7 +97,10 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         setupHasPrivileges(username, app, access(resource, viewerAction, true), access(resource, adminAction, false));
 
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        resolver.resolve(service(app, resource, Map.of("viewer", viewerAction, "admin", adminAction)), future);
+        final HashMap<String, String> roles = new HashMap<>();
+        roles.put("viewer", viewerAction);
+        roles.put("admin", adminAction);
+        resolver.resolve(service(app, resource, roles), future);
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
         assertThat(privileges.hasAccess, equalTo(true));
@@ -117,9 +125,12 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         );
 
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        resolver.resolve(service(app, resource,
-            Map.of("viewer", viewerAction, "admin", adminAction, "operator", operatorAction, "monitor", monitorAction)),
-            future);
+        final HashMap<String, String> roles = new HashMap<>();
+        roles.put("viewer", viewerAction);
+        roles.put("admin", adminAction);
+        roles.put("operator", operatorAction);
+        roles.put("monitor", monitorAction);
+        resolver.resolve(service(app, resource, roles), future);
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
         assertThat(privileges.hasAccess, equalTo(true));
@@ -143,8 +154,10 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final Collection<ResourcePrivileges> privileges = resourcePrivilegeMap.entrySet().stream()
             .map(e -> ResourcePrivileges.builder(e.getKey()).addPrivileges(e.getValue()).build())
             .collect(Collectors.toList());
-        final Map<String, Collection<ResourcePrivileges>> appPrivs = Map.of(appName, privileges);
-        final HasPrivilegesResponse response = new HasPrivilegesResponse(username, isCompleteMatch, Map.of(), Set.of(), appPrivs);
+        final Map<String, Collection<ResourcePrivileges>> appPrivs = new HashMap<>();
+        appPrivs.put(appName, privileges);
+        final HasPrivilegesResponse response =
+            new HasPrivilegesResponse(username, isCompleteMatch, Collections.emptyMap(), Collections.emptySet(), appPrivs);
 
         Mockito.doAnswer(inv -> {
             final Object[] args = inv.getArguments();

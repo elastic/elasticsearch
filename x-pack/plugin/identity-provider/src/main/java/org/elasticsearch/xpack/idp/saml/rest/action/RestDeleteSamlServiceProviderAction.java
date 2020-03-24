@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.idp.action.DeleteSamlServiceProviderRequest;
 import org.elasticsearch.xpack.idp.action.DeleteSamlServiceProviderResponse;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -39,7 +40,7 @@ public class RestDeleteSamlServiceProviderAction extends IdpBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(Method.DELETE, "/_idp/saml/sp/{sp_entity_id}"));
+        return Collections.singletonList(new Route(Method.DELETE, "/_idp/saml/sp/{sp_entity_id}"));
     }
 
     @Override
@@ -49,7 +50,7 @@ public class RestDeleteSamlServiceProviderAction extends IdpBaseRestHandler {
             ? WriteRequest.RefreshPolicy.parse(restRequest.param("refresh")) : WriteRequest.RefreshPolicy.NONE;
         final DeleteSamlServiceProviderRequest request = new DeleteSamlServiceProviderRequest(entityId, refresh);
         return channel -> client.execute(DeleteSamlServiceProviderAction.INSTANCE, request,
-            new RestBuilderListener<>(channel) {
+            new RestBuilderListener<DeleteSamlServiceProviderResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(DeleteSamlServiceProviderResponse response, XContentBuilder builder) throws Exception {
                     response.toXContent(builder, restRequest);

@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -40,9 +41,9 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -86,6 +87,11 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
     public static final String CONSOLE_USER_PASSWORD_HASHED =
         new String(Hasher.resolve("bcrypt9").hash(new SecureString(CONSOLE_USER_PASSWORD.toCharArray())));
     public static final String CONSOLE_USER_ROLE = "console_user_role";
+    public static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "transport_client";
+    public static final String DEFAULT_TRANSPORT_CLIENT_USER_NAME = "test_trans_client_user";
+    public static final String DEFAULT_TRANSPORT_CLIENT_USER_PASSWORD = "test_trans_client_password";
+    public static final String DEFAULT_TRANSPORT_CLIENT_USER_PASSWORD_HASHED =
+        new String(Hasher.resolve("bcrypt9").hash(new SecureString(DEFAULT_TRANSPORT_CLIENT_USER_PASSWORD.toCharArray())));
     public static final String SP_ENTITY_ID = "ec:abcdef:123456";
     public static final RequestOptions REQUEST_OPTIONS_AS_CONSOLE_USER = RequestOptions.DEFAULT.toBuilder()
         .addHeader("Authorization", basicAuthHeaderValue(CONSOLE_USER_NAME,
@@ -166,7 +172,8 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateIdentityProviderPlugin.class, Netty4Plugin.class, CommonAnalysisPlugin.class);
+        return Collections.unmodifiableList(Arrays.asList(LocalStateIdentityProviderPlugin.class, Netty4Plugin.class,
+            CommonAnalysisPlugin.class));
     }
 
     @Override
@@ -193,6 +200,12 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
     @Override
     protected Path nodeConfigPath(int nodeOrdinal) {
         return nodePath(PARENT_DIR, nodeOrdinal).resolve("config");
+    }
+
+    @Override
+    public Settings transportClientSettings() {
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue(DEFAULT_TRANSPORT_CLIENT_USER_NAME,
+            new SecureString(DEFAULT_TRANSPORT_CLIENT_USER_PASSWORD.toCharArray()))).build();
     }
 
     private String configRoles() {
@@ -223,13 +236,15 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
     private String configUsers() {
         return SAMPLE_USER_NAME + ":" + SAMPLE_USER_PASSWORD_HASHED + "\n" +
             SAMPLE_IDPUSER_NAME + ":" + SAMPLE_IDPUSER_PASSWORD_HASHED + "\n" +
-            CONSOLE_USER_NAME + ":" + CONSOLE_USER_PASSWORD_HASHED + "\n";
+            CONSOLE_USER_NAME + ":" + CONSOLE_USER_PASSWORD_HASHED + "\n" +
+            DEFAULT_TRANSPORT_CLIENT_USER_NAME + ":" + DEFAULT_TRANSPORT_CLIENT_USER_PASSWORD_HASHED;
     }
 
     private String configUsersRoles() {
-        return SAMPLE_USER_ROLE + ":" + SAMPLE_USER_NAME + "\n" +
+        return SAMPLE_USER_ROLE + ":" + SAMPLE_USER_NAME + "," + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n" +
             SAMPLE_IDPUSER_ROLE + ":" + SAMPLE_IDPUSER_NAME + "\n" +
-            CONSOLE_USER_ROLE + ":" + CONSOLE_USER_NAME + "\n";
+            CONSOLE_USER_ROLE + ":" + CONSOLE_USER_NAME + "\n" +
+            DEFAULT_TRANSPORT_CLIENT_ROLE + ":" + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n";
     }
 
     Path nodePath(Path confDir, final int nodeOrdinal) {

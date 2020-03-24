@@ -34,9 +34,10 @@ import org.mockito.Mockito;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Set;
+import java.util.HashSet;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -157,8 +158,9 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
             ActionListener<UserPrivilegeResolver.UserPrivileges> listener
                 = (ActionListener<UserPrivilegeResolver.UserPrivileges>) args[args.length - 1];
             final UserPrivilegeResolver.UserPrivileges privileges = new UserPrivilegeResolver.UserPrivileges(
-                "saml_enduser", true, Set.of(generateRandomStringArray(5, 8, false, false))
-            );
+                "saml_enduser", true,
+                new HashSet<>(Arrays.asList(generateRandomStringArray(5, 8, false, false))
+                ));
             listener.onResponse(privileges);
             return null;
         }).when(privilegeResolver).resolve(any(ServiceProviderPrivileges.class), any(ActionListener.class));

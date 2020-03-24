@@ -43,6 +43,7 @@ import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -212,7 +213,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         if (Strings.isNullOrEmpty(value)) {
             return null;
         }
-        return buildAttribute(formalName, friendlyName, List.of(value));
+        return buildAttribute(formalName, friendlyName, Collections.singletonList(value));
     }
 
     private Attribute buildAttribute(String formalName, String friendlyName, Collection<String> values) {

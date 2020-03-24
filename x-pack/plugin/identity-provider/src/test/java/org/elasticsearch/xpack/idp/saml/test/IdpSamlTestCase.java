@@ -127,7 +127,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
         assertThat(certPath, FileMatchers.isRegularFile());
         assertThat(keyPath, FileMatchers.isRegularFile());
 
-        final X509Certificate[] certificates = CertParsingUtils.readX509Certificates(List.of(certPath));
+        final X509Certificate[] certificates = CertParsingUtils.readX509Certificates(Collections.singletonList(certPath));
         assertThat("Incorrect number of certificates in " + certPath, certificates, Matchers.arrayWithSize(1));
 
         final PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, () -> new char[0]);

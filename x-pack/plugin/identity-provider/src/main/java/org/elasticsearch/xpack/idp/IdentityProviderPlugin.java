@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -85,7 +86,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         settings = environment.settings();
         enabled = ENABLED_SETTING.get(settings);
         if (enabled == false) {
-            return List.of();
+            return Collections.emptyList();
         }
 
         SamlInit.initialize();
@@ -103,26 +104,26 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
         final SamlFactory factory = new SamlFactory();
 
-        return List.of(
+        return Collections.unmodifiableList(Arrays.asList(
             index,
             idp,
             factory,
             userPrivilegeResolver
-        );
+        ));
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled == false) {
-            return List.of();
+            return Collections.emptyList();
         }
-        return List.of(
+        return Collections.unmodifiableList(Arrays.asList(
             new ActionHandler<>(SamlInitiateSingleSignOnAction.INSTANCE, TransportSamlInitiateSingleSignOnAction.class),
             new ActionHandler<>(SamlValidateAuthnRequestAction.INSTANCE, TransportSamlValidateAuthnRequestAction.class),
             new ActionHandler<>(SamlMetadataAction.INSTANCE, TransportSamlMetadataAction.class),
             new ActionHandler<>(PutSamlServiceProviderAction.INSTANCE, TransportPutSamlServiceProviderAction.class),
             new ActionHandler<>(DeleteSamlServiceProviderAction.INSTANCE, TransportDeleteSamlServiceProviderAction.class)
-        );
+        ));
     }
 
     @Override
@@ -131,15 +132,15 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         if (enabled == false) {
-            return List.of();
+            return Collections.emptyList();
         }
-        return List.of(
+        return Collections.unmodifiableList(Arrays.asList(
             new RestSamlInitiateSingleSignOnAction(getLicenseState()),
             new RestSamlValidateAuthenticationRequestAction(getLicenseState()),
             new RestSamlMetadataAction(getLicenseState()),
             new RestPutSamlServiceProviderAction(getLicenseState()),
             new RestDeleteSamlServiceProviderAction(getLicenseState())
-        );
+        ));
     }
 
     @Override

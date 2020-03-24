@@ -46,7 +46,7 @@ import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
  */
 public class SamlIdentityProviderBuilder {
 
-    private static final List<String> ALLOWED_NAMEID_FORMATS = List.of(TRANSIENT);
+    private static final List<String> ALLOWED_NAMEID_FORMATS = Collections.singletonList(TRANSIENT);
     public static final Setting<String> IDP_ENTITY_ID = Setting.simpleString("xpack.idp.entity_id", Setting.Property.NodeScope);
 
     public static final Setting<URL> IDP_SSO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.redirect", "https:",
@@ -58,7 +58,8 @@ public class SamlIdentityProviderBuilder {
     public static final Setting<URL> IDP_SLO_POST_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.post", "https:",
         value -> parseUrl("xpack.idp.slo_endpoint.post", value), Setting.Property.NodeScope);
     public static final Setting<List<String>> IDP_ALLOWED_NAMEID_FORMATS = Setting.listSetting("xpack.idp.allowed_nameid_formats",
-        List.of(TRANSIENT), Function.identity(), SamlIdentityProviderBuilder::validateNameIDs, Setting.Property.NodeScope);
+        Collections.singletonList(TRANSIENT), Function.identity(), SamlIdentityProviderBuilder::validateNameIDs,
+        Setting.Property.NodeScope);
 
     public static final Setting<String> IDP_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.signing.keystore.alias",
         Setting.Property.NodeScope);
@@ -135,9 +136,9 @@ public class SamlIdentityProviderBuilder {
 
         return new SamlIdentityProvider(
             entityId,
-            Map.copyOf(ssoEndpoints),
-            sloEndpoints == null ? Map.of() : Map.copyOf(sloEndpoints),
-            Set.copyOf(allowedNameIdFormats),
+            Collections.unmodifiableMap(ssoEndpoints),
+            sloEndpoints == null ? Collections.emptyMap() : Collections.unmodifiableMap(sloEndpoints),
+            Collections.unmodifiableSet(allowedNameIdFormats),
             signingCredential, metadataSigningCredential,
             technicalContact, organization,
             serviceProviderDefaults,
@@ -168,7 +169,7 @@ public class SamlIdentityProviderBuilder {
     }
 
     public static List<? extends Setting<?>> getSettings() {
-        return List.of(
+        return Arrays.asList(
             IDP_ENTITY_ID,
             IDP_SLO_REDIRECT_ENDPOINT,
             IDP_SLO_POST_ENDPOINT,

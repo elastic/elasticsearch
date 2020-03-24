@@ -13,6 +13,8 @@ import org.joda.time.Duration;
 import org.joda.time.ReadableDuration;
 import org.opensaml.saml.saml2.core.NameID;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -54,6 +56,6 @@ public final class ServiceProviderDefaults {
     }
 
     public static List<Setting<?>> getSettings() {
-        return List.of(APPLICATION_NAME_SETTING, NAMEID_FORMAT_SETTING, AUTHN_EXPIRY_SETTING);
+        return Collections.unmodifiableList(Arrays.asList(APPLICATION_NAME_SETTING, NAMEID_FORMAT_SETTING, AUTHN_EXPIRY_SETTING));
     }
 }

@@ -26,7 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
-import java.util.List;
+import java.util.Collections;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ALLOWED_NAMEID_FORMATS;
@@ -60,7 +60,7 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
         final PrivateKey signingKey = PemUtils.readPrivateKey(signingKeyPath, () -> null);
         final Path signingCertPath = getDataPath("signing1.crt");
         final Path destSigningCertPath = dir.resolve("signing1.crt");
-        final X509Certificate signingCert = CertParsingUtils.readX509Certificates(List.of(signingCertPath))[0];
+        final X509Certificate signingCert = CertParsingUtils.readX509Certificates(Collections.singletonList(signingCertPath))[0];
         Files.copy(signingKeyPath, destSigningKeyPath);
         Files.copy(signingCertPath, destSigningCertPath);
 
@@ -265,7 +265,7 @@ public class SamlIdentityProviderBuilderTests extends IdpSamlTestCase {
         final PrivateKey signingKey = PemUtils.readPrivateKey(signingKeyPath, () -> null);
         final Path signingCertPath = getDataPath("signing1.crt");
         final Path destSigningCertPath = dir.resolve("signing1.crt");
-        final X509Certificate signingCert = CertParsingUtils.readX509Certificates(List.of(signingCertPath))[0];
+        final X509Certificate signingCert = CertParsingUtils.readX509Certificates(Collections.singletonList(signingCertPath))[0];
         Files.copy(signingKeyPath, destSigningKeyPath);
         Files.copy(signingCertPath, destSigningCertPath);
         builder.put("xpack.idp.signing.key", destSigningKeyPath);

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -40,7 +41,7 @@ public class UserPrivilegeResolver {
                 throw new IllegalArgumentException("a user without access ([" + hasAccess + "]) may not have roles ([" + roles + "])");
             }
             this.hasAccess = hasAccess;
-            this.roles = Set.copyOf(Objects.requireNonNull(roles, "roles may not be null"));
+            this.roles = Collections.unmodifiableSet(Objects.requireNonNull(roles, "roles may not be null"));
         }
 
         @Override
@@ -59,7 +60,7 @@ public class UserPrivilegeResolver {
         }
 
         public static UserPrivileges noAccess(String principal) {
-            return new UserPrivileges(principal, false, Set.of());
+            return new UserPrivileges(principal, false, Collections.emptySet());
         }
     }
 
@@ -103,7 +104,7 @@ public class UserPrivilegeResolver {
         final Set<String> roles = service.getRoleActions().entrySet().stream()
             .filter(entry -> checkAccess(appPrivileges, entry.getValue(), service.getResource()))
             .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableSet());
+            .collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet));
         final boolean hasAccess = roles.isEmpty() == false;
         return new UserPrivileges(response.getUsername(), hasAccess, roles);
     }

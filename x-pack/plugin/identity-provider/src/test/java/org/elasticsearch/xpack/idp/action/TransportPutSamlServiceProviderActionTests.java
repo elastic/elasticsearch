@@ -27,6 +27,8 @@ import org.junit.Before;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -55,7 +57,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
     public void setupMocks() {
         index = mock(SamlServiceProviderIndex.class);
         idp = mock(SamlIdentityProvider.class);
-        when(idp.getAllowedNameIdFormats()).thenReturn(Set.of(TRANSIENT));
+        when(idp.getAllowedNameIdFormats()).thenReturn(new HashSet<>(Collections.singletonList(TRANSIENT)));
 
         now = Instant.ofEpochMilli(System.currentTimeMillis() + randomLongBetween(-500_000, 500_000));
         final Clock clock = Clock.fixed(now, randomZone());
@@ -66,7 +68,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
     public void testRegisterNewServiceProvider() throws Exception {
         final SamlServiceProviderDocument document = SamlServiceProviderIndexTests.randomDocument();
 
-        mockExistingDocuments(document.entityId, Set.of());
+        mockExistingDocuments(document.entityId, Collections.emptySet());
 
         final AtomicReference<DocWriteResponse> writeResponse = mockWriteResponse(document, true);
 
@@ -93,7 +95,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
         final SamlServiceProviderDocument existingDocument = SamlServiceProviderIndexTests.randomDocument();
         existingDocument.entityId = document.entityId;
         existingDocument.docId = randomAlphaOfLength(42);
-        mockExistingDocuments(document.entityId, Set.of(existingDocument));
+        mockExistingDocuments(document.entityId, new HashSet<>(Collections.singletonList(existingDocument)));
 
         final AtomicReference<DocWriteResponse> writeResponse = mockWriteResponse(document, false);
 
@@ -139,7 +141,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
 
             final DocWriteResponse docWriteResponse = new IndexResponse(
                 new ShardId(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLength(24), randomIntBetween(1, 10)),
-                doc.docId, randomLong(), randomLong(), randomLong(), created);
+                "_doc", doc.docId, randomLong(), randomLong(), randomLong(), created);
             writeResponse.set(docWriteResponse);
 
             ActionListener listener = (ActionListener) args[args.length - 1];
@@ -157,7 +159,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
             .map(doc -> new SamlServiceProviderIndex.DocumentSupplier(
                 new DocumentVersion(randomAlphaOfLength(24), randomLong(), randomLong()),
                 () -> doc))
-            .collect(Collectors.toUnmodifiableSet());
+            .collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet));
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
             assertThat(args, Matchers.arrayWithSize(2));

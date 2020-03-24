@@ -22,6 +22,7 @@ import org.opensaml.security.x509.X509Credential;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -100,7 +101,7 @@ public class SamlServiceProviderResolver {
         final Set<X509Credential> credentials = document.certificates.getServiceProviderX509SigningCertificates()
             .stream()
             .map(BasicX509Credential::new)
-            .collect(Collectors.toUnmodifiableSet());
+            .collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet));
 
         final URL acs = parseUrl(document);
         String nameIdFormat = document.nameIdFormat;
@@ -120,7 +121,7 @@ public class SamlServiceProviderResolver {
 
     private ServiceProviderPrivileges buildPrivileges(SamlServiceProviderDocument.Privileges configuredPrivileges) {
         final String resource = configuredPrivileges.resource;
-        final Map<String, String> roles = Optional.ofNullable(configuredPrivileges.roleActions).orElse(Map.of());
+        final Map<String, String> roles = Optional.ofNullable(configuredPrivileges.roleActions).orElse(Collections.emptyMap());
         return new ServiceProviderPrivileges(defaults.applicationName, resource, roles);
     }
 

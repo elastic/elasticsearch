@@ -234,7 +234,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             ComponentTemplateTests.randomAliases());
         ComponentTemplate componentTemplate4 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(IllegalArgumentException.class,
-            ()->metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4));
+            () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

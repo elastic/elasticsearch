@@ -55,7 +55,8 @@ public class MlTasksTests extends ESTestCase {
         tasksBuilder.addTask(MlTasks.datafeedTaskId("foo"), MlTasks.DATAFEED_TASK_NAME,
                 new StartDatafeedAction.DatafeedParams("foo", 0L),
                 new PersistentTasksCustomMetaData.Assignment("bar", "test assignment"));
-        assertEquals(DatafeedState.STOPPED, MlTasks.getDatafeedState("foo", tasksBuilder.build()));
+        // A task with no state means the datafeed is starting
+        assertEquals(DatafeedState.STARTING, MlTasks.getDatafeedState("foo", tasksBuilder.build()));
 
         tasksBuilder.updateTaskState(MlTasks.datafeedTaskId("foo"), DatafeedState.STARTED);
         assertEquals(DatafeedState.STARTED, MlTasks.getDatafeedState("foo", tasksBuilder.build()));

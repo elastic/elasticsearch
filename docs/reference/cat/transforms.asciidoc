@@ -75,7 +75,7 @@ The description of the {transform}.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
 `document_total`, `dt`:::
-The total number of documents. 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-processed]
 
 `frequency`, `f`:::
 (Default)
@@ -98,7 +98,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-total]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
 
 `invocation_total`, `itotal`:::
-The total number of invocations.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=trigger-count]
 
 `max_page_search_size`, `mpsz`:::
 (Default)
@@ -115,7 +115,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
 
 `reason`, `r`:::
-The reason for the current state.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform-reason]
 
 `search_failure`, `sf`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=search-failures]

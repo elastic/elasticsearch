@@ -128,18 +128,20 @@ started.
 `node`.`transport_address`:::
 (string) The host and port where transport HTTP connections are accepted. For
 example, `127.0.0.1:9300`.
+`reason`::
+(string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform-reason]
 `state`::
 (string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform]
-
 `stats`::
 (object) An object that provides statistical information about the {transform}.
 `stats`.`documents_indexed`:::
 (long) The number of documents that have been indexed into the destination index
 for the {transform}.
 `stats`.`documents_processed`:::
-(long) The number of documents that have been processed from the source index of
-the {transform}.
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-processed]
 `stats`.`exponential_avg_checkpoint_duration_ms`:::
 (double)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-checkpoint-duration-ms]
@@ -171,10 +173,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=search-time-ms]
 (long)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=search-total]
 `stats`.`trigger_count`:::
-(long) The number of times the {transform} has been triggered by the scheduler.
-For example, the scheduler triggers the {transform} indexer to check for updates
-or ingest new data at an interval specified in the
-<<put-transform-request-body,`frequency` property>>.
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=trigger-count]
   
 [[get-transform-stats-response-codes]]
 ==== {api-response-codes-title}

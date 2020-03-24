@@ -20,37 +20,36 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> implements ToXContentFragment {
+public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
 
     private final String name;
 
@@ -229,7 +228,9 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     public String toString() {
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            this.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.startObject();
+            IndexTemplateMetaData.Builder.toXContentWithTypes(this, builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -318,113 +319,185 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             return this;
         }
 
-        public void putAliases(List<AliasMetaData> aliases) {
-            for (AliasMetaData alias : aliases) {
-                putAlias(alias);
-            }
-        }
-
         public IndexTemplateMetaData build() {
             return new IndexTemplateMetaData(name, order, version, indexPatterns, settings, mappings.build(), aliases.build());
         }
 
-    }
-
-    public static final String INCLUDE_TYPE_NAME = "include_type_name";
-    public static final String INCLUDE_TEMPLATE_NAME = "include_template_name";
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-
-        boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME, false);
-        boolean includeTemplateName = params.paramAsBoolean(INCLUDE_TEMPLATE_NAME, true);
-
-        if (includeTemplateName) {
-            builder.startObject(this.name());
-        }
-
-        builder.field("order", this.order());
-        if (this.version() != null) {
-            builder.field("version", this.version());
-        }
-        builder.field("index_patterns", this.patterns());
-
-        builder.startObject("settings");
-        this.settings().toXContent(builder, params);
-        builder.endObject();
-
-        CompressedXContent m = this.mappings();
-        if (m != null) {
-            Map<String, Object> documentMapping = XContentHelper.convertToMap(new BytesArray(m.uncompressed()), true).v2();
-            if (includeTypeName == false) {
-                documentMapping = reduceMapping(documentMapping);
-            }
-            builder.field("mappings");
-            builder.map(documentMapping);
-        } else {
-            builder.startObject("mappings").endObject();
-        }
-
-        builder.startObject("aliases");
-        for (ObjectCursor<AliasMetaData> cursor : this.aliases().values()) {
-            AliasMetaData.Builder.toXContent(cursor.value, builder, params);
-        }
-        builder.endObject();
-
-        if (includeTemplateName) {
+        /**
+         * Serializes the template to xContent, using the legacy format where the mappings are
+         * nested under the type name.
+         *
+         * This method is used for serializing templates before storing them in the cluster metadata,
+         * and also in the REST layer when returning a deprecated typed response.
+         */
+        public static void toXContentWithTypes(IndexTemplateMetaData indexTemplateMetaData,
+                                               XContentBuilder builder,
+                                               ToXContent.Params params) throws IOException {
+            builder.startObject(indexTemplateMetaData.name());
+            toInnerXContent(indexTemplateMetaData, builder, params, true);
             builder.endObject();
         }
 
-        return builder;
-    }
+        /**
+         * Removes the nested type in the xContent representation of {@link IndexTemplateMetaData}.
+         *
+         * This method is useful to help bridge the gap between an the internal representation which still uses (the legacy format) a
+         * nested type in the mapping, and the external representation which does not use a nested type in the mapping.
+         */
+        public static void removeType(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder) throws IOException {
+            builder.startObject();
+            toInnerXContent(indexTemplateMetaData, builder,
+                new ToXContent.MapParams(Collections.singletonMap("reduce_mappings", "true")), false);
+            builder.endObject();
+        }
 
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
-        assert mapping.keySet().size() == 1;
-        return (Map<String, Object>) mapping.values().iterator().next();
-    }
+        /**
+         * Serializes the template to xContent, making sure not to nest mappings under the
+         * type name.
+         *
+         * Note that this method should currently only be used for creating REST responses,
+         * and not when directly updating stored templates. Index templates are still stored
+         * in the old, typed format, and have yet to be migrated to be typeless.
+         */
+        public static void toXContent(IndexTemplateMetaData indexTemplateMetaData,
+                                      XContentBuilder builder,
+                                      ToXContent.Params params) throws IOException {
+            builder.startObject(indexTemplateMetaData.name());
+            toInnerXContent(indexTemplateMetaData, builder, params, false);
+            builder.endObject();
+        }
 
-    private static final ObjectParser<Builder, String> PARSER = ObjectParser.fromBuilder("index_template", Builder::new);
 
-    static {
-        PARSER.declareObject(Builder::settings,
-            (p, c) -> Settings.builder().put(Settings.fromXContent(p)).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build(),
-            new ParseField("settings"));
-        PARSER.declareObject((builder, map) -> {
-            if (map.isEmpty() == false) {
-                String type = map.keySet().iterator().next();
-                builder.putMapping(type, map.get(type));
+        static void toInnerXContentWithTypes(IndexTemplateMetaData indexTemplateMetaData,
+                                             XContentBuilder builder,
+                                             ToXContent.Params params) throws IOException {
+            toInnerXContent(indexTemplateMetaData, builder, params, true);
+        }
+
+        private static void toInnerXContent(IndexTemplateMetaData indexTemplateMetaData,
+                                            XContentBuilder builder,
+                                            ToXContent.Params params,
+                                            boolean includeTypeName) throws IOException {
+
+            builder.field("order", indexTemplateMetaData.order());
+            if (indexTemplateMetaData.version() != null) {
+                builder.field("version", indexTemplateMetaData.version());
             }
-        }, (p, c) -> parseMappings(p), new ParseField("mappings"));
-        PARSER.declareNamedObjects(Builder::putAliases, (p, c, n) -> AliasMetaData.Builder.fromXContent(p), new ParseField("aliases"));
-        PARSER.declareStringArray(Builder::patterns, new ParseField("index_patterns"));
-        PARSER.declareInt(Builder::order, new ParseField("order"));
-        PARSER.declareInt(Builder::version, new ParseField("version"));
-    }
+            builder.field("index_patterns", indexTemplateMetaData.patterns());
 
-    // TODO it would be really nice if we could just copy bytes here, there's no need to parse and then
-    // re-stream the mappings
-    private static Map<String, CompressedXContent> parseMappings(XContentParser parser) throws IOException {
-        String mappingType = null;
-        String mappings = null;
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                mappingType = parser.currentName();
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                if (mappingType == null) {
-                    throw new XContentParseException(parser.getTokenLocation(), "Expected a mapping type");
+            builder.startObject("settings");
+            indexTemplateMetaData.settings().toXContent(builder, params);
+            builder.endObject();
+
+            includeTypeName &= (params.paramAsBoolean("reduce_mappings", false) == false);
+
+            CompressedXContent m = indexTemplateMetaData.mappings();
+            if (m != null) {
+                Map<String, Object> documentMapping = XContentHelper.convertToMap(new BytesArray(m.uncompressed()), true).v2();
+                if (includeTypeName == false) {
+                    documentMapping = reduceMapping(documentMapping);
                 }
-                mappings = Strings.toString(XContentFactory.jsonBuilder().map(Map.of(mappingType, parser.mapOrdered())));
+                builder.field("mappings");
+                builder.map(documentMapping);
+            } else {
+                builder.startObject("mappings").endObject();
             }
-        }
-        if (mappings == null) {
-            return Collections.emptyMap();
-        }
-        return Map.of(mappingType, new CompressedXContent(mappings));
-    }
 
-    public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName) throws IOException {
-        return PARSER.parse(parser, templateName).build();
+            builder.startObject("aliases");
+            for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
+                AliasMetaData.Builder.toXContent(cursor.value, builder, params);
+            }
+            builder.endObject();
+        }
+
+        @SuppressWarnings("unchecked")
+        private static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
+            assert mapping.keySet().size() == 1;
+            return (Map<String, Object>) mapping.values().iterator().next();
+        }
+
+        public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName) throws IOException {
+            Builder builder = new Builder(templateName);
+
+            String currentFieldName = skipTemplateName(parser);
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if ("settings".equals(currentFieldName)) {
+                        Settings.Builder templateSettingsBuilder = Settings.builder();
+                        templateSettingsBuilder.put(Settings.fromXContent(parser));
+                        templateSettingsBuilder.normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+                        builder.settings(templateSettingsBuilder.build());
+                    } else if ("mappings".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                String mappingType = currentFieldName;
+                                Map<String, Object> mappingSource =
+                                    MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
+                                builder.putMapping(mappingType, Strings.toString(XContentFactory.jsonBuilder().map(mappingSource)));
+                            }
+                        }
+                    } else if ("aliases".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
+                        }
+                    } else {
+                        throw new ElasticsearchParseException("unknown key [{}] for index template", currentFieldName);
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if ("mappings".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            Map<String, Object> mapping = parser.mapOrdered();
+                            if (mapping.size() == 1) {
+                                String mappingType = mapping.keySet().iterator().next();
+                                String mappingSource = Strings.toString(XContentFactory.jsonBuilder().map(mapping));
+
+                                if (mappingSource == null) {
+                                    // crap, no mapping source, warn?
+                                } else {
+                                    builder.putMapping(mappingType, mappingSource);
+                                }
+                            }
+                        }
+                    } else if ("index_patterns".equals(currentFieldName)) {
+                        List<String> index_patterns = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            index_patterns.add(parser.text());
+                        }
+                        builder.patterns(index_patterns);
+                    }
+                } else if (token.isValue()) {
+                    if ("order".equals(currentFieldName)) {
+                        builder.order(parser.intValue());
+                    } else if ("version".equals(currentFieldName)) {
+                        builder.version(parser.intValue());
+                    }
+                }
+            }
+            return builder.build();
+        }
+
+        private static String skipTemplateName(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.nextToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                token = parser.nextToken();
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String currentFieldName = parser.currentName();
+                    if (VALID_FIELDS.contains(currentFieldName)) {
+                        return currentFieldName;
+                    } else {
+                        // we just hit the template name, which should be ignored and we move on
+                        parser.nextToken();
+                    }
+                }
+            }
+
+            return null;
+        }
     }
 
 }

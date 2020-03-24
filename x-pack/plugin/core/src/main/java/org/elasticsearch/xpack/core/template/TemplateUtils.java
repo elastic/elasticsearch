@@ -47,7 +47,7 @@ public class TemplateUtils {
         final String template = loadTemplate(resource, version, versionProperty);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template)) {
-            map.put(templateName, IndexTemplateMetaData.fromXContent(parser, templateName));
+            map.put(templateName, IndexTemplateMetaData.Builder.fromXContent(parser, templateName));
         } catch (IOException e) {
             // TODO: should we handle this with a thrown exception?
             logger.error("Error loading template [{}] as part of metadata upgrading", templateName);

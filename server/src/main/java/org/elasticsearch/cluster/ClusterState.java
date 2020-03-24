@@ -53,7 +53,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -427,10 +426,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             coordinationMetaData().toXContent(builder, params);
             builder.endObject();
 
-            ToXContent.Params templateParams = new DelegatingMapParams(Map.of(IndexTemplateMetaData.INCLUDE_TYPE_NAME, "true"), params);
             builder.startObject("templates");
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData().templates().values()) {
-                cursor.value.toXContent(builder, templateParams);
+                IndexTemplateMetaData templateMetaData = cursor.value;
+                IndexTemplateMetaData.Builder.toXContentWithTypes(templateMetaData, builder, params);
             }
             builder.endObject();
 

@@ -26,7 +26,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -972,10 +971,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, internalRepresentation)) {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            ToXContent.Params params = new ToXContent.MapParams(Map.of(IndexTemplateMetaData.INCLUDE_TEMPLATE_NAME, "false"));
-            builder.startObject();
-            IndexTemplateMetaData.fromXContent(parser, "").toXContent(builder, params);
-            builder.endObject();
+            IndexTemplateMetaData.Builder.removeType(IndexTemplateMetaData.Builder.fromXContent(parser, ""), builder);
             return BytesReference.bytes(builder).utf8ToString();
         }
     }

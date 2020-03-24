@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -348,6 +349,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("Cannot delete index"));
         }
+
+        final ClusterState withoutIndex = new ClusterState.Builder(csWithIndex)
+                                                          .metaData(MetaData.builder(csWithIndex.metaData()).remove(index.getName()))
+                                                          .build();
+        indicesService.verifyIndexIsDeleted(index, withoutIndex);
+        assertFalse("index files should be deleted", FileSystemUtils.exists(nodeEnv.indexPaths(index)));
     }
 
     public void testDanglingIndicesWithAliasConflict() throws Exception {

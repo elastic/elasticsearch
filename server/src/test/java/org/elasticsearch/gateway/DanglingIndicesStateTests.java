@@ -78,6 +78,11 @@ public class DanglingIndicesStateTests extends ESTestCase {
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
             IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(settings).build();
             metaStateService.writeIndex("test_write", dangledIndex);
+            Map<Index, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
+            assertTrue(newDanglingIndices.containsKey(dangledIndex.getIndex()));
+            metaData = MetaData.builder().put(dangledIndex, false).build();
+            newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
+            assertFalse(newDanglingIndices.containsKey(dangledIndex.getIndex()));
         }
     }
 

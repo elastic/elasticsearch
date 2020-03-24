@@ -63,36 +63,6 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
 }
 
 class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
-
-#
-# Utilities
-# 
-  def docValue(java.util.Map, String)
-  boolean nullSafeFilter(Boolean)
-  double nullSafeSortNumeric(Number)
-  String nullSafeSortString(Object)
-
-#
-# Comparison
-#
-  Boolean eq(Object, Object)
-  Boolean nulleq(Object, Object)
-  Boolean neq(Object, Object)
-  Boolean lt(Object, Object)
-  Boolean lte(Object, Object)
-  Boolean gt(Object, Object)
-  Boolean gte(Object, Object)
-  Boolean in(Object, java.util.List)
-
-#
-# Logical
-#
-  Boolean and(Boolean, Boolean)
-  Boolean or(Boolean, Boolean)
-  Boolean not(Boolean)
-  Boolean isNull(Object)
-  Boolean isNotNull(Object)
-
 #
 # Conditional
 #

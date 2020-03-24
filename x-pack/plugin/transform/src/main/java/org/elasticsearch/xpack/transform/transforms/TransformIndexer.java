@@ -108,7 +108,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private volatile RunState runState;
 
     // hold information for continuous mode (partial updates)
-    private volatile Map<String, Set<String>> changedBuckets;
+    private volatile Map<String, Set<String>> changedBuckets = Collections.emptyMap();
     private volatile Map<String, Object> changedBucketsAfterKey;
 
     private volatile long lastCheckpointCleanup = 0L;
@@ -576,7 +576,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private IterationResult<TransformIndexerPosition> processBuckets(final CompositeAggregation agg) {
         // we reached the end
         if (agg.getBuckets().isEmpty()) {
-            if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
+            if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false || pivot.supportsIncrementalBucketUpdate() == false) {
                 return new IterationResult<>(Collections.emptyList(), null, true);
             }
 
@@ -584,7 +584,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             changedBuckets = Collections.emptyMap();
 
             // reset the runState to fetch changed buckets
-            runState = determineRunState();
+            runState = RunState.IDENTIFY_CHANGES;
 
             // advance the cursor for changed bucket detection
             return new IterationResult<>(Collections.emptyList(), new TransformIndexerPosition(null, changedBucketsAfterKey), false);
@@ -882,7 +882,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return RunState.APPLY_BUCKET_RESULTS;
         }
 
-        // if incremental update is not supported, do a full run
+        // if incremental update is not supported, do a normal run
         if (pivot.supportsIncrementalBucketUpdate() == false) {
             return RunState.APPLY_BUCKET_RESULTS;
         }

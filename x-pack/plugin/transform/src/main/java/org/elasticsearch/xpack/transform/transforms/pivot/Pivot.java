@@ -174,7 +174,6 @@ public class Pivot {
         Map<String, String> fieldTypeMap,
         TransformIndexerStats transformIndexerStats
     ) {
-
         GroupConfig groups = config.getGroupConfig();
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
         Collection<PipelineAggregationBuilder> pipelineAggregationBuilders = config.getAggregationConfig().getPipelineAggregatorFactories();
@@ -194,28 +193,20 @@ public class Pivot {
         String synchronizationField,
         long lastSynchronizationCheckpoint
     ) {
-
         if (config.getGroupConfig().getGroups().size() == 1) {
             Entry<String, SingleGroupSource> entry = config.getGroupConfig().getGroups().entrySet().iterator().next();
-
             logger.trace("filter by bucket: " + entry.getKey() + "/" + entry.getValue().getField());
             Set<String> changedBucketsByGroup = changedBuckets.get(entry.getKey());
-
-            // important: the fields must match to apply this optimization
-            long synchronizationTimestamp = entry.getKey().equals(synchronizationField) ? lastSynchronizationCheckpoint : 0;
-
-            return entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationTimestamp);
+            return entry.getValue()
+                .getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationField, lastSynchronizationCheckpoint);
         }
 
         // else: more than 1 group by, need to nest it
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
         for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
             Set<String> changedBucketsByGroup = changedBuckets.get(entry.getKey());
-            // important: the fields must match to apply this optimization
-            long synchronizationTimestamp = entry.getKey().equals(synchronizationField) ? lastSynchronizationCheckpoint : 0;
-
             QueryBuilder sourceQueryFilter = entry.getValue()
-                .getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationTimestamp);
+                .getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationField, lastSynchronizationCheckpoint);
             // the source might not define a filter optimization
             if (sourceQueryFilter != null) {
                 filteredQuery.filter(sourceQueryFilter);

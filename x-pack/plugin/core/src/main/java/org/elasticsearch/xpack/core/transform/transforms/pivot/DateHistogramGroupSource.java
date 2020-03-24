@@ -220,9 +220,8 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         final Rounding.Builder roundingBuilder;
         if (timeUnit != null) {
             roundingBuilder = new Rounding.Builder(timeUnit);
-
         } else {
-            roundingBuilder = new Rounding.Builder(TimeValue.parseTimeValue(interval.toString(), "createRounding"));
+            roundingBuilder = new Rounding.Builder(TimeValue.parseTimeValue(interval.toString(), interval.getName()));
         }
 
         if (timeZone != null) {
@@ -345,9 +344,12 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     }
 
     @Override
-    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets, long synchronizationTimestamp) {
-        if (synchronizationTimestamp > 0) {
-
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(
+        Set<String> changedBuckets,
+        String synchronizationField,
+        long synchronizationTimestamp
+    ) {
+        if (synchronizationField != null && field != null && synchronizationField.equals(field) && synchronizationTimestamp > 0) {
             return new RangeQueryBuilder(field).gte(rounding.round(synchronizationTimestamp)).format("epoch_millis");
         } else {
             return null;

@@ -52,4 +52,17 @@ public class ScriptCacheTests extends ESTestCase {
             cache.checkCompilationLimit();
         }
     }
+
+    public void testUnlimitedCompilationRate() {
+        final Integer size = ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(Settings.EMPTY);
+        final TimeValue expire = ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(Settings.EMPTY);
+        ScriptCache cache = new ScriptCache(size, expire, ScriptCache.UNLIMITED_COMPILATION_RATE);
+        long lastInlineCompileTime = cache.lastInlineCompileTime;
+        double scriptsPerTimeWindow = cache.scriptsPerTimeWindow;
+        for(int i=0; i < 3000; i++) {
+            cache.checkCompilationLimit();
+            assertEquals(lastInlineCompileTime, cache.lastInlineCompileTime);
+            assertEquals(scriptsPerTimeWindow, cache.scriptsPerTimeWindow, 0.0); // delta of 0.0 because it should never change
+        }
+    }
 }

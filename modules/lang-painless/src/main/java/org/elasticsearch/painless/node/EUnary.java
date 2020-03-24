@@ -25,7 +25,6 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
-import org.elasticsearch.painless.ir.UnaryNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -35,13 +34,10 @@ import java.util.Objects;
 /**
  * Represents a unary math expression.
  */
-public final class EUnary extends AExpression {
+public class EUnary extends AExpression {
 
-    private final Operation operation;
-    private AExpression child;
-
-    private Class<?> promote;
-    private boolean originallyExplicit = false; // record whether there was originally an explicit cast
+    protected final Operation operation;
+    protected final AExpression child;
 
     public EUnary(Location location, Operation operation, AExpression child) {
         super(location);
@@ -51,21 +47,24 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-        originallyExplicit = input.explicit;
+        Class<?> promote = null;
+        boolean originallyExplicit = input.explicit;
+
+        Input childInput = new Input();
+        Output childOutput;
 
         if (operation == Operation.NOT) {
-            Input childInput = new Input();
+
             childInput.expected = boolean.class;
-            child.analyze(scriptRoot, scope, childInput);
-            child.cast();
+            childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
+            child.cast(childInput, childOutput);
 
             output.actual = boolean.class;
         } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
-            Output childOutput = child.analyze(scriptRoot, scope, new Input());
+            childOutput = child.analyze(classNode, scriptRoot, scope, new Input());
 
             promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
 
@@ -75,8 +74,8 @@ public final class EUnary extends AExpression {
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(childOutput.actual) + "]"));
             }
 
-            child.input.expected = promote;
-            child.cast();
+            childInput.expected = promote;
+            child.cast(childInput, childOutput);
 
             if (promote == def.class && input.expected != null) {
                 output.actual = input.expected;
@@ -87,14 +86,9 @@ public final class EUnary extends AExpression {
             throw createError(new IllegalStateException("unexpected unary operation [" + operation.name + "]"));
         }
 
-        return output;
-    }
-
-    @Override
-    UnaryNode write(ClassNode classNode) {
         UnaryMathNode unaryMathNode = new UnaryMathNode();
 
-        unaryMathNode.setChildNode(child.cast(child.write(classNode)));
+        unaryMathNode.setChildNode(child.cast(childOutput));
 
         unaryMathNode.setLocation(location);
         unaryMathNode.setExpressionType(output.actual);
@@ -102,7 +96,9 @@ public final class EUnary extends AExpression {
         unaryMathNode.setOperation(operation);
         unaryMathNode.setOriginallExplicit(originallyExplicit);
 
-        return unaryMathNode;
+        output.expressionNode = unaryMathNode;
+
+        return output;
     }
 
     @Override

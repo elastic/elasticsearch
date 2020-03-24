@@ -38,9 +38,9 @@ import java.util.Map;
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
 
-    private static final ObjectParser<RangeAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<RangeAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, RangeAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(RangeAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
         PARSER.declareBoolean(RangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
@@ -49,10 +49,6 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
                 agg.addRange(range);
             }
         }, (p, c) -> RangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
-    }
-
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new RangeAggregationBuilder(aggregationName), null);
     }
 
     private static Range parseRange(XContentParser parser) throws IOException {

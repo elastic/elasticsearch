@@ -34,6 +34,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.transport.RemoteClusterConnectionTests.startTransport;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterClientTests extends ESTestCase {
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -119,4 +120,17 @@ public class RemoteClusterClientTests extends ESTestCase {
             }
         }
     }
+
+    public void testRemoteClusterServiceNotEnabled() {
+        final Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), false).build();
+        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+            service.start();
+            service.acceptIncomingRequests();
+            final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            final IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> remoteClusterService.getRemoteClusterClient(threadPool, "test"));
+            assertThat(e.getMessage(), equalTo("remote cluster service is not enabled"));
+        }
+    }
+
 }

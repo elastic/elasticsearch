@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TransformIndexerStats extends IndexerJobStats {
@@ -39,21 +38,38 @@ public class TransformIndexerStats extends IndexerJobStats {
     public static final ConstructingObjectParser<TransformIndexerStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        args -> new TransformIndexerStats((long) args[0], (long) args[1], (long) args[2],
-            (long) args[3], (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9],
-            (Double) args[10], (Double) args[11], (Double) args[12]));
+        args -> new TransformIndexerStats(
+            unboxSafe(args[0], 0L),
+            unboxSafe(args[1], 0L),
+            unboxSafe(args[2], 0L),
+            unboxSafe(args[3], 0L),
+            unboxSafe(args[4], 0L),
+            unboxSafe(args[5], 0L),
+            unboxSafe(args[6], 0L),
+            unboxSafe(args[7], 0L),
+            unboxSafe(args[8], 0L),
+            unboxSafe(args[9], 0L),
+            unboxSafe(args[10], 0L),
+            unboxSafe(args[11], 0L),
+            unboxSafe(args[12], 0.0),
+            unboxSafe(args[13], 0.0),
+            unboxSafe(args[14], 0.0)
+        )
+    );
 
     static {
-        LENIENT_PARSER.declareLong(constructorArg(), NUM_PAGES);
-        LENIENT_PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
-        LENIENT_PARSER.declareLong(constructorArg(), NUM_OUTPUT_DOCUMENTS);
-        LENIENT_PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
-        LENIENT_PARSER.declareLong(constructorArg(), INDEX_TIME_IN_MS);
-        LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
-        LENIENT_PARSER.declareLong(constructorArg(), INDEX_TOTAL);
-        LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
-        LENIENT_PARSER.declareLong(constructorArg(), INDEX_FAILURES);
-        LENIENT_PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_PAGES);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_INPUT_DOCUMENTS);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_OUTPUT_DOCUMENTS);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_INVOCATIONS);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), INDEX_TIME_IN_MS);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), SEARCH_TIME_IN_MS);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), PROCESSING_TIME_IN_MS);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), INDEX_TOTAL);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), SEARCH_TOTAL);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), PROCESSING_TOTAL);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), INDEX_FAILURES);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), SEARCH_FAILURES);
         LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS);
         LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_DOCUMENTS_INDEXED);
         LENIENT_PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_DOCUMENTS_PROCESSED);
@@ -67,16 +83,40 @@ public class TransformIndexerStats extends IndexerJobStats {
     private final double expAvgDocumentsIndexed;
     private final double expAvgDocumentsProcessed;
 
-    public TransformIndexerStats(long numPages, long numInputDocuments, long numOuputDocuments,
-                                 long numInvocations, long indexTime, long searchTime,
-                                 long indexTotal, long searchTotal, long indexFailures, long searchFailures,
-                                 Double expAvgCheckpointDurationMs, Double expAvgDocumentsIndexed,
-                                 Double expAvgDocumentsProcessed) {
-        super(numPages, numInputDocuments, numOuputDocuments, numInvocations, indexTime, searchTime,
-                indexTotal, searchTotal, indexFailures, searchFailures);
-        this.expAvgCheckpointDurationMs = expAvgCheckpointDurationMs == null ? 0.0 : expAvgCheckpointDurationMs;
-        this.expAvgDocumentsIndexed = expAvgDocumentsIndexed == null ? 0.0 : expAvgDocumentsIndexed;
-        this.expAvgDocumentsProcessed = expAvgDocumentsProcessed == null ? 0.0 : expAvgDocumentsProcessed;
+    public TransformIndexerStats(
+        long numPages,
+        long numInputDocuments,
+        long numOuputDocuments,
+        long numInvocations,
+        long indexTime,
+        long searchTime,
+        long processingTime,
+        long indexTotal,
+        long searchTotal,
+        long processingTotal,
+        long indexFailures,
+        long searchFailures,
+        double expAvgCheckpointDurationMs,
+        double expAvgDocumentsIndexed,
+        double expAvgDocumentsProcessed
+    ) {
+        super(
+            numPages,
+            numInputDocuments,
+            numOuputDocuments,
+            numInvocations,
+            indexTime,
+            searchTime,
+            processingTime,
+            indexTotal,
+            searchTotal,
+            processingTotal,
+            indexFailures,
+            searchFailures
+        );
+        this.expAvgCheckpointDurationMs = expAvgCheckpointDurationMs;
+        this.expAvgDocumentsIndexed = expAvgDocumentsIndexed;
+        this.expAvgDocumentsProcessed = expAvgDocumentsProcessed;
     }
 
     public double getExpAvgCheckpointDurationMs() {
@@ -109,10 +149,12 @@ public class TransformIndexerStats extends IndexerJobStats {
             && Objects.equals(this.numInvocations, that.numInvocations)
             && Objects.equals(this.indexTime, that.indexTime)
             && Objects.equals(this.searchTime, that.searchTime)
+            && Objects.equals(this.processingTime, that.processingTime)
             && Objects.equals(this.indexFailures, that.indexFailures)
             && Objects.equals(this.searchFailures, that.searchFailures)
             && Objects.equals(this.indexTotal, that.indexTotal)
             && Objects.equals(this.searchTotal, that.searchTotal)
+            && Objects.equals(this.processingTotal, that.processingTotal)
             && Objects.equals(this.expAvgCheckpointDurationMs, that.expAvgCheckpointDurationMs)
             && Objects.equals(this.expAvgDocumentsIndexed, that.expAvgDocumentsIndexed)
             && Objects.equals(this.expAvgDocumentsProcessed, that.expAvgDocumentsProcessed);
@@ -120,8 +162,31 @@ public class TransformIndexerStats extends IndexerJobStats {
 
     @Override
     public int hashCode() {
-        return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
-            indexTime, searchTime, indexFailures, searchFailures, indexTotal, searchTotal,
-            expAvgCheckpointDurationMs, expAvgDocumentsIndexed, expAvgDocumentsProcessed);
+        return Objects.hash(
+            numPages,
+            numInputDocuments,
+            numOuputDocuments,
+            numInvocations,
+            indexTime,
+            searchTime,
+            processingTime,
+            indexFailures,
+            searchFailures,
+            indexTotal,
+            searchTotal,
+            processingTotal,
+            expAvgCheckpointDurationMs,
+            expAvgDocumentsIndexed,
+            expAvgDocumentsProcessed
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T unboxSafe(Object l, T default_value) {
+        if (l == null) {
+            return default_value;
+        } else {
+            return (T) l;
+        }
     }
 }

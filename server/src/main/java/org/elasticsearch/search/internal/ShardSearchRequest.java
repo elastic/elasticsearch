@@ -219,7 +219,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeOptionalString(preference);
         }
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
+            if (asKey == false) {
+                out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
+            }
             out.writeOptionalWriteable(bottomSortValues);
         }
     }

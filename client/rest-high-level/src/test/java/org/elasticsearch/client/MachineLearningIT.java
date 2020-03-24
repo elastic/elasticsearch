@@ -874,7 +874,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         {
             // Index a randomly named unused state document
             String docId = "non_existing_job_" + randomFrom("model_state_1234567#1", "quantiles", "categorizer_state#1");
-            IndexRequest indexRequest = new IndexRequest(".ml-state").id(docId);
+            IndexRequest indexRequest = new IndexRequest(".ml-state-000001").id(docId);
             indexRequest.source(Collections.emptyMap(), XContentType.JSON);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
@@ -944,8 +944,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(forecastExists(jobId, forecastId));
 
         {
-            // Verify .ml-state contains the expected unused state document
-            Iterable<SearchHit> hits = searchAll(".ml-state");
+            // Verify .ml-state* contains the expected unused state document
+            Iterable<SearchHit> hits = searchAll(".ml-state*");
             List<SearchHit> target = new ArrayList<>();
             hits.forEach(target::add);
             long numMatches = target.stream()
@@ -974,8 +974,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertFalse(forecastExists(jobId, forecastId));
 
         {
-            // Verify .ml-state doesn't contain unused state documents
-            Iterable<SearchHit> hits = searchAll(".ml-state");
+            // Verify .ml-state* doesn't contain unused state documents
+            Iterable<SearchHit> hits = searchAll(".ml-state*");
             List<SearchHit> hitList = new ArrayList<>();
             hits.forEach(hitList::add);
             long numMatches = hitList.stream()

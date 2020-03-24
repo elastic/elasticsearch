@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -157,6 +159,12 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
         }
 
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(jobId);
+        assertThat(stats.getDataCounts().getJobId(), equalTo(jobId));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), equalTo(300L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
+        assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
+
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
@@ -223,6 +231,14 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
         assertThat(trainingRowsCount, greaterThan(0));
         assertThat(nonTrainingRowsCount, greaterThan(0));
+
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(jobId);
+        assertThat(stats.getDataCounts().getJobId(), equalTo(jobId));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), greaterThan(0L));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), lessThan(300L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), greaterThan(0L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), lessThan(300L));
+        assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));

@@ -411,6 +411,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> innerBuild(QueryShardContext queryShardContext,
                                                                                 ValuesSourceConfig<ValuesSource.GeoPoint> config,
                                                                                 AggregatorFactory parent,

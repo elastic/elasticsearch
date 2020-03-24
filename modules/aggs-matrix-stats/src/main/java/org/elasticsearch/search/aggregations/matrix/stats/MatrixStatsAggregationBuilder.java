@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public class MatrixStatsAggregationBuilder
-    extends ArrayValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MatrixStatsAggregationBuilder> {
+        extends ArrayValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MatrixStatsAggregationBuilder> {
     public static final String NAME = "matrix_stats";
 
     private MultiValueMode multiValueMode = MultiValueMode.AVG;

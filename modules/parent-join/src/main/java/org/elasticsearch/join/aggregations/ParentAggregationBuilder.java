@@ -95,6 +95,11 @@ public class ParentAggregationBuilder
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory<WithOrdinals> innerBuild(QueryShardContext queryShardContext,
                                                                      ValuesSourceConfig<WithOrdinals> config,
                                                                      AggregatorFactory parent,

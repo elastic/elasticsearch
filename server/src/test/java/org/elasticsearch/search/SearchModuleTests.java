@@ -386,6 +386,11 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
+        public BucketCardinality bucketCardinality() {
+            return BucketCardinality.NONE;
+        }
+
+        @Override
         protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
                                                                             ValuesSourceConfig<ValuesSource> config,
                                                                             AggregatorFactory parent,

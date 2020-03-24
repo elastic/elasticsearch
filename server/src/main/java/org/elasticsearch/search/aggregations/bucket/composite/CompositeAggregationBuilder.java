@@ -147,6 +147,15 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return size;
     }
 
+    @Override
+    public BucketCardinality bucketCardinality() {
+        /*
+         * This might be a bit of a lie though because you can't really use
+         * pipeline aggregations on composite aggregations.
+         */
+        return BucketCardinality.MANY;
+    }
+
     /**
      * Returns null if the provided factory and his parents are compatible with
      * this aggregator or the instance of the parent's factory that is incompatible with

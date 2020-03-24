@@ -33,6 +33,7 @@ import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.AggregationBuilder.BucketCardinality;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -92,6 +93,11 @@ public class ChildrenAggregationBuilder
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeString(childType);
+    }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
     }
 
     @Override

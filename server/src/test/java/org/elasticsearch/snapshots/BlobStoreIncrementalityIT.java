@@ -21,7 +21,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -46,7 +46,6 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54034")
     public void testIncrementalBehaviorOnPrimaryFailover() throws InterruptedException, ExecutionException, IOException {
         internalCluster().startMasterOnlyNode();
         final String primaryNode = internalCluster().startDataOnlyNode();
@@ -174,10 +173,8 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot2).setIndices(indexName).setWaitForCompletion(true).get();
 
         logger.info("--> asserting that the two snapshots refer to different files in the repository");
-        final SnapshotsStatusResponse response =
-            client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots(snapshot2).get();
         final SnapshotStats secondSnapshotShardStatus =
-            response.getSnapshots().get(0).getIndices().get(indexName).getShards().get(0).getStats();
+            getStats(repo, snapshot2).getIndices().get(indexName).getShards().get(0).getStats();
         assertThat(secondSnapshotShardStatus.getIncrementalFileCount(), greaterThan(0));
     }
 
@@ -191,17 +188,18 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
     private void assertTwoIdenticalShardSnapshots(String repo, String indexName, String snapshot1, String snapshot2) {
         logger.info(
             "--> asserting that snapshots [{}] and [{}] are referring to the same files in the repository", snapshot1, snapshot2);
-        final SnapshotsStatusResponse response =
-            client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots(snapshot1, snapshot2).get();
-        final SnapshotStats firstSnapshotShardStatus =
-            response.getSnapshots().get(0).getIndices().get(indexName).getShards().get(0).getStats();
+        final SnapshotStats firstSnapshotShardStatus = getStats(repo, snapshot1).getIndices().get(indexName).getShards().get(0).getStats();
         final int totalFilesInShard = firstSnapshotShardStatus.getTotalFileCount();
         assertThat(totalFilesInShard, greaterThan(0));
         assertThat(firstSnapshotShardStatus.getIncrementalFileCount(), is(totalFilesInShard));
         final SnapshotStats secondSnapshotShardStatus =
-            response.getSnapshots().get(1).getIndices().get(indexName).getShards().get(0).getStats();
+            getStats(repo, snapshot2).getIndices().get(indexName).getShards().get(0).getStats();
         assertThat(secondSnapshotShardStatus.getTotalFileCount(), is(totalFilesInShard));
         assertThat(secondSnapshotShardStatus.getIncrementalFileCount(), is(0));
+    }
+
+    private SnapshotStatus getStats(String repository, String snapshot) {
+        return client().admin().cluster().prepareSnapshotStatus(repository).setSnapshots(snapshot).get().getSnapshots().get(0);
     }
 
     private void ensureRestoreSingleShardSuccessfully(String repo, String indexName, String snapshot, String indexSuffix) {

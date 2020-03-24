@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -210,7 +211,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {
         if (enabled == false) {
-            throw new IllegalArgumentException("this does not have the remote_cluster_client role");
+            throw new IllegalArgumentException(
+                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
         }
         RemoteClusterConnection connection = remoteClusters.get(cluster);
         if (connection == null) {
@@ -349,7 +351,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     public void collectNodes(Set<String> clusters, ActionListener<BiFunction<String, String, DiscoveryNode>> listener) {
         if (enabled == false) {
-            throw new IllegalArgumentException("this does not have the remote_cluster_client role");
+            throw new IllegalArgumentException(
+                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
         }
         Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
         for (String cluster : clusters) {
@@ -395,7 +398,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
-            throw new IllegalArgumentException("this does not have the remote_cluster_client role");
+            throw new IllegalArgumentException(
+                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
         }
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);

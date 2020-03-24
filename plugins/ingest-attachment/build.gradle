@@ -70,6 +70,10 @@ dependencies {
   compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
   // EPUB books
   compile 'org.apache.commons:commons-lang3:3.9'
+  // Microsoft Word files with visio diagrams
+  compile 'org.apache.commons:commons-math3:3.6.1'
+  // POIs dependency
+  compile 'com.zaxxer:SparseBitSet:1.2'
 }
 
 restResources {

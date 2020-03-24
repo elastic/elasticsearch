@@ -199,11 +199,7 @@ public class ClusterStateTests extends ESTestCase {
             "          }\n" +
             "        },\n" +
             "        \"mappings\" : {\n" +
-            "          \"type\" : {\n" +
-            "            \"key1\" : { },\n" +
-            "            \"key2\" : { },\n" +
-            "            \"key3\" : { }\n" +
-            "          }\n" +
+            "          \"key1\" : { }\n" +
             "        },\n" +
             "        \"aliases\" : { }\n" +
             "      }\n" +
@@ -390,11 +386,7 @@ public class ClusterStateTests extends ESTestCase {
             "          \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
             "        },\n" +
             "        \"mappings\" : {\n" +
-            "          \"type\" : {\n" +
-            "            \"key1\" : { },\n" +
-            "            \"key2\" : { },\n" +
-            "            \"key3\" : { }\n" +
-            "          }\n" +
+            "          \"key1\" : { }\n" +
             "        },\n" +
             "        \"aliases\" : { }\n" +
             "      }\n" +
@@ -581,13 +573,7 @@ public class ClusterStateTests extends ESTestCase {
             "            }\n" +
             "          }\n" +
             "        },\n" +
-            "        \"mappings\" : {\n" +
-            "          \"type\" : {\n" +
-            "            \"key1\" : { },\n" +
-            "            \"key2\" : { },\n" +
-            "            \"key3\" : { }\n" +
-            "          }\n" +
-            "        },\n" +
+            "        \"mappings\" : { },\n" +
             "        \"aliases\" : { }\n" +
             "      }\n" +
             "    },\n" +
@@ -832,7 +818,7 @@ public class ClusterStateTests extends ESTestCase {
                     .patterns(List.of("pattern1", "pattern2"))
                     .order(0)
                     .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
-                    .putMapping("type", "{ \"key1\": {}, \"key2\": {}, \"key3\": {} }")
+                    .putMapping("type", "{ \"key1\": {} }")
                     .build()))
             .routingTable(RoutingTable.builder()
                 .add(IndexRoutingTable.builder(new Index("index", "indexUUID"))

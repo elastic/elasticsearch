@@ -380,8 +380,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                             XContentBuilder builder,
                                             ToXContent.Params params,
                                             boolean includeTypeName) throws IOException {
-            MetaData.XContentContext context = MetaData.XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, "API"));
-
             builder.field("order", indexTemplateMetaData.order());
             if (indexTemplateMetaData.version() != null) {
                 builder.field("version", indexTemplateMetaData.version());
@@ -415,7 +413,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         @SuppressWarnings("unchecked")
         private static Map<String, Object> reduceMapping(Map<String, Object> mapping) {
-            assert mapping.keySet().size() == 1;
+            assert mapping.keySet().size() == 1 : mapping.keySet();
             return (Map<String, Object>) mapping.values().iterator().next();
         }
 

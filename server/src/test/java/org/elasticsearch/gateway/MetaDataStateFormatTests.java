@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -58,17 +57,14 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to work with ExtrasFS
 public class MetaDataStateFormatTests extends ESTestCase {
@@ -284,17 +280,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
         MetaData latestMetaData = meta.get(numStates-1);
         assertThat(loadedMetaData.clusterUUID(), not(equalTo("_na_")));
         assertThat(loadedMetaData.clusterUUID(), equalTo(latestMetaData.clusterUUID()));
-        ImmutableOpenMap<String, IndexMetaData> indices = loadedMetaData.indices();
-        assertThat(indices.size(), equalTo(latestMetaData.indices().size()));
-        for (IndexMetaData original : latestMetaData) {
-            IndexMetaData deserialized = indices.get(original.getIndex().getName());
-            assertThat(deserialized, notNullValue());
-            assertThat(deserialized.getVersion(), equalTo(original.getVersion()));
-            assertThat(deserialized.getMappingVersion(), equalTo(original.getMappingVersion()));
-            assertThat(deserialized.getSettingsVersion(), equalTo(original.getSettingsVersion()));
-            assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
-            assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
-        }
 
         // make sure the index tombstones are the same too
         if (hasMissingCustoms) {
@@ -457,11 +442,19 @@ public class MetaDataStateFormatTests extends ESTestCase {
         writeAndReadStateSuccessfully(format, paths);
     }
 
+    private static final ToXContent.Params FORMAT_PARAMS;
+    static {
+        Map<String, String> params = new HashMap<>(2);
+        params.put("binary", "true");
+        params.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
+        FORMAT_PARAMS = new ToXContent.MapParams(params);
+    }
+
     private static MetaDataStateFormat<MetaData> metaDataFormat(boolean preserveUnknownCustoms) {
         return new MetaDataStateFormat<MetaData>(MetaData.GLOBAL_STATE_FILE_PREFIX) {
             @Override
             public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
-                MetaData.Builder.toXContent(state, builder, ToXContent.EMPTY_PARAMS);
+                MetaData.Builder.toXContent(state, builder, FORMAT_PARAMS);
             }
 
             @Override

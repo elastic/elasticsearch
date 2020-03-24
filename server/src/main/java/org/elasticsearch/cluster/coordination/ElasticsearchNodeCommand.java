@@ -262,7 +262,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.value(value);
+            return builder.field(name, value);
         }
 
         @Override

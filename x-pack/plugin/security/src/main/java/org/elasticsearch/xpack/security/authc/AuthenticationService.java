@@ -723,13 +723,13 @@ public class AuthenticationService {
 
             if (user.isRunAs()) {
                 final Set <String> authUserRoles = new HashSet<>(Arrays.asList(user.authenticatedUser().roles()));
-                User authUserWithDedupdRoles = user.authenticatedUser();
+                User authUserWithDedupRoles = user.authenticatedUser();
                 if (authUserRoles.size() != user.authenticatedUser().roles().length) {
-                    authUserWithDedupdRoles = userWithNewRoles(user.authenticatedUser(), authUserRoles.toArray(new String[0]));
+                    authUserWithDedupRoles = userWithNewRoles(user.authenticatedUser(), authUserRoles.toArray(new String[0]));
                 }
 
-                if (userWithDedupRoles != user || authUserWithDedupdRoles != user.authenticatedUser()) {
-                    userWithDedupRoles = new User(userWithDedupRoles, authUserWithDedupdRoles);
+                if (userWithDedupRoles != user || authUserWithDedupRoles != user.authenticatedUser()) {
+                    userWithDedupRoles = new User(userWithDedupRoles, authUserWithDedupRoles);
                 }
             }
             return userWithDedupRoles;

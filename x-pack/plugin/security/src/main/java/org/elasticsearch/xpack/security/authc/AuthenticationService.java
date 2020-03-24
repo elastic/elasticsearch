@@ -50,10 +50,12 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -658,7 +660,7 @@ public class AuthenticationService {
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
                 final Authentication finalAuth = new Authentication(
-                    maybeMergeAnonymousRolesForUser(finalUser), authenticatedBy, lookedupBy);
+                    maybeMergeRolesForUser(finalUser), authenticatedBy, lookedupBy);
                 writeAuthToContext(finalAuth);
             }
         }
@@ -692,16 +694,23 @@ public class AuthenticationService {
             this.consumeToken(token);
         }
 
-        private User maybeMergeAnonymousRolesForUser(User user) {
+        private User maybeMergeRolesForUser(User user) {
             if (User.isInternal(user)) {
                 return user;
-            } else if (isAnonymousUserEnabled && anonymousUser.equals(user) == false) {
-                if (anonymousUser.roles().length == 0) {
-                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+            } else {
+                final String[] otherRoles;
+                if (isAnonymousUserEnabled && anonymousUser.equals(user) == false) {
+                    if (anonymousUser.roles().length == 0) {
+                        throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+                    }
+                    otherRoles = anonymousUser.roles();
+                } else {
+                    otherRoles = null;
                 }
+
                 User userWithMergedRoles = new User(
                     user.principal(),
-                    mergeRoles(user.roles(), anonymousUser.roles()),
+                    mergeRoles(user.roles(), otherRoles),
                     user.fullName(),
                     user.email(),
                     user.metadata(),
@@ -710,7 +719,7 @@ public class AuthenticationService {
                 if (user.isRunAs()) {
                     final User authenticatedUserWithMergedRoles = new User(
                         user.authenticatedUser().principal(),
-                        mergeRoles(user.authenticatedUser().roles(), anonymousUser.roles()),
+                        mergeRoles(user.authenticatedUser().roles(), otherRoles),
                         user.authenticatedUser().fullName(),
                         user.authenticatedUser().email(),
                         user.authenticatedUser().metadata(),
@@ -719,16 +728,16 @@ public class AuthenticationService {
                     userWithMergedRoles = new User(userWithMergedRoles, authenticatedUserWithMergedRoles);
                 }
                 return userWithMergedRoles;
-            } else {
-                return user;
             }
         }
 
         private String[] mergeRoles(String[] existingRoles, String[] otherRoles) {
-            String[] mergedRoles = new String[existingRoles.length + otherRoles.length];
-            System.arraycopy(existingRoles, 0, mergedRoles, 0, existingRoles.length);
-            System.arraycopy(otherRoles, 0, mergedRoles, existingRoles.length, otherRoles.length);
-            return mergedRoles;
+            Set<String> roles = new HashSet<>();
+            Collections.addAll(roles, existingRoles);
+            if (otherRoles != null) {
+                Collections.addAll(roles, otherRoles);
+            }
+            return roles.toArray(new String[0]);
         }
     }
 

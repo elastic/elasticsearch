@@ -1430,7 +1430,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             @Override
                             public void onNewClusterState(ClusterState state) {
                                 threadPool.generic().execute(() -> deleteSnapshotFromRepository(
-                                    snapshot, listener, repositoryStateId, newState.nodes().getMinNodeVersion()));
+                                    snapshot, listener, repoGen, newState.nodes().getMinNodeVersion()));
                             }
 
                             @Override
@@ -1444,7 +1444,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 // TODO: obv
                                 listener.onFailure(new TimeoutException("nope"));
                             }
-                        }, state -> minInProgressRepoGenId(newState) >= repoGen);
+                        }, state -> minInProgressRepoGenId(state) == repoGen);
                     } else {
                         deleteSnapshotFromRepository(snapshot, listener, repositoryStateId, newState.nodes().getMinNodeVersion());
                     }

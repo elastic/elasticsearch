@@ -491,7 +491,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final long latestKnownGen = latestKnownRepoGen.get();
             if (latestKnownGen > repositoryStateId) {
                 listener.onFailure(new ConcurrentSnapshotExecutionException(
-                    new Snapshot(metadata.name(), snapshotId), "Another concurrent operation moved repo generation to [ " + latestKnownGen
+                    new Snapshot(metadata.name(), snapshotId), "Another concurrent operation moved repo generation to [" + latestKnownGen
                     + "] but this delete assumed generation [" + repositoryStateId + "]"));
                 return;
             }

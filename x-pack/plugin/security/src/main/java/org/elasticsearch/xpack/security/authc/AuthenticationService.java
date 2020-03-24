@@ -702,10 +702,10 @@ public class AuthenticationService {
                 if (anonymousUser.roles().length == 0) {
                     throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
                 }
-                User userWithMergedRoles = userWithNewRoles(user, mergeRoles(user.roles(), anonymousUser.roles()));
+                User userWithMergedRoles = user.withRoles(mergeRoles(user.roles(), anonymousUser.roles()));
                 if (user.isRunAs()) {
-                    final User authUserWithMergedRoles = userWithNewRoles(
-                        user.authenticatedUser(), mergeRoles(user.authenticatedUser().roles(), anonymousUser.roles()));
+                    final User authUserWithMergedRoles = user.authenticatedUser().withRoles(
+                        mergeRoles(user.authenticatedUser().roles(), anonymousUser.roles()));
                     userWithMergedRoles = new User(userWithMergedRoles, authUserWithMergedRoles);
                 }
                 return userWithMergedRoles;
@@ -716,18 +716,15 @@ public class AuthenticationService {
 
         private User maybeDedupUserRoles(User user) {
             final Set<String> userRoles = new HashSet<>(Arrays.asList(user.roles()));
-            User userWithDedupRoles = user;
-            if (userRoles.size() != user.roles().length) {
-                userWithDedupRoles = userWithNewRoles(user, userRoles.toArray(new String[0]));
-            }
+            User userWithDedupRoles = userRoles.size() == user.roles().length
+                ? user
+                : user.withRoles(userRoles.toArray(new String[0]));
 
             if (user.isRunAs()) {
                 final Set <String> authUserRoles = new HashSet<>(Arrays.asList(user.authenticatedUser().roles()));
-                User authUserWithDedupRoles = user.authenticatedUser();
-                if (authUserRoles.size() != user.authenticatedUser().roles().length) {
-                    authUserWithDedupRoles = userWithNewRoles(user.authenticatedUser(), authUserRoles.toArray(new String[0]));
-                }
-
+                User authUserWithDedupRoles = authUserRoles.size() == user.authenticatedUser().roles().length
+                    ? user.authenticatedUser()
+                    : user.authenticatedUser().withRoles(authUserRoles.toArray(new String[0]));
                 if (userWithDedupRoles != user || authUserWithDedupRoles != user.authenticatedUser()) {
                     userWithDedupRoles = new User(userWithDedupRoles, authUserWithDedupRoles);
                 }
@@ -742,17 +739,6 @@ public class AuthenticationService {
                 Collections.addAll(roles, otherRoles);
             }
             return roles.toArray(new String[0]);
-        }
-
-        private User userWithNewRoles(User user, String[] roles) {
-            return new User(
-                user.principal(),
-                roles,
-                user.fullName(),
-                user.email(),
-                user.metadata(),
-                user.enabled()
-            );
         }
     }
 

@@ -31,10 +31,13 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,6 +45,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -50,6 +54,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class TypeFieldMapper extends MetadataFieldMapper {
 
@@ -170,6 +176,25 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             }
             return result;
         }
+
+        @Override
+        public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            Query termQuery = termQuery(value, context);
+            if (termQuery instanceof MatchNoDocsQuery || termQuery instanceof MatchAllDocsQuery) {
+                return termQuery;
+            }
+
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException("[wildcard] queries cannot be executed when '" +
+                        ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            }
+            Term term = MappedFieldType.extractTerm(termQuery);
+
+            WildcardQuery query = new WildcardQuery(term);
+            QueryParsers.setRewriteMethod(query, method);
+            return query;
+        }
+
     }
 
     /**

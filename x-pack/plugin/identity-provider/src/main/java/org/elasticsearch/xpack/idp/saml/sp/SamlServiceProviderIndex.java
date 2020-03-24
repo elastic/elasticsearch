@@ -190,7 +190,7 @@ public class SamlServiceProviderIndex implements Closeable {
     private void logChangedAliasState(AliasOrIndex aliasInfo) {
         if (aliasInfo == null) {
             logger.warn("service provider index/alias [{}] no longer exists", ALIAS_NAME);
-        } else if (aliasInfo.isAlias() == false) {
+        } else if (aliasInfo.getType() != AliasOrIndex.Type.ALIAS) {
             logger.warn("service provider index [{}] exists as a concrete index, but it should be an alias", ALIAS_NAME);
         } else if (aliasInfo.getIndices().size() != 1) {
             logger.warn("service provider alias [{}] refers to multiple indices [{}] - this is unexpected and is likely to cause problems",

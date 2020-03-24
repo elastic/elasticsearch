@@ -204,15 +204,10 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "          \"state\" : \"open\",\n" +
                     "          \"settings\" : {\n" +
                     "            \"index\" : {\n" +
+                    "              \"max_script_fields\" : \"10\",\n" +
                     "              \"shard\" : {\n" +
                     "                \"check_on_startup\" : \"true\"\n" +
-                    "              },\n" +
-                    "              \"number_of_shards\" : \"1\",\n" +
-                    "              \"number_of_replicas\" : \"0\",\n" +
-                    "              \"version\" : {\n" +
-                    "                \"created\" : \"" + Version.CURRENT.id + "\"\n" +
-                    "              },\n" +
-                    "              \"max_script_fields\" : \"10\"\n" +
+                    "              }\n" +
                     "            }\n" +
                     "          },\n" +
                     "          \"mappings\" : { },\n" +

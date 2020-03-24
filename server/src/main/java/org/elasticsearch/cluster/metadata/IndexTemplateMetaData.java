@@ -410,8 +410,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                         builder.map(XContentHelper.convertToMap(new BytesArray(data), true).v2());
                     }
                     builder.endArray();
-                }
-                else {
+                } else {
                     builder.startObject("mappings");
                     for (ObjectObjectCursor<String, CompressedXContent> cursor1 : indexTemplateMetaData.mappings()) {
                         Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(cursor1.value.uncompressed()), false).v2();

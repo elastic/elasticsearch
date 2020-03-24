@@ -1271,18 +1271,16 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, "API"));
+            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
 
             if (context == XContentContext.API) {
                 builder.startObject("metadata");
-            }
-            else {
+            } else {
                 builder.startObject("meta-data");
                 builder.field("version", metaData.version());
             }
 
             builder.field("cluster_uuid", metaData.clusterUUID);
-            // This is required for some serialization under API context, as some tests in MetaDataTests assert its presenc
             builder.field("cluster_uuid_committed", metaData.clusterUUIDCommitted);
 
             builder.startObject("cluster_coordination");

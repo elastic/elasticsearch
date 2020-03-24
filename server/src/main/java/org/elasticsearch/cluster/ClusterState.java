@@ -90,11 +90,6 @@ import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_PARAM;
 public class ClusterState implements ToXContentFragment, Diffable<ClusterState> {
 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
-    private static final Map<String, String> API_PARAMS;
-    static {
-        API_PARAMS = new HashMap<>();
-        API_PARAMS.put(CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
-    }
 
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
 
@@ -420,13 +415,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.endObject();
         }
 
-
-        API_PARAMS.put("flat_settings", params.param("flat_settings"));
-        API_PARAMS.put("reduce_mappings", params.param("reduce_mappings"));
-
         // meta data
         if (metrics.contains(Metric.METADATA)) {
-            metaData.toXContent(builder, new ToXContent.MapParams(API_PARAMS));
+            metaData.toXContent(builder, params);
         }
 
         // routing table

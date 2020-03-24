@@ -1361,16 +1361,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
-                            }
-                            else if (token == XContentParser.Token.VALUE_NUMBER) {
+                            } else if (token == XContentParser.Token.VALUE_NUMBER) {
                                 list.add(parser.longValue());
                             } else {
                                 throw new IllegalStateException("found a non-numeric value under [" + KEY_PRIMARY_TERMS + "]");
                             }
                         }
                         builder.primaryTerms(list.toArray());
-                    }
-                    else if ("warmers".equals(currentFieldName)) {
+                    } else if ("warmers".equals(currentFieldName)) {
                         // TODO: do this in 6.0:
                         // throw new IllegalArgumentException("Warmers are not supported anymore - are you upgrading from 1.x?");
                         // ignore: warmers have been removed in 5.0 and are
@@ -1404,13 +1402,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                             }
                         }
                         builder.primaryTerms(list.toArray());
-                    }
-                    else if (KEY_ALIASES.equals(currentFieldName)) {
+                    } else if (KEY_ALIASES.equals(currentFieldName)) {
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             builder.putAlias(AliasMetaData.builder(parser.text()).build());
                         }
-                    }
-                    else {
+                    } else {
                         throw new IllegalArgumentException("Unexpected field for an array " + currentFieldName);
                     }
                 } else if (token.isValue()) {

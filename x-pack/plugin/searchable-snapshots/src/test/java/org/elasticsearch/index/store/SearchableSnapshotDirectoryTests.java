@@ -40,15 +40,20 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -65,11 +70,20 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.hamcrest.Matcher;
 
 import java.io.Closeable;
 import java.io.EOFException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -77,8 +91,12 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
@@ -350,7 +368,14 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final BlobContainer blobContainer = repository.shardContainer(indexId, shardId.id());
                 final BlobStoreIndexShardSnapshot snapshot = repository.loadShardSnapshot(blobContainer, snapshotId);
 
-                try (Directory snapshotDirectory = new SearchableSnapshotDirectory(snapshot, blobContainer)) {
+                final Path cacheDir = createTempDir();
+                final CacheService cacheService = new CacheService(Settings.EMPTY);
+                releasables.add(cacheService);
+                cacheService.start();
+
+                try (Directory snapshotDirectory = new SearchableSnapshotDirectory(blobContainer, snapshot, snapshotId, indexId, shardId,
+                    Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean()).build(), () -> 0L,
+                    cacheService, cacheDir)) {
                     consumer.accept(directory, snapshotDirectory);
                 }
             } finally {
@@ -380,10 +405,86 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         });
     }
 
+    public void testClearCache() throws Exception {
+        try (CacheService cacheService = new CacheService(Settings.EMPTY)) {
+            cacheService.start();
+
+            final int nbRandomFiles = randomIntBetween(3, 10);
+            final List<BlobStoreIndexShardSnapshot.FileInfo> randomFiles = new ArrayList<>(nbRandomFiles);
+
+            final Path shardSnapshotDir = createTempDir();
+            for (int i = 0; i < nbRandomFiles; i++) {
+                final String fileName = "file_" + randomAlphaOfLength(10);
+                final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
+                final String blobName = randomAlphaOfLength(15);
+                Files.write(shardSnapshotDir.resolve(blobName), fileContent, StandardOpenOption.CREATE_NEW);
+                randomFiles.add(new BlobStoreIndexShardSnapshot.FileInfo(blobName,
+                    new StoreFileMetaData(fileName, fileContent.length, "_check", Version.CURRENT.luceneVersion),
+                    new ByteSizeValue(fileContent.length)));
+            }
+
+            final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("_snapshot", 0L, randomFiles, 0L, 0L, 0, 0L);
+            final BlobContainer blobContainer = new FsBlobContainer(new FsBlobStore(Settings.EMPTY, shardSnapshotDir, true),
+                BlobPath.cleanPath(), shardSnapshotDir);
+
+            final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
+            final IndexId indexId = new IndexId("_id", "_uuid");
+            final ShardId shardId = new ShardId(new Index("_name", "_id"), 0);
+
+            final Path cacheDir = createTempDir();
+            try (SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(blobContainer, snapshot, snapshotId, indexId,
+                shardId, Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(), () -> 0L, cacheService, cacheDir)) {
+
+                final byte[] buffer = new byte[1024];
+                for (int i = 0; i < randomIntBetween(10, 50); i++) {
+                    final BlobStoreIndexShardSnapshot.FileInfo fileInfo = randomFrom(randomFiles);
+                    final int fileLength = Math.toIntExact(fileInfo.length());
+
+                    try (IndexInput input = directory.openInput(fileInfo.physicalName(), newIOContext(random()))) {
+                        assertThat(input.length(), equalTo((long) fileLength));
+                        final int start = between(0, fileLength - 1);
+                        final int end = between(start + 1, fileLength);
+
+                        input.seek(start);
+                        while (input.getFilePointer() < end) {
+                            input.readBytes(buffer, 0, Math.toIntExact(Math.min(buffer.length, end - input.getFilePointer())));
+                        }
+                    }
+                    assertListOfFiles(cacheDir, allOf(greaterThan(0), lessThanOrEqualTo(nbRandomFiles)), greaterThan(0L));
+                    if (randomBoolean()) {
+                        directory.clearCache();
+                        assertListOfFiles(cacheDir, equalTo(0), equalTo(0L));
+                    }
+                }
+            }
+        }
+    }
     private static <T> void assertThat(String reason, IndexInput actual, IndexInput expected,
                                        CheckedFunction<IndexInput, ? super T, IOException> eval) throws IOException {
         assertThat(reason
                 + "\n\t  actual index input: " + actual.toString()
                 + "\n\texpected index input: " + expected.toString(), eval.apply(actual), equalTo(eval.apply(expected)));
+    }
+
+    private void assertListOfFiles(Path cacheDir, Matcher<Integer> matchNumberOfFiles, Matcher<Long> matchSizeOfFiles) throws IOException {
+        final Map<String, Long> files = new HashMap<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(cacheDir)) {
+            for (Path file : stream) {
+                final String fileName = file.getFileName().toString();
+                if (fileName.equals("write.lock") || fileName.startsWith("extra")) {
+                    continue;
+                }
+                try {
+                    if (Files.isRegularFile(file)) {
+                        final BasicFileAttributes fileAttributes = Files.readAttributes(file, BasicFileAttributes.class);
+                        files.put(fileName, fileAttributes.size());
+                    }
+                } catch (FileNotFoundException | NoSuchFileException e) {
+                    // ignoring as the cache file might be evicted
+                }
+            }
+        }
+        assertThat("Number of files (" + files.size() + ") mismatch, got : " + files.keySet(), files.size(), matchNumberOfFiles);
+        assertThat("Sum of file sizes mismatch, got: " + files, files.values().stream().mapToLong(Long::longValue).sum(), matchSizeOfFiles);
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -28,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.assertCounter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.createCacheService;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.numberOfRanges;
@@ -425,7 +427,11 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
         });
     }
 
-    private static void executeTestCase(CacheService cacheService, TriConsumer<String, byte[], CacheDirectory> test) throws Exception {
+    private static void executeTestCase(
+        final CacheService cacheService,
+        final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
+    ) throws Exception {
+
         final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
         final String fileName = randomAlphaOfLength(10);
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
@@ -440,13 +446,14 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
         final StoreFileMetaData metaData = new StoreFileMetaData(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
         final List<FileInfo> files = List.of(new FileInfo(blobName, metaData, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
+        final Settings indexSettings = Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build();
 
         try (CacheService ignored = cacheService;
-             CacheDirectory cacheDirectory =
-                 new CacheDirectory(snapshot, blobContainer, cacheService, createTempDir(), snapshotId, indexId, shardId,
-                     () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS)) {
+             SearchableSnapshotDirectory directory =
+                 new SearchableSnapshotDirectory(blobContainer, snapshot, snapshotId, indexId, shardId, indexSettings,
+                     () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS), cacheService, createTempDir()) {
                      @Override
-                     IndexInputStats createIndexInputStats(long fileLength) {
+                     protected IndexInputStats createIndexInputStats(long fileLength) {
                          if (seekingThreshold == null) {
                              return super.createIndexInputStats(fileLength);
                          }
@@ -455,9 +462,9 @@ public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
                  }
         ) {
             cacheService.start();
-            assertThat(cacheDirectory.getStats(fileName), nullValue());
+            assertThat(directory.getStats(fileName), nullValue());
 
-            test.apply(fileName, fileContent, cacheDirectory);
+            test.apply(fileName, fileContent, directory);
         }
     }
 }

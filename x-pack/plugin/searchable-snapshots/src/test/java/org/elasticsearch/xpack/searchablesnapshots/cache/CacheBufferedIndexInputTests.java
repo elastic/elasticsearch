@@ -9,9 +9,11 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.createCacheService;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.numberOfRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.singleBlobContainer;
@@ -56,9 +59,10 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
                 }
 
                 final Path cacheDir = createTempDir();
-                try (CacheDirectory cacheDirectory
-                         = new CacheDirectory(snapshot, blobContainer, cacheService, cacheDir, snapshotId, indexId, shardId, () -> 0L)) {
-                    try (IndexInput indexInput = cacheDirectory.openInput(fileName, newIOContext(random()))) {
+                try (SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(blobContainer, snapshot, snapshotId, indexId,
+                    shardId, Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(), () -> 0L, cacheService, cacheDir
+                )) {
+                    try (IndexInput indexInput = directory.openInput(fileName, newIOContext(random()))) {
                         assertEquals(input.length, indexInput.length());
                         assertEquals(0, indexInput.getFilePointer());
                         byte[] output = randomReadAndSlice(indexInput, input.length);

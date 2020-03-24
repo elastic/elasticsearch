@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -32,7 +33,7 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
     private static final Logger logger = LogManager.getLogger(CacheBufferedIndexInput.class);
     private static final int COPY_BUFFER_SIZE = 8192;
 
-    private final CacheDirectory directory;
+    private final SearchableSnapshotDirectory directory;
     private final long offset;
     private final long end;
     private final CacheFileReference cacheFileReference;
@@ -47,13 +48,13 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
     // last seek position is kept around in order to detect forward/backward seeks for stats
     private long lastSeekPosition;
 
-    CacheBufferedIndexInput(CacheDirectory directory, FileInfo fileInfo, IOContext context, IndexInputStats stats) {
+    public CacheBufferedIndexInput(SearchableSnapshotDirectory directory, FileInfo fileInfo, IOContext context, IndexInputStats stats) {
         this("CachedBufferedIndexInput(" + fileInfo.physicalName() + ")", directory, fileInfo, context, stats, 0L, fileInfo.length(),
             false, new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()));
         stats.incrementOpenCount();
     }
 
-    private CacheBufferedIndexInput(String resourceDesc, CacheDirectory directory, FileInfo fileInfo, IOContext context,
+    private CacheBufferedIndexInput(String resourceDesc, SearchableSnapshotDirectory directory, FileInfo fileInfo, IOContext context,
                                     IndexInputStats stats, long offset, long length, boolean isClone,
                                     CacheFileReference cacheFileReference) {
         super(resourceDesc, directory.blobContainer(), fileInfo, context);
@@ -228,10 +229,10 @@ public class CacheBufferedIndexInput extends BaseSearchableSnapshotIndexInput {
 
         private final long fileLength;
         private final CacheKey cacheKey;
-        private final CacheDirectory directory;
+        private final SearchableSnapshotDirectory directory;
         private final AtomicReference<CacheFile> cacheFile = new AtomicReference<>(); // null if evicted or not yet acquired
 
-        private CacheFileReference(CacheDirectory directory, String fileName, long fileLength) {
+        private CacheFileReference(SearchableSnapshotDirectory directory, String fileName, long fileLength) {
             this.cacheKey = directory.createCacheKey(fileName);
             this.fileLength = fileLength;
             this.directory = directory;

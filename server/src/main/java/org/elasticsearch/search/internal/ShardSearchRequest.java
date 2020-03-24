@@ -229,7 +229,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                 out.writeOptionalString(preference);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0) && asKey == false) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
         }

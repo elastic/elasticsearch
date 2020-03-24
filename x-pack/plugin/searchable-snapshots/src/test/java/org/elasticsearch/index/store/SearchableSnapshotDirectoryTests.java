@@ -359,8 +359,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final PlainActionFuture<String> future = PlainActionFuture.newFuture();
                 threadPool.generic().submit(() -> {
                     IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-                    repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, snapshotStatus, Version.CURRENT, emptyMap(),
-                        future);
+                    repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, null, snapshotStatus, Version.CURRENT,
+                        emptyMap(), future);
                     future.actionGet();
                 });
                 future.actionGet();

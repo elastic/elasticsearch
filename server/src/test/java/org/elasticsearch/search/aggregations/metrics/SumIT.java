@@ -164,34 +164,6 @@ public class SumIT extends AbstractNumericTestCase {
         assertThat((double) ((InternalAggregation)sum).getProperty("value"), equalTo(expectedSumValue));
     }
 
-    /** This test has been moved to {@link SumAggregatorTests#testPartiallyUnmapped()} */
-    @Override
-    public void testSingleValuedFieldPartiallyUnmapped() throws Exception {}
-
-    /** this test has been moved to {@link SumAggregatorTests#testValueScriptSingleValuedField()} */
-    @Override
-    public void testSingleValuedFieldWithValueScript() throws Exception {}
-
-    /** this test has been moved to {@link SumAggregatorTests#testValueScriptSingleValuedField()} */
-    @Override
-    public void testSingleValuedFieldWithValueScriptWithParams() throws Exception {}
-
-    /** this test has been moved to {@link SumAggregatorTests#testFieldScriptSingleValuedField()} */
-    @Override
-    public void testScriptSingleValued() throws Exception {}
-
-    /** this test has been moved to {@link SumAggregatorTests#testFieldScriptSingleValuedField()} */
-    @Override
-    public void testScriptSingleValuedWithParams() throws Exception {}
-
-    /** this test has been moved to {@link SumAggregatorTests#testFieldScriptMultiValuedField()} */
-    @Override
-    public void testScriptMultiValued() throws Exception {}
-
-    /** this test has been moved to {@link SumAggregatorTests#testFieldScriptMultiValuedField()} */
-    @Override
-    public void testScriptMultiValuedWithParams() throws Exception {}
-
     @Override
     public void testMultiValuedField() throws Exception {
 
@@ -207,14 +179,6 @@ public class SumIT extends AbstractNumericTestCase {
         assertThat(sum.getName(), equalTo("sum"));
         assertThat(sum.getValue(), equalTo((double) 2+3+3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11+11+12));
     }
-
-    /** this test has been moved to {@link SumAggregatorTests#testValueScriptMultiValuedField()} */
-    @Override
-    public void testMultiValuedFieldWithValueScript() throws Exception {}
-
-    /** this test has been moved to {@link SumAggregatorTests#testValueScriptMultiValuedField()} */
-    @Override
-    public void testMultiValuedFieldWithValueScriptWithParams() throws Exception {}
 
     @Override
     public void testOrderByEmptyAggregation() throws Exception {

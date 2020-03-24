@@ -133,7 +133,12 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         /**
          * The total amount of time spend on executing delete operations.
          */
-        public TimeValue getDeleteTime() { return new TimeValue(deleteTimeInMillis); }
+        public TimeValue getDeleteTime() {
+            if (deleteTimeInMillis >= -1) {
+                return new TimeValue(deleteTimeInMillis);
+            }
+            return TimeValue.MINUS_ONE;
+        }
 
         /**
          * Returns the currently in-flight delete operations

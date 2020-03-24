@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -320,7 +321,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 logger.error("Error creating transform index template", e);
             }
             try {
-                templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
+                // Template upgraders are only ever called on the master nodes, so we can use the current node version as the compatibility
+                // version here because we can be sure that this node, if elected master, will be compatible with itself.
+                templates.put(TransformInternalIndexConstants.AUDIT_INDEX,
+                    TransformInternalIndex.getAuditIndexTemplateMetaData(Version.CURRENT));
             } catch (IOException e) {
                 logger.warn("Error creating transform audit index", e);
             }

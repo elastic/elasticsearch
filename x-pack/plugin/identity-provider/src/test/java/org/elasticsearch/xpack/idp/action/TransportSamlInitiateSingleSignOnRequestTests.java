@@ -157,7 +157,7 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
             ActionListener<UserPrivilegeResolver.UserPrivileges> listener
                 = (ActionListener<UserPrivilegeResolver.UserPrivileges>) args[args.length - 1];
             final UserPrivilegeResolver.UserPrivileges privileges = new UserPrivilegeResolver.UserPrivileges(
-                "saml_enduser", true, Set.of(generateRandomStringArray(5, 8, false, true))
+                "saml_enduser", true, Set.of(generateRandomStringArray(5, 8, false, false))
             );
             listener.onResponse(privileges);
             return null;

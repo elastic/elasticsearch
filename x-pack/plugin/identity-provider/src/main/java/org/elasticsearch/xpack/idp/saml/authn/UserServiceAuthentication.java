@@ -69,4 +69,17 @@ public class UserServiceAuthentication {
     public Set<NetworkControl> getNetworkControls() {
         return networkControls;
     }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{" +
+            "principal='" + principal + '\'' +
+            ", name='" + name + '\'' +
+            ", email='" + email + '\'' +
+            ", roles=" + roles +
+            ", serviceProvider=" + serviceProvider +
+            ", authenticationMethods=" + authenticationMethods +
+            ", networkControls=" + networkControls +
+            '}';
+    }
 }

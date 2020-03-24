@@ -110,6 +110,7 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -919,7 +920,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         // this call does not actually go async
         final AtomicBoolean completed = new AtomicBoolean(false);
         service.authenticate(restRequest, true, ActionListener.wrap(authentication -> {
-            assertThat(authentication.getUser().roles(), equalTo(new String[]{"r1", "r2", "r3", "r4", "r5"}));
+            assertThat(authentication.getUser().roles(), arrayContainingInAnyOrder("r1", "r2", "r3", "r4", "r5"));
             setCompletedToTrue(completed);
         }, this::logAndFail));
         assertTrue(completed.get());

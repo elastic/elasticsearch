@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -697,38 +698,41 @@ public class AuthenticationService {
         private User maybeMergeRolesForUser(User user) {
             if (User.isInternal(user)) {
                 return user;
-            } else {
-                final String[] otherRoles;
-                if (isAnonymousUserEnabled && anonymousUser.equals(user) == false) {
-                    if (anonymousUser.roles().length == 0) {
-                        throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-                    }
-                    otherRoles = anonymousUser.roles();
-                } else {
-                    otherRoles = null;
+            } else if (isAnonymousUserEnabled && anonymousUser.equals(user) == false) {
+                if (anonymousUser.roles().length == 0) {
+                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
                 }
-
-                User userWithMergedRoles = new User(
-                    user.principal(),
-                    mergeRoles(user.roles(), otherRoles),
-                    user.fullName(),
-                    user.email(),
-                    user.metadata(),
-                    user.enabled()
-                );
+                User userWithMergedRoles = userWithNewRoles(user, mergeRoles(user.roles(), anonymousUser.roles()));
                 if (user.isRunAs()) {
-                    final User authenticatedUserWithMergedRoles = new User(
-                        user.authenticatedUser().principal(),
-                        mergeRoles(user.authenticatedUser().roles(), otherRoles),
-                        user.authenticatedUser().fullName(),
-                        user.authenticatedUser().email(),
-                        user.authenticatedUser().metadata(),
-                        user.authenticatedUser().enabled()
-                    );
-                    userWithMergedRoles = new User(userWithMergedRoles, authenticatedUserWithMergedRoles);
+                    final User authUserWithMergedRoles = userWithNewRoles(
+                        user.authenticatedUser(), mergeRoles(user.authenticatedUser().roles(), anonymousUser.roles()));
+                    userWithMergedRoles = new User(userWithMergedRoles, authUserWithMergedRoles);
                 }
                 return userWithMergedRoles;
+            } else {
+                return maybeDedupUserRoles(user);
             }
+        }
+
+        private User maybeDedupUserRoles(User user) {
+            final Set<String> userRoles = new HashSet<>(Arrays.asList(user.roles()));
+            User userWithDedupRoles = user;
+            if (userRoles.size() != user.roles().length) {
+                userWithDedupRoles = userWithNewRoles(user, userRoles.toArray(new String[0]));
+            }
+
+            if (user.isRunAs()) {
+                final Set <String> authUserRoles = new HashSet<>(Arrays.asList(user.authenticatedUser().roles()));
+                User authUserWithDedupdRoles = user.authenticatedUser();
+                if (authUserRoles.size() != user.authenticatedUser().roles().length) {
+                    authUserWithDedupdRoles = userWithNewRoles(user.authenticatedUser(), authUserRoles.toArray(new String[0]));
+                }
+
+                if (userWithDedupRoles != user || authUserWithDedupdRoles != user.authenticatedUser()) {
+                    userWithDedupRoles = new User(userWithDedupRoles, authUserWithDedupdRoles);
+                }
+            }
+            return userWithDedupRoles;
         }
 
         private String[] mergeRoles(String[] existingRoles, String[] otherRoles) {
@@ -738,6 +742,17 @@ public class AuthenticationService {
                 Collections.addAll(roles, otherRoles);
             }
             return roles.toArray(new String[0]);
+        }
+
+        private User userWithNewRoles(User user, String[] roles) {
+            return new User(
+                user.principal(),
+                roles,
+                user.fullName(),
+                user.email(),
+                user.metadata(),
+                user.enabled()
+            );
         }
     }
 

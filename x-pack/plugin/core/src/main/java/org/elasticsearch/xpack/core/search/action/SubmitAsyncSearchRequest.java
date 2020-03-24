@@ -128,7 +128,7 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = request.validate();
         if (request.scroll() != null) {
-            addValidationError("[scroll] queries are not supported", validationException);
+            validationException = addValidationError("[scroll] queries are not supported", validationException);
         }
         if (request.isSuggestOnly()) {
             validationException = addValidationError("suggest-only queries are not supported", validationException);
@@ -140,6 +140,10 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         if (request.isCcsMinimizeRoundtrips()) {
             validationException =
                 addValidationError("[ccs_minimize_roundtrips] is not supported on async search queries", validationException);
+        }
+        if (request.getPreFilterShardSize() == null || request.getPreFilterShardSize() != 1) {
+            validationException =
+                addValidationError("[pre_filter_shard_size] cannot be changed for async search queries", validationException);
         }
 
         return validationException;

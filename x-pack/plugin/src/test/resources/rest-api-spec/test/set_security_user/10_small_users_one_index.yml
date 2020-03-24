@@ -127,7 +127,7 @@ teardown:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
-  - match: { hits.hits.0._source.user.username: joe}
+  - match: { hits.hits.0._source.user.name: joe}
   - match: { hits.hits.0._source.user.roles.0: company_x_logs_role}
 
   # John searches:
@@ -139,5 +139,5 @@ teardown:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
-  - match: { hits.hits.0._source.user.username: john}
+  - match: { hits.hits.0._source.user.name: john}
   - match: { hits.hits.0._source.user.roles.0: company_y_logs_role}

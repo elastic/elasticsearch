@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -27,6 +28,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -320,20 +322,14 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         assertThat(result.get("username"), is(nullValue()));
     }
 
-    public void testWillNotBotherWithEscComplianceWhenParentFieldIsNotUser() throws Exception {
+    public void testWillThrowWhenEscComplianceIsSetButParentFieldIsNotUser() throws Exception {
         User user = new User("_username", null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         new Authentication(user, realmRef, null).writeToContext(threadContext);
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
-        SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", securityContext, licenseState, "auth", EnumSet.of(Property.USERNAME), true);
-        processor.execute(ingestDocument);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = ingestDocument.getFieldValue("auth", Map.class);
-        assertThat(result.size(), equalTo(1));
-        assertThat(result.get("username"), equalTo("_username"));
-        assertThat(result.get("name"), is(nullValue()));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new SetSecurityUserProcessor(
+            "_tag", securityContext, licenseState, "auth", EnumSet.of(Property.USERNAME), true));
+        assertThat(e.getMessage(), containsString("[ecs_compliant] ESC compliance requires [field] value to be 'user'"));
     }
 }

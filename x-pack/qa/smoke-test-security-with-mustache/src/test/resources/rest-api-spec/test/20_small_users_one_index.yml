@@ -75,7 +75,7 @@ teardown:
                   "query" : {
                     "template" : {
                       "source" : {
-                        "term" : { "user.username" : "{{_user.username}}" }
+                        "term" : { "user.name" : "{{_user.username}}" }
                       }
                     }
                   }
@@ -116,7 +116,7 @@ teardown:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
-  - match: { hits.hits.0._source.user.username: joe}
+  - match: { hits.hits.0._source.user.name: joe}
 
   # John searches:
   - do:
@@ -127,7 +127,7 @@ teardown:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
-  - match: { hits.hits.0._source.user.username: john}
+  - match: { hits.hits.0._source.user.name: john}
 
 ---
 "Test shared index separating user by using DLS role query with user's metadata":
@@ -184,7 +184,7 @@ teardown:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
-  - match: { hits.hits.0._source.user.username: joe}
+  - match: { hits.hits.0._source.user.name: joe}
 
   # John searches:
   - do:
@@ -195,4 +195,4 @@ teardown:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
   - match: { hits.total: 1}
-  - match: { hits.hits.0._source.user.username: john}
+  - match: { hits.hits.0._source.user.name: john}

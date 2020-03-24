@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -20,6 +21,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.when;
@@ -40,6 +42,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, () -> licenseState);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
+        config.put("ecs_compliant", false);
         SetSecurityUserProcessor processor = factory.create(null, "_tag", config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(EnumSet.allOf(Property.class)));
@@ -58,6 +61,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, () -> licenseState);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
+        config.put("ecs_compliant", false);
         config.put("properties", Arrays.asList(Property.USERNAME.name(), Property.ROLES.name()));
         SetSecurityUserProcessor processor = factory.create(null, "_tag", config);
         assertThat(processor.getField(), equalTo("_field"));
@@ -80,6 +84,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> null, () -> licenseState);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
+        config.put("ecs_compliant", false);
         final SetSecurityUserProcessor processor = factory.create(null, "_tag", config);
         assertThat(processor, notNullValue());
     }
@@ -87,18 +92,18 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
     public void testEscCompliantDefaultToTrue() throws Exception {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, () -> licenseState);
         Map<String, Object> config = new HashMap<>();
-        config.put("field", "_field");
+        config.put("field", "user");
         SetSecurityUserProcessor processor = factory.create(null, "_tag", config);
         assertTrue(processor.isEscCompliant());
     }
 
-    public void testEscCompliantCanBeTurnedOff() throws Exception {
+    public void testEscCompliantRequiresParentFieldToBeUser() throws Exception {
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> securityContext, () -> licenseState);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("ecs_compliant", false);
-        SetSecurityUserProcessor processor = factory.create(null, "_tag", config);
-        assertFalse(processor.isEscCompliant());
+        config.put("ecs_compliant", true);
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, "_tag", config));
+        assertThat(e.getMessage(), containsString("[ecs_compliant] ESC compliance requires [field] value to be 'user'"));
     }
 
 }

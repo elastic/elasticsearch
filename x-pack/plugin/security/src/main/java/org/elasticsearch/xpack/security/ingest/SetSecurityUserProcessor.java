@@ -47,8 +47,11 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     private final boolean escCompliant;
 
     public SetSecurityUserProcessor(String tag, SecurityContext securityContext, XPackLicenseState licenseState, String field,
-                                    Set<Property> properties, boolean escCompliant) {
+                                    Set<Property> properties, boolean ecsCompliant) {
         super(tag);
+        if (ecsCompliant && false == "user".equals(field)) {
+            throw newConfigurationException(TYPE, tag, "ecs_compliant", "ESC compliance requires [field] value to be 'user'");
+        }
         this.securityContext = securityContext;
         this.licenseState = Objects.requireNonNull(licenseState, "license state cannot be null");
         if (licenseState.isAuthAllowed() == false) {
@@ -59,7 +62,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         }
         this.field = field;
         this.properties = properties;
-        this.escCompliant = escCompliant;
+        this.escCompliant = ecsCompliant;
     }
 
     @Override
@@ -96,7 +99,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             switch (property) {
                 case USERNAME:
                     if (user.principal() != null) {
-                        if (escCompliant && "user".equals(field)) {
+                        if (escCompliant) {
                             userObject.put("name", user.principal());
                         } else {
                             userObject.put("username", user.principal());
@@ -204,6 +207,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         public SetSecurityUserProcessor create(Map<String, Processor.Factory> processorFactories, String tag,
                                                Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
+            final Boolean ecsCompliant = readBooleanProperty(TYPE, tag, config, "ecs_compliant", true);
             List<String> propertyNames = readOptionalList(TYPE, tag, config, "properties");
             Set<Property> properties;
             if (propertyNames != null) {
@@ -215,7 +219,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                 properties = EnumSet.allOf(Property.class);
             }
             return new SetSecurityUserProcessor(tag, securityContext.get(), licenseState.get(), field, properties,
-                readBooleanProperty(TYPE, tag, config, "ecs_compliant", true));
+                ecsCompliant);
         }
     }
 

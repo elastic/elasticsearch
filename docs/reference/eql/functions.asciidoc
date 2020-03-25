@@ -44,10 +44,16 @@ substring(<source>, <start_pos>[, <end_pos>])
 Source string.
 
 `<start_pos>`::
++
+--
 (Required, integer)
 Starting position for extraction.
-+
+
+If this position is higher than the `<end_pos>` position or the length of the
+`<source>` string, the function returns an empty string.
+
 Positions are zero-indexed. Negative offsets are supported.
+--
 
 `<end_pos>`::
 (Optional, integer)

@@ -491,7 +491,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 int r = randomIntBetween(1, toReduceSize);
                 List<InternalAggregation> toReduce = aggs.subList(0, r);
                 InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
-                        root.context().bigArrays(), getMockScriptService());
+                        root.context().bigArrays(), getMockScriptService(), () -> PipelineAggregator.PipelineTree.EMPTY);
                 A reduced = (A) aggs.get(0).reduce(toReduce, context);
                 aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
                 aggs.add(reduced);

@@ -47,6 +47,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -105,7 +106,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
         client.multiSearch(msearch, ActionListener.wrap(msearchResponse -> {
-            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService);
+            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
+                    bigArrays, scriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
             listener.onResponse(processResponses(rollupSearchContext, msearchResponse, context));
         }, listener::onFailure));
     }

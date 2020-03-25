@@ -1180,7 +1180,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService);
+                return InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService,
+                        () -> requestToPipelineTree(request));
             }
 
             @Override

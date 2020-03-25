@@ -41,7 +41,7 @@ public class NodesStatsRequestTests extends ESTestCase {
     public void testAddMetrics() throws Exception {
         NodesStatsRequest request = new NodesStatsRequest(randomAlphaOfLength(8));
         request.indices(randomFrom(CommonStatsFlags.ALL));
-        String[] metrics = randomSubsetOf(NodesStatsRequest.Metric.allMetrics()).toArray(String[]::new);
+        String[] metrics = randomSubsetOf(NodesStatsRequest.Metric.allMetrics()).toArray(new String[0]);
         request.addMetrics(metrics);
         NodesStatsRequest deserializedRequest = roundTripRequest(request);
         assertRequestsEqual(request, deserializedRequest);
@@ -122,11 +122,11 @@ public class NodesStatsRequestTests extends ESTestCase {
         exception = expectThrows(IllegalStateException.class, () -> request.removeMetric(unknownMetric1));
         assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric1));
 
-        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
+        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(new String[0])));
         assertThat(exception.getMessage(), equalTo("Used illegal metric: [" + unknownMetric1 + "]"));
 
         unknownMetrics.add(unknownMetric2);
-        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
+        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(new String[0])));
         assertThat(exception.getMessage(), equalTo("Used illegal metrics: [" + unknownMetric1 + ", " + unknownMetric2 + "]"));
     }
 

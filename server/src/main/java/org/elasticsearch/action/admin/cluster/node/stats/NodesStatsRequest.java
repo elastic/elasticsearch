@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.SortedSet;
@@ -132,7 +133,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * handled separately.
      */
     public Set<String> requestedMetrics() {
-        return Set.copyOf(requestedMetrics);
+        return new HashSet<>(requestedMetrics);
     }
 
     /**
@@ -151,7 +152,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      */
     public NodesStatsRequest addMetrics(String... metrics) {
         // use sorted set for reliable ordering in error messages
-        SortedSet<String> metricsSet = new TreeSet<>(Set.of(metrics));
+        SortedSet<String> metricsSet = new TreeSet<>(Arrays.asList(metrics));
         if (Metric.allMetrics().containsAll(metricsSet) == false) {
             metricsSet.removeAll(Metric.allMetrics());
             String plural = metricsSet.size() == 1 ? "" : "s";

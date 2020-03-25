@@ -26,9 +26,11 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 
 public class TooManyJobsIT extends BaseMlIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54162")
     public void testCloseFailedJob() throws Exception {
         startMlCluster(1, 1);
 

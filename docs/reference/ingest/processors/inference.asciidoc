@@ -130,16 +130,16 @@ aggregating and searching for
 [source,js]
 --------------------------------------------------
 {
-	"type": "nested",
-	"dynamic": true,
-	"properties": {
-		"feature_name": {
-			"type": "keyword"
-		},
-		"importance": {
-			"type": "double"
-		}
-	}
+  "type": "nested",
+  "dynamic": true,
+  "properties": {
+    "feature_name": {
+      "type": "keyword"
+    },
+    "importance": {
+      "type": "double"
+    }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

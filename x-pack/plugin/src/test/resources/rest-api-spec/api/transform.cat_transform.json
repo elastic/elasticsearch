@@ -1,5 +1,5 @@
 {
-  "transform.cat_transform":{
+  "cat.transform":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-transforms.html"
     },

@@ -1,5 +1,8 @@
 ---
 "Put index template":
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
 
   - do:
       indices.put_index_template:
@@ -26,6 +29,9 @@
 
 ---
 "Put multiple index templates":
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
 
   - do:
       indices.put_index_template:
@@ -60,6 +66,9 @@
 
 ---
 "Put index template with 'create' flag":
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
 
   - do:
       indices.put_index_template:
@@ -92,6 +101,9 @@
 
 ---
 "Put index template without index_patterns":
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
 
   - do:
       catch: bad_request

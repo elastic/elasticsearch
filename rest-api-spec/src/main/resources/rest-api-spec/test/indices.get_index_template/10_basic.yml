@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
+
   - do:
       indices.put_index_template:
         name: test
@@ -15,6 +19,9 @@ setup:
 
 ---
 "Get index template":
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
 
   - do:
       indices.get_index_template:
@@ -27,6 +34,9 @@ setup:
 
 ---
 "Get all tindex emplates":
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
 
   - do:
       indices.put_index_template:
@@ -44,6 +54,9 @@ setup:
 
 ---
 "Get index template with local flag":
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
 
   - do:
       indices.get_index_template:

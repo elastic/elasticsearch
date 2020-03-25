@@ -94,7 +94,7 @@ public class SamlIdentityProviderBuilder {
 
     SamlIdentityProviderBuilder(SamlServiceProviderResolver serviceProviderResolver, WildcardServiceProviderResolver wildcardResolver) {
         this.serviceProviderResolver = serviceProviderResolver;
-        wildcardServiceResolver = wildcardResolver;
+        this.wildcardServiceResolver = wildcardResolver;
         this.ssoEndpoints = new HashMap<>();
         this.sloEndpoints = new HashMap<>();
     }

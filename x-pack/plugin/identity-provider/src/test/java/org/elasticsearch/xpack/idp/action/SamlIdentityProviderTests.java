@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
-import org.elasticsearch.xpack.idp.saml.test.IdentityProviderIntegTestCase;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.test.IdentityProviderIntegTestCase;
 import org.opensaml.core.xml.util.XMLObjectSupport;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.core.AuthnRequest;
@@ -81,7 +81,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
                 new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
             .addHeader("es-secondary-authorization", "ApiKey " + apiKeyCredentials)
             .build());
-        request.setJsonEntity("{ \"entity_id\": \"" + entityId + "\"}");
+        request.setJsonEntity("{ \"entity_id\": \"" + entityId + "\", \"acs\": \"" + acsUrl + "\" }");
         Response initResponse = getRestClient().performRequest(request);
         ObjectPath objectPath = ObjectPath.createFromResponse(initResponse);
         assertThat(objectPath.evaluate("post_url").toString(), equalTo(acsUrl));
@@ -110,7 +110,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
                 new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
             .addHeader("es-secondary-authorization", "ApiKey " + apiKeyCredentials)
             .build());
-        request.setJsonEntity("{ \"entity_id\": \"" + entityId + randomAlphaOfLength(3) + "\"}");
+        request.setJsonEntity("{ \"entity_id\": \"" + entityId + randomAlphaOfLength(3) + "\", \"acs\": \"" + acsUrl + "\" }");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(e.getMessage(), containsString("is not registered with this Identity Provider"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
@@ -124,7 +124,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         // Make a request to init an SSO flow with the API Key as secondary authentication
         Request request = new Request("POST", "/_idp/saml/init");
         request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
-        request.setJsonEntity("{ \"entity_id\": \"" + entityId + "\"}");
+        request.setJsonEntity("{ \"entity_id\": \"" + entityId + "\", \"acs\": \"" + acsUrl + "\" }");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(e.getMessage(), containsString("Request is missing secondary authentication"));
     }

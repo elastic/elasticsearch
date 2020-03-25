@@ -102,7 +102,10 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
         final WildcardServiceProvider service1a = resolver.services().get("service1a");
         assertThat(
             service1a.extractTokens("https://abcdef.example.com/", "https://abcdef.service.example.com/saml2/acs"),
-            equalTo(Map.of("service", "abcdef")));
+            equalTo(Map.ofEntries(
+                Map.entry("service", "abcdef"),
+                Map.entry("entity_id", "https://abcdef.example.com/"),
+                Map.entry("acs", "https://abcdef.service.example.com/saml2/acs"))));
         expectThrows(IllegalArgumentException.class, () ->
             service1a.extractTokens("https://abcdef.example.com/", "https://different.service.example.com/saml2/acs"));
         assertThat(service1a.extractTokens("urn:foo:bar", "https://something.example.org/foo/bar"), nullValue());
@@ -110,7 +113,10 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
 
         final WildcardServiceProvider service1b = resolver.services().get("service1b");
         assertThat(service1b.extractTokens("https://xyzzy.example.com/", "https://services.example.com/xyzzy/saml2/acs"),
-            equalTo(Map.of("service", "xyzzy")));
+            equalTo(Map.ofEntries(
+                Map.entry("service", "xyzzy"),
+                Map.entry("entity_id", "https://xyzzy.example.com/"),
+                Map.entry("acs", "https://services.example.com/xyzzy/saml2/acs"))));
         assertThat(service1b.extractTokens("https://abcdef.example.com/", "https://abcdef.service.example.com/saml2/acs"), nullValue());
         expectThrows(IllegalArgumentException.class, () ->
             service1b.extractTokens("https://abcdef.example.com/", "https://services.example.com/xyzzy/saml2/acs"));

@@ -35,7 +35,9 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -82,11 +84,18 @@ public class WildcardServiceProviderResolver {
         logger.info("Loading wildcard services from file [{}]", path.toAbsolutePath());
 
         final WildcardServiceProviderResolver resolver = new WildcardServiceProviderResolver(settings, scriptService, spFactory);
-        try {
-            resolver.reload(path);
-        } catch (IOException e) {
-            throw new ElasticsearchException("File [{}] (from setting [{}]) cannot be loaded",
-                e, path.toAbsolutePath(), FILE_PATH_SETTING.getKey());
+
+        if (Files.exists(path)) {
+            try {
+                resolver.reload(path);
+            } catch (IOException e) {
+                throw new ElasticsearchException("File [{}] (from setting [{}]) cannot be loaded",
+                    e, path.toAbsolutePath(), FILE_PATH_SETTING.getKey());
+            }
+        } else if (FILE_PATH_SETTING.exists(environment.settings())) {
+            // A file was explicitly configured, but doesn't exist. That's a mistake...
+            throw new ElasticsearchException("File [{}] (from setting [{}]) does not exist",
+                path.toAbsolutePath(), FILE_PATH_SETTING.getKey());
         }
 
         final FileWatcher fileWatcher = new FileWatcher(path);
@@ -213,6 +222,10 @@ public class WildcardServiceProviderResolver {
 
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
         return services;
+    }
+
+    public static Collection<? extends Setting<?>> getSettings() {
+        return List.of(FILE_PATH_SETTING);
     }
 
     public interface Fields {

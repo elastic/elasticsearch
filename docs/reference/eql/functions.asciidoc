@@ -8,10 +8,10 @@ experimental::[]
 
 {es} supports the following EQL functions:
 
-* <<eql-substring-fn>>
+* <<eql-fn-substring>>
 
 [discrete]
-[[eql-substring-fn]]
+[[eql-fn-substring]]
 === `substring`
 
 Extracts a substring from a source string at provided start and end positions.

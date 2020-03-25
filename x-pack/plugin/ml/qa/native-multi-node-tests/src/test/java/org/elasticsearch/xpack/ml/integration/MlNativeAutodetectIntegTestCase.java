@@ -353,10 +353,6 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
         return forecasts;
     }
 
-    protected PutFilterAction.Response putMlFilter(MlFilter filter) {
-        return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
-    }
-
     protected PutCalendarAction.Response putCalendar(String calendarId, List<String> jobIds, String description) {
         PutCalendarAction.Request request = new PutCalendarAction.Request(new Calendar(calendarId, jobIds, description));
         return client().execute(PutCalendarAction.INSTANCE, request).actionGet();

@@ -36,7 +36,7 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
 
         public Request() {
             // Put our own defaults for backwards compatibility
-            super(null, null, true);
+            super(null, PageParams.defaultParams(), true);
         }
 
         public Request(StreamInput in) throws IOException {

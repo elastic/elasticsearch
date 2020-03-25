@@ -281,6 +281,11 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return memoryUsage;
             }
 
+            @Nullable
+            public AnalysisStats getAnalysisStats() {
+                return analysisStats;
+            }
+
             public DiscoveryNode getNode() {
                 return node;
             }

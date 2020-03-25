@@ -165,7 +165,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     protected InternalAggregation(StreamInput in) throws IOException {
         name = in.readString();
         metaData = in.readMap();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getVersion().before(Version.V_7_8_0)) {
             pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class);
         } else {
             pipelineAggregators = emptyList();
@@ -176,7 +176,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeGenericValue(metaData);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getVersion().before(Version.V_7_8_0)) {
             out.writeNamedWriteableList(pipelineAggregators);
         }
         doWriteTo(out);

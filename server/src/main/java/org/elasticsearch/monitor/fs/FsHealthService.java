@@ -32,11 +32,14 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
@@ -64,7 +67,7 @@ public class FsHealthService extends AbstractLifecycleComponent {
         Setting.boolSetting("monitor.fs.health.enabled", true, Setting.Property.NodeScope, Setting.Property.Dynamic);
     public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("monitor.fs.health.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
+            Setting.Property.NodeScope);
     public static final Setting<TimeValue> HEALTHY_TIMEOUT_SETTING =
         Setting.timeSetting("monitor.fs.health.healthy_timeout", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
             Setting.Property.NodeScope, Setting.Property.Dynamic);
@@ -94,7 +97,7 @@ public class FsHealthService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-        scheduledFutures.stream().map(s -> s.cancel());
+        scheduledFutures.forEach(s -> s.cancel());
     }
 
     @Override
@@ -109,7 +112,7 @@ public class FsHealthService extends AbstractLifecycleComponent {
         this.healthCheckTimeoutInterval = healthCheckTimeoutInterval;
     }
 
-    // only for testing
+    // visible for testing
     Map<Path, TimeStampedStatus> getPathHealthStats(){
         return this.pathHealthStats;
     }
@@ -128,11 +131,12 @@ public class FsHealthService extends AbstractLifecycleComponent {
      class FsPathHealthMonitor implements Runnable {
 
         private static final String TEMP_FILE_NAME = ".es_temp_file";
-
-        Path path;
-        AtomicBoolean checkInProgress;
+        private Path path;
+        private byte[] byteToWrite;
+        private AtomicBoolean checkInProgress;
 
         FsPathHealthMonitor(Path path){
+            this.byteToWrite = new byte[20];
             this.path = path;
             this.checkInProgress = new AtomicBoolean();
         }
@@ -148,6 +152,10 @@ public class FsHealthService extends AbstractLifecycleComponent {
             }
         }
 
+        public Path getPath(){
+            return this.path;
+        }
+
         private void monitorFSHealth() {
             if (checkInProgress.compareAndSet(false, true) == false) {
                 logger.info("Skipping Monitor for disk health as a check is already in progress");
@@ -155,12 +163,15 @@ public class FsHealthService extends AbstractLifecycleComponent {
             }
             try {
                 if (Files.exists(path)) {
-                    Path resolve = path.resolve(TEMP_FILE_NAME);
-                    // delete any lingering file from a previous failure
-                    Files.deleteIfExists(resolve);
-                    IOUtils.fsync(Files.createFile(resolve), false);
-                    Files.delete(resolve);
-                    pathHealthStats.put(path, new TimeStampedStatus(Status.HEALTHY));
+                    Path tempDataPath = path.resolve(TEMP_FILE_NAME);
+                    Files.deleteIfExists(tempDataPath);
+                    try (OutputStream os = Files.newOutputStream(tempDataPath, StandardOpenOption.CREATE_NEW)) {
+                        new Random().nextBytes(byteToWrite);
+                        os.write(byteToWrite);
+                        IOUtils.fsync(tempDataPath,false);
+                        pathHealthStats.put(path,new TimeStampedStatus(Status.HEALTHY));
+                    }
+                    Files.delete(tempDataPath);
                 }
             } catch (Exception ex) {
                 logger.error("Failed to perform writes on path {} due to {}", path, ex);

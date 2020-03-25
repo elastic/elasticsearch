@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
 import static org.mockito.Mockito.mock;
@@ -104,14 +105,18 @@ public class FsHealthServiceTests extends ESTestCase {
 
     public void testPathHealthMonitorSchedule() throws IOException {
         NodeEnvironment env = newNodeEnvironment();
+        AtomicBoolean scheduled = new AtomicBoolean();
         Settings settings = Settings.builder().put(FsHealthService.REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1000))
             .build();
-        execute(env, settings, (command, interval, name) -> null);
+        execute(env, settings, (command, interval, name) -> {
+            scheduled.set(true);
+            return new FsHealthServiceTests.MockCancellable();
+        },  () -> assertTrue(scheduled.get()));
         env.close();
     }
 
     private static void execute(NodeEnvironment env, Settings settings, FsHealthServiceTests.TriFunction<Runnable, TimeValue, String,
-        Scheduler.Cancellable> scheduler)  {
+        Scheduler.Cancellable> scheduler,  Runnable asserts)  {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ThreadPool threadPool = null;
         Set<Path> paths = new TreeSet<>();
@@ -119,7 +124,7 @@ public class FsHealthServiceTests extends ESTestCase {
             threadPool = new TestThreadPool(FsHealthServiceTests.class.getCanonicalName()) {
                 @Override
                 public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String name) {
-                    paths.add(((FsHealthService.FsPathHealthMonitor) command).path);
+                    paths.add(((FsHealthService.FsPathHealthMonitor) command).getPath());
                     assertEquals(name, Names.GENERIC);
                     assertEquals(interval, FsHealthService.REFRESH_INTERVAL_SETTING.get(settings));
                     return scheduler.apply(command, interval, name);
@@ -127,6 +132,7 @@ public class FsHealthServiceTests extends ESTestCase {
             };
             FsHealthService service = new FsHealthService(settings, clusterSettings, threadPool, env, () -> 1);
             service.doStart();
+            asserts.run();
             service.doStop();
             assertArrayEquals(env.nodeDataPaths(), paths.toArray());
 
@@ -137,5 +143,18 @@ public class FsHealthServiceTests extends ESTestCase {
 
     interface TriFunction<S, T, U, R> {
         R apply(S s, T t, U u);
+    }
+
+    private static class MockCancellable implements Scheduler.Cancellable {
+
+        @Override
+        public boolean cancel() {
+            return true;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return false;
+        }
     }
 }

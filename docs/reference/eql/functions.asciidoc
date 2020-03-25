@@ -57,8 +57,8 @@ Positions are zero-indexed. Negative offsets are supported.
 
 `<end_pos>`::
 (Optional, integer)
-End position for extraction. If this position is not provided, the function
-returns the remaining string.
+Exclusive end position for extraction. If this position is not provided, the
+function returns the remaining string.
 +
 Positions are zero-indexed. Negative offsets are supported.
 

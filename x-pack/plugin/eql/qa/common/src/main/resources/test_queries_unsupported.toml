@@ -504,12 +504,6 @@ query = '''
 registry where invalid_field_name != null'''
 
 [[queries]]
-expected_event_ids = []
-query = '''
-registry where length(bad_field) > 0
-'''
-
-[[queries]]
 expected_event_ids  = [1, 55, 57, 63, 75304]
 query = '''
 any where true
@@ -713,12 +707,6 @@ registry where arrayContains(bytes_written_string_list, 'En-uS')'''
 expected_event_ids  = [57]
 query = '''
 registry where arrayContains(bytes_written_string_list, 'En')'''
-
-[[queries]]
-expected_event_ids  = [57]
-query = '''
-registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == 'EN-us'
-'''
 
 [[queries]]
 expected_event_ids  = [57]

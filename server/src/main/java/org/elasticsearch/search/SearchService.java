@@ -377,11 +377,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // entirely. Otherwise we fork the execution in the search thread pool.
                     ShardSearchRequest canMatchRequest = new ShardSearchRequest(orig);
                     try (Engine.Searcher searcher = shard.acquireCanMatchSearcher()) {
-                        QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), searcher,
-                            request::nowInMillis, request.getClusterAlias());
-                        Rewriteable.rewrite(request.getRewriteable(), context, true);
+                        QueryShardContext context = indexService.newQueryShardContext(canMatchRequest.shardId().id(), searcher,
+                            canMatchRequest::nowInMillis, canMatchRequest.getClusterAlias());
+                        Rewriteable.rewrite(canMatchRequest.getRewriteable(), context, true);
                     } catch (Exception exc) {
                         listener.onFailure(exc);
+                        return;
                     }
                     if (canRewriteToMatchNone(canMatchRequest.source())
                             && canMatchRequest.source().query() instanceof MatchNoneQueryBuilder) {

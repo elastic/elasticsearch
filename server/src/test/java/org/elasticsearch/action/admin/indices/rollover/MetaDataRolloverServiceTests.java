@@ -329,7 +329,8 @@ public class MetaDataRolloverServiceTests extends ESTestCase {
 
             long before = testThreadPool.absoluteTimeInMillis();
             MetaDataRolloverService.RolloverResult rolloverResult =
-                rolloverService.rolloverClusterState(clusterState,aliasName, newIndexName, createIndexRequest, metConditions);
+                rolloverService.rolloverClusterState(clusterState,aliasName, newIndexName, createIndexRequest, metConditions,
+                    randomBoolean());
             long after = testThreadPool.absoluteTimeInMillis();
 
             newIndexName = newIndexName == null ? indexPrefix + "2" : newIndexName;

@@ -73,7 +73,8 @@ public class MetaDataRolloverService {
     }
 
     public RolloverResult rolloverClusterState(ClusterState currentState, String aliasName, String newIndexName,
-                                               CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions) throws Exception {
+                                               CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
+                                               boolean silent) throws Exception {
         final MetaData metaData = currentState.metaData();
         validate(metaData, aliasName);
         final AliasOrIndex.Alias alias = (AliasOrIndex.Alias) metaData.getAliasAndIndexLookup().get(aliasName);
@@ -94,7 +95,7 @@ public class MetaDataRolloverService {
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareCreateIndexRequest(unresolvedName,
             rolloverIndexName, createIndexRequest);
-        ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest);
+        ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent);
         newState = indexAliasesService.applyAliasActions(newState,
             rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex,
                 aliasMetaData.isHidden(), aliasName));

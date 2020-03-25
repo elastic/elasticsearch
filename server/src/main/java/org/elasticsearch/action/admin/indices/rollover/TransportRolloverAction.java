@@ -99,7 +99,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         MetaDataRolloverService.RolloverResult preResult =
             rolloverService.rolloverClusterState(state,
                 rolloverRequest.getAlias(), rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest(),
-                Collections.emptyList());
+                Collections.emptyList(), true);
         MetaData metaData = state.metaData();
         String sourceIndexName = preResult.sourceIndexName;
         String rolloverIndexName = preResult.rolloverIndexName;
@@ -129,7 +129,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             public ClusterState execute(ClusterState currentState) throws Exception {
                                 MetaDataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(currentState,
                                     rolloverRequest.getAlias(), rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest(),
-                                    metConditions);
+                                    metConditions, false);
                                 if (rolloverResult.sourceIndexName.equals(sourceIndexName) == false) {
                                     throw new ElasticsearchException("Concurrent modification of alias [{}] during rollover",
                                         rolloverRequest.getAlias());

@@ -35,6 +35,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -154,7 +155,7 @@ public class MetaDataIndexTemplateService {
                 }
 
                 @Override
-                public ClusterState execute(ClusterState currentState) {
+                public ClusterState execute(ClusterState currentState) throws Exception {
                     return addComponentTemplate(currentState, create, name, template);
                 }
 
@@ -166,14 +167,15 @@ public class MetaDataIndexTemplateService {
     }
 
     // Package visible for testing
-    static ClusterState addComponentTemplate(final ClusterState currentState, final boolean create,
-                                             final String name, final ComponentTemplate template) {
+    ClusterState addComponentTemplate(final ClusterState currentState, final boolean create,
+                                             final String name, final ComponentTemplate template) throws Exception {
         if (create && currentState.metaData().componentTemplates().containsKey(name)) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
         }
 
-        // TODO: validation of component template
-        // validateAndAddTemplate(request, templateBuilder, indicesService, xContentRegistry);
+        CompressedXContent mappings = template.template().mappings();
+        String stringMappings = mappings == null ? null : mappings.string();
+        validateTemplate(template.template().settings(), stringMappings, indicesService, xContentRegistry);
 
         logger.info("adding component template [{}]", name);
         return ClusterState.builder(currentState)
@@ -274,7 +276,20 @@ public class MetaDataIndexTemplateService {
                     throw new IllegalArgumentException("index_template [" + request.name + "] already exists");
                 }
 
-                validateAndAddTemplate(request, templateBuilder, indicesService, xContentRegistry);
+                templateBuilder.order(request.order);
+                templateBuilder.version(request.version);
+                templateBuilder.patterns(request.indexPatterns);
+                templateBuilder.settings(request.settings);
+
+                if (request.mappings != null) {
+                    try {
+                        templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
+                    } catch (Exception e) {
+                        throw new MapperParsingException("Failed to parse mapping: {}", e, request.mappings);
+                    }
+                }
+
+                validateTemplate(request.settings, request.mappings, indicesService, xContentRegistry);
 
                 for (Alias alias : request.aliases) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
@@ -355,20 +370,20 @@ public class MetaDataIndexTemplateService {
         return matchedTemplates;
     }
 
-    private static void validateAndAddTemplate(final PutRequest request, IndexTemplateMetaData.Builder templateBuilder,
-            IndicesService indicesService, NamedXContentRegistry xContentRegistry) throws Exception {
+    private static void validateTemplate(Settings settings, String mappings,
+                                         IndicesService indicesService, NamedXContentRegistry xContentRegistry) throws Exception {
         Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
         try {
             // use the provided values, otherwise just pick valid dummy values
-            int dummyPartitionSize = IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(request.settings);
-            int dummyShards = request.settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS,
+            int dummyPartitionSize = IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
+            int dummyShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS,
                     dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
 
             //create index service for parsing and validating "mappings"
             Settings dummySettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(request.settings)
+                .put(settings)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, dummyShards)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -378,19 +393,9 @@ public class MetaDataIndexTemplateService {
             IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList(), false);
             createdIndex = dummyIndexService.index();
 
-            templateBuilder.order(request.order);
-            templateBuilder.version(request.version);
-            templateBuilder.patterns(request.indexPatterns);
-            templateBuilder.settings(request.settings);
-
-            if (request.mappings != null) {
-                try {
-                    templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
-                } catch (Exception e) {
-                    throw new MapperParsingException("Failed to parse mapping: {}", e, request.mappings);
-                }
+            if (mappings != null) {
                 dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME,
-                    MapperService.parseMapping(xContentRegistry, request.mappings), MergeReason.MAPPING_UPDATE);
+                    MapperService.parseMapping(xContentRegistry, mappings), MergeReason.MAPPING_UPDATE);
             }
 
         } finally {

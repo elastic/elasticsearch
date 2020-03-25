@@ -72,7 +72,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
             throw new IllegalStateException(errorMessage);
         }
 
-        if(settingsKeys == null || settingsKeys.length == 0) {
+        if (settingsKeys == null || settingsKeys.length == 0) {
             return clusterState;
         }
 

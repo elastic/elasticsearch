@@ -668,6 +668,18 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             .orElse(Collections.emptyMap());
     }
 
+    public Map<String, IndexTemplateV2> templatesV2() {
+        return Optional.ofNullable((IndexTemplateV2Metadata) this.custom(IndexTemplateV2Metadata.TYPE))
+            .map(IndexTemplateV2Metadata::indexTemplates)
+            .orElse(Collections.emptyMap());
+    }
+
+    public Map<String, DataStream> dataStreams() {
+        return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
+            .map(DataStreamMetadata::dataStreams)
+            .orElse(Collections.emptyMap());
+    }
+
     public ImmutableOpenMap<String, Custom> customs() {
         return this.customs;
     }
@@ -796,7 +808,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     public static MetaData fromXContent(XContentParser parser) throws IOException {
-        return Builder.fromXContent(parser, false);
+        return Builder.fromXContent(parser);
     }
 
     @Override
@@ -1087,6 +1099,60 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return this;
         }
 
+        public Builder indexTemplates(Map<String, IndexTemplateV2> indexTemplates) {
+            this.customs.put(IndexTemplateV2Metadata.TYPE, new IndexTemplateV2Metadata(indexTemplates));
+            return this;
+        }
+
+        public Builder put(String name, IndexTemplateV2 indexTemplate) {
+            Objects.requireNonNull(indexTemplate, "it is invalid to add a null index template: " + name);
+            // ಠ_ಠ at ImmutableOpenMap
+            Map<String, IndexTemplateV2> existingTemplates =
+                Optional.ofNullable((IndexTemplateV2Metadata) this.customs.get(IndexTemplateV2Metadata.TYPE))
+                    .map(itmd -> new HashMap<>(itmd.indexTemplates()))
+                    .orElse(new HashMap<>());
+            existingTemplates.put(name, indexTemplate);
+            this.customs.put(IndexTemplateV2Metadata.TYPE, new IndexTemplateV2Metadata(existingTemplates));
+            return this;
+        }
+
+        public Builder removeIndexTemplate(String name) {
+            // ಠ_ಠ at ImmutableOpenMap
+            Map<String, IndexTemplateV2> existingTemplates =
+                Optional.ofNullable((IndexTemplateV2Metadata) this.customs.get(IndexTemplateV2Metadata.TYPE))
+                    .map(itmd -> new HashMap<>(itmd.indexTemplates()))
+                    .orElse(new HashMap<>());
+            existingTemplates.remove(name);
+            this.customs.put(IndexTemplateV2Metadata.TYPE, new IndexTemplateV2Metadata(existingTemplates));
+            return this;
+        }
+
+        public Builder dataStreams(Map<String, DataStream> dataStreams) {
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams));
+            return this;
+        }
+
+        public Builder put(DataStream dataStream) {
+            Objects.requireNonNull(dataStream, "it is invalid to add a null data stream");
+            Map<String, DataStream> existingDataStreams =
+                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
+                    .orElse(new HashMap<>());
+            existingDataStreams.put(dataStream.getName(), dataStream);
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
+            return this;
+        }
+
+        public Builder removeDataStream(String name) {
+            Map<String, DataStream> existingDataStreams =
+                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
+                    .orElse(new HashMap<>());
+            existingDataStreams.remove(name);
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
+            return this;
+        }
+
         public Custom getCustom(String type) {
             return customs.get(type);
         }
@@ -1362,7 +1428,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             builder.endObject();
         }
 
-        public static MetaData fromXContent(XContentParser parser, boolean preserveUnknownCustoms) throws IOException {
+        public static MetaData fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder();
 
             // we might get here after the meta-data element, or on a fresh parser
@@ -1412,13 +1478,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                             Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
                             builder.putCustom(custom.getWriteableName(), custom);
                         } catch (NamedObjectNotFoundException ex) {
-                            if (preserveUnknownCustoms) {
-                                logger.warn("Adding unknown custom object with type {}", currentFieldName);
-                                builder.putCustom(currentFieldName, new UnknownGatewayOnlyCustom(parser.mapOrdered()));
-                            } else {
-                                logger.warn("Skipping unknown custom object with type {}", currentFieldName);
-                                parser.skipChildren();
-                            }
+                            logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                            parser.skipChildren();
                         }
                     }
                 } else if (token.isValue()) {
@@ -1439,45 +1500,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
     }
 
-    public static class UnknownGatewayOnlyCustom implements Custom {
-
-        private final Map<String, Object> contents;
-
-        UnknownGatewayOnlyCustom(Map<String, Object> contents) {
-            this.contents = contents;
-        }
-
-        @Override
-        public EnumSet<XContentContext> context() {
-            return EnumSet.of(MetaData.XContentContext.API, MetaData.XContentContext.GATEWAY);
-        }
-
-        @Override
-        public Diff<Custom> diff(Custom previousState) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String getWriteableName() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.mapContents(contents);
-        }
-    }
-
     private static final ToXContent.Params FORMAT_PARAMS;
     static {
         Map<String, String> params = new HashMap<>(2);
@@ -1489,25 +1511,17 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     /**
      * State format for {@link MetaData} to write to and load from disk
      */
-    public static final MetaDataStateFormat<MetaData> FORMAT = createMetaDataStateFormat(false);
+    public static final MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<>(GLOBAL_STATE_FILE_PREFIX) {
 
-    /**
-     * Special state format for {@link MetaData} to write to and load from disk, preserving unknown customs
-     */
-    public static final MetaDataStateFormat<MetaData> FORMAT_PRESERVE_CUSTOMS = createMetaDataStateFormat(true);
+        @Override
+        public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+            Builder.toXContent(state, builder, FORMAT_PARAMS);
+        }
 
-    private static MetaDataStateFormat<MetaData> createMetaDataStateFormat(boolean preserveUnknownCustoms) {
-        return new MetaDataStateFormat<MetaData>(GLOBAL_STATE_FILE_PREFIX) {
+        @Override
+        public MetaData fromXContent(XContentParser parser) throws IOException {
+            return Builder.fromXContent(parser);
+        }
+    };
 
-            @Override
-            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
-                Builder.toXContent(state, builder, FORMAT_PARAMS);
-            }
-
-            @Override
-            public MetaData fromXContent(XContentParser parser) throws IOException {
-                return Builder.fromXContent(parser, preserveUnknownCustoms);
-            }
-        };
-    }
 }

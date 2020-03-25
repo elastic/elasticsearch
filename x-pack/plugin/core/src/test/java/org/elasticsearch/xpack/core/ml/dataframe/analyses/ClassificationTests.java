@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -244,31 +243,37 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testGetExplicitlyMappedFields() {
-        assertThat(new Classification("foo").getExplicitlyMappedFields(null, "results"), is(anEmptyMap()));
-        assertThat(new Classification("foo").getExplicitlyMappedFields(Collections.emptyMap(), "results"), is(anEmptyMap()));
+        assertThat(new Classification("foo").getExplicitlyMappedFields(null, "results"),
+            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.featureImportanceMapping())));
+        assertThat(new Classification("foo").getExplicitlyMappedFields(Collections.emptyMap(), "results"),
+            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.featureImportanceMapping())));
         assertThat(
             new Classification("foo").getExplicitlyMappedFields(Collections.singletonMap("foo", "not_a_map"), "results"),
-            is(anEmptyMap()));
-        assertThat(
-            new Classification("foo").getExplicitlyMappedFields(
-                Collections.singletonMap("foo", Collections.singletonMap("bar", "baz")),
-                "results"),
+            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.featureImportanceMapping())));
+        Map<String, Object> explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
+            Collections.singletonMap("foo", Collections.singletonMap("bar", "baz")),
+            "results");
+        assertThat(explicitlyMappedFields,
             allOf(
                 hasEntry("results.foo_prediction", Collections.singletonMap("bar", "baz")),
                 hasEntry("results.top_classes.class_name", Collections.singletonMap("bar", "baz"))));
-        assertThat(
-            new Classification("foo").getExplicitlyMappedFields(
-                new HashMap<>() {{
-                    put("foo", new HashMap<>() {{
-                        put("type", "alias");
-                        put("path", "bar");
-                    }});
-                    put("bar", Collections.singletonMap("type", "long"));
-                }},
-                "results"),
+        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", MapUtils.featureImportanceMapping()));
+
+        explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields(
+            new HashMap<>() {{
+                put("foo", new HashMap<>() {{
+                    put("type", "alias");
+                    put("path", "bar");
+                }});
+                put("bar", Collections.singletonMap("type", "long"));
+            }},
+            "results");
+        assertThat(explicitlyMappedFields,
             allOf(
                 hasEntry("results.foo_prediction", Collections.singletonMap("type", "long")),
                 hasEntry("results.top_classes.class_name", Collections.singletonMap("type", "long"))));
+        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", MapUtils.featureImportanceMapping()));
+
         assertThat(
             new Classification("foo").getExplicitlyMappedFields(
                 Collections.singletonMap("foo", new HashMap<>() {{
@@ -276,7 +281,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     put("path", "missing");
                 }}),
                 "results"),
-            is(anEmptyMap()));
+            equalTo(Collections.singletonMap("results.feature_importance", MapUtils.featureImportanceMapping())));
     }
 
     public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {

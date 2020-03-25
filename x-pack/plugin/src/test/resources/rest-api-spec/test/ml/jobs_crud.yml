@@ -142,7 +142,7 @@
   - do:
       ml.open_job:
         job_id: job-model-memory-limit-as-string
-  - match: { opened: false }
+  - match: { opened: true }
 
   - do:
       headers:

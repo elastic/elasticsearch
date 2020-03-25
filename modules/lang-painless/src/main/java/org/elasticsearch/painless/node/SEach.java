@@ -36,12 +36,10 @@ import java.util.Objects;
  */
 public class SEach extends AStatement {
 
-    private final String type;
-    private final String name;
-    private AExpression expression;
-    private final SBlock block;
-
-    private AStatement sub = null;
+    protected final String type;
+    protected final String name;
+    protected final AExpression expression;
+    protected final SBlock block;
 
     public SEach(Location location, String type, String name, AExpression expression, SBlock block) {
         super(location);
@@ -53,13 +51,14 @@ public class SEach extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-        AExpression.Output expressionOutput = expression.analyze(scriptRoot, scope, new AExpression.Input());
-        expression.input.expected = expressionOutput.actual;
-        expression.cast();
+        AExpression.Input expressionInput = new AExpression.Input();
+        AExpression.Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+        // TODO: no need to cast here
+        expressionInput.expected = expressionOutput.actual;
+        expression.cast(expressionInput, expressionOutput);
 
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
@@ -70,17 +69,6 @@ public class SEach extends AStatement {
         scope = scope.newLocalScope();
         Variable variable = scope.defineVariable(location, clazz, name, true);
 
-        if (expressionOutput.actual.isArray()) {
-            sub = new SSubEachArray(location, variable, expression, block);
-        } else if (expressionOutput.actual == def.class || Iterable.class.isAssignableFrom(expressionOutput.actual)) {
-            sub = new SSubEachIterable(location, variable, expression, block);
-        } else {
-            throw createError(new IllegalArgumentException("Illegal for each type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expressionOutput.actual) + "]."));
-        }
-
-        sub.analyze(scriptRoot, scope, input);
-
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous for each loop."));
         }
@@ -88,27 +76,36 @@ public class SEach extends AStatement {
         Input blockInput = new Input();
         blockInput.beginLoop = true;
         blockInput.inLoop = true;
-        Output blockOutput = block.analyze(scriptRoot, scope, blockInput);
+        Output blockOutput = block.analyze(classNode, scriptRoot, scope, blockInput);
         blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
 
         if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
             throw createError(new IllegalArgumentException("Extraneous for loop."));
         }
 
+        AStatement sub;
+
+        if (expressionOutput.actual.isArray()) {
+            sub = new SSubEachArray(location, variable, expressionOutput, blockOutput);
+        } else if (expressionOutput.actual == def.class || Iterable.class.isAssignableFrom(expressionOutput.actual)) {
+            sub = new SSubEachIterable(location, variable, expressionOutput, blockOutput);
+        } else {
+            throw createError(new IllegalArgumentException("Illegal for each type " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expressionOutput.actual) + "]."));
+        }
+
+        Output subOutput = sub.analyze(classNode, scriptRoot, scope, input);
+
         output.statementCount = 1;
 
-        return output;
-    }
-
-    @Override
-    ForEachLoopNode write(ClassNode classNode) {
         ForEachLoopNode forEachLoopNode = new ForEachLoopNode();
-
-        forEachLoopNode.setConditionNode((ConditionNode)sub.write(classNode));
-
+        forEachLoopNode.setConditionNode((ConditionNode)subOutput.statementNode);
         forEachLoopNode.setLocation(location);
 
-        return forEachLoopNode;
+        output.statementNode = forEachLoopNode;
+
+        return output;
+
     }
 
     @Override

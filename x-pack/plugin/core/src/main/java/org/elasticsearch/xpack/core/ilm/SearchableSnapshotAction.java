@@ -30,10 +30,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.SnapshotsInProgress.State.ABORTED;
-import static org.elasticsearch.cluster.SnapshotsInProgress.State.FAILED;
-import static org.elasticsearch.cluster.SnapshotsInProgress.State.MISSING;
 import static org.elasticsearch.cluster.SnapshotsInProgress.State.SUCCESS;
+import static org.elasticsearch.snapshots.SnapshotState.IN_PROGRESS;
 
 /**
  * A {@link LifecycleAction} that will convert the index into a searchable snapshot, by taking a snapshot of the index, creating a
@@ -149,14 +147,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     SnapshotsInProgress.State snapshotState = snapshotStatus.getState();
                     if (snapshotState.equals(SUCCESS)) {
                         branchingStepListener.onResponse(true, null);
-                    } else if (snapshotState.equals(ABORTED) || snapshotState.equals(FAILED) || snapshotState.equals(MISSING)) {
-                        branchingStepListener.onStopWaitingAndMoveToNextKey(new Info(
-                            "snapshot [" + snapshotName + "] for index [ " + indexName + "] as part of policy [" + policyName + "] " +
-                                "cannot complete as it is in state [" + snapshotState + "]"));
-                    } else {
+                    } else if (snapshotState.equals(IN_PROGRESS)) {
                         branchingStepListener.onResponse(false, new Info(
                             "snapshot [" + snapshotName + "] for index [ " + indexName + "] as part of policy [" + policyName + "] is " +
                                 "in state [" + snapshotState + "]. waiting for SUCCESS"));
+                    } else {
+                        branchingStepListener.onStopWaitingAndMoveToNextKey(new Info(
+                            "snapshot [" + snapshotName + "] for index [ " + indexName + "] as part of policy [" + policyName + "] " +
+                                "cannot complete as it is in state [" + snapshotState + "]"));
                     }
                 }
 

@@ -154,10 +154,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         public TimeValue getFetchTime() {
-            if (fetchTimeInMillis >= -1) {
-                return new TimeValue(fetchTimeInMillis);
-            }
-            return TimeValue.MINUS_ONE;
+            return new TimeValue(fetchTimeInMillis);
         }
 
         public long getFetchTimeInMillis() {
@@ -173,10 +170,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         public TimeValue getScrollTime() {
-            if (scrollTimeInMillis >= -1) {
-                return new TimeValue(scrollTimeInMillis);
-            }
-            return TimeValue.MINUS_ONE;
+            return new TimeValue(scrollTimeInMillis);
         }
 
         public long getScrollTimeInMillis() {
@@ -196,10 +190,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         public TimeValue getSuggestTime() {
-            if (suggestTimeInMillis >= -1) {
-                return new TimeValue(suggestTimeInMillis);
-            }
-            return TimeValue.MINUS_ONE;
+            return new TimeValue(suggestTimeInMillis);
         }
 
         public long getSuggestCurrent() {

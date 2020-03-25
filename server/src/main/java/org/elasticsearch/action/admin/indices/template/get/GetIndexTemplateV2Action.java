@@ -41,7 +41,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetIndexTemplateV2Action extends ActionType<GetIndexTemplateV2Action.Response> {
 
     public static final GetIndexTemplateV2Action INSTANCE = new GetIndexTemplateV2Action();
-    public static final String NAME = "indices:admin/template_v2/get";
+    public static final String NAME = "indices:admin/index_template/get";
 
     private GetIndexTemplateV2Action() {
         super(NAME, GetIndexTemplateV2Action.Response::new);

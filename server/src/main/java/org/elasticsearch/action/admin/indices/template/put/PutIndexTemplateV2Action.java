@@ -38,7 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutIndexTemplateV2Action extends ActionType<AcknowledgedResponse> {
 
     public static final PutIndexTemplateV2Action INSTANCE = new PutIndexTemplateV2Action();
-    public static final String NAME = "indices:admin/template_v2/put";
+    public static final String NAME = "indices:admin/index_template/put";
 
     private PutIndexTemplateV2Action() {
         super(NAME, AcknowledgedResponse::new);

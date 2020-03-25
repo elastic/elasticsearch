@@ -74,7 +74,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
         if (options.has(stdinOption)) {
             final BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
             valueSupplier = s -> {
-                try (final CharArrayWriter writer = new CharArrayWriter()) {
+                try (CharArrayWriter writer = new CharArrayWriter()) {
                     int c;
                     while ((c = stdinReader.read()) != -1) {
                         if ((char) c == '\r' || (char) c == '\n') {

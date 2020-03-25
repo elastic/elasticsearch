@@ -146,10 +146,10 @@ get the full benefit of aggregating and searching for
 
 The mapping field name for {feat-imp} is compounded as follows:
 
-`ml.<inference.target_field>`.`<inference.tag>`.`feature_importance`
+`<ml.inference.target_field>`.`<inference.tag>`.`feature_importance`
 
 If `inference.tag` is not provided in the processor definition, it is not part 
-of the field path. The `<inference.target_field>` defaults to `inference`.
+of the field path. The `<ml.inference.target_field>` defaults to `ml.inference`.
 
 For example, you provide a tag `foo` in the definition as you can see below:
 
@@ -178,4 +178,4 @@ You can also specify a target field as follows:
 // NOTCONSOLE
 
 In this case, `{feat-imp}` is exposed in the 
-`ml.my_field.foo.feature_importance` field.
+`my_field.foo.feature_importance` field.

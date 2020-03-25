@@ -51,7 +51,7 @@ teardown:
 ---
 "Test cat transform stats hiding headers":
   - do:
-      transform.cat_transform:
+      cat.transform:
         transform_id: "airline-transform-stats"
   - match:
       $body: |
@@ -61,7 +61,7 @@ teardown:
 ---
 "Test cat transform stats with column selection":
   - do:
-      transform.cat_transform:
+      cat.transform:
         transform_id: "airline-transform-stats"
         v: true
         h: id,version,source_index,dest_index,search_total,index_total,dt,cdtea,indexed_documents_exp_avg
@@ -90,7 +90,7 @@ teardown:
             "description": "description"
           }
   - do:
-      transform.cat_transform:
+      cat.transform:
         transform_id: "airline-transform-batch"
         v: true
   - match:
@@ -126,7 +126,7 @@ teardown:
             }
           }
   - do:
-      transform.cat_transform:
+      cat.transform:
         transform_id: "airline-transform-continuous"
         v: true
   - match:

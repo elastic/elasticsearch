@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.MockLogAppender;
 
@@ -59,6 +60,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
+import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
@@ -74,6 +76,7 @@ import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -152,6 +155,49 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             final ClusterNode leader = cluster.getAnyLeader();
             assertTrue(leader.getLocalNode().isMasterNode());
+        }
+    }
+
+    public void testDoesNotElectLeaderForNonWritableNodes() {
+        FsService fsService = setUpFsService(Boolean.FALSE);
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5), true, Settings.EMPTY, fsService)) {
+            cluster.runRandomly();
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for stabilization");
+            final List<ClusterNode> leaders = cluster.getAllLeaders();
+            assertThat(leaders, empty());
+        }
+    }
+
+    public void testNonWritableNodeCannotBecomeLeader() {
+        try (Cluster cluster = new Cluster(randomIntBetween(3, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final ClusterNode leader = cluster.getAnyLeader();
+            ClusterNode nonWritableNode = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
+                setUpFsService(Boolean.FALSE));
+            cluster.clusterNodes.add(nonWritableNode);
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for stabilization");
+            assertThat(nonWritableNode.getId() + " should be a candidate", nonWritableNode.coordinator.getMode(), equalTo(CANDIDATE));
+
+            final ClusterNode disconnect1 = cluster.getAnyLeader();
+            logger.info("--> disconnecting leader {}", disconnect1);
+            disconnect1.disconnect();
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for fault detection");
+
+            final ClusterNode newLeader = cluster.getAnyLeader();
+            logger.info("-->New leader {}", newLeader);
+            assertThat(nonWritableNode.coordinator.getMode(), is(CANDIDATE));
+            assertThat(newLeader, not(nonWritableNode));
+
+            ClusterNode anotherNode = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
+                setUpFsService(Boolean.TRUE));
+            cluster.clusterNodes.add(anotherNode);
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for stabilization");
+
+            for (final ClusterNode clusterNode : cluster.getAllNodesExcept(newLeader, nonWritableNode, disconnect1)) {
+                assertThat(clusterNode.getId() + " should be a follower", clusterNode.coordinator.getMode(), equalTo(FOLLOWER));
+            }
         }
     }
 
@@ -1004,7 +1050,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             final ClusterNode newNode = cluster1.new ClusterNode(nextNodeIndex.getAndIncrement(),
                 nodeInOtherCluster.getLocalNode(), n -> cluster1.new MockPersistedState(n, nodeInOtherCluster.persistedState,
-                Function.identity(), Function.identity()), nodeInOtherCluster.nodeSettings);
+                Function.identity(), Function.identity()), nodeInOtherCluster.nodeSettings, setUpFsService(Boolean.TRUE));
 
             cluster1.clusterNodes.add(newNode);
 

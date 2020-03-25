@@ -20,6 +20,8 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
@@ -29,6 +31,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.monitor.fs.FsHealthService;
+import org.elasticsearch.monitor.fs.FsInfo;
+import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
@@ -44,7 +50,12 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -73,6 +84,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FollowersCheckerTests extends ESTestCase {
 
@@ -105,12 +118,11 @@ public class FollowersCheckerTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-
         final FollowersChecker followersChecker = new FollowersChecker(settings, transportService, fcr -> {
             assert false : fcr;
         }, (node, reason) -> {
             assert false : node;
-        });
+        }, setUpNodeClient(null));
 
         followersChecker.setCurrentNodes(discoveryNodesHolder[0]);
         deterministicTaskQueue.runAllTasks();
@@ -279,13 +291,63 @@ public class FollowersCheckerTests extends ESTestCase {
         }, (node, reason) -> {
             assertTrue(nodeFailed.compareAndSet(false, true));
             assertThat(reason, equalTo("disconnected"));
-        });
+        }, setUpNodeClient(null));
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
         followersChecker.setCurrentNodes(discoveryNodes);
 
         AbstractSimpleTransportTestCase.connectToNode(transportService, otherNode);
         transportService.disconnectFromNode(otherNode);
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(nodeFailed.get());
+        assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
+    }
+
+    public void testFailsNodeThatIsNotWritable() {
+        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).build();
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+
+        final MockTransport mockTransport = new MockTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                assertFalse(node.equals(localNode));
+                if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                    handleResponse(requestId, new TransportService.HandshakeResponse(node, ClusterName.DEFAULT, Version.CURRENT));
+                    return;
+                }
+                deterministicTaskQueue.scheduleNow(new Runnable() {
+                    @Override
+                    public void run() {
+                        handleResponse(requestId, Empty.INSTANCE);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "sending response to [" + action + "][" + requestId + "] from " + node;
+                    }
+                });
+            }
+        };
+
+        final TransportService transportService = mockTransport.createTransportService(settings, deterministicTaskQueue.getThreadPool(),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final AtomicBoolean nodeFailed = new AtomicBoolean();
+
+        final FollowersChecker followersChecker = new FollowersChecker(settings, transportService, fcr -> {
+            assert false : fcr;
+        }, (node, reason) -> {
+            assertTrue(nodeFailed.compareAndSet(false, true));
+            assertThat(reason, equalTo("read-only-file-system"));
+        }, setUpNodeClient(buildNodeStatsResponse(otherNode, Boolean.FALSE)));
+
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
+        followersChecker.setCurrentNodes(discoveryNodes);
+
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(nodeFailed.get());
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
@@ -340,7 +402,7 @@ public class FollowersCheckerTests extends ESTestCase {
         }, (node, reason) -> {
             assertTrue(nodeFailed.compareAndSet(false, true));
             assertThat(reason, equalTo(failureReason));
-        });
+        }, setUpNodeClient(null));
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
         followersChecker.setCurrentNodes(discoveryNodes);
@@ -432,7 +494,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 }
             }, (node, reason) -> {
             assert false : node;
-        });
+        }, setUpNodeClient(null));
 
         {
             // Does not call into the coordinator in the normal case
@@ -561,7 +623,7 @@ public class FollowersCheckerTests extends ESTestCase {
             assert false : fcr;
         }, (node, reason) -> {
             assert false : node;
-        });
+        }, setUpNodeClient(null));
         followersChecker.setCurrentNodes(discoveryNodes);
         List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
             .map(cr -> cr.node).collect(Collectors.toList());
@@ -587,6 +649,24 @@ public class FollowersCheckerTests extends ESTestCase {
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
             Version.CURRENT);
+    }
+
+    private NodesStatsResponse buildNodeStatsResponse(DiscoveryNode node, Boolean isWritable) {
+        FsInfo stats;
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            FsHealthService fsHealthService = mock(FsHealthService.class);
+            for (Path path : env.nodeDataPaths()) {
+                when(fsHealthService.isWritable(path)).thenReturn(isWritable);
+            }
+            FsProbe probe = new FsProbe(env, fsHealthService);
+            stats = probe.stats(null, null);
+        }catch (IOException e){
+            throw new UncheckedIOException(e);
+        }
+        return new NodesStatsResponse(new ClusterName("cluster-name"), Arrays.asList(new NodeStats(node,
+            Instant.now().toEpochMilli(), null, null, null, null, null, stats, null, null,
+            null, null, null, null, null)), Collections.emptyList());
+
     }
 
     private static class ExpectsSuccess implements TransportResponseHandler<Empty> {

@@ -86,7 +86,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.monitor.fs.FsReadOnlyMonitor;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
@@ -475,10 +474,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
-            FsReadOnlyMonitor.REMOVE_UNHEALTHY_FS_ENABLED_SETTING,
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
-            FsHealthService.HEALTHCHECK_TIMEOUT_SETTING);
+            FsHealthService.HEALTHY_TIMEOUT_SETTING);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

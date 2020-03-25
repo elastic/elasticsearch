@@ -48,7 +48,8 @@ public class MonitorService extends AbstractLifecycleComponent {
         this.osService = new OsService(settings);
         this.processService = new ProcessService(settings);
         this.jvmService = new JvmService(settings);
-        this.fsService = new FsService(settings, clusterSettings, nodeEnvironment, clusterInfoService, threadPool, currentTimeMillisSupplier);
+        this.fsService = new FsService(settings, clusterSettings, nodeEnvironment, clusterInfoService, threadPool,
+            currentTimeMillisSupplier);
     }
 
     public OsService osService() {

@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.monitor.fs.FsInfo;
+import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
@@ -36,6 +38,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -48,6 +51,9 @@ import static org.hamcrest.core.Is.is;
 public class JoinHelperTests extends ESTestCase {
 
     public void testJoinDeduplication() {
+        FsService fsService = Mockito.mock(FsService.class);
+        FsInfo writableFsStats = mockFsStats(Boolean.TRUE);
+        Mockito.when(fsService.stats()).thenReturn(writableFsStats);
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build(), random());
         CapturingTransport capturingTransport = new CapturingTransport();
@@ -57,7 +63,7 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode, null, Collections.emptySet());
         JoinHelper joinHelper = new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> null,
             (joinRequest, joinCallback) -> { throw new AssertionError(); }, startJoinRequest -> { throw new AssertionError(); },
-            Collections.emptyList(), (s, p, r) -> {});
+            Collections.emptyList(), (s, p, r) -> {}, fsService);
         transportService.start();
 
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -153,7 +159,7 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode, null, Collections.emptySet());
         new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> localClusterState,
             (joinRequest, joinCallback) -> { throw new AssertionError(); }, startJoinRequest -> { throw new AssertionError(); },
-            Collections.emptyList(), (s, p, r) -> {}); // registers request handler
+            Collections.emptyList(), (s, p, r) -> {}, null); // registers request handler
         transportService.start();
         transportService.acceptIncomingRequests();
 
@@ -174,4 +180,67 @@ public class JoinHelperTests extends ESTestCase {
         assertThat(coordinationStateRejectedException.getMessage(), containsString(otherClusterState.metaData().clusterUUID()));
     }
 
+    public void testJoinFailureOnNonWritableNodes() {
+        FsService fsService = Mockito.mock(FsService.class);
+        FsInfo nonWritableFsStats = mockFsStats(Boolean.FALSE);
+        FsInfo writableFsStats = mockFsStats(Boolean.TRUE);
+        Mockito.when(fsService.stats()).thenReturn(nonWritableFsStats, writableFsStats, writableFsStats);
+        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
+            Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build(), random());
+        CapturingTransport capturingTransport = new CapturingTransport();
+        DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        TransportService transportService = capturingTransport.createTransportService(Settings.EMPTY,
+            deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> localNode, null, Collections.emptySet());
+        JoinHelper joinHelper = new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> null,
+            (joinRequest, joinCallback) -> { throw new AssertionError(); }, startJoinRequest -> { throw new AssertionError(); },
+            Collections.emptyList(), (s, p, r) -> {}, fsService);
+        transportService.start();
+
+        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        assertFalse(joinHelper.isJoinPending());
+
+        // check that sending a join to node1 works
+        Optional<Join> optionalJoin1 = randomBoolean() ? Optional.empty() :
+            Optional.of(new Join(localNode, node1, randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()));
+        joinHelper.sendJoinRequest(node1, optionalJoin1);
+        CapturedRequest[] capturedRequests1 = capturingTransport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests1.length, equalTo(0));
+
+        assertFalse(joinHelper.isJoinPending());
+
+        // check that sending a join to node2 works
+        Optional<Join> optionalJoin2 = randomBoolean() ? Optional.empty() :
+            Optional.of(new Join(localNode, node2, randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()));
+
+        transportService.start();
+        joinHelper.sendJoinRequest(node2, optionalJoin2);
+
+        CapturedRequest[] capturedRequests2 = capturingTransport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests2.length, equalTo(1));
+        CapturedRequest capturedRequest2 = capturedRequests2[0];
+        assertEquals(node2, capturedRequest2.node);
+
+        // complete the previous join to node2
+        if (randomBoolean()) {
+            capturingTransport.handleResponse(capturedRequest2.requestId, TransportResponse.Empty.INSTANCE);
+        } else {
+            capturingTransport.handleRemoteError(capturedRequest2.requestId, new CoordinationStateRejectedException("dummy"));
+        }
+
+        // check that sending another join to node1 now works again
+        joinHelper.sendJoinRequest(node1, optionalJoin1);
+        CapturedRequest[] capturedRequests1a = capturingTransport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests1a.length, equalTo(1));
+        CapturedRequest capturedRequest1a = capturedRequests1a[0];
+        assertEquals(node1, capturedRequest1a.node);
+
+        // complete all the joins and check that isJoinPending is updated
+        assertTrue(joinHelper.isJoinPending());
+        capturingTransport.handleRemoteError(capturedRequest2.requestId, new CoordinationStateRejectedException("dummy"));
+        capturingTransport.handleRemoteError(capturedRequest1a.requestId, new CoordinationStateRejectedException("dummy"));
+        assertFalse(joinHelper.isJoinPending());
+    }
 }

@@ -1458,7 +1458,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     hostsResolver -> nodes.values().stream().filter(n -> n.node.isMasterNode())
                         .map(n -> n.node.getAddress()).collect(Collectors.toList()),
                     clusterService.getClusterApplierService(), Collections.emptyList(), random(),
-                    new BatchedRerouteService(clusterService, allocationService::reroute), ElectionStrategy.DEFAULT_INSTANCE);
+                    new BatchedRerouteService(clusterService, allocationService::reroute), ElectionStrategy.DEFAULT_INSTANCE,
+                    setUpFsService(Boolean.TRUE), null);
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();
                 masterService.start();

@@ -39,18 +39,25 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 public class FsProbeTests extends ESTestCase {
 
     public void testFsInfo() throws IOException {
 
         try (NodeEnvironment env = newNodeEnvironment()) {
-            FsProbe probe = new FsProbe(env);
+            FsHealthService fsHealthService = mock(FsHealthService.class);
+            when(fsHealthService.isWritable(any(Path.class))).thenReturn(Boolean.TRUE);
+            FsProbe probe = new FsProbe(env, fsHealthService);
 
             FsInfo stats = probe.stats(null, null);
             assertNotNull(stats);
@@ -80,6 +87,7 @@ public class FsProbeTests extends ESTestCase {
             assertThat(total.total, greaterThan(0L));
             assertThat(total.free, greaterThan(0L));
             assertThat(total.available, greaterThan(0L));
+            assertThat(total.isWritable, equalTo(true));
 
             for (FsInfo.Path path : stats) {
                 assertNotNull(path);
@@ -93,6 +101,40 @@ public class FsProbeTests extends ESTestCase {
         }
     }
 
+    public void testFsInfoMultiplePathNonWritable() throws IOException {
+
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            FsHealthService fsHealthService = mock(FsHealthService.class);
+            for(Path path : env.nodeDataPaths()){
+                when(fsHealthService.isWritable(path)).thenReturn(randomBoolean());
+            }
+            //Overriding first path to be non-writable to assert
+            when(fsHealthService.isWritable(env.nodeDataPaths()[0])).thenReturn(Boolean.FALSE);
+            FsProbe probe = new FsProbe(env, fsHealthService);
+            FsInfo stats = probe.stats(null, null);
+            assertNotNull(stats);
+            assertThat(stats.getTimestamp(), greaterThan(0L));
+
+            FsInfo.Path total = stats.getTotal();
+            assertNotNull(total);
+            assertThat(total.total, greaterThan(0L));
+            assertThat(total.free, greaterThan(0L));
+            assertThat(total.available, greaterThan(0L));
+            assertThat(total.isWritable, equalTo(false));
+
+            for (FsInfo.Path path : stats) {
+                assertNotNull(path);
+                assertThat(path.getPath(), not(isEmptyOrNullString()));
+                assertThat(path.getMount(), not(isEmptyOrNullString()));
+                assertThat(path.getType(), not(isEmptyOrNullString()));
+                assertThat(path.total, greaterThan(0L));
+                assertThat(path.free, greaterThan(0L));
+                assertThat(path.available, greaterThan(0L));
+                assertThat(path.isWritable, notNullValue());
+            }
+        }
+    }
+
     public void testFsInfoOverflow() throws Exception {
         final FsInfo.Path pathStats =
                 new FsInfo.Path(
@@ -100,30 +142,32 @@ public class FsProbeTests extends ESTestCase {
                         null,
                         randomNonNegativeLong(),
                         randomNonNegativeLong(),
-                        randomNonNegativeLong());
+                        randomNonNegativeLong(),
+                       true);
 
         addUntilOverflow(
                 pathStats,
                 p -> p.total,
                 "total",
-                () -> new FsInfo.Path("/foo/baz", null, randomNonNegativeLong(), 0, 0));
+                () -> new FsInfo.Path("/foo/baz", null, randomNonNegativeLong(), 0, 0, true));
 
         addUntilOverflow(
                 pathStats,
                 p -> p.free,
                 "free",
-                () -> new FsInfo.Path("/foo/baz", null, 0, randomNonNegativeLong(), 0));
+                () -> new FsInfo.Path("/foo/baz", null, 0, randomNonNegativeLong(), 0, true));
 
         addUntilOverflow(
                 pathStats,
                 p -> p.available,
                 "available",
-                () -> new FsInfo.Path("/foo/baz", null, 0, 0, randomNonNegativeLong()));
+                () -> new FsInfo.Path("/foo/baz", null, 0, 0, randomNonNegativeLong(), true));
 
         // even after overflowing these should not be negative
         assertThat(pathStats.total, greaterThan(0L));
         assertThat(pathStats.free, greaterThan(0L));
         assertThat(pathStats.available, greaterThan(0L));
+        assertThat(pathStats.isWritable, equalTo(true));
     }
 
     private void addUntilOverflow(
@@ -165,7 +209,7 @@ public class FsProbeTests extends ESTestCase {
                 " 253       1 dm-1 112 0 4624 13 0 0 0 0 0 5 13",
                 " 253       2 dm-2 47802 0 710658 49312 1371977 0 64126096 33730596 0 1058193 33781827"));
 
-        final FsProbe probe = new FsProbe(null) {
+        final FsProbe probe = new FsProbe(null, null) {
             @Override
             List<String> readProcDiskStats() throws IOException {
                 return diskStats.get();

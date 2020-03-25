@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -39,10 +40,10 @@ import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -52,6 +53,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
@@ -94,12 +96,13 @@ public class FollowersChecker {
     private final Set<DiscoveryNode> faultyNodes = new HashSet<>();
 
     private final TransportService transportService;
+    private final NodeFsHealthChecker nodeFsHealthChecker;
 
     private volatile FastResponseState fastResponseState;
 
     public FollowersChecker(Settings settings, TransportService transportService,
                             Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
-                            BiConsumer<DiscoveryNode, String> onNodeFailure) {
+                            BiConsumer<DiscoveryNode, String> onNodeFailure, Client nodeClient) {
         this.settings = settings;
         this.transportService = transportService;
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
@@ -118,6 +121,7 @@ public class FollowersChecker {
                 handleDisconnectedNode(node);
             }
         });
+        nodeFsHealthChecker = new NodeFsHealthChecker(settings, transportService, nodeClient, this::failFollower, this::followers);
     }
 
     /**
@@ -139,7 +143,35 @@ public class FollowersChecker {
                     followerChecker.start();
                 }
             });
+            nodeFsHealthChecker.start();
         }
+    }
+
+    private Set<DiscoveryNode> followers(){
+        return followerCheckers.keySet();
+    }
+
+    private void failFollower(DiscoveryNode discoveryNode, String reason, Supplier<Boolean> supplier) {
+        transportService.getThreadPool().generic().execute(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (mutex) {
+                    if (supplier.get() == false) {
+                        logger.trace("{} no longer running, not marking faulty", discoveryNode);
+                        return;
+                    }
+                    logger.debug("{} marking node as faulty", discoveryNode);
+                    faultyNodes.add(discoveryNode);
+                    followerCheckers.remove(discoveryNode);
+                }
+                onNodeFailure.accept(discoveryNode, reason);
+            }
+
+            @Override
+            public String toString() {
+                return "detected failure of " + discoveryNode;
+            }
+        });
     }
 
     /**
@@ -351,27 +383,9 @@ public class FollowersChecker {
         }
 
         void failNode(String reason) {
-            transportService.getThreadPool().generic().execute(new Runnable() {
-                @Override
-                public void run() {
-                    synchronized (mutex) {
-                        if (running() == false) {
-                            logger.trace("{} no longer running, not marking faulty", FollowerChecker.this);
-                            return;
-                        }
-                        logger.debug("{} marking node as faulty", FollowerChecker.this);
-                        faultyNodes.add(discoveryNode);
-                        followerCheckers.remove(discoveryNode);
-                    }
-                    onNodeFailure.accept(discoveryNode, reason);
-                }
-
-                @Override
-                public String toString() {
-                    return "detected failure of " + discoveryNode;
-                }
-            });
+            failFollower(discoveryNode, reason, () -> running());
         }
+
 
         private void scheduleNextWakeUp() {
             transportService.getThreadPool().schedule(new Runnable() {

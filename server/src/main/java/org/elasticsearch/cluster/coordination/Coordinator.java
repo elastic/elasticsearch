@@ -24,13 +24,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
@@ -68,7 +68,6 @@ import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
-import org.elasticsearch.monitor.fs.FsReadOnlyMonitor;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -153,7 +152,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
     private final FsService fsService;
-    private final FsReadOnlyMonitor fsReadOnlyMonitor;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -163,8 +161,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, SeedHostsProvider seedHostsProvider,
                        ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random,
-                       RerouteService rerouteService, ElectionStrategy electionStrategy, FsService fsService,
-                       ClusterInfoService clusterInfoService) {
+                       RerouteService rerouteService, ElectionStrategy electionStrategy, FsService fsService, Client nodeClient) {
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
@@ -184,14 +181,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.publishInfoTimeout = PUBLISH_INFO_TIMEOUT_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
-        this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen, electionStrategy, fsService);
+        this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen, electionStrategy,
+            fsService);
         configuredHostsResolver = new SeedHostsResolver(nodeName, settings, transportService, seedHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
         this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry,
             this::handlePublishRequest, this::handleApplyCommit);
         this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure);
-        this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::removeNode);
+        this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::removeNode,
+            nodeClient);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
@@ -202,9 +201,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             transportService::getLocalNode);
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
             transportService.getThreadPool(), joinHelper::logLastFailedJoinAttempt);
-        //TODO check if FsReadOnlyMonitor and LagDetector can be implemented as a part of a common interface
-        this.fsReadOnlyMonitor = new FsReadOnlyMonitor(settings, clusterSettings, this::getStateForMasterService, transportService::getLocalNode,
-            this::removeNode, clusterInfoService);
         this.fsService = fsService;
     }
 

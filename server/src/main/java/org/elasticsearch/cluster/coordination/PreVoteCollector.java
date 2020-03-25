@@ -52,7 +52,7 @@ public class PreVoteCollector {
     private final Runnable startElection;
     private final LongConsumer updateMaxTermSeen;
     private final ElectionStrategy electionStrategy;
-    private final FsService fsService;
+    private FsService fsService;
 
     // Tuple for simple atomic updates. null until the first call to `update()`.
     private volatile Tuple<DiscoveryNode, PreVoteResponse> state; // DiscoveryNode component is null if there is currently no known leader.

@@ -24,6 +24,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -33,15 +35,26 @@ import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
+import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Node information (static, does not change over time).
  */
 public class NodeInfo extends BaseNodeResponse {
+
+    // TODO: should this go into a global named registry?
+    private static NamedWriteableRegistry LOCAL_REGISTRY = new NamedWriteableRegistry(
+        List.of(
+            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "OsInfo", OsInfo::new)
+        )
+    );
 
     private Version version;
     private Build build;
@@ -49,8 +62,8 @@ public class NodeInfo extends BaseNodeResponse {
     @Nullable
     private Settings settings;
 
-    @Nullable
-    private OsInfo os;
+    // TODO: is it OK to key this map on class?
+    Map<Class<? extends ReportingService.Info>, ReportingService.Info> infoMap = new HashMap<>();
 
     @Nullable
     private ProcessInfo process;
@@ -88,7 +101,21 @@ public class NodeInfo extends BaseNodeResponse {
         if (in.readBoolean()) {
             settings = Settings.readSettingsFromStream(in);
         }
-        os = in.readOptionalWriteable(OsInfo::new);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            int numberOfWriteables = in.readVInt();
+            StreamInput awareStream = new NamedWriteableAwareStreamInput(in, LOCAL_REGISTRY);
+            for (int i = 0; i < numberOfWriteables; i++) {
+                ReportingService.Info info = awareStream.readOptionalNamedWriteable(ReportingService.Info.class);
+                if (info != null) {
+                    infoMap.put(info.getClass(), info);
+                }
+            }
+        } else {
+            OsInfo info = in.readOptionalWriteable(OsInfo::new);
+            if (info != null) {
+                infoMap.put(OsInfo.class, info);
+            }
+        }
         process = in.readOptionalWriteable(ProcessInfo::new);
         jvm = in.readOptionalWriteable(JvmInfo::new);
         threadPool = in.readOptionalWriteable(ThreadPoolInfo::new);
@@ -106,7 +133,7 @@ public class NodeInfo extends BaseNodeResponse {
         this.version = version;
         this.build = build;
         this.settings = settings;
-        this.os = os;
+        this.infoMap.put(OsInfo.class, os);
         this.process = process;
         this.jvm = jvm;
         this.threadPool = threadPool;
@@ -147,12 +174,17 @@ public class NodeInfo extends BaseNodeResponse {
         return this.settings;
     }
 
+    // TODO: javadoc on the utility of a method that hides casting
+    public <T extends ReportingService.Info> T getInfo(Class<T> clazz) {
+        return clazz.cast(infoMap.get(clazz));
+    }
+
     /**
      * Operating System level information.
      */
     @Nullable
     public OsInfo getOs() {
-        return this.os;
+        return getInfo(OsInfo.class);
     }
 
     /**
@@ -218,7 +250,12 @@ public class NodeInfo extends BaseNodeResponse {
             out.writeBoolean(true);
             Settings.writeSettingsToStream(settings, out);
         }
-        out.writeOptionalWriteable(os);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeVInt(infoMap.size());
+            out.writeOptionalNamedWriteable(getInfo(OsInfo.class));
+        } else {
+            out.writeOptionalWriteable(getInfo(OsInfo.class));
+        }
         out.writeOptionalWriteable(process);
         out.writeOptionalWriteable(jvm);
         out.writeOptionalWriteable(threadPool);

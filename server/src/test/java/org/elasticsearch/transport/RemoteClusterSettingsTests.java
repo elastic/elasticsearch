@@ -28,20 +28,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY;
-import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS;
-import static org.elasticsearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY;
-import static org.elasticsearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS;
+import static org.elasticsearch.node.Node.NODE_REMOTE_CLUSTER_CLIENT;
 import static org.elasticsearch.transport.RemoteClusterService.ENABLE_REMOTE_CLUSTERS;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE;
-import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_NODE_ATTRIBUTE;
 import static org.elasticsearch.transport.RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS;
 import static org.elasticsearch.transport.RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE;
-import static org.elasticsearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER;
 import static org.elasticsearch.transport.RemoteClusterService.SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
 import static org.elasticsearch.transport.RemoteClusterService.SEARCH_REMOTE_NODE_ATTRIBUTE;
+import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY;
+import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS;
+import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER;
+import static org.elasticsearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_PROXY;
+import static org.elasticsearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CLUSTERS_SEEDS;
+import static org.elasticsearch.transport.SniffConnectionStrategy.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -89,8 +90,22 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(new Setting[]{SEARCH_ENABLE_REMOTE_CLUSTERS});
     }
 
-    public void testEnableRemoteClustersDefault() {
-        assertTrue(ENABLE_REMOTE_CLUSTERS.get(Settings.EMPTY));
+    public void testRemoteClusterClientDefault() {
+        assertTrue(NODE_REMOTE_CLUSTER_CLIENT.get(Settings.EMPTY));
+    }
+
+    public void testDisableRemoteClusterClient() {
+        assertFalse(NODE_REMOTE_CLUSTER_CLIENT.get(Settings.builder().put(NODE_REMOTE_CLUSTER_CLIENT.getKey(), false).build()));
+    }
+
+    public void testDisableEnableRemoteClusters() {
+        assertFalse(NODE_REMOTE_CLUSTER_CLIENT.get(Settings.builder().put(ENABLE_REMOTE_CLUSTERS.getKey(), false).build()));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ENABLE_REMOTE_CLUSTERS});
+    }
+
+    public void testDisableSearchEnableRemoteClusters() {
+        assertFalse(NODE_REMOTE_CLUSTER_CLIENT.get(Settings.builder().put(SEARCH_ENABLE_REMOTE_CLUSTERS.getKey(), false).build()));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{SEARCH_ENABLE_REMOTE_CLUSTERS});
     }
 
     public void testSkipUnavailableFallback() {

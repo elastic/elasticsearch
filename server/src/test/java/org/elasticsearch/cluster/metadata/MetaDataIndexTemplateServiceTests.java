@@ -237,6 +237,23 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4));
     }
 
+    public void testAddIndexTemplateV2() {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        state = MetaDataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
+
+        assertNotNull(state.metaData().templatesV2().get("foo"));
+        assertThat(state.metaData().templatesV2().get("foo"), equalTo(template));
+
+        final ClusterState throwState = ClusterState.builder(state).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> MetaDataIndexTemplateService.addIndexTemplateV2(throwState, true, "foo", template));
+        assertThat(e.getMessage(), containsString("index template [foo] already exists"));
+
+        state = MetaDataIndexTemplateService.addIndexTemplateV2(state, randomBoolean(), "bar", template);
+        assertNotNull(state.metaData().templatesV2().get("bar"));
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
                 Settings.EMPTY,

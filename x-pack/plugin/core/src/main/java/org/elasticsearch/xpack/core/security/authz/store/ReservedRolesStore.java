@@ -126,11 +126,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                         .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".management-beats").privileges("create_index", "read", "write").build(),
-                                // .apm-* is for APM's agent configuration and custom link index creation
+                                // APM agent configuration
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".apm-agent-configuration").privileges("all").build(),
+                                // APM custom link index creation
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".apm-custom-link").privileges("all").build(),
+                                // APM telemetry queries APM indices in kibana task runner
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("apm-*")
+                                    .privileges("read", "read_cross_cluster").build(),
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

@@ -1380,12 +1380,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                         throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
                     }
 
-                    final String backingIndexPrefixFrom = (ds.getName().startsWith(".") ? "" : ".") + ds.getName() + "-";
-                    final String backingIndexPrefixTo = (ds.getName().startsWith(".") ? "" : ".") + ds.getName() + ".";
-                    SortedMap<?, ?> map = aliasAndIndexLookup.subMap(backingIndexPrefixFrom, backingIndexPrefixTo);
+                    SortedMap<?, ?> map = aliasAndIndexLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
                     if (map.size() != 0) {
-                        throw new IllegalStateException(
-                            "data stream [" + ds.getName() + "] could create backing indices that conflict with existing indices");
+                        throw new IllegalStateException("data stream [" + ds.getName() +
+                            "] could create backing indices that conflict with existing indices or aliases");
                     }
                 }
             }

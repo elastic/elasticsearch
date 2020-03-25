@@ -940,7 +940,7 @@ public class MetaDataTests extends ESTestCase {
     public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
         final String dataStreamName = "my-data-stream";
         MetaData.Builder b = MetaData.builder()
-            .put(IndexMetaData.builder("." + dataStreamName + "-00001")
+            .put(IndexMetaData.builder(dataStreamName + "-00001")
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
@@ -948,8 +948,8 @@ public class MetaDataTests extends ESTestCase {
             .put(new DataStream(dataStreamName, "ts", Collections.emptyList()));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
-        assertThat(e.getMessage(),
-            containsString("data stream [" + dataStreamName + "] could create backing indices that conflict with existing indices"));
+        assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
+            "] could create backing indices that conflict with existing indices or aliases"));
     }
 
     public void testSerialization() throws IOException {

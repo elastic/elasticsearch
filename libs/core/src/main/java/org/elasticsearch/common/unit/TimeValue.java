@@ -48,7 +48,7 @@ public class TimeValue implements Comparable<TimeValue> {
 
     public TimeValue(long duration, TimeUnit timeUnit) {
         if (duration < -1) {
-            throw new IllegalArgumentException("durations cannot be negative, was given [" + duration + "]");
+            throw new IllegalArgumentException("duration cannot be negative, was given [" + duration + "]");
         }
         this.duration = duration;
         this.timeUnit = timeUnit;

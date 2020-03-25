@@ -43,7 +43,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.State.SUCCESS;
 public class SearchableSnapshotAction implements LifecycleAction {
     public static final String NAME = "searchable-snapshot";
 
-    public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot-repository");
+    public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot_repository");
 
     public static final String RESTORED_INDEX_PREFIX = "restored-";
 

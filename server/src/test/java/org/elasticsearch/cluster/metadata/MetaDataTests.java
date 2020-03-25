@@ -34,7 +34,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -438,7 +437,7 @@ public class MetaDataTests extends ESTestCase {
         final MetaData originalMeta = MetaData.builder().indexGraveyard(graveyard).build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        MetaData.FORMAT.toXContent(builder, originalMeta);
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final MetaData fromXContentMeta = MetaData.fromXContent(parser);
@@ -451,7 +450,7 @@ public class MetaDataTests extends ESTestCase {
             .clusterUUIDCommitted(randomBoolean()).build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        MetaData.FORMAT.toXContent(builder, originalMeta);
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final MetaData fromXContentMeta = MetaData.fromXContent(parser);
@@ -504,7 +503,7 @@ public class MetaDataTests extends ESTestCase {
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        MetaData.FORMAT.toXContent(builder, metaData);
         builder.endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {

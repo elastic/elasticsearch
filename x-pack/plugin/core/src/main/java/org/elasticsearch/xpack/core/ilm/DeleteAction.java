@@ -26,41 +26,41 @@ import java.util.Objects;
 public class DeleteAction implements LifecycleAction {
     public static final String NAME = "delete";
 
-    public static final ParseField DELETE_GENERATED_SNAPSHOT_FIELD = new ParseField("delete_generated_snapshot");
+    public static final ParseField DELETE_SEARCHABLE_SNAPSHOT_FIELD = new ParseField("delete_searchable_snapshot");
 
     private static final ConstructingObjectParser<DeleteAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         a -> new DeleteAction(a[0] == null ? true : (boolean) a[0]));
 
     static {
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DELETE_GENERATED_SNAPSHOT_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DELETE_SEARCHABLE_SNAPSHOT_FIELD);
     }
 
     public static DeleteAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    private final boolean deleteGeneratedSnapshot;
+    private final boolean deleteSearchableSnapshot;
 
     public DeleteAction() {
         this(true);
     }
 
-    public DeleteAction(boolean deleteGeneratedSnapshot) {
-        this.deleteGeneratedSnapshot = deleteGeneratedSnapshot;
+    public DeleteAction(boolean deleteSearchableSnapshot) {
+        this.deleteSearchableSnapshot = deleteSearchableSnapshot;
     }
 
     public DeleteAction(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.deleteGeneratedSnapshot = in.readBoolean();
+            this.deleteSearchableSnapshot = in.readBoolean();
         } else {
-            this.deleteGeneratedSnapshot = true;
+            this.deleteSearchableSnapshot = true;
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(deleteGeneratedSnapshot);
+            out.writeBoolean(deleteSearchableSnapshot);
         }
     }
 
@@ -72,7 +72,7 @@ public class DeleteAction implements LifecycleAction {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(DELETE_GENERATED_SNAPSHOT_FIELD.getPreferredName(), deleteGeneratedSnapshot);
+        builder.field(DELETE_SEARCHABLE_SNAPSHOT_FIELD.getPreferredName(), deleteSearchableSnapshot);
         builder.endObject();
         return builder;
     }
@@ -88,7 +88,7 @@ public class DeleteAction implements LifecycleAction {
         Step.StepKey deleteStepKey = new Step.StepKey(phase, NAME, DeleteStep.NAME);
         Step.StepKey cleanSnapshotKey = new Step.StepKey(phase, NAME, CleanupSnapshotStep.NAME);
 
-        if (deleteGeneratedSnapshot) {
+        if (deleteSearchableSnapshot) {
             WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, cleanSnapshotKey, client);
             CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, deleteStepKey, client);
             DeleteStep deleteStep = new DeleteStep(deleteStepKey, nextStepKey, client);
@@ -102,7 +102,7 @@ public class DeleteAction implements LifecycleAction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(deleteGeneratedSnapshot);
+        return Objects.hash(deleteSearchableSnapshot);
     }
 
     @Override
@@ -114,7 +114,7 @@ public class DeleteAction implements LifecycleAction {
             return false;
         }
         DeleteAction that = (DeleteAction) obj;
-        return deleteGeneratedSnapshot == that.deleteGeneratedSnapshot;
+        return deleteSearchableSnapshot == that.deleteSearchableSnapshot;
     }
 
     @Override

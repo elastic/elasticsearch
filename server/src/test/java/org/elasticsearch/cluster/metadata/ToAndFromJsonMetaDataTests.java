@@ -38,7 +38,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.AliasMetaData.newAliasMetaDataBuilder;
@@ -160,7 +159,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
     private static final String ALIAS_FILTER2 = "{\"field2\":\"value2\"}";
 
     public void testToXContentGateway_FlatSettingTrue_ReduceMappingFalse() throws IOException {
-        Map<String, String> mapParams = new HashMap<>(){{
+        Map<String, String> mapParams = new HashMap<String,String>(){{
             put(MetaData.CONTEXT_MODE_PARAM, CONTEXT_MODE_GATEWAY);
             put("flat_settings", "true");
             put("reduce_mappings", "false");
@@ -219,7 +218,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
     }
 
     public void testToXContentAPI_SameTypeName() throws IOException {
-        Map<String, String> mapParams = new HashMap<>(){{
+        Map<String, String> mapParams = new HashMap<String,String>(){{
             put(MetaData.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
         }};
 
@@ -234,7 +233,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                 .putMapping(new MappingMetaData("type",
                     // the type name is the root value,
                     // the original logic in ClusterState.toXContent will reduce
-                    new HashMap<>(){{
+                    new HashMap<String,Object>(){{
                         put("type", new HashMap<String, Object>(){{
                             put("key", "value");
                         }});
@@ -299,7 +298,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
     }
 
     public void testToXContentGateway_FlatSettingFalse_ReduceMappingTrue() throws IOException {
-        Map<String, String> mapParams = new HashMap<>(){{
+        Map<String, String> mapParams = new HashMap<String,String>(){{
             put(MetaData.CONTEXT_MODE_PARAM, CONTEXT_MODE_GATEWAY);
             put("flat_settings", "false");
             put("reduce_mappings", "true");
@@ -360,7 +359,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
     }
 
     public void testToXContentAPI_FlatSettingTrue_ReduceMappingFalse() throws IOException {
-        Map<String, String> mapParams = new HashMap<>(){{
+        Map<String, String> mapParams = new HashMap<String,String>(){{
             put(MetaData.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
             put("flat_settings", "true");
             put("reduce_mappings", "false");
@@ -455,7 +454,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
     }
 
     public void testToXContentAPI_FlatSettingFalse_ReduceMappingTrue() throws IOException {
-        Map<String, String> mapParams = new HashMap<>(){{
+        Map<String, String> mapParams = new HashMap<String,String>(){{
             put(MetaData.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
             put("flat_settings", "false");
             put("reduce_mappings", "true");
@@ -561,10 +560,10 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
             .clusterUUID("clusterUUID")
             .coordinationMetaData(CoordinationMetaData.builder()
                 .term(1)
-                .lastCommittedConfiguration(new CoordinationMetaData.VotingConfiguration(new HashSet<>(){{
+                .lastCommittedConfiguration(new CoordinationMetaData.VotingConfiguration(new HashSet<String>(){{
                     add("commitedConfigurationNodeId");
                 }}))
-                .lastAcceptedConfiguration(new CoordinationMetaData.VotingConfiguration(new HashSet<>(){{
+                .lastAcceptedConfiguration(new CoordinationMetaData.VotingConfiguration(new HashSet<String>(){{
                     add("acceptedConfigurationNodeId");
                 }}))
                 .addVotingConfigExclusion(new CoordinationMetaData.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
@@ -578,7 +577,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                 .settings(Settings.builder()
                     .put(SETTING_VERSION_CREATED, Version.CURRENT.id))
                 .putMapping(new MappingMetaData("type",
-                    new HashMap<>(){{
+                    new HashMap<String,Object>(){{
                         put("type1", new HashMap<String, Object>(){{
                             put("key", "value");
                         }});
@@ -588,13 +587,13 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
                     .build())
                 .numberOfShards(1)
                 .primaryTerm(0, 1L)
-                .putInSyncAllocationIds(0, new HashSet<>(){{
+                .putInSyncAllocationIds(0, new HashSet<String>(){{
                     add("allocationId");
                 }})
                 .numberOfReplicas(2)
                 .putRolloverInfo(new RolloverInfo("rolloveAlias", new ArrayList<>(), 1L)))
             .put(IndexTemplateMetaData.builder("template")
-                .patterns(List.of("pattern1", "pattern2"))
+                .patterns(Arrays.asList("pattern1", "pattern2"))
                 .order(0)
                 .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
                 .putMapping("type", "{ \"key1\": {} }")

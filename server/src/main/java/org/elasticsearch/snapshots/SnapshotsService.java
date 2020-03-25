@@ -1304,6 +1304,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public ClusterState execute(ClusterState currentState) {
                 final boolean noConcurrentOperations =
                     currentState.nodes().getMinNodeVersion().before(CONCURRENT_REPO_OPERATIONS_VERSION);
+                RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
+                if (restoreInProgress != null) {
+                    // don't allow snapshot deletions while a restore is taking place,
+                    // otherwise we could end up deleting a snapshot that is being restored
+                    // and the files the restore depends on would all be gone
+
+                    for (RestoreInProgress.Entry entry : restoreInProgress) {
+                        if (entry.snapshot().equals(snapshot)) {
+                            throw new ConcurrentSnapshotExecutionException(snapshot,
+                                "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]");
+                        }
+                    }
+                }
                 if (noConcurrentOperations) {
                     ensureMayDeleteSnapshot(currentState, snapshot);
                 }
@@ -1465,19 +1478,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
             throw new ConcurrentSnapshotExecutionException(snapshot.getRepository(), snapshot.getSnapshotId().getName(),
                 "cannot delete snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]");
-        }
-        RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
-        if (restoreInProgress != null) {
-            // don't allow snapshot deletions while a restore is taking place,
-            // otherwise we could end up deleting a snapshot that is being restored
-            // and the files the restore depends on would all be gone
-
-            for (RestoreInProgress.Entry entry : restoreInProgress) {
-                if (entry.snapshot().equals(snapshot)) {
-                    throw new ConcurrentSnapshotExecutionException(snapshot,
-                        "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]");
-                }
-            }
         }
     }
 

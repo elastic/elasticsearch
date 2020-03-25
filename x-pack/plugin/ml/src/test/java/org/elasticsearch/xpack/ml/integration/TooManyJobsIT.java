@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 public class TooManyJobsIT extends BaseMlIntegTestCase {
 
+    @AwaitFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54162")
     public void testCloseFailedJob() throws Exception {
         startMlCluster(1, 1);
 

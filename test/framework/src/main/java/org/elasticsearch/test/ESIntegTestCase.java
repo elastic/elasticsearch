@@ -95,6 +95,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
@@ -1051,37 +1052,59 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             {
                 MetaData metaDataWithoutIndices = MetaData.builder(metaData).removeAllIndices().build();
-                final XContentBuilder builder = SmileXContent.contentBuilder();
+                XContentBuilder builder = SmileXContent.contentBuilder();
                 builder.startObject();
                 metaDataWithoutIndices.toXContent(builder, formatParams);
                 builder.endObject();
 
                 final MetaData loadedMetaData;
+                final BytesReference originalBytes = BytesReference.bytes(builder);
                 try (XContentParser parser = createParser(ElasticsearchNodeCommand.namedXContentRegistry,
-                    SmileXContent.smileXContent, BytesReference.bytes(builder))) {
+                    SmileXContent.smileXContent, originalBytes)) {
                     loadedMetaData = MetaData.fromXContent(parser);
                 }
+                builder = SmileXContent.contentBuilder();
+                builder.startObject();
+                loadedMetaData.toXContent(builder, formatParams);
+                builder.endObject();
+                final BytesReference parsedBytes = BytesReference.bytes(builder);
 
                 assertNull(
-                    "cluster state JSON serialization does not match",
-                    differenceBetweenMapsIgnoringArrayOrder(convertToMap(metaDataWithoutIndices), convertToMap(loadedMetaData)));
+                    "cluster state JSON serialization does not match, expected " +
+                        XContentHelper.convertToMap(originalBytes, false, XContentType.SMILE) +
+                        " but got " +
+                        XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE),
+                    differenceBetweenMapsIgnoringArrayOrder(
+                        XContentHelper.convertToMap(originalBytes, false, XContentType.SMILE).v2(),
+                        XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE).v2()));
             }
 
             for (IndexMetaData indexMetaData : metaData) {
-                final XContentBuilder builder = SmileXContent.contentBuilder();
+                XContentBuilder builder = SmileXContent.contentBuilder();
                 builder.startObject();
                 indexMetaData.toXContent(builder, formatParams);
                 builder.endObject();
 
                 final IndexMetaData loadedIndexMetaData;
+                final BytesReference originalBytes = BytesReference.bytes(builder);
                 try (XContentParser parser = createParser(ElasticsearchNodeCommand.namedXContentRegistry,
-                    SmileXContent.smileXContent, BytesReference.bytes(builder))) {
+                    SmileXContent.smileXContent, originalBytes)) {
                     loadedIndexMetaData = IndexMetaData.fromXContent(parser);
                 }
+                builder = SmileXContent.contentBuilder();
+                builder.startObject();
+                loadedIndexMetaData.toXContent(builder, formatParams);
+                builder.endObject();
+                final BytesReference parsedBytes = BytesReference.bytes(builder);
 
                 assertNull(
-                    "cluster state JSON serialization does not match",
-                    differenceBetweenMapsIgnoringArrayOrder(convertToMap(indexMetaData), convertToMap(loadedIndexMetaData)));
+                    "cluster state JSON serialization does not match, expected " +
+                        XContentHelper.convertToMap(originalBytes, false, XContentType.SMILE) +
+                        " but got " +
+                        XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE),
+                    differenceBetweenMapsIgnoringArrayOrder(
+                        XContentHelper.convertToMap(originalBytes, false, XContentType.SMILE).v2(),
+                        XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE).v2()));
             }
         }
     }

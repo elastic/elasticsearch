@@ -196,15 +196,12 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
             "hits.hits._source.p",
             searchResult
         )).get(0);
-        logger.info("result: {}", percentiles);
 
         assertEquals(28.0, (double) percentiles.get("50"), 0.000001);
         assertEquals(77.0, (double) percentiles.get("99"), 0.000001);
 
         searchResult = getAsMap(transformIndex + "/_search?q=host:host-3");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-
-        logger.info("result: {}", searchResult);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> percentilesEmpty = (Map<String, Object>) ((List<?>) XContentMapValues.extractValue(

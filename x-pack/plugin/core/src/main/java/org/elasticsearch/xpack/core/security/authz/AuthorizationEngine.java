@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexSpace;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -128,7 +128,7 @@ public interface AuthorizationEngine {
      * @param listener the listener to be notified of the authorization result
      */
     void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                              AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Map<String, AliasOrIndex> aliasOrIndexLookup,
+                              AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Map<String, IndexSpace> aliasOrIndexLookup,
                               ActionListener<IndexAuthorizationResult> listener);
 
     /**
@@ -144,7 +144,7 @@ public interface AuthorizationEngine {
      * @param listener the listener to be notified of the authorization result
      */
     void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                               Map<String, AliasOrIndex> aliasOrIndexLookup, ActionListener<List<String>> listener);
+                               Map<String, IndexSpace> aliasOrIndexLookup, ActionListener<List<String>> listener);
 
 
     /**

@@ -42,7 +42,7 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexSpace;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -877,7 +877,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, AliasOrIndex> lookup = metaData.getAliasAndIndexLookup();
+        SortedMap<String, IndexSpace> lookup = metaData.getAliasAndIndexLookup();
         Map<String, IndexAccessControl> authzMap =
                 superuserRole.indices().authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("a1").isGranted(), is(true));

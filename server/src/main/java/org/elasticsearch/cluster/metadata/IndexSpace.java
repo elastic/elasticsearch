@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.SetOnce;
@@ -35,37 +34,60 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_HIDDEN_SETTING;
 
 /**
- * Encapsulates the  {@link IndexMetaData} instances of a concrete index or indices an alias is pointing to.
+ * An index space is a reference to one or more concrete indices.
+ * An index space has a unique name and encapsulates all the  {@link IndexMetaData} instances it is pointing to.
+ * Also depending on type it may refer to a single or many concrete indices and may or may not have a write index.
  */
-public interface AliasOrIndex {
+public interface IndexSpace {
 
     /**
-     * @return the type of the namespace
+     * @return the type of the index space
      */
     Type getType();
 
     /**
-     * @return the name of the namespace
+     * @return the name of the index space
      */
     String getName();
 
     /**
-     * @return All {@link IndexMetaData} of all concrete indices this alias is referring to
-     * or if this is a concrete index its {@link IndexMetaData}
+     * @return All {@link IndexMetaData} of all concrete indices this index space is referring to.
      */
     List<IndexMetaData> getIndices();
 
+    /**
+     * A write index is a dedicated concrete index, that accepts all the new documents that belong to an index space.
+     *
+     * A write index may also be a regular concrete index of a index space and may be therefor also be returned
+     * by {@link #getIndices()}. An index space may also not have a dedicated write index.
+     *
+     * @return the write index of this index space or
+     * <code>null</code> if this index space doesn't have a write index.
+     */
     @Nullable
     IndexMetaData getWriteIndex();
 
     /**
-     * @return whether this alias/index is hidden or not
+     * @return whether this index space is hidden or not
      */
     boolean isHidden();
 
+    /**
+     * An index space type.
+     */
     enum Type {
 
+        /**
+         * An index space that refers to a single concrete index.
+         * This concrete index is also the write index.
+         */
         INDEX,
+
+        /**
+         * An index space that refers to an alias.
+         * An alias typically refers to many concrete indices and
+         * may have a write index.
+         */
         ALIAS
 
     }
@@ -73,7 +95,7 @@ public interface AliasOrIndex {
     /**
      * Represents an concrete index and encapsulates its {@link IndexMetaData}
      */
-    class Index implements AliasOrIndex {
+    class Index implements IndexSpace {
 
         private final IndexMetaData concreteIndex;
 
@@ -110,7 +132,7 @@ public interface AliasOrIndex {
     /**
      * Represents an alias and groups all {@link IndexMetaData} instances sharing the same alias name together.
      */
-    class Alias implements AliasOrIndex {
+    class Alias implements IndexSpace {
 
         private final String aliasName;
         private final List<IndexMetaData> referenceIndexMetaDatas;

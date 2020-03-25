@@ -75,9 +75,9 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         // Add an alias to it
         ClusterState after = service.applyAliasActions(before, singletonList(new AliasAction.Add(index, "test", null, null, null, null,
             null)));
-        AliasOrIndex alias = after.metaData().getAliasAndIndexLookup().get("test");
+        IndexSpace alias = after.metaData().getAliasAndIndexLookup().get("test");
         assertNotNull(alias);
-        assertThat(alias.getType(), equalTo(AliasOrIndex.Type.ALIAS));
+        assertThat(alias.getType(), equalTo(IndexSpace.Type.ALIAS));
         assertThat(alias.getIndices(), contains(after.metaData().index(index)));
         assertAliasesVersionIncreased(index, before, after);
 
@@ -89,7 +89,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         assertNull(after.metaData().getAliasAndIndexLookup().get("test"));
         alias = after.metaData().getAliasAndIndexLookup().get("test_2");
         assertNotNull(alias);
-        assertThat(alias.getType(), equalTo(AliasOrIndex.Type.ALIAS));
+        assertThat(alias.getType(), equalTo(IndexSpace.Type.ALIAS));
         assertThat(alias.getIndices(), contains(after.metaData().index(index)));
         assertAliasesVersionIncreased(index, before, after);
 
@@ -199,9 +199,9 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
         ClusterState after = service.applyAliasActions(before, Arrays.asList(
                 new AliasAction.Add("test_2", "test", null, null, null, null, null),
                 new AliasAction.RemoveIndex("test")));
-        AliasOrIndex alias = after.metaData().getAliasAndIndexLookup().get("test");
+        IndexSpace alias = after.metaData().getAliasAndIndexLookup().get("test");
         assertNotNull(alias);
-        assertThat(alias.getType(), equalTo(AliasOrIndex.Type.ALIAS));
+        assertThat(alias.getType(), equalTo(IndexSpace.Type.ALIAS));
         assertThat(alias.getIndices(), contains(after.metaData().index("test_2")));
         assertAliasesVersionIncreased("test_2", before, after);
     }

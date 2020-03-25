@@ -27,7 +27,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexSpace;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -173,7 +173,7 @@ public class SamlServiceProviderIndex implements Closeable {
     }
 
     private void checkForAliasStateChange(ClusterState state) {
-        final AliasOrIndex aliasInfo = state.getMetaData().getAliasAndIndexLookup().get(ALIAS_NAME);
+        final IndexSpace aliasInfo = state.getMetaData().getAliasAndIndexLookup().get(ALIAS_NAME);
         final boolean previousState = aliasExists;
         this.aliasExists = aliasInfo != null;
         if (aliasExists != previousState) {
@@ -187,10 +187,10 @@ public class SamlServiceProviderIndex implements Closeable {
         clusterService.removeListener(clusterStateListener);
     }
 
-    private void logChangedAliasState(AliasOrIndex aliasInfo) {
+    private void logChangedAliasState(IndexSpace aliasInfo) {
         if (aliasInfo == null) {
             logger.warn("service provider index/alias [{}] no longer exists", ALIAS_NAME);
-        } else if (aliasInfo.getType() != AliasOrIndex.Type.ALIAS) {
+        } else if (aliasInfo.getType() != IndexSpace.Type.ALIAS) {
             logger.warn("service provider index [{}] exists as a concrete index, but it should be an alias", ALIAS_NAME);
         } else if (aliasInfo.getIndices().size() != 1) {
             logger.warn("service provider alias [{}] refers to multiple indices [{}] - this is unexpected and is likely to cause problems",

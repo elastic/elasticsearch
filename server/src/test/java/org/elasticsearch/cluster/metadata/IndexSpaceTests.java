@@ -30,7 +30,7 @@ import java.util.Objects;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
-public class AliasOrIndexTests extends ESTestCase {
+public class IndexSpaceTests extends ESTestCase {
 
     public void testHiddenAliasValidation() {
         final String hiddenAliasName = "hidden_alias";
@@ -44,19 +44,19 @@ public class AliasOrIndexTests extends ESTestCase {
         IndexMetaData indexWithUnspecifiedAlias = buildIndexWithAlias("nonhidden2", hiddenAliasName, null);
 
         {
-            AliasOrIndex.Alias allHidden = new AliasOrIndex.Alias(hiddenAliasMetadata, hidden1);
+            IndexSpace.Alias allHidden = new IndexSpace.Alias(hiddenAliasMetadata, hidden1);
             allHidden.addIndex(hidden2);
             allHidden.addIndex(hidden3);
             allHidden.computeAndValidateAliasProperties(); // Should be ok
         }
 
         {
-            AliasOrIndex.Alias allVisible;
+            IndexSpace.Alias allVisible;
             if (randomBoolean()) {
-                allVisible = new AliasOrIndex.Alias(hiddenAliasMetadata, indexWithNonHiddenAlias);
+                allVisible = new IndexSpace.Alias(hiddenAliasMetadata, indexWithNonHiddenAlias);
                 allVisible.addIndex(indexWithUnspecifiedAlias);
             } else {
-                allVisible = new AliasOrIndex.Alias(hiddenAliasMetadata, indexWithUnspecifiedAlias);
+                allVisible = new IndexSpace.Alias(hiddenAliasMetadata, indexWithUnspecifiedAlias);
                 allVisible.addIndex(indexWithNonHiddenAlias);
             }
 
@@ -64,7 +64,7 @@ public class AliasOrIndexTests extends ESTestCase {
         }
 
         {
-            AliasOrIndex.Alias oneNonHidden = new AliasOrIndex.Alias(hiddenAliasMetadata, hidden1);
+            IndexSpace.Alias oneNonHidden = new IndexSpace.Alias(hiddenAliasMetadata, hidden1);
             oneNonHidden.addIndex(hidden2);
             oneNonHidden.addIndex(hidden3);
             oneNonHidden.addIndex(indexWithNonHiddenAlias);
@@ -80,7 +80,7 @@ public class AliasOrIndexTests extends ESTestCase {
         }
 
         {
-            AliasOrIndex.Alias oneUnspecified = new AliasOrIndex.Alias(hiddenAliasMetadata, hidden1);
+            IndexSpace.Alias oneUnspecified = new IndexSpace.Alias(hiddenAliasMetadata, hidden1);
             oneUnspecified.addIndex(hidden2);
             oneUnspecified.addIndex(hidden3);
             oneUnspecified.addIndex(indexWithUnspecifiedAlias);
@@ -96,12 +96,12 @@ public class AliasOrIndexTests extends ESTestCase {
         }
 
         {
-            AliasOrIndex.Alias mostlyVisibleOneHidden;
+            IndexSpace.Alias mostlyVisibleOneHidden;
             if (randomBoolean()) {
-                mostlyVisibleOneHidden = new AliasOrIndex.Alias(hiddenAliasMetadata, indexWithNonHiddenAlias);
+                mostlyVisibleOneHidden = new IndexSpace.Alias(hiddenAliasMetadata, indexWithNonHiddenAlias);
                 mostlyVisibleOneHidden.addIndex(indexWithUnspecifiedAlias);
             } else {
-                mostlyVisibleOneHidden = new AliasOrIndex.Alias(hiddenAliasMetadata, indexWithUnspecifiedAlias);
+                mostlyVisibleOneHidden = new IndexSpace.Alias(hiddenAliasMetadata, indexWithUnspecifiedAlias);
                 mostlyVisibleOneHidden.addIndex(indexWithNonHiddenAlias);
             }
             final IndexMetaData hiddenIndex = randomFrom(hidden1, hidden2, hidden3);

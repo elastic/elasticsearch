@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexSpace;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -157,17 +157,17 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     }
 
     private void logDeprecatedPermission(RoleDescriptor roleDescriptor) {
-        final SortedMap<String, AliasOrIndex> aliasOrIndexMap = clusterService.state().metaData().getAliasAndIndexLookup();
+        final SortedMap<String, IndexSpace> aliasOrIndexMap = clusterService.state().metaData().getAliasAndIndexLookup();
         final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();
         // sort answer by alias for tests
         final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
         // collate privileges by index and by alias separately
         for (final IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
             final Predicate<String> namePatternPredicate = IndicesPermission.indexMatcher(Arrays.asList(indexPrivilege.getIndices()));
-            for (final Map.Entry<String, AliasOrIndex> aliasOrIndex : aliasOrIndexMap.entrySet()) {
+            for (final Map.Entry<String, IndexSpace> aliasOrIndex : aliasOrIndexMap.entrySet()) {
                 final String aliasOrIndexName = aliasOrIndex.getKey();
                 if (namePatternPredicate.test(aliasOrIndexName)) {
-                    if (aliasOrIndex.getValue().getType() == AliasOrIndex.Type.ALIAS) {
+                    if (aliasOrIndex.getValue().getType() == IndexSpace.Type.ALIAS) {
                         final Set<String> privilegesByAlias = privilegesByAliasMap.computeIfAbsent(aliasOrIndexName,
                                 k -> new HashSet<>());
                         privilegesByAlias.addAll(Arrays.asList(indexPrivilege.getPrivileges()));

@@ -184,14 +184,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     private final String[] allClosedIndices;
     private final String[] visibleClosedIndices;
 
-    private final SortedMap<String, AliasOrIndex> aliasAndIndexLookup;
+    private final SortedMap<String, IndexSpace> aliasAndIndexLookup;
 
     MetaData(String clusterUUID, boolean clusterUUIDCommitted, long version, CoordinationMetaData coordinationMetaData,
              Settings transientSettings, Settings persistentSettings, DiffableStringMap hashesOfConsistentSettings,
              ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates,
              ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] visibleIndices, String[] allOpenIndices,
              String[] visibleOpenIndices, String[] allClosedIndices, String[] visibleClosedIndices,
-             SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
+             SortedMap<String, IndexSpace> aliasAndIndexLookup) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
         this.version = version;
@@ -263,9 +263,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     public boolean hasAlias(String alias) {
-        AliasOrIndex aliasOrIndex = getAliasAndIndexLookup().get(alias);
-        if (aliasOrIndex != null) {
-            return aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS;
+        IndexSpace indexSpace = getAliasAndIndexLookup().get(alias);
+        if (indexSpace != null) {
+            return indexSpace.getType() == IndexSpace.Type.ALIAS;
         } else {
             return false;
         }
@@ -286,7 +286,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return true;
     }
 
-    public SortedMap<String, AliasOrIndex> getAliasAndIndexLookup() {
+    public SortedMap<String, IndexSpace> getAliasAndIndexLookup() {
         return aliasAndIndexLookup;
     }
 
@@ -531,8 +531,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return routing;
         }
 
-        AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
-        if (result == null || result.getType() != AliasOrIndex.Type.ALIAS) {
+        IndexSpace result = getAliasAndIndexLookup().get(aliasOrIndex);
+        if (result == null || result.getType() != IndexSpace.Type.ALIAS) {
             return routing;
         }
         IndexMetaData writeIndex = result.getWriteIndex();
@@ -567,11 +567,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return routing;
         }
 
-        AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
-        if (result == null || result.getType() != AliasOrIndex.Type.ALIAS) {
+        IndexSpace result = getAliasAndIndexLookup().get(aliasOrIndex);
+        if (result == null || result.getType() != IndexSpace.Type.ALIAS) {
             return routing;
         }
-        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
+        IndexSpace.Alias alias = (IndexSpace.Alias) result;
         if (result.getIndices().size() > 1) {
             rejectSingleIndexOperation(aliasOrIndex, result);
         }
@@ -593,7 +593,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return routing;
     }
 
-    private void rejectSingleIndexOperation(String aliasOrIndex, AliasOrIndex result) {
+    private void rejectSingleIndexOperation(String aliasOrIndex, IndexSpace result) {
         String[] indexNames = new String[result.getIndices().size()];
         int i = 0;
         for (IndexMetaData indexMetaData : result.getIndices()) {
@@ -1326,7 +1326,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             }
 
-            SortedMap<String, AliasOrIndex> aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup());
+            SortedMap<String, IndexSpace> aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup());
 
 
             // build all concrete indices arrays:
@@ -1345,29 +1345,29 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 allOpenIndicesArray, visibleOpenIndicesArray, allClosedIndicesArray, visibleClosedIndicesArray, aliasAndIndexLookup);
         }
 
-        private SortedMap<String, AliasOrIndex> buildAliasAndIndexLookup() {
-            SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
+        private SortedMap<String, IndexSpace> buildAliasAndIndexLookup() {
+            SortedMap<String, IndexSpace> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                AliasOrIndex existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
+                IndexSpace existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new IndexSpace.Index(indexMetaData));
                 assert existing == null : "duplicate for " + indexMetaData.getIndex();
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
                     aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
                         if (alias == null) {
-                            return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
+                            return new IndexSpace.Alias(aliasMetaData, indexMetaData);
                         } else {
-                            assert alias.getType() == AliasOrIndex.Type.ALIAS : alias.getClass().getName();
-                            ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
+                            assert alias.getType() == IndexSpace.Type.ALIAS : alias.getClass().getName();
+                            ((IndexSpace.Alias) alias).addIndex(indexMetaData);
                             return alias;
                         }
                     });
                 }
             }
             aliasAndIndexLookup.values().stream()
-                .filter(aliasOrIndex -> aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS)
-                .forEach(alias -> ((AliasOrIndex.Alias) alias).computeAndValidateAliasProperties());
+                .filter(aliasOrIndex -> aliasOrIndex.getType() == IndexSpace.Type.ALIAS)
+                .forEach(alias -> ((IndexSpace.Alias) alias).computeAndValidateAliasProperties());
             return aliasAndIndexLookup;
         }
 

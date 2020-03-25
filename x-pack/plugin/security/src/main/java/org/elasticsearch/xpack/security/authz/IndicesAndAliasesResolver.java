@@ -14,7 +14,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexSpace;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -228,11 +228,11 @@ class IndicesAndAliasesResolver {
         final String concreteIndexName = request.getConcreteIndex().getName();
 
         // validate that the concrete index exists, otherwise there is no remapping that we could do
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(concreteIndexName);
+        final IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(concreteIndexName);
         final String resolvedAliasOrIndex;
-        if (aliasOrIndex == null) {
+        if (indexSpace == null) {
             resolvedAliasOrIndex = concreteIndexName;
-        } else if (aliasOrIndex.getType() != AliasOrIndex.Type.INDEX) {
+        } else if (indexSpace.getType() != IndexSpace.Type.INDEX) {
             throw new IllegalStateException("concrete index [" + concreteIndexName + "] is not an index but should be");
         } else if (authorizedIndicesList.contains(concreteIndexName)) {
             // user is authorized to put mappings for this index
@@ -247,12 +247,12 @@ class IndicesAndAliasesResolver {
                     .map(AliasMetaData::alias)
                     .filter(authorizedIndicesList::contains)
                     .filter(aliasName -> {
-                        AliasOrIndex alias = metaData.getAliasAndIndexLookup().get(aliasName);
+                        IndexSpace alias = metaData.getAliasAndIndexLookup().get(aliasName);
                         List<IndexMetaData> indexMetadata = alias.getIndices();
                         if (indexMetadata.size() == 1) {
                             return true;
                         } else {
-                            assert alias.getType() == AliasOrIndex.Type.ALIAS;
+                            assert alias.getType() == IndexSpace.Type.ALIAS;
                             IndexMetaData idxMeta = alias.getWriteIndex();
                             return idxMeta != null && idxMeta.getIndex().getName().equals(concreteIndexName);
                         }
@@ -274,10 +274,10 @@ class IndicesAndAliasesResolver {
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, MetaData metaData) {
         List<String> authorizedAliases = new ArrayList<>();
-        SortedMap<String, AliasOrIndex> existingAliases = metaData.getAliasAndIndexLookup();
+        SortedMap<String, IndexSpace> existingAliases = metaData.getAliasAndIndexLookup();
         for (String authorizedIndex : authorizedIndices) {
-            AliasOrIndex aliasOrIndex = existingAliases.get(authorizedIndex);
-            if (aliasOrIndex != null && aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS) {
+            IndexSpace indexSpace = existingAliases.get(authorizedIndex);
+            if (indexSpace != null && indexSpace.getType() == IndexSpace.Type.ALIAS) {
                 authorizedAliases.add(authorizedIndex);
             }
         }
@@ -416,9 +416,9 @@ class IndicesAndAliasesResolver {
 
     private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, MetaData metaData,
                                           boolean dateMathExpression) {
-        AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(index);
-        final boolean isHidden = aliasOrIndex.isHidden();
-        if (aliasOrIndex.getType() == AliasOrIndex.Type.ALIAS) {
+        IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(index);
+        final boolean isHidden = indexSpace.isHidden();
+        if (indexSpace.getType() == IndexSpace.Type.ALIAS) {
             //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             //complicated to support those options with aliases pointing to multiple indices...
             //TODO investigate supporting expandWildcards option for aliases too, like es core does.
@@ -430,8 +430,8 @@ class IndicesAndAliasesResolver {
                 return false;
             }
         }
-        assert aliasOrIndex.getIndices().size() == 1 : "concrete index must point to a single index";
-        IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
+        assert indexSpace.getIndices().size() == 1 : "concrete index must point to a single index";
+        IndexMetaData indexMetaData = indexSpace.getIndices().get(0);
         if (isHidden && indicesOptions.expandWildcardsHidden() == false && isVisibleDueToImplicitHidden(expression, index) == false) {
             return false;
         }

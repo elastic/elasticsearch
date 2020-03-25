@@ -48,7 +48,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexSpace;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -279,14 +279,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             IndexMetaData indexMetaData = metaData.indices().get(originalRequest.index());
             // check the alias for the index request (this is how normal index requests are modeled)
             if (indexMetaData == null && indexRequest.index() != null) {
-                AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
+                IndexSpace indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
                 if (indexOrAlias != null) {
                     indexMetaData = indexOrAlias.getWriteIndex();
                 }
             }
             // check the alias for the action request (this is how upserts are modeled)
             if (indexMetaData == null && originalRequest.index() != null) {
-                AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(originalRequest.index());
+                IndexSpace indexOrAlias = metaData.getAliasAndIndexLookup().get(originalRequest.index());
                 if (indexOrAlias != null) {
                     indexMetaData = indexOrAlias.getWriteIndex();
                 }

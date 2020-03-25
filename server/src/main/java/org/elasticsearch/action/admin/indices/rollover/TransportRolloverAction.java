@@ -37,7 +37,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexSpace;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -113,7 +113,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    final ActionListener<RolloverResponse> listener) {
         final MetaData metaData = state.metaData();
         validate(metaData, rolloverRequest);
-        final AliasOrIndex alias = metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
+        final IndexSpace alias = metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
         final IndexMetaData indexMetaData = alias.getWriteIndex();
         final AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias.getName());
         final boolean explicitWriteIndex = Boolean.TRUE.equals(aliasMetaData.writeIndex());
@@ -263,15 +263,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     static void validate(MetaData metaData, RolloverRequest request) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(request.getAlias());
-        if (aliasOrIndex == null) {
+        final IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(request.getAlias());
+        if (indexSpace == null) {
             throw new IllegalArgumentException("source alias does not exist");
         }
-        if (aliasOrIndex.getType() != AliasOrIndex.Type.ALIAS) {
+        if (indexSpace.getType() != IndexSpace.Type.ALIAS) {
             throw new IllegalArgumentException("source alias is a concrete index");
         }
-        if (aliasOrIndex.getWriteIndex() == null) {
-            throw new IllegalArgumentException("source alias [" + aliasOrIndex.getName() + "] does not point to a write index");
+        if (indexSpace.getWriteIndex() == null) {
+            throw new IllegalArgumentException("source alias [" + indexSpace.getName() + "] does not point to a write index");
         }
     }
 

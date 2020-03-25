@@ -18,29 +18,41 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 
 public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(CreateDataStreamAction.class);
 
     public static final CreateDataStreamAction INSTANCE = new CreateDataStreamAction();
     public static final String NAME = "indices:admin/data_stream/create";
@@ -64,7 +76,14 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (Strings.hasText(name) == false) {
+                validationException = ValidateActions.addValidationError("name is missing", validationException);
+            }
+            if (Strings.hasText(timestampFieldName) == false) {
+                validationException = ValidateActions.addValidationError("timestamp field name is missing", validationException);
+            }
+            return validationException;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -116,7 +135,41 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state,
                                        ActionListener<AcknowledgedResponse> listener) throws Exception {
-            listener.onResponse(new AcknowledgedResponse(true));
+            clusterService.submitStateUpdateTask("create-data-stream [" + request.name + "]",
+                new ClusterStateUpdateTask(Priority.HIGH) {
+
+                    @Override
+                    public TimeValue timeout() {
+                        return request.masterNodeTimeout();
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        return createDataStream(currentState, request);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        listener.onResponse(new AcknowledgedResponse(true));
+                    }
+                });
+        }
+
+        static ClusterState createDataStream(ClusterState currentState, Request request) {
+            if (currentState.metaData().dataStreams().containsKey(request.name)) {
+                throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
+            }
+
+            MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(
+                new DataStream(request.name, request.timestampFieldName, Collections.emptyList()));
+
+            logger.info("adding data stream [{}]", request.name);
+            return ClusterState.builder(currentState).metaData(builder).build();
         }
 
         @Override

@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -76,7 +78,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53236")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("classification_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
@@ -108,7 +109,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(getFieldValue(resultsObject, predictedClassField), is(in(KEYWORD_FIELD_VALUES)));
             assertThat(getFieldValue(resultsObject, "is_training"), is(destDoc.containsKey(KEYWORD_FIELD)));
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
-            assertThat(resultsObject.keySet().stream().filter(k -> k.startsWith("feature_importance.")).findAny().isPresent(), is(true));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
+            assertThat(importanceArray, hasSize(greaterThan(0)));
         }
 
         assertProgress(jobId, 100, 100, 100, 100);
@@ -155,6 +158,12 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(getFieldValue(resultsObject, "is_training"), is(true));
             assertTopClasses(resultsObject, 2, KEYWORD_FIELD, KEYWORD_FIELD_VALUES);
         }
+
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(jobId);
+        assertThat(stats.getDataCounts().getJobId(), equalTo(jobId));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), equalTo(300L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
+        assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
@@ -222,6 +231,14 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         }
         assertThat(trainingRowsCount, greaterThan(0));
         assertThat(nonTrainingRowsCount, greaterThan(0));
+
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(jobId);
+        assertThat(stats.getDataCounts().getJobId(), equalTo(jobId));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), greaterThan(0L));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), lessThan(300L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), greaterThan(0L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), lessThan(300L));
+        assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
@@ -331,16 +348,20 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertEvaluation(KEYWORD_FIELD, KEYWORD_FIELD_VALUES, "ml." + predictedClassField);
     }
 
-    @AwaitsFix(bugUrl = "Muted until ml-cpp supports multiple classes")
     public void testDependentVariableCardinalityTooHighError() throws Exception {
         initialize("cardinality_too_high");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
 
-        // Index one more document with a class different than the two already used.
-        client().execute(IndexAction.INSTANCE, new IndexRequest(sourceIndex)
-            .source(KEYWORD_FIELD, "fox")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
-            .actionGet();
+        // Index enough documents to have more classes than the allowed limit
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY - 1; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox-" + i);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
         registerAnalytics(config);
@@ -348,7 +369,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> startAnalytics(jobId));
         assertThat(e.status().getStatus(), equalTo(400));
-        assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [2] distinct values but there were at least [3]"));
+        assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [30] distinct values but there were at least [31]"));
     }
 
     public void testDependentVariableCardinalityTooHighButWithQueryMakesItWithinRange() throws Exception {

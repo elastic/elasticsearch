@@ -32,7 +32,7 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
-import org.elasticsearch.gradle.tool.Boilerplate
+import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -82,7 +82,7 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
-import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
+import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -148,7 +148,7 @@ class BuildPlugin implements Plugin<Project> {
             File securityPolicy = buildResources.copy("fips_java.policy")
             File bcfksKeystore = buildResources.copy("cacerts.bcfks")
             // This configuration can be removed once system modules are available
-            Boilerplate.maybeCreate(project.configurations, 'extraJars') {
+            GradleUtils.maybeCreate(project.configurations, 'extraJars') {
                 project.dependencies.add('extraJars', "org.bouncycastle:bc-fips:1.0.1")
                 project.dependencies.add('extraJars', "org.bouncycastle:bctls-fips:1.0.9")
             }
@@ -235,7 +235,7 @@ class BuildPlugin implements Plugin<Project> {
     static String getJavaHome(final Task task, final int version) {
         requireJavaHome(task, version)
         JavaHome java = BuildParams.javaVersions.find { it.version == version }
-        return java == null ? null : java.javaHome.absolutePath
+        return java == null ? null : java.javaHome.get().absolutePath
     }
 
     /**

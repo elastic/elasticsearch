@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -12,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -25,6 +29,8 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndex
  */
 public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "mount-snapshot";
+
+    private static final Logger logger = LogManager.getLogger(MountSnapshotStep.class);
 
     private final String restoredIndexPrefix;
 
@@ -63,22 +69,35 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             return;
         }
 
-        final MountSearchableSnapshotRequest mountSearchableSnapshotRequest =
-            new MountSearchableSnapshotRequest(restoredIndexPrefix + indexName,
-                snapshotRepository, snapshotName, indexName, Settings.builder()
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
-                .build(),
-                // we captured the index metadata when we took the snapshot. the index likely had the ILM execution state in the metadata.
-                // if we were to restore the lifecycle.name setting, the restored index would be captured by the ILM runner and,
-                // depending on what ILM execution state was captured at snapshot time, make it's way forward from _that_ step forward in
-                // the ILM policy.
-                // we'll re-set this setting on the restored index at a later step once we restored a deterministic execution state
-                new String[]{LifecycleSettings.LIFECYCLE_NAME},
-                // we'll not wait for the snapshot to complete in this step as the async steps are executed from threads that shouldn't
-                // perform expensive operations (ie. clusterStateProcessed)
-                false);
+        String mountedIndexName = restoredIndexPrefix + indexName;
+        if(currentClusterState.metaData().index(mountedIndexName) != null) {
+            logger.debug("mounted index [{}] for policy [{}] and index [{}] already exists. will not attempt to mount the index again",
+                mountedIndexName, policyName, indexName);
+            listener.onResponse(true);
+            return;
+        }
+
+        final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(mountedIndexName,
+            snapshotRepository, snapshotName, indexName, Settings.builder()
+            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
+            .build(),
+            // we captured the index metadata when we took the snapshot. the index likely had the ILM execution state in the metadata.
+            // if we were to restore the lifecycle.name setting, the restored index would be captured by the ILM runner and,
+            // depending on what ILM execution state was captured at snapshot time, make it's way forward from _that_ step forward in
+            // the ILM policy.
+            // we'll re-set this setting on the restored index at a later step once we restored a deterministic execution state
+            new String[]{LifecycleSettings.LIFECYCLE_NAME},
+            // we'll not wait for the snapshot to complete in this step as the async steps are executed from threads that shouldn't
+            // perform expensive operations (ie. clusterStateProcessed)
+            false);
         getClient().execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest,
-            ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+            ActionListener.wrap(response -> {
+                if (response.status() != RestStatus.OK) {
+                    logger.debug("mount snapshot response failed to complete");
+                    throw new ElasticsearchException("mount snapshot response failed to complete");
+                }
+                listener.onResponse(true);
+            }, listener::onFailure));
     }
 
     @Override

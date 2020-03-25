@@ -146,6 +146,7 @@ public class WaitForSnapshotInProgressStepTests extends AbstractStepTestCase<Wai
 
         ClusterState clusterState =
             ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build())
+                .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress())
                 .build();
 
         WaitForSnapshotInProgressStep waitForSnapshotInProgressStep = createRandomInstance();

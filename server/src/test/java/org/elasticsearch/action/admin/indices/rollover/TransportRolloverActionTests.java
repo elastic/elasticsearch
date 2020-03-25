@@ -84,6 +84,7 @@ import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverA
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -251,7 +252,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(MetaData.builder().put(indexMetaData).put(indexMetaData2)).build();
 
-        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), any())).thenReturn(stateBefore);
+        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean())).thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
         MetaDataRolloverService rolloverService = new MetaDataRolloverService(mockThreadPool, mockCreateIndexService,
             mdIndexAliasesService, mockIndexNameExpressionResolver);

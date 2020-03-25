@@ -151,6 +151,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                         //
                         // The shouldTestDocker property could be null, hence we use Boolean.TRUE.equals()
                         boolean shouldExecute = distribution.getType() != Type.DOCKER
+
                             || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
 
                         if (shouldExecute) {

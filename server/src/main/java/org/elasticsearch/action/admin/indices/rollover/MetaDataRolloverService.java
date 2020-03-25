@@ -93,15 +93,13 @@ public class MetaDataRolloverService {
         createIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
         checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, aliasName, isHidden);
 
-        CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareCreateIndexRequest(unresolvedName,
-            rolloverIndexName, createIndexRequest);
+        CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
+            prepareCreateIndexRequest(unresolvedName, rolloverIndexName, createIndexRequest);
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent);
         newState = indexAliasesService.applyAliasActions(newState,
-            rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex,
-                aliasMetaData.isHidden(), aliasName));
+            rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetaData.isHidden(), aliasName));
 
-        RolloverInfo rolloverInfo = new RolloverInfo(aliasName, metConditions,
-            threadPool.absoluteTimeInMillis());
+        RolloverInfo rolloverInfo = new RolloverInfo(aliasName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
             .metaData(MetaData.builder(newState.metaData())
                 .put(IndexMetaData.builder(newState.metaData().index(sourceIndexName))
@@ -116,8 +114,8 @@ public class MetaDataRolloverService {
         if (INDEX_NAME_PATTERN.matcher(resolvedName).matches()) {
             int numberIndex = sourceIndexName.lastIndexOf("-");
             assert numberIndex != -1 : "no separator '-' found";
-            int counter = Integer.parseInt(sourceIndexName.substring(numberIndex + 1, isDateMath ? sourceIndexName.length()-1 :
-                sourceIndexName.length()));
+            int counter = Integer.parseInt(sourceIndexName.substring(numberIndex + 1,
+                isDateMath ? sourceIndexName.length()-1 : sourceIndexName.length()));
             String newName = sourceIndexName.substring(0, numberIndex) + "-" + String.format(Locale.ROOT, "%06d", ++counter)
                 + (isDateMath ? ">" : "");
             return newName;

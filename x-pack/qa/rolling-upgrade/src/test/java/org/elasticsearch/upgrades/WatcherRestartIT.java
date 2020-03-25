@@ -6,6 +6,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -18,8 +19,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class WatcherRestartIT extends AbstractUpgradeTestCase {
+    private static final Version UPGRADE_FROM_VERSION =
+        Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     public void testWatcherRestart() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/54220", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_7_0));
         client().performRequest(new Request("POST", "/_watcher/_stop"));
         ensureWatcherStopped();
 

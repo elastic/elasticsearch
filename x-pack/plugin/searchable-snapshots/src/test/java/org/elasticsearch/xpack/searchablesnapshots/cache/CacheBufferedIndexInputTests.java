@@ -102,9 +102,9 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
 
             final Path cacheDir = createTempDir();
-            try (CacheDirectory cacheDirectory
-                     = new CacheDirectory(snapshot, blobContainer, cacheService, cacheDir, snapshotId, indexId, shardId, () -> 0L)) {
-                try (IndexInput indexInput = cacheDirectory.openInput(fileName, newIOContext(random()))) {
+            try (SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory( blobContainer, snapshot,
+                    snapshotId, indexId, shardId, Settings.EMPTY, () -> 0L, cacheService, cacheDir)) {
+                try (IndexInput indexInput = searchableSnapshotDirectory.openInput(fileName, newIOContext(random()))) {
                     final byte[] buffer = new byte[input.length + 1];
                     final IOException exception = expectThrows(IOException.class, () -> indexInput.readBytes(buffer, 0, buffer.length));
                     if (containsEOFException(exception, new HashSet<>()) == false) {

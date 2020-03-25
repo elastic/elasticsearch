@@ -10,16 +10,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledResponse;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -30,30 +31,49 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestSetEnabledAction extends SecurityBaseRestHandler {
 
-    public RestSetEnabledAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestSetEnabledAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(POST, "/_xpack/security/user/{username}/_enable", this);
-        controller.registerHandler(PUT, "/_xpack/security/user/{username}/_enable", this);
-        controller.registerHandler(POST, "/_xpack/security/user/{username}/_disable", this);
-        controller.registerHandler(PUT, "/_xpack/security/user/{username}/_disable", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        // TODO: remove deprecated endpoint in 8.0.0
+        return List.of(
+            new ReplacedRoute(POST, "/_security/user/{username}/_enable",
+                POST, "/_xpack/security/user/{username}/_enable"),
+            new ReplacedRoute(PUT, "/_security/user/{username}/_enable",
+                PUT, "/_xpack/security/user/{username}/_enable"),
+            new ReplacedRoute(POST, "/_security/user/{username}/_disable",
+                POST, "/_xpack/security/user/{username}/_disable"),
+            new ReplacedRoute(PUT, "/_security/user/{username}/_disable",
+                PUT, "/_xpack/security/user/{username}/_disable")
+        );
     }
 
     @Override
     public String getName() {
-        return "xpack_security_set_enabled_action";
+        return "security_set_enabled_action";
     }
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+        // TODO consider splitting up enable and disable to have their own rest handler
         final boolean enabled = request.path().endsWith("_enable");
         assert enabled || request.path().endsWith("_disable");
         final String username = request.param("username");
-        return channel -> new SecurityClient(client).prepareSetEnabled(username, enabled)
-                .execute(new RestBuilderListener<SetEnabledResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(SetEnabledResponse setEnabledResponse, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
-                    }
-                });
+        return channel -> new SetEnabledRequestBuilder(client)
+            .username(username)
+            .enabled(enabled)
+            .execute(new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(SetEnabledResponse setEnabledResponse, XContentBuilder builder) throws Exception {
+                    return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
+                }
+            });
     }
 }

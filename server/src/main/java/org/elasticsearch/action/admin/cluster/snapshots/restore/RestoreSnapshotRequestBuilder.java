@@ -31,7 +31,8 @@ import java.util.Map;
 /**
  * Restore snapshot request builder
  */
-public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<RestoreSnapshotRequest, RestoreSnapshotResponse, RestoreSnapshotRequestBuilder> {
+public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<RestoreSnapshotRequest,
+        RestoreSnapshotResponse, RestoreSnapshotRequestBuilder> {
 
     /**
      * Constructs new restore snapshot request builder
@@ -123,60 +124,6 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      */
     public RestoreSnapshotRequestBuilder setRenameReplacement(String renameReplacement) {
         request.renameReplacement(renameReplacement);
-        return this;
-    }
-
-
-    /**
-     * Sets repository-specific restore settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setSettings(Settings settings) {
-        request.settings(settings);
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setSettings(Settings.Builder settings) {
-        request.settings(settings);
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings in JSON or YAML format
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
-     * @param xContentType the content type of the source
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setSettings(String source, XContentType xContentType) {
-        request.settings(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setSettings(Map<String, Object> source) {
-        request.settings(source);
         return this;
     }
 

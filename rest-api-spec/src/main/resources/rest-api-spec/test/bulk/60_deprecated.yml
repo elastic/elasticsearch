@@ -2,11 +2,6 @@
 ---
 "Deprecated parameters should fail in Bulk query":
 
-   - skip:
-       version: " - 6.99.99"
-       reason:  some parameters are removed starting from 7.0, their equivalents without underscore are used instead
-       features: "warnings"
-
    - do:
        catch:  bad_request
        bulk:

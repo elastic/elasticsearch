@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Natural_logarithm">Natural logarithm</a>
  * function.
  */
 public class Log extends MathFunction {
-    public Log(Location location, Expression field) {
-        super(location, field);
+    public Log(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -26,7 +26,7 @@ public class Log extends MathFunction {
 
     @Override
     protected Log replaceChild(Expression newChild) {
-        return new Log(location(), newChild);
+        return new Log(source(), newChild);
     }
 
     @Override

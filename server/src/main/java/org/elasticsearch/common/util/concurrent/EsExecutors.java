@@ -19,18 +19,23 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -41,11 +46,14 @@ import java.util.stream.Collectors;
 public class EsExecutors {
 
     /**
-     * Settings key to manually set the number of available processors.
-     * This is used to adjust thread pools sizes etc. per node.
+     * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
      */
-    public static final Setting<Integer> PROCESSORS_SETTING =
-        Setting.intSetting("processors", Runtime.getRuntime().availableProcessors(), 1, Property.NodeScope);
+    public static final Setting<Integer> NODE_PROCESSORS_SETTING = Setting.intSetting(
+        "node.processors",
+        Runtime.getRuntime().availableProcessors(),
+        1,
+        Runtime.getRuntime().availableProcessors(),
+        Property.NodeScope);
 
     /**
      * Returns the number of available processors. Defaults to
@@ -56,54 +64,88 @@ public class EsExecutors {
      * @return the number of available processors
      */
     public static int numberOfProcessors(final Settings settings) {
-        return PROCESSORS_SETTING.get(settings);
+        return NODE_PROCESSORS_SETTING.get(settings);
     }
 
-    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory, ThreadContext contextHolder, ScheduledExecutorService timer) {
+    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory,
+                                                                        ThreadContext contextHolder, ScheduledExecutorService timer) {
         return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
     }
 
-    public static EsThreadPoolExecutor newScaling(String name, int min, int max, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static EsThreadPoolExecutor newScaling(String name, int min, int max, long keepAliveTime, TimeUnit unit,
+                                                  ThreadFactory threadFactory, ThreadContext contextHolder) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory, new ForceQueuePolicy(), contextHolder);
+        EsThreadPoolExecutor executor =
+            new EsThreadPoolExecutor(name, min, max, keepAliveTime, unit, queue, threadFactory, new ForceQueuePolicy(), contextHolder);
         queue.executor = executor;
         return executor;
     }
 
-    public static EsThreadPoolExecutor newFixed(String name, int size, int queueCapacity, ThreadFactory threadFactory, ThreadContext contextHolder) {
+    public static EsThreadPoolExecutor newFixed(String name, int size, int queueCapacity,
+                                                ThreadFactory threadFactory, ThreadContext contextHolder, boolean trackEWMA) {
         BlockingQueue<Runnable> queue;
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
-        return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS, queue, threadFactory, new EsAbortPolicy(), contextHolder);
+        if (trackEWMA) {
+            return new EWMATrackingEsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
+                queue, TimedRunnable::new, threadFactory, new EsAbortPolicy(), contextHolder);
+        } else {
+            return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
+                queue, threadFactory, new EsAbortPolicy(), contextHolder);
+        }
     }
 
     /**
-     * Return a new executor that will automatically adjust the queue size based on queue throughput.
+     * Checks if the runnable arose from asynchronous submission of a task to an executor. If an uncaught exception was thrown
+     * during the execution of this task, we need to inspect this runnable and see if it is an error that should be propagated
+     * to the uncaught exception handler.
      *
-     * @param size number of fixed threads to use for executing tasks
-     * @param initialQueueCapacity initial size of the executor queue
-     * @param minQueueSize minimum queue size that the queue can be adjusted to
-     * @param maxQueueSize maximum queue size that the queue can be adjusted to
-     * @param frameSize number of tasks during which stats are collected before adjusting queue size
+     * @param runnable the runnable to inspect, should be a RunnableFuture
+     * @return non fatal exception or null if no exception.
      */
-    public static EsThreadPoolExecutor newAutoQueueFixed(String name, int size, int initialQueueCapacity, int minQueueSize,
-                                                         int maxQueueSize, int frameSize, TimeValue targetedResponseTime,
-                                                         ThreadFactory threadFactory, ThreadContext contextHolder) {
-        if (initialQueueCapacity <= 0) {
-            throw new IllegalArgumentException("initial queue capacity for [" + name + "] executor must be positive, got: " +
-                            initialQueueCapacity);
+    public static Throwable rethrowErrors(Runnable runnable) {
+        if (runnable instanceof RunnableFuture) {
+            assert ((RunnableFuture) runnable).isDone();
+            try {
+                ((RunnableFuture) runnable).get();
+            } catch (final Exception e) {
+                /*
+                 * In theory, Future#get can only throw a cancellation exception, an interrupted exception, or an execution
+                 * exception. We want to ignore cancellation exceptions, restore the interrupt status on interrupted exceptions, and
+                 * inspect the cause of an execution. We are going to be extra paranoid here though and completely unwrap the
+                 * exception to ensure that there is not a buried error anywhere. We assume that a general exception has been
+                 * handled by the executed task or the task submitter.
+                 */
+                assert e instanceof CancellationException
+                    || e instanceof InterruptedException
+                    || e instanceof ExecutionException : e;
+                final Optional<Error> maybeError = ExceptionsHelper.maybeError(e);
+                if (maybeError.isPresent()) {
+                    // throw this error where it will propagate to the uncaught exception handler
+                    throw maybeError.get();
+                }
+                if (e instanceof InterruptedException) {
+                    // restore the interrupt status
+                    Thread.currentThread().interrupt();
+                }
+                if (e instanceof ExecutionException) {
+                    return e.getCause();
+                }
+            }
         }
-        ResizableBlockingQueue<Runnable> queue =
-                new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), initialQueueCapacity);
-        return new QueueResizingEsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
-                queue, minQueueSize, maxQueueSize, TimedRunnable::new, frameSize, targetedResponseTime, threadFactory,
-                new EsAbortPolicy(), contextHolder);
+
+        return null;
     }
 
-    private static final ExecutorService DIRECT_EXECUTOR_SERVICE = new AbstractExecutorService() {
+    private static final class DirectExecutorService extends AbstractExecutorService {
+
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+        DirectExecutorService() {
+            super();
+        }
 
         @Override
         public void shutdown() {
@@ -126,16 +168,18 @@ public class EsExecutors {
         }
 
         @Override
-        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
             throw new UnsupportedOperationException();
         }
 
         @Override
         public void execute(Runnable command) {
             command.run();
+            rethrowErrors(command);
         }
+    }
 
-    };
+    private static final ExecutorService DIRECT_EXECUTOR_SERVICE = new DirectExecutorService();
 
     /**
      * Returns an {@link ExecutorService} that executes submitted tasks on the current thread. This executor service does not support being
@@ -160,16 +204,23 @@ public class EsExecutors {
         if (Node.NODE_NAME_SETTING.exists(settings)) {
             return threadName(Node.NODE_NAME_SETTING.get(settings), namePrefix);
         } else {
+            // TODO this should only be allowed in tests
             return threadName("", namePrefix);
         }
     }
 
     public static String threadName(final String nodeName, final String namePrefix) {
+        // TODO missing node names should only be allowed in tests
         return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
         return daemonThreadFactory(threadName(settings, namePrefix));
+    }
+
+    public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
+        assert nodeName != null && false == nodeName.isEmpty();
+        return daemonThreadFactory(threadName(nodeName, namePrefix));
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String ... names) {

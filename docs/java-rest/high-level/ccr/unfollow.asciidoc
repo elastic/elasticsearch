@@ -1,0 +1,36 @@
+--
+:api: ccr-unfollow
+:request: UnfollowRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Unfollow API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Unfollow API allows you to unfollow a follower index and make it a regular index.
+Note that the follower index needs to be paused and the follower index needs to be closed.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of follow index to unfollow.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the unfollow request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the unfollow was acknowledge.
+
+include::../execution.asciidoc[]
+
+

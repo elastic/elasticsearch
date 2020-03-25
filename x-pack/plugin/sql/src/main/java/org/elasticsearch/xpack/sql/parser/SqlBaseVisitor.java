@@ -72,13 +72,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitShowSchemas(SqlBaseParser.ShowSchemasContext ctx);
   /**
-   * Visit a parse tree produced by the {@code sysCatalogs}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSysCatalogs(SqlBaseParser.SysCatalogsContext ctx);
-  /**
    * Visit a parse tree produced by the {@code sysTables}
    * labeled alternative in {@link SqlBaseParser#statement}.
    * @param ctx the parse tree
@@ -99,13 +92,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitSysTypes(SqlBaseParser.SysTypesContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code sysTableTypes}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSysTableTypes(SqlBaseParser.SysTableTypesContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#query}.
    * @param ctx the parse tree
@@ -188,6 +174,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSetQuantifier(SqlBaseParser.SetQuantifierContext ctx);
   /**
+   * Visit a parse tree produced by {@link SqlBaseParser#selectItems}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSelectItems(SqlBaseParser.SelectItemsContext ctx);
+  /**
    * Visit a parse tree produced by the {@code selectExpression}
    * labeled alternative in {@link SqlBaseParser#selectItem}.
    * @param ctx the parse tree
@@ -239,6 +231,24 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitAliasedRelation(SqlBaseParser.AliasedRelationContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#pivotClause}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPivotClause(SqlBaseParser.PivotClauseContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#pivotArgs}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPivotArgs(SqlBaseParser.PivotArgsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#namedValueExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNamedValueExpression(SqlBaseParser.NamedValueExpressionContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#expression}.
    * @param ctx the parse tree
@@ -295,6 +305,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLogicalBinary(SqlBaseParser.LogicalBinaryContext ctx);
   /**
+   * Visit a parse tree produced by {@link SqlBaseParser#matchQueryOptions}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx);
+  /**
    * Visit a parse tree produced by {@link SqlBaseParser#predicated}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -306,6 +322,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitPredicate(SqlBaseParser.PredicateContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#likePattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLikePattern(SqlBaseParser.LikePatternContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#pattern}.
    * @param ctx the parse tree
@@ -347,19 +369,19 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitArithmeticUnary(SqlBaseParser.ArithmeticUnaryContext ctx);
   /**
+   * Visit a parse tree produced by the {@code dereference}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDereference(SqlBaseParser.DereferenceContext ctx);
+  /**
    * Visit a parse tree produced by the {@code cast}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitCast(SqlBaseParser.CastContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code extract}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitExtract(SqlBaseParser.ExtractContext ctx);
   /**
    * Visit a parse tree produced by the {@code constantDefault}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
@@ -368,12 +390,33 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitConstantDefault(SqlBaseParser.ConstantDefaultContext ctx);
   /**
+   * Visit a parse tree produced by the {@code extract}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitExtract(SqlBaseParser.ExtractContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code parenthesizedExpression}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code star}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitStar(SqlBaseParser.StarContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code castOperatorExpression}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code function}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
@@ -382,6 +425,13 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFunction(SqlBaseParser.FunctionContext ctx);
   /**
+   * Visit a parse tree produced by the {@code currentDateTimeFunction}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code subqueryExpression}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
@@ -389,26 +439,18 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSubqueryExpression(SqlBaseParser.SubqueryExpressionContext ctx);
   /**
-   * Visit a parse tree produced by the {@code columnReference}
+   * Visit a parse tree produced by the {@code case}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitColumnReference(SqlBaseParser.ColumnReferenceContext ctx);
+  T visitCase(SqlBaseParser.CaseContext ctx);
   /**
-   * Visit a parse tree produced by the {@code dereference}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * Visit a parse tree produced by {@link SqlBaseParser#builtinDateTimeFunction}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitDereference(SqlBaseParser.DereferenceContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code parenthesizedExpression}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
+  T visitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#castExpression}.
    * @param ctx the parse tree
@@ -421,6 +463,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitCastTemplate(SqlBaseParser.CastTemplateContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#convertTemplate}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#extractExpression}.
    * @param ctx the parse tree
@@ -458,6 +506,13 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitNullLiteral(SqlBaseParser.NullLiteralContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code intervalLiteral}
+   * labeled alternative in {@link SqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIntervalLiteral(SqlBaseParser.IntervalLiteralContext ctx);
   /**
    * Visit a parse tree produced by the {@code numericLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.
@@ -526,6 +581,18 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitBooleanValue(SqlBaseParser.BooleanValueContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#interval}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInterval(SqlBaseParser.IntervalContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#intervalField}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIntervalField(SqlBaseParser.IntervalFieldContext ctx);
   /**
    * Visit a parse tree produced by the {@code primitiveDataType}
    * labeled alternative in {@link SqlBaseParser#dataType}.
@@ -599,6 +666,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitString(SqlBaseParser.StringContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#whenClause}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitWhenClause(SqlBaseParser.WhenClauseContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#nonReserved}.
    * @param ctx the parse tree

@@ -23,6 +23,8 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.bytes.AbstractBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -54,9 +56,14 @@ class ByteBufUtils {
                 while ((slice = iterator.next()) != null) {
                     buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
                 }
-                final CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
-                composite.addComponents(true, buffers);
-                return composite;
+
+                if (buffers.size() == 1) {
+                    return buffers.get(0);
+                } else {
+                    CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
+                    composite.addComponents(true, buffers);
+                    return composite;
+                }
             } catch (IOException ex) {
                 throw new AssertionError("no IO happens here", ex);
             }
@@ -64,10 +71,11 @@ class ByteBufUtils {
     }
 
     static BytesReference toBytesReference(final ByteBuf buffer) {
-        return new ByteBufBytesReference(buffer, buffer.readableBytes());
+        final int readableBytes = buffer.readableBytes();
+        return readableBytes == 0 ? BytesArray.EMPTY : new ByteBufBytesReference(buffer, readableBytes);
     }
 
-    private static class ByteBufBytesReference extends BytesReference {
+    private static class ByteBufBytesReference extends AbstractBytesReference {
 
         private final ByteBuf buffer;
         private final int length;
@@ -83,6 +91,17 @@ class ByteBufUtils {
         @Override
         public byte get(int index) {
             return buffer.getByte(offset + index);
+        }
+
+        @Override
+        public int getInt(int index) {
+            return buffer.getInt(offset + index);
+        }
+
+        @Override
+        public int indexOf(byte marker, int from) {
+            final int start = offset + from;
+            return buffer.forEachByte(start, length - start, value -> value != marker);
         }
 
         @Override
@@ -211,6 +230,39 @@ class ByteBufUtils {
         }
 
         @Override
+        public short readShort() throws IOException {
+            try {
+                return buffer.readShort();
+            } catch (IndexOutOfBoundsException ex) {
+                EOFException eofException = new EOFException();
+                eofException.initCause(ex);
+                throw eofException;
+            }
+        }
+
+        @Override
+        public int readInt() throws IOException {
+            try {
+                return buffer.readInt();
+            } catch (IndexOutOfBoundsException ex) {
+                EOFException eofException = new EOFException();
+                eofException.initCause(ex);
+                throw eofException;
+            }
+        }
+
+        @Override
+        public long readLong() throws IOException {
+            try {
+                return buffer.readLong();
+            } catch (IndexOutOfBoundsException ex) {
+                EOFException eofException = new EOFException();
+                eofException.initCause(ex);
+                throw eofException;
+            }
+        }
+
+        @Override
         public void reset() throws IOException {
             buffer.resetReaderIndex();
         }
@@ -233,7 +285,13 @@ class ByteBufUtils {
 
         @Override
         public byte readByte() throws IOException {
-            return buffer.readByte();
+            try {
+                return buffer.readByte();
+            } catch (IndexOutOfBoundsException ex) {
+                EOFException eofException = new EOFException();
+                eofException.initCause(ex);
+                throw eofException;
+            }
         }
 
         @Override

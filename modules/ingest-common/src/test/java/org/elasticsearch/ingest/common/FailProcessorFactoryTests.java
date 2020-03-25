@@ -62,10 +62,10 @@ public class FailProcessorFactoryTests extends ESTestCase {
     public void testInvalidMustacheTemplate() throws Exception {
         FailProcessor.Factory factory = new FailProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
-        config.put("message", "error");
+        config.put("message", "{{error}}");
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
-        assertThat(exception.getHeader("processor_tag").get(0), equalTo(processorTag));
+        assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
     }
 }

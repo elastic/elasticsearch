@@ -27,7 +27,10 @@ public enum QueryTimingType {
     NEXT_DOC,
     ADVANCE,
     MATCH,
-    SCORE;
+    SCORE,
+    SHALLOW_ADVANCE,
+    COMPUTE_MAX_SCORE,
+    SET_MIN_COMPETITIVE_SCORE;
 
     @Override
     public String toString() {

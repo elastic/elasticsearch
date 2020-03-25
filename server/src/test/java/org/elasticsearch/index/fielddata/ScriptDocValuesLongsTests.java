@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+
 public class ScriptDocValuesLongsTests extends ESTestCase {
     public void testLongs() throws IOException {
         long[][] values = new long[between(3, 10)][];
@@ -33,6 +34,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 values[d][i] = randomLong();
             }
         }
+
         Longs longs = wrap(values);
 
         for (int round = 0; round < 10; round++) {
@@ -40,19 +42,21 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             longs.setNextDocId(d);
             if (values[d].length > 0) {
                 assertEquals(values[d][0], longs.getValue());
+                assertEquals(values[d][0], (long) longs.get(0));
             } else {
                 Exception e = expectThrows(IllegalStateException.class, () -> longs.getValue());
                 assertEquals("A document doesn't have a value for a field! " +
                     "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
+                e = expectThrows(IllegalStateException.class, () -> longs.get(0));
+                assertEquals("A document doesn't have a value for a field! " +
+                    "Use doc[<field>].size()==0 to check if a document is missing a field!", e.getMessage());
             }
             assertEquals(values[d].length, longs.size());
-            assertEquals(values[d].length, longs.getValues().size());
             for (int i = 0; i < values[d].length; i++) {
                 assertEquals(values[d][i], longs.get(i).longValue());
-                assertEquals(values[d][i], longs.getValues().get(i).longValue());
             }
 
-            Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.getValues().add(100L));
+            Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.add(100L));
             assertEquals("doc values are unmodifiable", e.getMessage());
         }
     }

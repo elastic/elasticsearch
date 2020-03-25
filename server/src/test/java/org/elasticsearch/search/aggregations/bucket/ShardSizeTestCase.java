@@ -43,7 +43,7 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
 
     protected void createIdx(String keyFieldMapping) {
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "key", keyFieldMapping));
+                .setMapping("key", keyFieldMapping));
     }
 
     protected static String routing1; // routing key to shard 1
@@ -90,20 +90,20 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
 
         indexRandom(true, docs);
 
-        SearchResponse resp = client().prepareSearch("idx").setTypes("type").setRouting(routing1).setQuery(matchAllQuery()).execute().actionGet();
+        SearchResponse resp = client().prepareSearch("idx").setRouting(routing1).setQuery(matchAllQuery()).get();
         assertSearchResponse(resp);
-        long totalOnOne = resp.getHits().getTotalHits();
+        long totalOnOne = resp.getHits().getTotalHits().value;
         assertThat(totalOnOne, is(15L));
-        resp = client().prepareSearch("idx").setTypes("type").setRouting(routing2).setQuery(matchAllQuery()).execute().actionGet();
+        resp = client().prepareSearch("idx").setRouting(routing2).setQuery(matchAllQuery()).get();
         assertSearchResponse(resp);
-        long totalOnTwo = resp.getHits().getTotalHits();
+        long totalOnTwo = resp.getHits().getTotalHits().value;
         assertThat(totalOnTwo, is(12L));
     }
 
     protected List<IndexRequestBuilder> indexDoc(String shard, String key, int times) throws Exception {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[times];
         for (int i = 0; i < times; i++) {
-            builders[i] = client().prepareIndex("idx", "type").setRouting(shard).setSource(jsonBuilder()
+            builders[i] = client().prepareIndex("idx").setRouting(shard).setSource(jsonBuilder()
                     .startObject()
                     .field("key", key)
                     .field("value", 1)

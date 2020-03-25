@@ -18,18 +18,17 @@
  */
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class TranslogStats implements Streamable, ToXContentFragment {
+public class TranslogStats implements Writeable, ToXContentFragment {
 
     private long translogSizeInBytes;
     private int numberOfOperations;
@@ -38,6 +37,14 @@ public class TranslogStats implements Streamable, ToXContentFragment {
     private long earliestLastModifiedAge;
 
     public TranslogStats() {
+    }
+
+    public TranslogStats(StreamInput in) throws IOException {
+        numberOfOperations = in.readVInt();
+        translogSizeInBytes = in.readVLong();
+        uncommittedOperations = in.readVInt();
+        uncommittedSizeInBytes = in.readVLong();
+        earliestLastModifiedAge = in.readVLong();
     }
 
     public TranslogStats(int numberOfOperations, long translogSizeInBytes, int uncommittedOperations, long uncommittedSizeInBytes,
@@ -85,12 +92,12 @@ public class TranslogStats implements Streamable, ToXContentFragment {
         return numberOfOperations;
     }
 
-    /** the size of the generations in the translog that weren't yet to comitted to lucene */
+    /** the size of the generations in the translog that weren't yet to committed to lucene */
     public long getUncommittedSizeInBytes() {
         return uncommittedSizeInBytes;
     }
 
-    /** the number of operations in generations of the translog that weren't yet to comitted to lucene */
+    /** the number of operations in generations of the translog that weren't yet to committed to lucene */
     public int getUncommittedOperations() {
         return uncommittedOperations;
     }
@@ -115,31 +122,11 @@ public class TranslogStats implements Streamable, ToXContentFragment {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        numberOfOperations = in.readVInt();
-        translogSizeInBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            uncommittedOperations = in.readVInt();
-            uncommittedSizeInBytes = in.readVLong();
-        } else {
-            uncommittedOperations = numberOfOperations;
-            uncommittedSizeInBytes = translogSizeInBytes;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            earliestLastModifiedAge = in.readVLong();
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(numberOfOperations);
         out.writeVLong(translogSizeInBytes);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeVInt(uncommittedOperations);
-            out.writeVLong(uncommittedSizeInBytes);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeVLong(earliestLastModifiedAge);
-        }
+        out.writeVInt(uncommittedOperations);
+        out.writeVLong(uncommittedSizeInBytes);
+        out.writeVLong(earliestLastModifiedAge);
     }
 }

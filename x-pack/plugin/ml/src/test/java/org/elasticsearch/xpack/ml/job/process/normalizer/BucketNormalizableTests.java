@@ -9,10 +9,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
-import org.elasticsearch.xpack.core.ml.job.results.PartitionScore;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -46,11 +44,6 @@ public class BucketNormalizableTests extends ESTestCase {
         AnomalyRecord record2 = new AnomalyRecord("foo", bucket.getTimestamp(), 600);
         record2.setRecordScore(2.0);
         bucket.setRecords(Arrays.asList(record1, record2));
-
-        List<PartitionScore> partitionScores = new ArrayList<>();
-        partitionScores.add(new PartitionScore("pf1", "pv1", 0.3, 0.2, 0.1));
-        partitionScores.add(new PartitionScore("pf1", "pv2", 0.5, 0.4, 0.01));
-        bucket.setPartitionScores(partitionScores);
     }
 
     public void testIsContainerOnly() {
@@ -71,6 +64,10 @@ public class BucketNormalizableTests extends ESTestCase {
 
     public void testGetPersonFieldName() {
         assertNull(new BucketNormalizable(bucket, INDEX_NAME).getPersonFieldName());
+    }
+
+    public void testGetPersonFieldValue() {
+        assertNull(new BucketNormalizable(bucket, INDEX_NAME).getPersonFieldValue());
     }
 
     public void testGetFunctionName() {
@@ -102,15 +99,11 @@ public class BucketNormalizableTests extends ESTestCase {
         BucketNormalizable bn = new BucketNormalizable(bucket, INDEX_NAME);
 
         List<Normalizable> children = bn.getChildren();
-        assertEquals(4, children.size());
+        assertEquals(2, children.size());
         assertTrue(children.get(0) instanceof BucketInfluencerNormalizable);
         assertEquals(42.0, children.get(0).getNormalizedScore(), EPSILON);
         assertTrue(children.get(1) instanceof BucketInfluencerNormalizable);
         assertEquals(88.0, children.get(1).getNormalizedScore(), EPSILON);
-        assertTrue(children.get(2) instanceof PartitionScoreNormalizable);
-        assertEquals(0.2, children.get(2).getNormalizedScore(), EPSILON);
-        assertTrue(children.get(3) instanceof PartitionScoreNormalizable);
-        assertEquals(0.4, children.get(3).getNormalizedScore(), EPSILON);
     }
 
     public void testGetChildren_GivenTypeBucketInfluencer() {
@@ -128,7 +121,6 @@ public class BucketNormalizableTests extends ESTestCase {
         BucketNormalizable bucketNormalizable = new BucketNormalizable(bucket, INDEX_NAME);
 
         assertTrue(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 95.0));
-        assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.PARTITION_SCORE, 42.0));
 
         assertEquals(95.0, bucket.getAnomalyScore(), EPSILON);
     }
@@ -137,7 +129,6 @@ public class BucketNormalizableTests extends ESTestCase {
         BucketNormalizable bucketNormalizable = new BucketNormalizable(bucket, INDEX_NAME);
 
         assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 88.0));
-        assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.PARTITION_SCORE, 2.0));
 
         assertEquals(88.0, bucket.getAnomalyScore(), EPSILON);
     }

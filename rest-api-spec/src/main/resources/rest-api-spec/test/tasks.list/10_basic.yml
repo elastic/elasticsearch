@@ -1,16 +1,18 @@
 ---
 "tasks_list test":
-  - do:
-      cluster.state: {}
+  - skip:
+      features: [arbitrary_key]
 
-  # Get master node id
-  - set: { master_node: master }
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
 
   - do:
       tasks.list: {}
 
   - is_true: nodes
-  - is_true: nodes.$master.roles
+  - is_true: nodes.$node_id.roles
 
   - do:
       tasks.list:
@@ -21,8 +23,7 @@
 ---
 "tasks_list headers":
   - skip:
-      version: " - 6.99.99"
-      reason:  task headers has been added in 7.0.0
+      features: headers
 
   - do:
       headers: { "X-Opaque-Id": "That is me" }

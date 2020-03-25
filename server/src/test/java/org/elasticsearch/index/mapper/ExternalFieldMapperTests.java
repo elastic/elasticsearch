@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
@@ -45,6 +44,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -56,22 +56,24 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
     public void testExternalValues() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         MapperRegistry mapperRegistry = new MapperRegistry(
-                Collections.singletonMap(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo")),
-                Collections.singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()),
-                MapperPlugin.NOOP_FIELD_FILTER);
+                singletonMap(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo")),
+                singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()), MapperPlugin.NOOP_FIELD_FILTER);
 
         Supplier<QueryShardContext> queryShardContext = () -> {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
-                queryShardContext);
+                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
@@ -82,7 +84,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject())
         ));
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                             .field("field", "1234")
@@ -107,10 +109,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
-                Version.CURRENT);
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        IndexService indexService = createIndex("test", settings);
+        IndexService indexService = createIndex("test");
         Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
         mapperParsers.put(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
         mapperParsers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
@@ -121,8 +120,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
-                queryShardContext);
+                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 Strings
@@ -133,18 +131,12 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                         .startObject("field")
                             .field("type", "text")
                             .field("store", true)
-                            .startObject("fields")
-                                .startObject("raw")
-                                    .field("type", "keyword")
-                                    .field("store", true)
-                                .endObject()
-                            .endObject()
                         .endObject()
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject())));
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                             .field("field", "1234")
@@ -165,79 +157,5 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField field = doc.rootDoc().getField("field.field");
         assertThat(field, notNullValue());
         assertThat(field.stringValue(), is("foo"));
-
-        IndexableField raw = doc.rootDoc().getField("field.field.raw");
-
-        assertThat(raw, notNullValue());
-        assertThat(raw.binaryValue(), is(new BytesRef("foo")));
-    }
-
-    public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
-                Version.CURRENT);
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        IndexService indexService = createIndex("test", settings);
-        Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
-        mapperParsers.put(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
-        mapperParsers.put(ExternalMapperPlugin.EXTERNAL_BIS, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "bar"));
-        mapperParsers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
-        MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER);
-
-        Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
-        };
-        DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
-                queryShardContext);
-
-        DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
-                Strings
-                .toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("field")
-                    .field("type", ExternalMapperPlugin.EXTERNAL)
-                    .startObject("fields")
-                        .startObject("field")
-                            .field("type", "text")
-                            .startObject("fields")
-                                .startObject("generated")
-                                    .field("type", ExternalMapperPlugin.EXTERNAL_BIS)
-                                .endObject()
-                                .startObject("raw")
-                                    .field("type", "text")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                        .startObject("raw")
-                            .field("type", "text")
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .endObject().endObject().endObject())));
-
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "1234")
-                        .endObject()),
-                XContentType.JSON));
-
-        assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
-
-        assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-
-        assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
-
-        assertThat(doc.rootDoc().getField("field.field"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.field").stringValue(), is("foo"));
-
-        assertThat(doc.rootDoc().getField("field.field.generated.generated"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.field.generated.generated").stringValue(), is("bar"));
-
-        assertThat(doc.rootDoc().getField("field.field.raw"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.field.raw").stringValue(), is("foo"));
-
-        assertThat(doc.rootDoc().getField("field.raw"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.raw").stringValue(), is("foo"));
     }
 }

@@ -10,11 +10,10 @@
                 number_of_replicas: 0
                 refresh_interval: -1
             mappings:
-              doc:
-                properties:
-                  text:
-                     type : "text"
-                     term_vector : "with_positions_offsets"
+              properties:
+                text:
+                   type : "text"
+                   term_vector : "with_positions_offsets"
 
   - do:
       cluster.health:
@@ -23,7 +22,6 @@
   - do:
       index:
         index: testidx
-        type:  doc
         id:    1
         body:
             text : "foo bar"
@@ -31,11 +29,9 @@
   - do:
       termvectors:
         index: testidx
-        type:  doc
         id:    1
         realtime: false
 
   - match: { _index: "testidx" }
-  - match: { _type: "doc" }
   - match: { _id: "1" }
   - is_false: found

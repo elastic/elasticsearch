@@ -1,0 +1,67 @@
+--
+:api: update-job
+:request: UpdateJobRequest
+:response: PutJobResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Update {anomaly-job} API
+
+Provides the ability to update an {anomaly-job}.
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Update {anomaly-job} request
+
+An +{request}+ object gets created with a `JobUpdate` object.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing a `JobUpdate` object.
+
+==== Optional arguments
+
+The `JobUpdate` object has many optional arguments with which to update an
+existing {anomaly-job}. An existing, non-null `jobId` must be referenced in its 
+creation.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-options]
+--------------------------------------------------
+<1> Mandatory, non-null `jobId` referencing an existing {anomaly-job}.
+<2> Updated description.
+<3> Updated analysis limits. 
+<4> Updated background persistence interval.
+<5> Updated analysis config's categorization filters.
+<6> Updated detectors through the `JobUpdate.DetectorUpdate` object.
+<7> Updated group membership.
+<8> Updated result retention.
+<9> Updated model plot configuration.
+<10> Updated model snapshot retention setting.
+<11> Updated custom settings.
+<12> Updated renormalization window.
+
+Included with these options are specific optional `JobUpdate.DetectorUpdate` updates.
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-detector-options]
+--------------------------------------------------
+<1> The index of the detector. `O` means unknown.
+<2> The optional description of the detector.
+<3> The `DetectionRule` rules that apply to this detector.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Update {anomaly-job} response
+
+A +{response}+ contains the updated `Job` object
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `getResponse()` returns the updated `Job` object.

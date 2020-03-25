@@ -10,7 +10,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
@@ -32,13 +34,13 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
         createIndex("foo");
         client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put("index.blocks.write", true)).get();
 
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))
 
                         // adding an action that throws an error and is associated with a 60 minute throttle period
                         // with such a period, on successful execution we other executions of the watch will be
                         // throttled within the hour... but on failed execution there should be no throttling
-                .addAction("_action", TimeValue.timeValueMinutes(60), IndexAction.builder("foo", "bar")))
+                .addAction("_action", TimeValue.timeValueMinutes(60), IndexAction.builder("foo")))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -73,7 +75,7 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
         });
 
         // now lets confirm that the ack status of the action is awaits_successful_execution
-        GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch("_id").get();
+        GetWatchResponse getWatchResponse = new GetWatchRequestBuilder(client(), "_id").get();
         XContentSource watch = getWatchResponse.getSource();
         watch.getValue("status.actions._action.ack.awaits_successful_execution");
     }

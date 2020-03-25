@@ -32,7 +32,7 @@ The GCS repository plugin adds support for using Google Cloud Storage service as
 
 The following plugin has been contributed by our community:
 
-* https://github.com/wikimedia/search-repository-swift[Openstack Swift] (by Wikimedia Foundation)
+* https://github.com/BigDataBoutique/elasticsearch-repository-swift[Openstack Swift] (by Wikimedia Foundation and BigData Boutique)
 
 
 include::repository-azure.asciidoc[]

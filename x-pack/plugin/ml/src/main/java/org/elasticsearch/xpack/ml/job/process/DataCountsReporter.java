@@ -5,12 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -37,22 +33,9 @@ import java.util.function.Function;
  * changes when each of the reporting stages are passed. If the
  * function returns {@code true} the usage is logged.
  */
-public class DataCountsReporter extends AbstractComponent {
-    /**
-     * The max percentage of date parse errors allowed before
-     * an exception is thrown.
-     */
-    public static final Setting<Integer> ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING = Setting.intSetting("max.percent.date.errors", 25,
-            Property.NodeScope);
+public class DataCountsReporter {
 
-    /**
-     * The max percentage of out of order records allowed before
-     * an exception is thrown.
-     */
-    public static final Setting<Integer> ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING = Setting
-            .intSetting("max.percent.outoforder.errors", 25, Property.NodeScope);
-
-    private static final TimeValue PERSIST_INTERVAL = TimeValue.timeValueMillis(10_000L);
+    private static final Logger logger = LogManager.getLogger(DataCountsReporter.class);
 
     private final Job job;
     private final JobDataCountsPersister dataCountsPersister;
@@ -66,26 +49,17 @@ public class DataCountsReporter extends AbstractComponent {
     private long logEvery = 1;
     private long logCount = 0;
 
-    private final int acceptablePercentDateParseErrors;
-    private final int acceptablePercentOutOfOrderErrors;
-
     private Function<Long, Boolean> reportingBoundaryFunction;
 
     private DataStreamDiagnostics diagnostics;
 
-    public DataCountsReporter(Settings settings, Job job, DataCounts counts, JobDataCountsPersister dataCountsPersister) {
-
-        super(settings);
-
+    public DataCountsReporter(Job job, DataCounts counts, JobDataCountsPersister dataCountsPersister) {
         this.job = job;
         this.dataCountsPersister = dataCountsPersister;
 
         totalRecordStats = counts;
         incrementalRecordStats = new DataCounts(job.getId());
         diagnostics = new DataStreamDiagnostics(job, counts);
-
-        acceptablePercentDateParseErrors = ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING.get(settings);
-        acceptablePercentOutOfOrderErrors = ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.get(settings);
 
         reportingBoundaryFunction = this::reportEvery10000Records;
     }
@@ -242,14 +216,6 @@ public class DataCountsReporter extends AbstractComponent {
         return totalRecordStats.getInputFieldCount();
     }
 
-    public int getAcceptablePercentDateParseErrors() {
-        return acceptablePercentDateParseErrors;
-    }
-
-    public int getAcceptablePercentOutOfOrderErrors() {
-        return acceptablePercentOutOfOrderErrors;
-    }
-
     public void setAnalysedFieldsPerRecord(long value) {
         analyzedFieldsPerRecord = value;
     }
@@ -262,13 +228,13 @@ public class DataCountsReporter extends AbstractComponent {
     /**
      * Report the counts now regardless of whether or not we are at a reporting boundary.
      */
-    public void finishReporting(ActionListener<Boolean> listener) {
+    public void finishReporting() {
         Date now = new Date();
         incrementalRecordStats.setLastDataTimeStamp(now);
         totalRecordStats.setLastDataTimeStamp(now);
         diagnostics.flush();
         retrieveDiagnosticsIntermediateResults();
-        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats(), listener);
+        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats());
     }
 
     /**
@@ -352,4 +318,5 @@ public class DataCountsReporter extends AbstractComponent {
 
         diagnostics.resetCounts();
     }
+
 }

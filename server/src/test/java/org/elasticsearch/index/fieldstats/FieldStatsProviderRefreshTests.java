@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
 
     public void testQueryRewriteOnRefresh() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "s", "type=text")
+        assertAcked(client().admin().indices().prepareCreate("index").setMapping("s", "type=text")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                 .get());
@@ -57,14 +57,14 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
         final SearchResponse r1 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")).get();
         assertSearchResponse(r1);
-        assertThat(r1.getHits().getTotalHits(), equalTo(3L));
+        assertThat(r1.getHits().getTotalHits().value, equalTo(3L));
         assertRequestCacheStats(0, 1);
 
         // Search again and check it hits the cache
         final SearchResponse r2 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")).get();
         assertSearchResponse(r2);
-        assertThat(r2.getHits().getTotalHits(), equalTo(3L));
+        assertThat(r2.getHits().getTotalHits().value, equalTo(3L));
         assertRequestCacheStats(1, 1);
 
         // Index some more documents in the query range and refresh
@@ -76,7 +76,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
         final SearchResponse r3 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")).get();
         assertSearchResponse(r3);
-        assertThat(r3.getHits().getTotalHits(), equalTo(5L));
+        assertThat(r3.getHits().getTotalHits().value, equalTo(5L));
         assertRequestCacheStats(1, 2);
     }
 
@@ -93,7 +93,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
     }
 
     private void indexDocument(String id, String sValue) {
-        IndexResponse response = client().prepareIndex("index", "type", id).setSource("s", sValue).get();
+        IndexResponse response = client().prepareIndex("index").setId(id).setSource("s", sValue).get();
         assertThat(response.status(), anyOf(equalTo(RestStatus.OK), equalTo(RestStatus.CREATED)));
     }
 }

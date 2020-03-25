@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.def;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
@@ -190,7 +191,7 @@ public class ScriptClassInfo {
             componentType = componentType.getComponentType();
         }
 
-        if (painlessLookup.getPainlessStructFromJavaClass(componentType) == null) {
+        if (componentType != def.class && painlessLookup.lookupPainlessClass(componentType) == null) {
             throw new IllegalArgumentException(unknownErrorMessageSource.apply(componentType));
         }
 

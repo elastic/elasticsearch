@@ -8,8 +8,7 @@
          "offsets": false,
          "positions": false,
          "fields":["a","b","c"],
-         "_index": "testidx",
-         "_type": "test"
+         "_index": "testidx"
       },
       {
          "_id": "2",
@@ -19,8 +18,7 @@
          "offsets": false,
          "positions": false,
          "fields":["a","b","c"],
-         "_index": "testidx",
-         "_type": "test"
+         "_index": "testidx"
       }
    ]
 }

@@ -1,12 +1,12 @@
-[[returning-suggesters-type]]
-=== Returning the type of the suggester
+[[return-suggesters-type]]
+==== Returning the type of the suggester
 
 Sometimes you need to know the exact type of a suggester in order to parse its results. The `typed_keys` parameter
  can be used to change the suggester's name in the response so that it will be prefixed by its type.
 
 Considering the following example with two suggesters `term` and `phrase`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search?typed_keys
 {
@@ -25,13 +25,12 @@ POST _search?typed_keys
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 In the response, the suggester names will be changed to respectively `term#my-first-suggester` and
 `phrase#my-second-suggester`, reflecting the types of each suggestion:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "suggest": {

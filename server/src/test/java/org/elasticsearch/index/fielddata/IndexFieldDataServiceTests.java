@@ -28,7 +28,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
@@ -39,9 +39,9 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -100,6 +100,66 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertTrue(fd instanceof SortedNumericDVIndexFieldData);
     }
 
+    public void testClearField() throws Exception {
+        final IndexService indexService = createIndex("test");
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        // copy the ifdService since we can set the listener only once.
+        final IndexFieldDataService ifdService = new IndexFieldDataService(indexService.getIndexSettings(),
+            indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
+
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1").fielddata(true).build(ctx).fieldType();
+        final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2").fielddata(true).build(ctx).fieldType();
+        final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
+        Document doc = new Document();
+        doc.add(new StringField("field_1", "thisisastring", Store.NO));
+        doc.add(new StringField("field_2", "thisisanotherstring", Store.NO));
+        writer.addDocument(doc);
+        final IndexReader reader = DirectoryReader.open(writer);
+        final AtomicInteger onCacheCalled = new AtomicInteger();
+        final AtomicInteger onRemovalCalled = new AtomicInteger();
+        ifdService.setListener(new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
+                onCacheCalled.incrementAndGet();
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+                onRemovalCalled.incrementAndGet();
+            }
+        });
+        IndexFieldData<?> ifd1 = ifdService.getForField(mapper1);
+        IndexFieldData<?> ifd2 = ifdService.getForField(mapper2);
+        LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
+        LeafFieldData loadField1 = ifd1.load(leafReaderContext);
+        LeafFieldData loadField2 = ifd2.load(leafReaderContext);
+
+        assertEquals(2, onCacheCalled.get());
+        assertEquals(0, onRemovalCalled.get());
+
+        ifdService.clearField("field_1");
+
+        assertEquals(2, onCacheCalled.get());
+        assertEquals(1, onRemovalCalled.get());
+
+        ifdService.clearField("field_1");
+
+        assertEquals(2, onCacheCalled.get());
+        assertEquals(1, onRemovalCalled.get());
+
+        ifdService.clearField("field_2");
+
+        assertEquals(2, onCacheCalled.get());
+        assertEquals(2, onRemovalCalled.get());
+
+        reader.close();
+        loadField1.close();
+        loadField2.close();
+        writer.close();
+        ifdService.clear();
+    }
+
     public void testFieldDataCacheListener() throws Exception {
         final IndexService indexService = createIndex("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -109,7 +169,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType mapper1 = new TextFieldMapper.Builder("s").fielddata(true).build(ctx).fieldType();
-        final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
+        final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
         writer.addDocument(doc);
@@ -141,7 +201,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         });
         IndexFieldData<?> ifd = ifdService.getForField(mapper1);
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
-        AtomicFieldData load = ifd.load(leafReaderContext);
+        LeafFieldData load = ifd.load(leafReaderContext);
         assertEquals(1, onCacheCalled.get());
         assertEquals(0, onRemovalCalled.get());
         reader.close();
@@ -192,7 +252,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         ThreadPool threadPool = new TestThreadPool("random_threadpool_name");
         try {
             IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
-            IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
+            IndexFieldDataService ifds =
+                new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
             ft.setName("some_long");
             ft.setHasDocValues(true);
             ifds.getForField(ft); // no exception

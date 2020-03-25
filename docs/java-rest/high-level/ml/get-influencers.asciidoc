@@ -1,0 +1,84 @@
+--
+:api: get-influencers
+:request: GetInfluencersRequest
+:response: GetInfluencersResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get influencers API
+
+Retrieves one or more influencer results.
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Get influencers request
+
+A +{request}+ object gets created with an existing non-null `jobId`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`.
+
+==== Optional arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-desc]
+--------------------------------------------------
+<1> If `true`, the influencers are sorted in descending order. Defaults to `false`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-end]
+--------------------------------------------------
+<1> Influencers with timestamps earlier than this time will be returned.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-exclude-interim]
+--------------------------------------------------
+<1> If `true`, interim results will be excluded. Defaults to `false`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-influencer-score]
+--------------------------------------------------
+<1> Influencers with `influencer_score` greater than or equal to this value will
+be returned.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-page]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of
+influencers to skip. `size` specifies the maximum number of influencers to get.
+Defaults to `0` and `100` respectively.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-sort]
+--------------------------------------------------
+<1> The field to sort influencers on. Defaults to `influencer_score`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-start]
+--------------------------------------------------
+<1> Influencers with timestamps on or after this time will be returned.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get influencers response
+
+The returned +{response}+ contains the requested influencers:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The count of influencers that were matched.
+<2> The influencers retrieved.

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.action.role;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -22,7 +21,9 @@ public class PutRoleResponse extends ActionResponse implements ToXContentObject 
 
     private boolean created;
 
-    public PutRoleResponse() {
+    public PutRoleResponse(StreamInput in) throws IOException {
+        super(in);
+        this.created = in.readBoolean();
     }
     
     public PutRoleResponse(boolean created) {
@@ -41,13 +42,7 @@ public class PutRoleResponse extends ActionResponse implements ToXContentObject 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(created);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.created = in.readBoolean();
     }
-}

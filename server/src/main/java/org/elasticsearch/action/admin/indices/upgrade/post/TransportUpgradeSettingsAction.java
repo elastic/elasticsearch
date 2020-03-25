@@ -19,9 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -31,18 +34,25 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<UpgradeSettingsRequest, UpgradeSettingsResponse> {
+import java.io.IOException;
+
+public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<UpgradeSettingsRequest, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportUpgradeSettingsAction.class);
 
     private final MetaDataUpdateSettingsService updateSettingsService;
 
     @Inject
-    public TransportUpgradeSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                          MetaDataUpdateSettingsService updateSettingsService, IndexNameExpressionResolver indexNameExpressionResolver, ActionFilters actionFilters) {
-        super(settings, UpgradeSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, UpgradeSettingsRequest::new);
+    public TransportUpgradeSettingsAction(TransportService transportService, ClusterService clusterService,
+                                          ThreadPool threadPool, MetaDataUpdateSettingsService updateSettingsService,
+                                          IndexNameExpressionResolver indexNameExpressionResolver, ActionFilters actionFilters) {
+        super(UpgradeSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            UpgradeSettingsRequest::new, indexNameExpressionResolver);
         this.updateSettingsService = updateSettingsService;
     }
 
@@ -58,12 +68,13 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
     }
 
     @Override
-    protected UpgradeSettingsResponse newResponse() {
-        return new UpgradeSettingsResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(final UpgradeSettingsRequest request, final ClusterState state, final ActionListener<UpgradeSettingsResponse> listener) {
+    protected void masterOperation(Task task, final UpgradeSettingsRequest request, final ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
         UpgradeSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpgradeSettingsClusterStateUpdateRequest()
                 .ackTimeout(request.timeout())
                 .versions(request.versions())
@@ -72,12 +83,13 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
         updateSettingsService.upgradeIndexSettings(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new UpgradeSettingsResponse(response.isAcknowledged()));
+                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
             }
 
             @Override
             public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to upgrade minimum compatibility version settings on indices [{}]", request.versions().keySet()), t);
+                logger.debug(() -> new ParameterizedMessage("failed to upgrade minimum compatibility version settings on indices [{}]",
+                    request.versions().keySet()), t);
                 listener.onFailure(t);
             }
         });

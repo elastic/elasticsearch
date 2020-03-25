@@ -4,14 +4,12 @@ setup:
         indices.create:
           index: test_1
           body:
-              mappings:
-                doc: {}
+            mappings: {}
   - do:
         indices.create:
           index: test_2
           body:
-              mappings:
-                doc: {}
+            mappings: {}
 ---
 "Get /{index}/_mapping with empty mappings":
 
@@ -31,114 +29,57 @@ setup:
  - do:
     indices.get_mapping: {}
 
- - is_true: test_1.mappings.doc
- - is_true: test_2.mappings.doc
+ - is_true: test_1.mappings
+ - is_true: test_2.mappings
 
 ---
 "Get /{index}/_mapping":
 
  - do:
     indices.get_mapping:
-        index: test_1
+      index: test_1
 
- - is_true: test_1.mappings.doc
+ - is_true: test_1.mappings
  - is_false: test_2
 
 
+
 ---
-"Get /{index}/_mapping/_all":
+"Get /_all/_mapping":
 
  - do:
     indices.get_mapping:
-        index: test_1
-        type:  _all
+      index: _all
 
- - is_true: test_1.mappings.doc
- - is_false: test_2
+ - is_true: test_1.mappings
+ - is_true: test_2.mappings
 
 ---
-"Get /{index}/_mapping/*":
+"Get /*/_mapping":
 
  - do:
     indices.get_mapping:
-        index: test_1
-        type:  '*'
+      index: '*'
 
- - is_true: test_1.mappings.doc
- - is_false: test_2
+ - is_true: test_1.mappings
+ - is_true: test_2.mappings
 
 ---
-"Get /{index}/_mapping/{type}":
+"Get /index,index/_mapping":
 
  - do:
     indices.get_mapping:
-        index: test_1
-        type:  doc
+      index: test_1,test_2
 
- - is_true: test_1.mappings.doc
- - is_false: test_2
+ - is_true: test_1.mappings
+ - is_true: test_2.mappings
 
 ---
-"Get /{index}/_mapping/{type*}":
+"Get /index*/_mapping/":
 
  - do:
     indices.get_mapping:
-        index: test_1
-        type:  'd*'
+      index: '*2'
 
- - is_true: test_1.mappings.doc
- - is_false: test_2
-
----
-"Get /_mapping/{type}":
-
- - do:
-    indices.get_mapping:
-        type: doc
-
- - is_true: test_1.mappings.doc
- - is_true: test_2.mappings.doc
-
----
-"Get /_all/_mapping/{type}":
-
- - do:
-    indices.get_mapping:
-        index: _all
-        type: doc
-
- - is_true: test_1.mappings.doc
- - is_true: test_2.mappings.doc
-
----
-"Get /*/_mapping/{type}":
-
- - do:
-    indices.get_mapping:
-        index: '*'
-        type: doc
-
- - is_true: test_1.mappings.doc
- - is_true: test_2.mappings.doc
-
----
-"Get /index,index/_mapping/{type}":
-
- - do:
-    indices.get_mapping:
-        index: test_1,test_2
-        type: doc
-
- - is_true: test_1.mappings.doc
- - is_true: test_2.mappings.doc
-
----
-"Get /index*/_mapping/{type}":
-
- - do:
-    indices.get_mapping:
-        index: '*2'
-        type: doc
-
- - is_true: test_2.mappings.doc
+ - is_true: test_2.mappings
  - is_false: test_1

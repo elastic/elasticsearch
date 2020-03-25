@@ -10,7 +10,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 public final class UpgradeField {
     // this is the required index.format setting for 6.0 services (watcher and security) to start up
     // this index setting is set by the upgrade API or automatically when a 6.0 index template is created
-    private static final int EXPECTED_INDEX_FORMAT_VERSION = 6;
+    public static final int EXPECTED_INDEX_FORMAT_VERSION = 6;
 
     private UpgradeField() {}
 

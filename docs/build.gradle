@@ -1,3 +1,7 @@
+import org.elasticsearch.gradle.info.BuildParams
+
+import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -19,12 +23,47 @@
 
 apply plugin: 'elasticsearch.docs-test'
 
-integTestCluster {
-  /* Enable regexes in painless so our tests don't complain about example
-   * snippets that use them. */
+/* List of files that have snippets that will not work until platinum tests can occur ... */
+buildRestTests.expectedUnconvertedCandidates = [
+  'reference/ml/anomaly-detection/transforms.asciidoc',
+  'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-job.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+  'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+  'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
+]
+
+restResources {
+  restApi {
+    includeCore '*'
+  }
+}
+
+testClusters.integTest {
+  if (singleNode().testDistribution == DEFAULT) {
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'indices.lifecycle.history_index_enabled', 'false'
+    if (BuildParams.isSnapshotBuild() == false) {
+      systemProperty 'es.autoscaling_feature_flag_registered', 'true'
+      systemProperty 'es.eql_feature_flag_registered', 'true'
+    }
+    setting 'xpack.autoscaling.enabled', 'true'
+    setting 'xpack.eql.enabled', 'true'
+  }
+
+  // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
+  setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
-    extraConfigFile it, "src/test/cluster/config/$it"
+    extraConfigFile it, file("src/test/cluster/config/$it")
   }
   configFile 'analysis/example_word_list.txt'
   configFile 'analysis/hyphenation_patterns.xml'
@@ -33,33 +72,32 @@ integTestCluster {
   configFile 'userdict_ja.txt'
   configFile 'userdict_ko.txt'
   configFile 'KeywordTokenizer.rbbi'
-  extraConfigFile 'hunspell/en_US/en_US.aff', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff'
-  extraConfigFile 'hunspell/en_US/en_US.dic', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
+  extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
+  extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+
+  // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
+  systemProperty 'es.transport.cname_in_publish_address', 'true'
 }
 
-// remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed
-if (rootProject.ext.compilerJavaVersion.isJava11()) {
-  integTestRunner {
-    systemProperty 'tests.rest.blacklist', [
-            'plugins/ingest-attachment/line_164',
-            'plugins/ingest-attachment/line_117'
-    ].join(',')
-  }
-}
-// Build the cluster with all plugins
-
+// build the cluster with all plugins
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
   /* Skip repositories. We just aren't going to be able to test them so it
    * doesn't make sense to waste time installing them. */
   if (subproj.path.startsWith(':plugins:repository-')) {
     return
   }
+  // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
+  if (subproj.path.startsWith(':plugins:ingest-attachment') && Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+    return
+  }
+  // FIXME
   subproj.afterEvaluate { // need to wait until the project has been configured
-    integTestCluster {
-      plugin subproj.path
+    testClusters.integTest {
+      plugin file(subproj.bundlePlugin.archiveFile)
     }
+    tasks.integTest.dependsOn subproj.bundlePlugin
   }
 }
 
@@ -68,11 +106,23 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
   exclude 'build'
+  exclude 'build-idea'
+  exclude 'build-eclipse'
   // Just syntax examples
   exclude 'README.asciidoc'
+  // Broken code snippet tests
+  exclude 'reference/graph/explore.asciidoc'
+  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+    // We don't install/support this plugin in FIPS 140
+    exclude 'plugins/ingest-attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment plugin
+    exclude 'reference/cat/plugins.asciidoc'
+  }
 }
 
 listSnippets.docs = buildRestTests.docs
+
+listConsoleCandidates.docs = buildRestTests.docs
 
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
@@ -84,35 +134,33 @@ Closure setupTwitter = { String name, int count ->
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  user:
-                    type: keyword
-                    doc_values: true
-                  date:
-                    type: date
-                  likes:
-                    type: long
+              properties:
+                user:
+                  type: keyword
+                  doc_values: true
+                date:
+                  type: date
+                likes:
+                  type: long
   - do:
         bulk:
           index: twitter
-          type: _doc
           refresh: true
           body: |'''
-    for (int i = 0; i < count; i++) {
-      String user, text
-      if (i == 0) {
-        user = 'kimchy'
-        text = 'trying out Elasticsearch'
-      } else {
-        user = 'test'
-        text = "some message with the number $i"
-      }
-      buildRestTests.setups[name] += """
+  for (int i = 0; i < count; i++) {
+    String user, text
+    if (i == 0) {
+      user = 'kimchy'
+      text = 'trying out Elasticsearch'
+    } else {
+      user = 'test'
+      text = "some message with the number $i"
+    }
+    buildRestTests.setups[name] += """
             {"index":{"_id": "$i"}}
             {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
-    }
   }
+}
 setupTwitter('twitter', 5)
 setupTwitter('big_twitter', 120)
 setupTwitter('huge_twitter', 1200)
@@ -125,7 +173,6 @@ buildRestTests.setups['host'] = '''
   - do:
       nodes.info:
         metric: [ http, transport ]
-  - is_true: nodes.$master.http.publish_address
   - set: {nodes.$master.http.publish_address: host}
   - set: {nodes.$master.transport.publish_address: transport_host}
 '''
@@ -148,22 +195,20 @@ buildRestTests.setups['ledger'] = '''
               number_of_shards: 2
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  type:
-                    type: keyword
-                  amount:
-                    type: double
+              properties:
+                type:
+                  type: keyword
+                amount:
+                  type: double
   - do:
         bulk:
           index: ledger
-          type: _doc
           refresh: true
           body: |
             {"index":{}}
             {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
             {"index":{}}
-            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "decription": "another thing"}
+            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "description": "another thing"}
             {"index":{}}
             {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
             {"index":{}}
@@ -181,14 +226,12 @@ buildRestTests.setups['sales'] = '''
               number_of_shards: 2
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  type:
-                    type: keyword
+              properties:
+                type:
+                  type: keyword
   - do:
         bulk:
           index: sales
-          type: _doc
           refresh: true
           body: |
             {"index":{}}
@@ -206,6 +249,42 @@ buildRestTests.setups['sales'] = '''
             {"index":{}}
             {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}'''
 
+// Used by cumulative cardinality aggregation docs
+buildRestTests.setups['user_hits'] = '''
+  - do:
+        indices.create:
+          index: user_hits
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                user_id:
+                  type: keyword
+                timestamp:
+                  type: date
+  - do:
+        bulk:
+          index: user_hits
+          refresh: true
+          body: |
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "3"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
+
+
 // Dummy bank account data used by getting-started.asciidoc
 buildRestTests.setups['bank'] = '''
   - do:
@@ -218,7 +297,6 @@ buildRestTests.setups['bank'] = '''
   - do:
         bulk:
           index: bank
-          type: _doc
           refresh: true
           body: |
 #bank_data#
@@ -260,22 +338,20 @@ buildRestTests.setups['stackoverflow'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  author:
-                    type: keyword
-                  tags:
-                    type: keyword
+              properties:
+                author:
+                  type: keyword
+                tags:
+                  type: keyword
   - do:
         bulk:
           index: stackoverflow
-          type: _doc
           refresh: true
           body: |'''
 
 // Make Kibana strongly connected to elasticsearch and logstash
-// Make Kibana rarer (and therefore higher-ranking) than Javascript
-// Make Javascript strongly connected to jquery and angular
+// Make Kibana rarer (and therefore higher-ranking) than JavaScript
+// Make JavaScript strongly connected to jquery and angular
 // Make Cabana strongly connected to elasticsearch but only as a result of a single author
 
 for (int i = 0; i < 150; i++) {
@@ -315,16 +391,14 @@ buildRestTests.setups['news'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  source:
-                    type: keyword
-                  content:
-                    type: text
+              properties:
+                source:
+                  type: keyword
+                content:
+                  type: text
   - do:
         bulk:
           index: news
-          type: _doc
           refresh: true
           body: |'''
 
@@ -368,14 +442,12 @@ buildRestTests.setups['exams'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  grade:
-                    type: byte
+              properties:
+                grade:
+                  type: byte
   - do:
         bulk:
           index: exams
-          type: _doc
           refresh: true
           body: |
             {"index":{}}
@@ -396,25 +468,25 @@ buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:
       put_script:
         id: "my_init_script"
-        body: { "script": { "lang": "painless", "source": "params._agg.transactions = []" } }
+        body: { "script": { "lang": "painless", "source": "state.transactions = []" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_map_script"
-        body: { "script": { "lang": "painless", "source": "params._agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
+        body: { "script": { "lang": "painless", "source": "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_combine_script"
-        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in params._agg.transactions) { profit += t; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in state.transactions) { profit += t; } return profit" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_reduce_script"
-        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in params._aggs) { profit += a; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in states) { profit += a; } return profit" } }
   - match: { acknowledged: true }
 '''
 
@@ -433,10 +505,9 @@ buildRestTests.setups['analyze_sample'] = '''
                     type: custom
                     filter: [lowercase]
             mappings:
-              _doc:
-                properties:
-                  obj1.field1:
-                    type: text'''
+              properties:
+                obj1.field1:
+                  type: text'''
 
 // Used by percentile/percentile-rank aggregations
 buildRestTests.setups['latency'] = '''
@@ -448,14 +519,12 @@ buildRestTests.setups['latency'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  load_time:
-                    type: long
+              properties:
+                load_time:
+                  type: long
   - do:
         bulk:
           index: latency
-          type: _doc
           refresh: true
           body: |'''
 
@@ -463,7 +532,7 @@ buildRestTests.setups['latency'] = '''
 for (int i = 0; i < 100; i++) {
   def value = i
   if (i % 10) {
-    value = i*10
+    value = i * 10
   }
   buildRestTests.setups['latency'] += """
             {"index":{}}
@@ -480,14 +549,12 @@ buildRestTests.setups['iprange'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  ip:
-                    type: ip
+              properties:
+                ip:
+                  type: ip
   - do:
         bulk:
           index: ip_addresses
-          type: _doc
           refresh: true
           body: |'''
 
@@ -518,7 +585,6 @@ buildRestTests.setups['library'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              book:
                 properties:
                   name:
                     type: text
@@ -537,7 +603,6 @@ buildRestTests.setups['library'] = '''
   - do:
         bulk:
           index: library
-          type: book
           refresh: true
           body: |
             {"index":{"_id": "Leviathan Wakes"}}
@@ -589,4 +654,711 @@ buildRestTests.setups['library'] = '''
             {"index":{"_id": "The Moon is a Harsh Mistress"}}
             {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
 
+'''
+buildRestTests.setups['sensor_rollup_job'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+  - do:
+      raw:
+        method: PUT
+        path: _rollup/job/sensor
+        body:  >
+            {
+                "index_pattern": "sensor-*",
+                "rollup_index": "sensor_rollup",
+                "cron": "*/30 * * * * ?",
+                "page_size" :1000,
+                "groups" : {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "fixed_interval": "1h",
+                    "delay": "7d"
+                  },
+                  "terms": {
+                    "fields": ["node"]
+                  }
+                },
+                "metrics": [
+                    {
+                        "field": "temperature",
+                        "metrics": ["min", "max", "sum"]
+                    },
+                    {
+                        "field": "voltage",
+                        "metrics": ["avg"]
+                    }
+                ]
+            }
+'''
+buildRestTests.setups['sensor_started_rollup_job'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+
+  - do:
+      bulk:
+        index: sensor-1
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+  - do:
+      raw:
+        method: PUT
+        path: _rollup/job/sensor
+        body:  >
+            {
+                "index_pattern": "sensor-*",
+                "rollup_index": "sensor_rollup",
+                "cron": "* * * * * ?",
+                "page_size" :1000,
+                "groups" : {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "fixed_interval": "1h",
+                    "delay": "7d"
+                  },
+                  "terms": {
+                    "fields": ["node"]
+                  }
+                },
+                "metrics": [
+                    {
+                        "field": "temperature",
+                        "metrics": ["min", "max", "sum"]
+                    },
+                    {
+                        "field": "voltage",
+                        "metrics": ["avg"]
+                    }
+                ]
+            }
+  - do:
+      raw:
+        method: POST
+        path: _rollup/job/sensor/_start
+'''
+
+buildRestTests.setups['sensor_index'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+              load:
+                type: double
+              net_in:
+                type: long
+              net_out:
+                type: long
+              hostname:
+                type: keyword
+              datacenter:
+                type: keyword
+'''
+
+buildRestTests.setups['sensor_prefab_data'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+  - do:
+      indices.create:
+        index: sensor_rollup
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              node.terms.value:
+                type: keyword
+              temperature.sum.value:
+                type: double
+              temperature.max.value:
+                type: double
+              temperature.min.value:
+                type: double
+              timestamp.date_histogram.time_zone:
+                type: keyword
+              timestamp.date_histogram.interval:
+                type: keyword
+              timestamp.date_histogram.timestamp:
+                type: date
+              timestamp.date_histogram._count:
+                type: long
+              voltage.avg.value:
+                type: double
+              voltage.avg._count:
+                type: long
+              _rollup.id:
+                type: keyword
+              _rollup.version:
+                type: long
+            _meta:
+              _rollup:
+                sensor:
+                  cron: "* * * * * ?"
+                  rollup_index: "sensor_rollup"
+                  index_pattern: "sensor-*"
+                  timeout: "20s"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      delay: "7d"
+                      field: "timestamp"
+                      fixed_interval: "60m"
+                      time_zone: "UTC"
+                    terms:
+                      fields:
+                        - "node"
+                  id: sensor
+                  metrics:
+                    - field: "temperature"
+                      metrics:
+                        - min
+                        - max
+                        - sum
+                    - field: "voltage"
+                      metrics:
+                        - avg
+
+  - do:
+      bulk:
+        index: sensor_rollup
+        refresh: true
+        body: |
+          {"index":{}}
+          {"node.terms.value":"b","temperature.sum.value":201.0,"temperature.max.value":201.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":201.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.800000190734863,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516640400000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"c","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516381200000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"a","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.099999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516554000000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"a","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516726800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"b","temperature.sum.value":198.0,"temperature.max.value":198.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":198.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.599999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516467600000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"c","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.0,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516294800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+
+'''
+buildRestTests.setups['sample_job'] = '''
+  - do:
+      ml.put_job:
+        job_id: "sample_job"
+        body:  >
+          {
+            "description" : "Very basic job",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "function": "count"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
+buildRestTests.setups['farequote_index'] = '''
+  - do:
+        indices.create:
+          index: farequote
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              metric:
+                properties:
+                  time:
+                    type: date
+                  responsetime:
+                    type: float
+                  airline:
+                     type: keyword
+                  doc_count:
+                     type: integer
+'''
+buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index'] + '''
+  - do:
+        bulk:
+          index: farequote
+          refresh: true
+          body: |
+            {"index": {"_id":"1"}}
+            {"airline":"JZA","responsetime":990.4628,"time":"2016-02-07T00:00:00+0000", "doc_count": 5}
+            {"index": {"_id":"2"}}
+            {"airline":"JBU","responsetime":877.5927,"time":"2016-02-07T00:00:00+0000", "doc_count": 23}
+            {"index": {"_id":"3"}}
+            {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
+'''
+buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data'] + '''
+  - do:
+      ml.put_job:
+        job_id: "farequote"
+        body:  >
+          {
+            "analysis_config": {
+              "bucket_span": "60m",
+              "detectors": [{
+                "function": "mean",
+                "field_name": "responsetime",
+                "by_field_name": "airline"
+              }],
+            "summary_count_field_name": "doc_count"
+            },
+            "data_description": {
+              "time_field": "time"
+            }
+          }
+'''
+buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_job'] + '''
+  - do:
+      ml.put_datafeed:
+        datafeed_id: "datafeed-farequote"
+        body:  >
+          {
+          "job_id":"farequote",
+          "indexes":"farequote"
+          }
+'''
+buildRestTests.setups['server_metrics_index'] = '''
+  - do:
+        indices.create:
+          index: server-metrics
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                timestamp:
+                  type: date
+                total:
+                  type: long
+'''
+buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_metrics_index'] + '''
+  - do:
+        bulk:
+          index: server-metrics
+          refresh: true
+          body: |
+            {"index": {"_id":"1177"}}
+            {"timestamp":"2017-03-23T13:00:00","total":40476}
+            {"index": {"_id":"1178"}}
+            {"timestamp":"2017-03-23T13:00:00","total":15287}
+            {"index": {"_id":"1179"}}
+            {"timestamp":"2017-03-23T13:00:00","total":-776}
+            {"index": {"_id":"1180"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11366}
+            {"index": {"_id":"1181"}}
+            {"timestamp":"2017-03-23T13:00:00","total":3606}
+            {"index": {"_id":"1182"}}
+            {"timestamp":"2017-03-23T13:00:00","total":19006}
+            {"index": {"_id":"1183"}}
+            {"timestamp":"2017-03-23T13:00:00","total":38613}
+            {"index": {"_id":"1184"}}
+            {"timestamp":"2017-03-23T13:00:00","total":19516}
+            {"index": {"_id":"1185"}}
+            {"timestamp":"2017-03-23T13:00:00","total":-258}
+            {"index": {"_id":"1186"}}
+            {"timestamp":"2017-03-23T13:00:00","total":9551}
+            {"index": {"_id":"1187"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11217}
+            {"index": {"_id":"1188"}}
+            {"timestamp":"2017-03-23T13:00:00","total":22557}
+            {"index": {"_id":"1189"}}
+            {"timestamp":"2017-03-23T13:00:00","total":40508}
+            {"index": {"_id":"1190"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11887}
+            {"index": {"_id":"1191"}}
+            {"timestamp":"2017-03-23T13:00:00","total":31659}
+'''
+buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metrics_data'] + '''
+  - do:
+      ml.put_job:
+        job_id: "total-requests"
+        body:  >
+          {
+            "description" : "Total sum of requests",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "detector_description": "Sum of total",
+                "function": "sum",
+                "field_name": "total"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
+buildRestTests.setups['server_metrics_job-raw'] = buildRestTests.setups['server_metrics_data'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: _ml/anomaly_detectors/total-requests
+        body:  >
+          {
+            "description" : "Total sum of requests",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "detector_description": "Sum of total",
+                "function": "sum",
+                "field_name": "total"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
+buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server_metrics_job'] + '''
+  - do:
+      ml.put_datafeed:
+        datafeed_id: "datafeed-total-requests"
+        body:  >
+          {
+          "job_id":"total-requests",
+          "indexes":"server-metrics"
+          }
+'''
+buildRestTests.setups['server_metrics_datafeed-raw'] = buildRestTests.setups['server_metrics_job-raw'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: _ml/datafeeds/datafeed-total-requests
+        body:  >
+          {
+          "job_id":"total-requests",
+          "indexes":"server-metrics"
+          }
+'''
+buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_metrics_datafeed'] + '''
+  - do:
+      ml.open_job:
+        job_id: "total-requests"
+'''
+buildRestTests.setups['server_metrics_openjob-raw'] = buildRestTests.setups['server_metrics_datafeed-raw'] + '''
+  - do:
+      raw:
+        method: POST
+        path: _ml/anomaly_detectors/total-requests/_open
+'''
+buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  - do:
+      ml.start_datafeed:
+        datafeed_id: "datafeed-total-requests"
+'''
+buildRestTests.setups['calendar_outages'] = '''
+  - do:
+        ml.put_calendar:
+          calendar_id: "planned-outages"
+'''
+buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages'] + '''
+  - do:
+        ml.post_calendar_events:
+          calendar_id: "planned-outages"
+          body: >
+            { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "planned-outages" }
+
+
+'''
+buildRestTests.setups['calendar_outages_openjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  - do:
+       ml.put_calendar:
+         calendar_id: "planned-outages"
+'''
+buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  - do:
+       ml.put_calendar:
+         calendar_id: "planned-outages"
+         body:  >
+           {
+           "job_ids": ["total-requests"]
+           }
+'''
+buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages_addjob'] + '''
+  - do:
+       ml.post_calendar_events:
+         calendar_id: "planned-outages"
+         body:  >
+           { "events" : [
+           { "description": "event 1", "start_time": "1513641600000", "end_time": "1513728000000"},
+           { "description": "event 2", "start_time": "1513814400000", "end_time": "1513900800000"},
+           { "description": "event 3", "start_time": "1514160000000", "end_time": "1514246400000"}
+           ]}
+'''
+
+// used by median absolute deviation aggregation
+buildRestTests.setups['reviews'] = '''
+  - do:
+        indices.create:
+          index: reviews
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                product:
+                  type: keyword
+                rating:
+                  type: long
+  - do:
+        bulk:
+          index: reviews
+          refresh: true
+          body: |
+            {"index": {"_id": "1"}}
+            {"product": "widget-foo", "rating": 1}
+            {"index": {"_id": "2"}}
+            {"product": "widget-foo", "rating": 5}
+'''
+buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.remote.remote_cluster.seeds: $transport_host
+'''
+
+buildRestTests.setups['remote_cluster_and_leader_index'] = buildRestTests.setups['remote_cluster'] + '''
+  - do:
+      indices.create:
+        index: leader_index
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+            index.soft_deletes.enabled: true
+'''
+
+buildRestTests.setups['seats'] = '''
+  - do:
+        indices.create:
+          index: seats
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                theatre:
+                  type: keyword
+                cost:
+                  type: long
+                row:
+                  type: long
+                number:
+                  type: long
+                sold:
+                  type: boolean
+  - do:
+        bulk:
+          index: seats
+          refresh: true
+          body: |
+            {"index":{"_id": "1"}}
+            {"theatre": "Skyline", "cost": 37, "row": 1, "number": 7, "sold": false}
+            {"index":{"_id": "2"}}
+            {"theatre": "Graye", "cost": 30, "row": 3, "number": 5, "sold": false}
+            {"index":{"_id": "3"}}
+            {"theatre": "Graye", "cost": 33, "row": 2, "number": 6, "sold": false}
+            {"index":{"_id": "4"}}
+            {"theatre": "Skyline", "cost": 20, "row": 5, "number": 2, "sold": false}'''
+buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
+  - do:
+        indices.create:
+          index: kibana_sample_data_ecommerce
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+'''
+buildRestTests.setups['add_timestamp_pipeline'] = '''
+  - do:
+      ingest.put_pipeline:
+        id: "add_timestamp_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "@timestamp",
+                  "value" : "{{_ingest.timestamp}}"
+                }
+              }
+            ]
+          }
+'''
+buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + buildRestTests.setups['add_timestamp_pipeline']  + '''
+  - do:
+      raw:
+        method: PUT
+        path: _transform/simple-kibana-ecomm-pivot
+        body:  >
+          {
+            "source": {
+              "index": "kibana_sample_data_ecommerce",
+              "query": {
+                "term": {
+                  "geoip.continent_name": {
+                    "value": "Asia"
+                  }
+                }
+              }
+            },
+            "pivot": {
+              "group_by": {
+                "customer_id": {
+                  "terms": {
+                    "field": "customer_id"
+                  }
+                }
+              },
+              "aggregations": {
+                "max_price": {
+                  "max": {
+                    "field": "taxful_total_price"
+                  }
+                }
+              }
+            },
+            "description": "Maximum priced ecommerce data",
+            "dest": {
+              "index": "kibana_sample_data_ecommerce_transform",
+              "pipeline": "add_timestamp_pipeline"
+            },
+            "frequency": "5m",
+            "sync": {
+              "time": {
+                "field": "order_date",
+                "delay": "60s"
+              }
+            }
+          }
+'''
+buildRestTests.setups['setup_logdata'] = '''
+  - do:
+        indices.create:
+          index: logdata
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                grade:
+                  type: byte
+  - do:
+        bulk:
+          index: logdata
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100, "weight": 2}
+            {"index":{}}
+            {"grade": 50, "weight": 3}
+'''
+buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + '''
+  - do:
+      ml.put_data_frame_analytics:
+        id: "loganalytics"
+        body:  >
+          {
+            "source": {
+              "index": "logdata"
+              },
+            "dest": {
+              "index": "logdata_out"
+              },
+            "analysis": {
+              "outlier_detection": {}
+            }
+          }
+'''
+// Used by snapshot lifecycle management docs
+buildRestTests.setups['setup-repository'] = '''
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
 '''

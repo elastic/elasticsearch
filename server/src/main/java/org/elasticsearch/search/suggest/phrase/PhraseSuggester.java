@@ -19,9 +19,10 @@
 package org.elasticsearch.search.suggest.phrase;
 
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.spell.DirectSpellChecker;
@@ -45,6 +46,7 @@ import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 
+import java.io.CharArrayReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,7 +71,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     @Override
     public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion,
             IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
-        double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
+        double realWordErrorLikelihood = suggestion.realworldErrorLikelihood();
         final PhraseSuggestion response = new PhraseSuggestion(name, suggestion.getSize());
         final IndexReader indexReader = searcher.getIndexReader();
         List<PhraseSuggestionContext.DirectCandidateGenerator>  generators = suggestion.generators();
@@ -78,14 +80,14 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         for (int i = 0; i < numGenerators; i++) {
             PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
             DirectSpellChecker directSpellChecker = generator.createDirectSpellChecker();
-            Terms terms = MultiFields.getTerms(indexReader, generator.field());
+            Terms terms = MultiTerms.getTerms(indexReader, generator.field());
             if (terms !=  null) {
                 gens.add(new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(),
                         indexReader, realWordErrorLikelihood, generator.size(), generator.preFilter(), generator.postFilter(), terms));
             }
         }
         final String suggestField = suggestion.getField();
-        final Terms suggestTerms = MultiFields.getTerms(indexReader, suggestField);
+        final Terms suggestTerms = MultiTerms.getTerms(indexReader, suggestField);
         if (gens.size() > 0 && suggestTerms != null) {
             final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(),
                     suggestion.getTokenLimit());
@@ -93,11 +95,12 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood,
                     separator);
             Result checkerResult;
-            try (TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
+            try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare,
+                    suggestion.getField())) {
                 checkerResult = checker.getCorrections(stream,
                         new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
                         suggestion.maxErrors(), suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
-                }
+            }
 
             PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
             response.addTerm(resultEntry);
@@ -133,9 +136,9 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     highlighted = new Text(spare.toString());
                 }
                 if (collatePrune) {
-                    resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score), collateMatch));
+                    resultEntry.addOption(new PhraseSuggestion.Entry.Option(phrase, highlighted, (float) (correction.score), collateMatch));
                 } else {
-                    resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
+                    resultEntry.addOption(new PhraseSuggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
                 }
             }
         } else {
@@ -144,8 +147,22 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return response;
     }
 
+    private static TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) throws IOException {
+        spare.copyUTF8Bytes(query);
+        return analyzer.tokenStream(field, new CharArrayReader(spare.chars(), 0, spare.length()));
+    }
+
     private static PhraseSuggestion.Entry buildResultEntry(SuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
         spare.copyUTF8Bytes(suggestion.getText());
         return new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length(), cutoffScore);
+    }
+
+    @Override
+    protected Suggestion<? extends Entry<? extends Option>> emptySuggestion(String name, PhraseSuggestionContext suggestion,
+            CharsRefBuilder spare) throws IOException {
+        PhraseSuggestion phraseSuggestion = new PhraseSuggestion(name, suggestion.getSize());
+        spare.copyUTF8Bytes(suggestion.getText());
+        phraseSuggestion.addTerm(new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length()));
+        return phraseSuggestion;
     }
 }

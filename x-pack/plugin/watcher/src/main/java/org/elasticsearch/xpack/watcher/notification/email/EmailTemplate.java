@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -16,9 +17,11 @@ import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class EmailTemplate implements ToXContentObject {
 
@@ -110,19 +113,46 @@ public class EmailTemplate implements ToXContentObject {
         if (subject != null) {
             builder.subject(engine.render(subject, model));
         }
-        if (textBody != null) {
-            builder.textBody(engine.render(textBody, model));
-        }
+
+        Set<String> warnings = new HashSet<>(1);
         if (attachments != null) {
             for (Attachment attachment : attachments.values()) {
                 builder.attach(attachment);
+                warnings.addAll(attachment.getWarnings());
             }
         }
+
+        String htmlWarnings = "";
+        String textWarnings = "";
+        if(warnings.isEmpty() == false){
+            StringBuilder textWarningBuilder = new StringBuilder();
+            StringBuilder htmlWarningBuilder = new StringBuilder();
+            warnings.forEach(w ->
+            {
+                if(Strings.isNullOrEmpty(w) == false) {
+                    textWarningBuilder.append(w).append("\n");
+                    htmlWarningBuilder.append(w).append("<br>");
+                }
+            });
+            textWarningBuilder.append("\n");
+            htmlWarningBuilder.append("<br>");
+            htmlWarnings = htmlWarningBuilder.toString();
+            textWarnings = textWarningBuilder.toString();
+        }
+        if (textBody != null) {
+            builder.textBody(textWarnings + engine.render(textBody, model));
+        }
+
         if (htmlBody != null) {
-            String renderedHtml = engine.render(htmlBody, model);
+            String renderedHtml = htmlWarnings + engine.render(htmlBody, model);
             renderedHtml = htmlSanitizer.sanitize(renderedHtml);
             builder.htmlBody(renderedHtml);
         }
+
+        if(htmlBody == null && textBody == null && Strings.isNullOrEmpty(textWarnings) == false){
+            builder.textBody(textWarnings);
+        }
+
         return builder;
     }
 
@@ -342,6 +372,7 @@ public class EmailTemplate implements ToXContentObject {
         public boolean handle(String fieldName, XContentParser parser) throws IOException {
             if (Email.Field.FROM.match(fieldName, parser.getDeprecationHandler())) {
                 builder.from(TextTemplate.parse(parser));
+                validateEmailAddresses(builder.from);
             } else if (Email.Field.REPLY_TO.match(fieldName, parser.getDeprecationHandler())) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     List<TextTemplate> templates = new ArrayList<>();
@@ -352,6 +383,7 @@ public class EmailTemplate implements ToXContentObject {
                 } else {
                     builder.replyTo(TextTemplate.parse(parser));
                 }
+                validateEmailAddresses(builder.replyTo);
             } else if (Email.Field.TO.match(fieldName, parser.getDeprecationHandler())) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     List<TextTemplate> templates = new ArrayList<>();
@@ -362,6 +394,7 @@ public class EmailTemplate implements ToXContentObject {
                 } else {
                     builder.to(TextTemplate.parse(parser));
                 }
+                validateEmailAddresses(builder.to);
             } else if (Email.Field.CC.match(fieldName, parser.getDeprecationHandler())) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     List<TextTemplate> templates = new ArrayList<>();
@@ -372,6 +405,7 @@ public class EmailTemplate implements ToXContentObject {
                 } else {
                     builder.cc(TextTemplate.parse(parser));
                 }
+                validateEmailAddresses(builder.cc);
             } else if (Email.Field.BCC.match(fieldName, parser.getDeprecationHandler())) {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     List<TextTemplate> templates = new ArrayList<>();
@@ -382,6 +416,7 @@ public class EmailTemplate implements ToXContentObject {
                 } else {
                     builder.bcc(TextTemplate.parse(parser));
                 }
+                validateEmailAddresses(builder.bcc);
             } else if (Email.Field.PRIORITY.match(fieldName, parser.getDeprecationHandler())) {
                 builder.priority(TextTemplate.parse(parser));
             } else if (Email.Field.SUBJECT.match(fieldName, parser.getDeprecationHandler())) {
@@ -411,6 +446,26 @@ public class EmailTemplate implements ToXContentObject {
                 return false;
             }
             return true;
+        }
+
+        /**
+         * If this is a text template not using mustache
+         * @param emails The list of email addresses to parse
+         */
+        static void validateEmailAddresses(TextTemplate ... emails) {
+            for (TextTemplate emailTemplate : emails) {
+                // no mustache, do validation
+                if (emailTemplate.mayRequireCompilation() == false) {
+                    String email = emailTemplate.getTemplate();
+                    try {
+                        for (Email.Address address : Email.AddressList.parse(email)) {
+                            address.validate();
+                        }
+                    } catch (AddressException e) {
+                        throw new ElasticsearchParseException("invalid email address [{}]", e, email);
+                    }
+                }
+            }
         }
 
         public EmailTemplate parsedTemplate() {

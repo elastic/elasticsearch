@@ -1,0 +1,63 @@
+dependencies {
+  testCompile project(':x-pack:plugin:core')
+}
+
+Project mainProject = project
+
+group = "${group}.x-pack.qa.sql.security"
+
+configurations.create('testArtifacts')
+
+TaskProvider testJar = tasks.register("testJar", Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}
+
+// Tests are pushed down to subprojects and will be checked there.
+testingConventions.enabled = false
+
+subprojects {
+  // Use tests from the root security qa project in subprojects
+  configurations.create('testArtifacts')
+
+  dependencies {
+    testCompile project(":x-pack:plugin:core")
+    testArtifacts project(path: mainProject.path, configuration: 'testArtifacts')
+  }
+
+  testClusters.integTest {
+    testDistribution = 'DEFAULT'
+    // Setup auditing so we can use it in some tests
+    setting 'xpack.security.audit.enabled', 'true'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
+    // Setup roles used by tests
+    extraConfigFile 'roles.yml', mainProject.file('roles.yml')
+    /* Setup the one admin user that we run the tests as.
+     * Tests use "run as" to get different users. */
+    user username: "test_admin", password: "x-pack-test-password"
+  }
+
+  File testArtifactsDir = project.file("$buildDir/testArtifacts")
+  TaskProvider copyTestClasses = tasks.register("copyTestClasses", Copy) {
+    dependsOn configurations.testArtifacts
+    from { zipTree(configurations.testArtifacts.singleFile) }
+    into testArtifactsDir
+  }
+
+  integTest.runner {
+    dependsOn copyTestClasses
+    testClassesDirs += project.files(testArtifactsDir)
+    classpath += configurations.testArtifacts
+    nonInputProperties.systemProperty 'tests.audit.logfile',
+      "${-> testClusters.integTest.singleNode().getAuditLog()}"
+    nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
+      "${-> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}.json"
+  }
+
+  testingConventions.enabled = false
+}

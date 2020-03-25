@@ -3,17 +3,15 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -23,28 +21,29 @@ import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
-import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 
-    public RestSqlQueryAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, Protocol.SQL_QUERY_REST_ENDPOINT, this);
-        controller.registerHandler(POST, Protocol.SQL_QUERY_REST_ENDPOINT, this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, Protocol.SQL_QUERY_REST_ENDPOINT),
+            new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
+            throws IOException {
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlQueryRequest.fromXContent(parser,Mode.fromString(request.param("mode")));
+            sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
 
         /*
@@ -52,14 +51,22 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * {@link XContent} outputs we can't use {@link RestToXContentListener}
          * like everything else. We want to stick as closely as possible to
          * Elasticsearch's defaults though, while still layering in ways to
-         * control the output more easilly.
+         * control the output more easily.
          *
          * First we find the string that the user used to specify the response
-         * format. If there is a {@code format} paramter we use that. If there
+         * format. If there is a {@code format} parameter we use that. If there
          * isn't but there is a {@code Accept} header then we use that. If there
          * isn't then we use the {@code Content-Type} header which is required.
          */
-        String accept = request.param("format");
+        String accept = null;
+
+        if (Mode.isDedicatedClient(sqlRequest.requestInfo().mode())
+                && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
+            // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
+            accept = XContentType.CBOR.name();
+        } else {
+            accept = request.param("format");
+        }
         if (accept == null) {
             accept = request.header("Accept");
             if ("*/*".equals(accept)) {
@@ -80,36 +87,38 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * which we turn into a 400 error.
          */
         XContentType xContentType = accept == null ? XContentType.JSON : XContentType.fromMediaTypeOrFormat(accept);
-        if (xContentType != null) {
-            return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
-                    XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
-                    response.toXContent(builder, request);
-                    return new BytesRestResponse(RestStatus.OK, builder);
-                }
-            });
-        }
+        TextFormat textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
 
-        TextFormat textFormat = TextFormat.fromMediaTypeOrFormat(accept);
+        if (xContentType == null && sqlRequest.columnar()) {
+            throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
+                    + "txt, csv or tsv formats");
+        }
 
         long startNanos = System.nanoTime();
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override
             public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
-                Cursor cursor = Cursors.decodeFromString(sqlRequest.cursor());
-                final String data = textFormat.format(cursor, request, response);
+                RestResponse restResponse;
 
-                RestResponse restResponse = new BytesRestResponse(RestStatus.OK, textFormat.contentType(request),
+                // XContent branch
+                if (xContentType != null) {
+                    XContentBuilder builder = channel.newBuilder(request.getXContentType(), xContentType, true);
+                    response.toXContent(builder, request);
+                    restResponse = new BytesRestResponse(RestStatus.OK, builder);
+                }
+                // TextFormat
+                else {
+                    final String data = textFormat.format(request, response);
+
+                    restResponse = new BytesRestResponse(RestStatus.OK, textFormat.contentType(request),
                         data.getBytes(StandardCharsets.UTF_8));
 
-                Cursor responseCursor = textFormat.wrapCursor(cursor, response);
-
-                if (responseCursor != Cursor.EMPTY) {
-                    restResponse.addHeader("Cursor", Cursors.encodeToString(Version.CURRENT, responseCursor));
+                    if (response.hasCursor()) {
+                        restResponse.addHeader("Cursor", response.cursor());
+                    }
                 }
-                restResponse.addHeader("Took-nanos", Long.toString(System.nanoTime() - startNanos));
 
+                restResponse.addHeader("Took-nanos", Long.toString(System.nanoTime() - startNanos));
                 return restResponse;
             }
         });
@@ -117,6 +126,6 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_sql_query_action";
+        return "sql_query";
     }
 }

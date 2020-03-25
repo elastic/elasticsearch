@@ -8,14 +8,16 @@ package org.elasticsearch.xpack.core.rollup.job;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomGroupConfig;
+
 public class GroupConfigSerializingTests extends AbstractSerializingTestCase<GroupConfig> {
+
     @Override
-    protected GroupConfig doParseInstance(XContentParser parser) throws IOException {
-        return GroupConfig.PARSER.apply(parser, null).build();
+    protected GroupConfig doParseInstance(final XContentParser parser) throws IOException {
+        return GroupConfig.fromXContent(parser);
     }
 
     @Override
@@ -25,6 +27,6 @@ public class GroupConfigSerializingTests extends AbstractSerializingTestCase<Gro
 
     @Override
     protected GroupConfig createTestInstance() {
-        return ConfigTestHelpers.getGroupConfig().build();
+        return randomGroupConfig(random());
     }
 }

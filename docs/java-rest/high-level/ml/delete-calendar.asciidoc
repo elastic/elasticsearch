@@ -1,0 +1,34 @@
+--
+:api: delete-calendar
+:request: DeleteCalendarRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Delete calendar API
+Delete a {ml} calendar.
+The API accepts a +{request}+ and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Delete calendar request
+
+A `DeleteCalendar` object requires a non-null `calendarId`.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new request referencing an existing calendar
+
+[id="{upid}-{api}-response"]
+==== Delete calendar response
+
+The returned +{response}+ object indicates the acknowledgement of the request:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+---------------------------------------------------
+<1> `isAcknowledged` was the deletion request acknowledged or not
+
+include::../execution.asciidoc[]

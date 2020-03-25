@@ -26,10 +26,10 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.PointerByReference;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -38,7 +38,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -91,7 +90,7 @@ import java.util.Map;
  */
 // not an example of how to write code!!!
 final class SystemCallFilter {
-    private static final Logger logger = Loggers.getLogger(SystemCallFilter.class);
+    private static final Logger logger = LogManager.getLogger(SystemCallFilter.class);
 
     // Linux implementation, based on seccomp(2) or prctl(2) with bpf filtering
 
@@ -239,10 +238,9 @@ final class SystemCallFilter {
     /** supported architectures map keyed by os.arch */
     private static final Map<String,Arch> ARCHITECTURES;
     static {
-        Map<String,Arch> m = new HashMap<>();
-        m.put("amd64", new Arch(0xC000003E, 0x3FFFFFFF, 57, 58, 59, 322, 317));
-        m.put("aarch64",  new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277));
-        ARCHITECTURES = Collections.unmodifiableMap(m);
+        ARCHITECTURES = Map.of(
+                "amd64", new Arch(0xC000003E, 0x3FFFFFFF, 57, 58, 59, 322, 317),
+                "aarch64", new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277));
     }
 
     /** invokes prctl() from linux libc library */

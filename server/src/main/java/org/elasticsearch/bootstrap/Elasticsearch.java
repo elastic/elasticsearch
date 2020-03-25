@@ -24,7 +24,6 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -37,6 +36,7 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.Permission;
+import java.security.Security;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -52,9 +52,9 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
     // visible for testing
     Elasticsearch() {
-        super("starts elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
+        super("Starts Elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"),
-            "Prints elasticsearch version information and exits");
+            "Prints Elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"),
             "Starts Elasticsearch in the background")
             .availableUnless(versionOption);
@@ -73,19 +73,52 @@ class Elasticsearch extends EnvironmentAwareCommand {
      * Main entry point for starting elasticsearch
      */
     public static void main(final String[] args) throws Exception {
-        // we want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
-        // presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy)
+        overrideDnsCachePolicyProperties();
+        /*
+         * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
+         * presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy). This
+         * forces such policies to take effect immediately.
+         */
         System.setSecurityManager(new SecurityManager() {
+
             @Override
             public void checkPermission(Permission perm) {
                 // grant all permissions so that we can later set the security manager to the one that we want
             }
+
         });
         LogConfigurator.registerErrorListener();
         final Elasticsearch elasticsearch = new Elasticsearch();
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
+            final String basePath = System.getProperty("es.logs.base_path");
+            // It's possible to fail before logging has been configured, in which case there's no point
+            // suggesting that the user look in the log file.
+            if (basePath != null) {
+                Terminal.DEFAULT.errorPrintln(
+                    "ERROR: Elasticsearch did not exit normally - check the logs at "
+                        + basePath
+                        + System.getProperty("file.separator")
+                        + System.getProperty("es.logs.cluster_name") + ".log"
+                );
+            }
             exit(status);
+        }
+    }
+
+    private static void overrideDnsCachePolicyProperties() {
+        for (final String property : new String[] {"networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
+            final String overrideProperty = "es." + property;
+            final String overrideValue = System.getProperty(overrideProperty);
+            if (overrideValue != null) {
+                try {
+                    // round-trip the property to an integer and back to a string to ensure that it parses properly
+                    Security.setProperty(property, Integer.toString(Integer.valueOf(overrideValue)));
+                } catch (final NumberFormatException e) {
+                    throw new IllegalArgumentException(
+                            "failed to parse [" + overrideProperty + "] with value [" + overrideValue + "]", e);
+                }
+            }
         }
     }
 
@@ -100,14 +133,15 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
         if (options.has(versionOption)) {
             final String versionOutput = String.format(
-                    Locale.ROOT,
-                    "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
-                    Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
-                    Build.CURRENT.flavor().displayName(),
-                    Build.CURRENT.type().displayName(),
-                    Build.CURRENT.shortHash(),
-                    Build.CURRENT.date(),
-                    JvmInfo.jvmInfo().version());
+                Locale.ROOT,
+                "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
+                Build.CURRENT.getQualifiedVersion(),
+                Build.CURRENT.flavor().displayName(),
+                Build.CURRENT.type().displayName(),
+                Build.CURRENT.hash(),
+                Build.CURRENT.date(),
+                JvmInfo.jvmInfo().version()
+            );
             terminal.println(versionOutput);
             return;
         }

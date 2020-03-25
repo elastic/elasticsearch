@@ -1,0 +1,96 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-remove-policy]]
+=== Remove policy from index API
+++++
+<titleabbrev>Remove policy</titleabbrev>
+++++
+
+Removes the assigned lifecycle policy from an index.
+
+[[ilm-remove-policy-request]]
+==== {api-request-title}
+
+`POST <index>/_ilm/remove`
+
+[[ilm-remove-policy-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage_ilm`
+privileges on the indices being managed to use this API. For more information,
+see <<security-privileges>>.
+
+[[ilm-remove-policy-desc]]
+==== {api-description-title}
+
+Removes the assigned lifecycle policy and stops managing the specified index.
+If an index pattern is specified, removes the assigned policies from all matching
+indices.
+
+[[ilm-remove-policy-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+  (Required, string) Identifier for the index.
+
+[[ilm-remove-policy-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[[ilm-remove-policy-example]]
+==== {api-examples-title}
+
+The following example removes the assigned policy from `my_index`.
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "min_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my_index
+{
+  "settings": {
+    "index.lifecycle.name": "my_policy"
+  }
+}
+--------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+POST my_index/_ilm/remove
+--------------------------------------------------
+// TEST[continued]
+
+If the request succeeds, you receive the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "has_failures" : false,
+  "failed_indexes" : []
+}
+--------------------------------------------------

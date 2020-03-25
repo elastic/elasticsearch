@@ -1,4 +1,6 @@
 setup:
+
+
   - do:
       indices.create:
           index: test_1
@@ -10,7 +12,6 @@ setup:
   - do:
       index:
           index:  test_1
-          type:   test
           id:     id_1
           body:   { foo: bar, title: howdy }
 
@@ -23,7 +24,6 @@ setup:
   - do:
       explain:
           index:  test_1
-          type:   test
           id:     id_1
           body:
             query:
@@ -32,7 +32,6 @@ setup:
   - is_true: matched
   - match: { explanation.value: 1 }
   - match: { _index: test_1 }
-  - match: { _type: test }
   - match: { _id: id_1 }
 
 ---
@@ -41,7 +40,6 @@ setup:
   - do:
       explain:
           index:  alias_1
-          type:   test
           id:     id_1
           body:
             query:
@@ -50,7 +48,6 @@ setup:
   - is_true: matched
   - match: { explanation.value: 1 }
   - match: { _index: test_1 }
-  - match: { _type: test }
   - match: { _id: id_1 }
 
 ---
@@ -59,8 +56,6 @@ setup:
       catch: bad_request
       explain:
           index:  test_1
-          type:   test
           id:     id_1
           body:
             match_all: {}
-

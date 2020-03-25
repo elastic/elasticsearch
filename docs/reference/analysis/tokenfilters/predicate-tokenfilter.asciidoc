@@ -1,0 +1,79 @@
+[[analysis-predicatefilter-tokenfilter]]
+=== Predicate script token filter
+++++
+<titleabbrev>Predicate script</titleabbrev>
+++++
+
+The predicate_token_filter token filter takes a predicate script, and removes tokens that do
+not match the predicate.
+
+[float]
+=== Options
+[horizontal]
+script:: a predicate script that determines whether or not the current token will
+be emitted.  Note that only inline scripts are supported.
+
+[float]
+=== Settings example
+
+You can set it up like:
+
+[source,console]
+--------------------------------------------------
+PUT /condition_example
+{
+    "settings" : {
+        "analysis" : {
+            "analyzer" : {
+                "my_analyzer" : {
+                    "tokenizer" : "standard",
+                    "filter" : [ "my_script_filter" ]
+                }
+            },
+            "filter" : {
+                "my_script_filter" : {
+                    "type" : "predicate_token_filter",
+                    "script" : {
+                        "source" : "token.getTerm().length() > 5"  <1>
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> This will emit tokens that are more than 5 characters long
+
+And test it like:
+
+[source,console]
+--------------------------------------------------
+POST /condition_example/_analyze
+{
+  "analyzer" : "my_analyzer",
+  "text" : "What Flapdoodle"
+}
+--------------------------------------------------
+// TEST[continued]
+
+And it'd respond:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens": [
+    {
+      "token": "Flapdoodle",        <1>
+      "start_offset": 5,
+      "end_offset": 15,
+      "type": "<ALPHANUM>",
+      "position": 1                 <2>
+    }
+  ]
+}
+--------------------------------------------------
+
+<1> The token 'What' has been removed from the tokenstream because it does not
+match the predicate.
+<2> The position and offset values are unaffected by the removal of earlier tokens

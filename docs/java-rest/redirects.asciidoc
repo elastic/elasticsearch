@@ -1,0 +1,49 @@
+["appendix",role="exclude",id="redirects"]
+= Deleted pages
+
+The following pages have moved or been deleted.
+
+[role="exclude",id="_data_frame_transform_apis"]
+=== {transform-cap} APIs
+
+See <<transform_apis>>.
+
+[role="exclude",id="java-rest-high-dataframe-get-data-frame-transform"]
+=== Get {transform} API
+
+See <<java-rest-high-get-transform>>.
+
+[role="exclude",id="java-rest-high-dataframe-get-data-frame-transform-stats"]
+=== Get {transform} stats API
+
+See <<java-rest-high-get-transform-stats>>.
+
+[role="exclude",id="java-rest-high-dataframe-put-data-frame-transform"]
+=== Put {transform} API
+
+See <<java-rest-high-put-transform>>.
+
+[role="exclude",id="java-rest-high-dataframe-update-data-frame-transform"]
+=== Update {transform} API
+
+See <<java-rest-high-update-transform>>.
+
+[role="exclude",id="java-rest-high-dataframe-delete-data-frame-transform"]
+=== Delete {transform} API
+
+See <<java-rest-high-delete-transform>>.
+
+[role="exclude",id="java-rest-high-dataframe-preview-data-frame-transform"]
+=== Preview {transform} API
+
+See <<java-rest-high-preview-transform>>.
+
+[role="exclude",id="java-rest-high-dataframe-start-data-frame-transform"]
+=== Start {transform} API
+
+See <<java-rest-high-start-transform>>.
+
+[role="exclude",id="java-rest-high-dataframe-stop-data-frame-transform"]
+=== Stop {transform} API
+
+See <<java-rest-high-stop-transform>>.

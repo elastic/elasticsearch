@@ -5,15 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+
 import java.util.List;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class ExtendedStats extends CompoundNumericAggregate {
 
-    public ExtendedStats(Location location, Expression field) {
-        super(location, field);
+    public ExtendedStats(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -26,6 +27,6 @@ public class ExtendedStats extends CompoundNumericAggregate {
         if (newChildren.size() != 1) {
             throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
         }
-        return new ExtendedStats(location(), newChildren.get(0));
+        return new ExtendedStats(source(), newChildren.get(0));
     }
 }

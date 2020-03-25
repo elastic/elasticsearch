@@ -49,8 +49,22 @@ import org.joda.time.format.ISODateTimeFormat;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.Path;
+import java.time.DayOfWeek;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.Month;
+import java.time.MonthDay;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.Period;
+import java.time.Year;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -65,6 +79,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -252,6 +267,36 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 .startObject()
                     .array("short", new short[]{Short.MAX_VALUE, Short.MIN_VALUE})
                 .endObject());
+    }
+
+    public void testBigIntegers() throws Exception {
+        assertResult("{'bigint':null}", () -> builder().startObject().field("bigint", (BigInteger) null).endObject());
+        assertResult("{'bigint':[]}", () -> builder().startObject().array("bigint", new BigInteger[]{}).endObject());
+
+        BigInteger bigInteger = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
+        String result = "{'bigint':" + bigInteger.toString() + "}";
+        assertResult(result, () -> builder().startObject().field("bigint", bigInteger).endObject());
+
+        result = "{'bigint':[" + bigInteger.toString() + "," + bigInteger.toString() + "," + bigInteger.toString() +"]}";
+        assertResult(result, () -> builder()
+            .startObject()
+            .array("bigint", bigInteger, bigInteger, bigInteger)
+            .endObject());
+    }
+
+    public void testBigDecimals() throws Exception {
+        assertResult("{'bigdecimal':null}", () -> builder().startObject().field("bigdecimal", (BigInteger) null).endObject());
+        assertResult("{'bigdecimal':[]}", () -> builder().startObject().array("bigdecimal", new BigInteger[]{}).endObject());
+
+        BigDecimal bigDecimal = new BigDecimal("234.43");
+        String result = "{'bigdecimal':" + bigDecimal.toString() + "}";
+        assertResult(result, () -> builder().startObject().field("bigdecimal", bigDecimal).endObject());
+
+        result = "{'bigdecimal':[" + bigDecimal.toString() + "," + bigDecimal.toString() + "," + bigDecimal.toString() +"]}";
+        assertResult(result, () -> builder()
+            .startObject()
+            .array("bigdecimal", bigDecimal, bigDecimal, bigDecimal)
+            .endObject());
     }
 
     public void testStrings() throws IOException {
@@ -459,6 +504,116 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 .endObject());
     }
 
+    public void testJavaTime() throws Exception {
+        final ZonedDateTime d1 = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+
+        // ZonedDateTime
+        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (ZonedDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((ZonedDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date", (ZonedDateTime) null).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timeField("d1", d1).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").timeValue(d1).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1).endObject());
+
+        // Instant
+        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (java.time.Instant) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((java.time.Instant) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date", (java.time.Instant) null).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timeField("d1", d1.toInstant()).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").timeValue(d1.toInstant()).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1.toInstant()).endObject());
+
+        // LocalDateTime (no time zone)
+        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((LocalDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date", (LocalDateTime) null).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}",
+            () -> builder().startObject().timeField("d1", d1.toLocalDateTime()).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}",
+            () -> builder().startObject().field("d1").timeValue(d1.toLocalDateTime()).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1.toLocalDateTime()).endObject());
+
+        // LocalDate (no time, no time zone)
+        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalDate) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((LocalDate) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date", (LocalDate) null).endObject());
+        assertResult("{'d1':'2016-01-01'}", () -> builder().startObject().timeField("d1", d1.toLocalDate()).endObject());
+        assertResult("{'d1':'2016-01-01'}", () -> builder().startObject().field("d1").timeValue(d1.toLocalDate()).endObject());
+        assertResult("{'d1':'2016-01-01'}", () -> builder().startObject().field("d1", d1.toLocalDate()).endObject());
+
+        // LocalTime (no date, no time zone)
+        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((LocalTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date", (LocalTime) null).endObject());
+        assertResult("{'d1':'00:00:00.000'}", () -> builder().startObject().timeField("d1", d1.toLocalTime()).endObject());
+        assertResult("{'d1':'00:00:00.000'}", () -> builder().startObject().field("d1").timeValue(d1.toLocalTime()).endObject());
+        assertResult("{'d1':'00:00:00.000'}", () -> builder().startObject().field("d1", d1.toLocalTime()).endObject());
+        final ZonedDateTime d2 = ZonedDateTime.of(2016, 1, 1, 7, 59, 23, 123_000_000, ZoneOffset.UTC);
+        assertResult("{'d1':'07:59:23.123'}", () -> builder().startObject().timeField("d1", d2.toLocalTime()).endObject());
+        assertResult("{'d1':'07:59:23.123'}", () -> builder().startObject().field("d1").timeValue(d2.toLocalTime()).endObject());
+        assertResult("{'d1':'07:59:23.123'}", () -> builder().startObject().field("d1", d2.toLocalTime()).endObject());
+
+        // OffsetDateTime
+        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (OffsetDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((OffsetDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date", (OffsetDateTime) null).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1.toOffsetDateTime()).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}",
+            () -> builder().startObject().timeField("d1", d1.toOffsetDateTime()).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}",
+            () -> builder().startObject().field("d1").timeValue(d1.toOffsetDateTime()).endObject());
+        // also test with a date that has a real offset
+        OffsetDateTime offsetDateTime = d1.withZoneSameLocal(ZoneOffset.ofHours(5)).toOffsetDateTime();
+        assertResult("{'d1':'2016-01-01T00:00:00.000+05:00'}", () -> builder().startObject().field("d1", offsetDateTime).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000+05:00'}", () -> builder().startObject().timeField("d1", offsetDateTime).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000+05:00'}",
+            () -> builder().startObject().field("d1").timeValue(offsetDateTime).endObject());
+
+        // OffsetTime
+        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (OffsetTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((OffsetTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date", (OffsetTime) null).endObject());
+        final OffsetTime offsetTime = d2.toOffsetDateTime().toOffsetTime();
+        assertResult("{'o':'07:59:23.123Z'}", () -> builder().startObject().timeField("o", offsetTime).endObject());
+        assertResult("{'o':'07:59:23.123Z'}", () -> builder().startObject().field("o").timeValue(offsetTime).endObject());
+        assertResult("{'o':'07:59:23.123Z'}", () -> builder().startObject().field("o", offsetTime).endObject());
+        // also test with a date that has a real offset
+        final OffsetTime zonedOffsetTime = offsetTime.withOffsetSameLocal(ZoneOffset.ofHours(5));
+        assertResult("{'o':'07:59:23.123+05:00'}", () -> builder().startObject().timeField("o", zonedOffsetTime).endObject());
+        assertResult("{'o':'07:59:23.123+05:00'}", () -> builder().startObject().field("o").timeValue(zonedOffsetTime).endObject());
+        assertResult("{'o':'07:59:23.123+05:00'}", () -> builder().startObject().field("o", zonedOffsetTime).endObject());
+
+        // DayOfWeek enum, not a real time value, but might be used in scripts
+        assertResult("{'dayOfWeek':null}", () -> builder().startObject().field("dayOfWeek", (DayOfWeek) null).endObject());
+        DayOfWeek dayOfWeek = randomFrom(DayOfWeek.values());
+        assertResult("{'dayOfWeek':'" + dayOfWeek + "'}", () -> builder().startObject().field("dayOfWeek", dayOfWeek).endObject());
+
+        // Month
+        Month month = randomFrom(Month.values());
+        assertResult("{'m':null}", () -> builder().startObject().field("m", (Month) null).endObject());
+        assertResult("{'m':'" + month + "'}", () -> builder().startObject().field("m", month).endObject());
+
+        // MonthDay
+        MonthDay monthDay = MonthDay.of(month, randomIntBetween(1, 28));
+        assertResult("{'m':null}", () -> builder().startObject().field("m", (MonthDay) null).endObject());
+        assertResult("{'m':'" + monthDay + "'}", () -> builder().startObject().field("m", monthDay).endObject());
+
+        // Year
+        Year year = Year.of(randomIntBetween(0, 2300));
+        assertResult("{'y':null}", () -> builder().startObject().field("y", (Year) null).endObject());
+        assertResult("{'y':'" + year + "'}", () -> builder().startObject().field("y", year).endObject());
+
+        // Duration
+        Duration duration = Duration.ofSeconds(randomInt(100000));
+        assertResult("{'d':null}", () -> builder().startObject().field("d", (Duration) null).endObject());
+        assertResult("{'d':'" + duration + "'}", () -> builder().startObject().field("d", duration).endObject());
+
+        // Period
+        Period period = Period.ofDays(randomInt(1000));
+        assertResult("{'p':null}", () -> builder().startObject().field("p", (Period) null).endObject());
+        assertResult("{'p':'" + period + "'}", () -> builder().startObject().field("p", period).endObject());
+    }
+
     public void testGeoPoint() throws Exception {
         assertResult("{'geo':null}", () -> builder().startObject().field("geo", (GeoPoint) null).endObject());
         assertResult("{'geo':{'lat':52.4267578125,'lon':13.271484375}}", () -> builder()
@@ -599,7 +754,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                     .field("xcontent", xcontent0)
                 .endObject());
 
-        ToXContent xcontent1 = (builder, params) -> {
+        ToXContentObject xcontent1 = (builder, params) -> {
             builder.startObject();
             builder.field("field", "value");
             builder.startObject("foo");
@@ -609,7 +764,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             return builder;
         };
 
-        ToXContent xcontent2 = (builder, params) -> {
+        ToXContentObject xcontent2 = (builder, params) -> {
             builder.startObject();
             builder.field("root", xcontent0);
             builder.array("childs", xcontent0, xcontent1);
@@ -985,9 +1140,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testChecksForDuplicates() throws Exception {
-        assumeTrue("Test only makes sense if XContent parser has strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-
         XContentBuilder builder = builder()
                 .startObject()
                     .field("key", 1)
@@ -1019,16 +1171,17 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             {
                 NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class,
                     () -> p.namedObject(Object.class, "unknown", null));
-                assertThat(e.getMessage(), endsWith("unable to parse Object with name [unknown]: parser not found"));
+                assertThat(e.getMessage(), endsWith("unknown field [unknown]"));
+                assertThat(e.getCandidates(), containsInAnyOrder("test1", "test2", "deprecated", "str"));
             }
             {
-                Exception e = expectThrows(NamedObjectNotFoundException.class, () -> p.namedObject(String.class, "doesn't matter", null));
+                Exception e = expectThrows(XContentParseException.class, () -> p.namedObject(String.class, "doesn't matter", null));
                 assertEquals("unknown named object category [java.lang.String]", e.getMessage());
             }
         }
         try (XContentParser emptyRegistryParser = xcontentType().xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new byte[] {})) {
-            Exception e = expectThrows(NamedObjectNotFoundException.class,
+            Exception e = expectThrows(XContentParseException.class,
                 () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
             assertEquals("named objects are not supported for this parser", e.getMessage());
         }
@@ -1055,11 +1208,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     private static void expectNonNullFieldException(ThrowingRunnable runnable) {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
         assertThat(e.getMessage(), containsString("Field name cannot be null"));
-    }
-
-    private static void expectNonNullFormatterException(ThrowingRunnable runnable) {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
-        assertThat(e.getMessage(), containsString("DateTimeFormatter cannot be null"));
     }
 
     private static void expectObjectException(ThrowingRunnable runnable) {

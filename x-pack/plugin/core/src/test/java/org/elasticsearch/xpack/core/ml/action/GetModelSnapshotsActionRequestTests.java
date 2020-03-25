@@ -5,16 +5,17 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction.Request;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 
-public class GetModelSnapshotsActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class GetModelSnapshotsActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) {
-        return GetModelSnapshotsAction.Request.parseRequest(null, null, parser);
+        return Request.parseRequest(null, null, parser);
     }
 
     @Override
@@ -41,13 +42,12 @@ public class GetModelSnapshotsActionRequestTests extends AbstractStreamableXCont
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected boolean supportsUnknownFields() {
+        return false;
     }
-
 }

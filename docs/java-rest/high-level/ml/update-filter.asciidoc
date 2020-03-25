@@ -1,0 +1,57 @@
+--
+:api: update-filter
+:request: UpdateFilterRequest
+:response: PutFilterResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Update filter API
+
+Updates an existing {ml} filter in the cluster. The API accepts a +{request}+
+object as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Update filter request
+
+A +{request}+ requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The id of the existing {ml} filter.
+
+==== Optional arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-description]
+--------------------------------------------------
+<1> The updated description of the {ml} filter.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-add-items]
+--------------------------------------------------
+<1> The list of items to add to the {ml} filter.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-remove-items]
+--------------------------------------------------
+<1> The list of items to remove from the {ml} filter. 
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ returns the full representation of
+the updated {ml} filter if it has been successfully updated.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The updated `MlFilter`.

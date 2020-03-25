@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -19,40 +17,16 @@ import org.elasticsearch.gradle.precommit.PrecommitTasks
  * under the License.
  */
 
-archivesBaseName = 'elasticsearch-grok'
-
 dependencies {
-    compile 'org.jruby.joni:joni:2.1.6'
-    // joni dependencies:
-    compile 'org.jruby.jcodings:jcodings:1.0.12'
+  compile 'org.jruby.joni:joni:2.1.29'
+  // joni dependencies:
+  compile 'org.jruby.jcodings:jcodings:1.0.44'
 
-    if (isEclipse == false || project.path == ":libs:grok-tests") {
-        testCompile("org.elasticsearch.test:framework:${version}") {
-            exclude group: 'org.elasticsearch', module: 'grok'
-        }
-    }
+  testCompile(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-grok'
+  }
 }
 
 forbiddenApisMain {
-    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  replaceSignatureFiles 'jdk-signatures'
 }
-
-if (isEclipse) {
-    // in eclipse the project is under a fake root, we need to change around the source sets
-    sourceSets {
-        if (project.path == ":libs:grok") {
-            main.java.srcDirs = ['java']
-            main.resources.srcDirs = ['resources']
-        } else {
-            test.java.srcDirs = ['java']
-            test.resources.srcDirs = ['resources']
-        }
-    }
-}
-
-thirdPartyAudit.excludes = [
-        // joni has AsmCompilerSupport, but that isn't being used:
-        'org.objectweb.asm.ClassWriter',
-        'org.objectweb.asm.MethodVisitor',
-        'org.objectweb.asm.Opcodes',
-]

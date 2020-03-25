@@ -1,0 +1,118 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-datafeed]]
+=== Get {dfeeds} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Get {dfeeds}</titleabbrev>
+++++
+
+Retrieves configuration information for {dfeeds}.
+
+[[ml-get-datafeed-request]]
+==== {api-request-title}
+
+`GET _ml/datafeeds/<feed_id>` +
+
+`GET _ml/datafeeds/<feed_id>,<feed_id>` +
+
+`GET _ml/datafeeds/` +
+
+`GET _ml/datafeeds/_all` 
+
+[[ml-get-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
+<<security-privileges>>.
+
+[[ml-get-datafeed-desc]]
+==== {api-description-title}
+
+You can get information for multiple {dfeeds} in a single API request by using a
+comma-separated list of {dfeeds} or a wildcard expression. You can get
+information for all {dfeeds} by using `_all`, by specifying `*` as the
+`<feed_id>`, or by omitting the `<feed_id>`.
+
+IMPORTANT: This API returns a maximum of 10,000 {dfeeds}. 
+
+[[ml-get-datafeed-path-parms]]
+==== {api-path-parms-title}
+
+`<feed_id>`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
++
+--
+If you do not specify one of these options, the API returns information about
+all {dfeeds}.
+--
+
+[[ml-get-datafeed-query-parms]]
+==== {api-query-parms-title}
+
+`allow_no_datafeeds`::
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+
+[[ml-get-datafeed-results]]
+==== {api-response-body-title}
+
+The API returns an array of {dfeed} resources. For the full list of properties,
+see <<ml-put-datafeed-request-body,create {dfeeds} API>>.
+
+[[ml-get-datafeed-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_datafeeds` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
+
+[[ml-get-datafeed-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _ml/datafeeds/datafeed-high_sum_total_sales
+--------------------------------------------------
+// TEST[skip:kibana sample data]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "count" : 1,
+  "datafeeds" : [
+    {
+      "datafeed_id" : "datafeed-high_sum_total_sales",
+      "job_id" : "high_sum_total_sales",
+      "query_delay" : "93169ms",
+      "indices" : [
+        "kibana_sample_data_ecommerce"
+      ],
+      "query" : {
+        "bool" : {
+          "filter" : [
+            {
+              "term" : {
+                "_index" : "kibana_sample_data_ecommerce"
+              }
+            }
+          ]
+        }
+      },
+      "scroll_size" : 1000,
+      "chunking_config" : {
+        "mode" : "auto"
+      },
+      "delayed_data_check_config" : {
+        "enabled" : true
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"query.boost": "93169ms"/"query.boost": $body.query.boost/]

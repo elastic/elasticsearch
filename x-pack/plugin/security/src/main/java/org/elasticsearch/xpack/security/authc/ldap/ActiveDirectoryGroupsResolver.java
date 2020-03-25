@@ -13,24 +13,24 @@ import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
+import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySIDUtil.convertToString;
 import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.buildDnFromDomain;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.search;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
-import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
-import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySIDUtil.convertToString;
 
 class ActiveDirectoryGroupsResolver implements GroupsResolver {
 
@@ -39,10 +39,11 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
     private final LdapSearchScope scope;
     private final boolean ignoreReferralErrors;
 
-    ActiveDirectoryGroupsResolver(Settings settings) {
-        this.baseDn = settings.get("group_search.base_dn", buildDnFromDomain(settings.get(AD_DOMAIN_NAME_SETTING)));
-        this.scope = LdapSearchScope.resolve(settings.get("group_search.scope"), LdapSearchScope.SUB_TREE);
-        this.ignoreReferralErrors = IGNORE_REFERRAL_ERRORS_SETTING.get(settings);
+    ActiveDirectoryGroupsResolver(RealmConfig config) {
+        this.baseDn = config.getSetting(SearchGroupsResolverSettings.BASE_DN,
+                () -> buildDnFromDomain(config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING)));
+        this.scope = config.getSetting(SearchGroupsResolverSettings.SCOPE);
+        this.ignoreReferralErrors = config.getSetting(IGNORE_REFERRAL_ERRORS_SETTING);
     }
 
     @Override
@@ -51,7 +52,7 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
         buildGroupQuery(connection, userDn, timeout,
                 ignoreReferralErrors, ActionListener.wrap((filter) -> {
                     if (filter == null) {
-                        listener.onResponse(Collections.emptyList());
+                        listener.onResponse(List.of());
                     } else {
                         logger.debug("group SID to DN [{}] search filter: [{}]", userDn, filter);
                         search(connection, baseDn, scope.scope(), filter,
@@ -59,8 +60,8 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
                                 ActionListener.wrap((results) -> {
                                             List<String> groups = results.stream()
                                                     .map(SearchResultEntry::getDN)
-                                                    .collect(Collectors.toList());
-                                            listener.onResponse(Collections.unmodifiableList(groups));
+                                                    .collect(Collectors.toUnmodifiableList());
+                                            listener.onResponse(groups);
                                         },
                                         listener::onFailure),
                                 SearchRequest.NO_ATTRIBUTES);

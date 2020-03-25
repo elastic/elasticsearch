@@ -26,21 +26,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.same;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class MultiBucketAggregatorWrapperTests extends ESTestCase {
 
@@ -48,11 +46,13 @@ public class MultiBucketAggregatorWrapperTests extends ESTestCase {
         LeafReaderContext leafReaderContext = MemoryIndex.fromDocument(Collections.emptyList(), new MockAnalyzer(random()))
                 .createSearcher().getIndexReader().leaves().get(0);
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.bigArrays()).thenReturn(bigArrays);
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.bigArrays()).thenReturn(bigArrays);
 
         Aggregator aggregator = mock(Aggregator.class);
-        AggregatorFactory aggregatorFactory = new TestAggregatorFactory(searchContext, aggregator);
+        AggregatorFactory aggregatorFactory = new TestAggregatorFactory(queryShardContext, aggregator);
         LeafBucketCollector wrappedCollector = mock(LeafBucketCollector.class);
         when(aggregator.getLeafCollector(leafReaderContext)).thenReturn(wrappedCollector);
         Aggregator wrapper = AggregatorFactory.asMultiBucketAggregator(aggregatorFactory, searchContext, null);
@@ -74,21 +74,4 @@ public class MultiBucketAggregatorWrapperTests extends ESTestCase {
         verifyNoMoreInteractions(wrappedCollector);
         wrapper.close();
     }
-
-    static class TestAggregatorFactory extends AggregatorFactory {
-
-        private final Aggregator aggregator;
-
-        TestAggregatorFactory(SearchContext context, Aggregator aggregator) throws IOException {
-            super("_name", context, null, new AggregatorFactories.Builder(), Collections.emptyMap());
-            this.aggregator = aggregator;
-        }
-
-        @Override
-        protected Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List list,
-                                            Map metaData) throws IOException {
-            return aggregator;
-        }
-    }
-
 }

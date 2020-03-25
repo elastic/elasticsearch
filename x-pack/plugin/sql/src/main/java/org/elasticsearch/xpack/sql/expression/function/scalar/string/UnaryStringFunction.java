@@ -5,27 +5,28 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public abstract class UnaryStringFunction extends UnaryScalarFunction {
 
-    protected UnaryStringFunction(Location location, Expression field) {
-        super(location, field);
+    protected UnaryStringFunction(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -43,33 +44,29 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-
-        return field().dataType().isString() ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "'%s' requires a string type, received %s", operation(), field().dataType().esType);
+        return isStringAndExact(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override
-    protected final ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
-                new StringProcessor(operation()));
+    protected Processor makeProcessor() {
+        return new StringProcessor(operation());
     }
 
     protected abstract StringOperation operation();
     
     @Override
-    protected ScriptTemplate asScriptFrom(FieldAttribute field) {
+    public ScriptTemplate scriptWithField(FieldAttribute field) {
         //TODO change this to use _source instead of the exact form (aka field.keyword for text fields)
-        return new ScriptTemplate(formatScript("doc[{}].value"),
-                paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
+        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
+                paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
     
     @Override
-    protected String formatScript(String template) {
-        // basically, transform the script to InternalSqlScriptUtils.[function_name](other_function_or_field_name)
-        return super.formatScript(
-                format(Locale.ROOT, "{sql}.%s(%s)", 
-                        StringUtils.underscoreToLowerCamelCase(operation().toString()), 
+    public String processScript(String template) {
+        return formatTemplate(
+                format(Locale.ROOT, "{sql}.%s(%s)",
+                        StringUtils.underscoreToLowerCamelCase(operation().name()),
                         template));
     }
 

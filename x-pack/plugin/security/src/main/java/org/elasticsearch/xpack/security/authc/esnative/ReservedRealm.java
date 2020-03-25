@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -17,18 +16,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
+import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -49,9 +50,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     public static final String TYPE = "reserved";
 
     private final ReservedUserInfo bootstrapUserInfo;
-    public static final Setting<Boolean> ACCEPT_DEFAULT_PASSWORD_SETTING = Setting.boolSetting(
-            SecurityField.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered,
-            Setting.Property.Deprecated);
     public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password",
             KeyStoreWrapper.SEED_SETTING);
 
@@ -66,7 +64,11 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
                          SecurityIndexManager securityIndex, ThreadPool threadPool) {
-        super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env, threadPool.getThreadContext()), threadPool);
+        super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, TYPE),
+            Settings.builder()
+                .put(settings)
+                .put(RealmSettings.realmSettingPrefix(new RealmConfig.RealmIdentifier(TYPE, TYPE)) + "order", Integer.MIN_VALUE)
+                .build(), env, threadPool.getThreadContext()), threadPool);
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;
@@ -85,7 +87,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
         if (realmEnabled == false) {
             listener.onResponse(AuthenticationResult.notHandled());
-        } else if (ClientReservedRealm.isReserved(token.principal(), config.globalSettings()) == false) {
+        } else if (ClientReservedRealm.isReserved(token.principal(), config.settings()) == false) {
             listener.onResponse(AuthenticationResult.notHandled());
         } else {
             getUserInfo(token.principal(), ActionListener.wrap((userInfo) -> {
@@ -118,13 +120,13 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     @Override
     protected void doLookupUser(String username, ActionListener<User> listener) {
         if (realmEnabled == false) {
-            if (anonymousEnabled && AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {
+            if (anonymousEnabled && AnonymousUser.isAnonymousUsername(username, config.settings())) {
                 listener.onResponse(anonymousUser);
             }
             listener.onResponse(null);
-        } else if (ClientReservedRealm.isReserved(username, config.globalSettings()) == false) {
+        } else if (ClientReservedRealm.isReserved(username, config.settings()) == false) {
             listener.onResponse(null);
-        } else if (AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {
+        } else if (AnonymousUser.isAnonymousUsername(username, config.settings())) {
             listener.onResponse(anonymousEnabled ? anonymousUser : null);
         } else {
             getUserInfo(username, ActionListener.wrap((userInfo) -> {
@@ -149,6 +151,10 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 return new LogstashSystemUser(userInfo.enabled);
             case BeatsSystemUser.NAME:
                 return new BeatsSystemUser(userInfo.enabled);
+            case APMSystemUser.NAME:
+                return new APMSystemUser(userInfo.enabled);
+            case RemoteMonitoringUser.NAME:
+                return new RemoteMonitoringUser(userInfo.enabled);
             default:
                 if (anonymousEnabled && anonymousUser.principal().equals(username)) {
                     return anonymousUser;
@@ -177,6 +183,12 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 userInfo = reservedUserInfos.get(BeatsSystemUser.NAME);
                 users.add(new BeatsSystemUser(userInfo == null || userInfo.enabled));
 
+                userInfo = reservedUserInfos.get(APMSystemUser.NAME);
+                users.add(new APMSystemUser(userInfo == null || userInfo.enabled));
+
+                userInfo = reservedUserInfos.get(RemoteMonitoringUser.NAME);
+                users.add(new RemoteMonitoringUser(userInfo == null || userInfo.enabled));
+
                 if (anonymousEnabled) {
                     users.add(anonymousUser);
                 }
@@ -191,10 +203,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
 
     private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
-        if (userIsDefinedForCurrentSecurityMapping(username) == false) {
-            logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
-            listener.onResponse(disabledDefaultUserInfo.deepClone());
-        } else if (securityIndex.indexExists() == false) {
+        if (securityIndex.indexExists() == false) {
             listener.onResponse(getDefaultUserInfo(username));
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
@@ -219,24 +228,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    private boolean userIsDefinedForCurrentSecurityMapping(String username) {
-        final Version requiredVersion = getDefinedVersion(username);
-        return securityIndex.checkMappingVersion(requiredVersion::onOrBefore);
-    }
-
-    private Version getDefinedVersion(String username) {
-        switch (username) {
-            case LogstashSystemUser.NAME:
-                return LogstashSystemUser.DEFINED_SINCE;
-            case BeatsSystemUser.NAME:
-                return BeatsSystemUser.DEFINED_SINCE;
-            default:
-                return Version.V_5_0_0;
-        }
-    }
-
     public static void addSettings(List<Setting<?>> settingsList) {
-        settingsList.add(ACCEPT_DEFAULT_PASSWORD_SETTING);
         settingsList.add(BOOTSTRAP_ELASTIC_PASSWORD);
     }
 }

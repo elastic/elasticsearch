@@ -1,10 +1,11 @@
 ---
 "Source filtering":
+
+
   - do:
       index:
         refresh: true
         index: test_index
-        type: test_type
         id: test_id_1
         body: { "foo": "bar", "bar": "foo" }
 
@@ -12,7 +13,6 @@
       index:
         refresh: true
         index: test_index
-        type: test_type
         id: test_id_2
         body: { "foo": "qux", "bar": "pux" }
 
@@ -20,7 +20,6 @@
       index:
         refresh: true
         index: test_index
-        type: test_type
         id: test_id_3
         body: { "foo": "corge", "bar": "forge" }
 
@@ -29,9 +28,9 @@
       bulk:
         refresh: true
         body: |
-          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_1", "_source": true } }
+          { "update": { "_index": "test_index", "_id": "test_id_1", "_source": true } }
           { "doc": { "foo": "baz" } }
-          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_2" } }
+          { "update": { "_index": "test_index", "_id": "test_id_2" } }
           { "_source": true, "doc": { "foo": "quux" } }
 
   - match: { items.0.update.get._source.foo: baz }
@@ -40,7 +39,6 @@
   - do:
       bulk:
         index: test_index
-        type: test_type
         _source: true
         body: |
           { "update": { "_id": "test_id_3" } }
@@ -52,9 +50,9 @@
       bulk:
         refresh: true
         body: |
-          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_1", "_source": {"includes": "bar"} } }
+          { "update": { "_index": "test_index", "_id": "test_id_1", "_source": {"includes": "bar"} } }
           { "doc": { "foo": "baz" } }
-          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_2" } }
+          { "update": { "_index": "test_index", "_id": "test_id_2" } }
           { "_source": {"includes": "foo"}, "doc": { "foo": "quux" } }
 
   - match: { items.0.update.get._source.bar: foo }
@@ -65,8 +63,7 @@
   - do:
       bulk:
         index: test_index
-        type: test_type
-        _source_include: foo
+        _source_includes: foo
         body: |
           { "update": { "_id": "test_id_3" } }
           { "doc": { "foo": "garply" } }

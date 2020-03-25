@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
-import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.sql.action.SqlTranslateResponse;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-public class SqlTranslateResponseTests extends AbstractStreamableTestCase<SqlTranslateResponse> {
+public class SqlTranslateResponseTests extends AbstractWireSerializingTestCase<SqlTranslateResponse> {
 
     @Override
     protected SqlTranslateResponse createTestInstance() {
@@ -20,7 +19,7 @@ public class SqlTranslateResponseTests extends AbstractStreamableTestCase<SqlTra
         if (randomBoolean()) {
             long docValues = iterations(5, 10);
             for (int i = 0; i < docValues; i++) {
-                s.docValueField(randomAlphaOfLength(10), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+                s.docValueField(randomAlphaOfLength(10));
             }
         }
 
@@ -37,8 +36,8 @@ public class SqlTranslateResponseTests extends AbstractStreamableTestCase<SqlTra
     }
 
     @Override
-    protected SqlTranslateResponse createBlankInstance() {
-        return new SqlTranslateResponse();
+    protected Writeable.Reader<SqlTranslateResponse> instanceReader() {
+        return SqlTranslateResponse::new;
     }
 
     @Override

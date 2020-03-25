@@ -80,23 +80,27 @@ public class EnableAllocationDecider extends AllocationDecider {
     private volatile Allocation enableAllocation;
 
     public EnableAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         this.enableAllocation = CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(settings);
         this.enableRebalance = CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING, this::setEnableAllocation);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING, this::setEnableRebalance);
     }
 
-    public void setEnableRebalance(Rebalance enableRebalance) {
+    private void setEnableRebalance(Rebalance enableRebalance) {
         this.enableRebalance = enableRebalance;
     }
 
-    public void setEnableAllocation(Allocation enableAllocation) {
+    private void setEnableAllocation(Allocation enableAllocation) {
         this.enableAllocation = enableAllocation;
     }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, allocation);
+    }
+
+    @Override
+    public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
             return allocation.decision(Decision.YES, NAME,
                 "explicitly ignoring any disabling of allocation due to manual allocation commands via the reroute API");
@@ -138,9 +142,28 @@ public class EnableAllocationDecider extends AllocationDecider {
     }
 
     @Override
+    public Decision canRebalance(RoutingAllocation allocation) {
+        if (allocation.ignoreDisable()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of rebalancing");
+        }
+
+        if (enableRebalance == Rebalance.NONE) {
+            for (IndexMetaData indexMetaData : allocation.metaData()) {
+                if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetaData.getSettings())
+                    && INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexMetaData.getSettings()) != Rebalance.NONE) {
+                    return allocation.decision(Decision.YES, NAME, "rebalancing is permitted on one or more indices");
+                }
+            }
+            return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to %s", setting(enableRebalance, false));
+        }
+
+        return allocation.decision(Decision.YES, NAME, "rebalancing is not globally disabled");
+    }
+
+    @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
-            return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of relocation");
+            return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of rebalancing");
         }
 
         Settings indexSettings = allocation.metaData().getIndexSafe(shardRouting.index()).getSettings();

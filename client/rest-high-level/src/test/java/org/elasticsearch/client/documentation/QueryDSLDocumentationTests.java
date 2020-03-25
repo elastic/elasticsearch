@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.join.query.JoinQueryBuilders;
+import org.elasticsearch.index.query.RankFeatureQueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -42,7 +43,6 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
-import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.disMaxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
@@ -74,7 +74,6 @@ import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanWithinQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
@@ -105,13 +104,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                     termQuery("name","dadoonet"))                    // <2>
                 .negativeBoost(0.2f);                                // <3>
         // end::boosting
-    }
-
-    public void testCommonTerms() {
-        // tag::common_terms
-        commonTermsQuery("name",                                     // <1>
-                         "kimchy");                                  // <2>
-        // end::common_terms
     }
 
     public void testConstantScore() {
@@ -207,11 +199,10 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             // Using pre-indexed shapes
             GeoShapeQueryBuilder qb = geoShapeQuery(
                         "pin.location",                                  // <1>
-                        "DEU",                                           // <2>
-                        "countries");                                    // <3>
-            qb.relation(ShapeRelation.WITHIN)                            // <4>
-                .indexedShapeIndex("shapes")                             // <5>
-                .indexedShapePath("location");                           // <6>
+                        "DEU");                                  // <2>
+            qb.relation(ShapeRelation.WITHIN)                            // <3>
+                .indexedShapeIndex("shapes")                             // <4>
+                .indexedShapePath("location");                           // <5>
             // end::indexed_geo_shape
         }
     }
@@ -236,9 +227,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testIds() {
         // tag::ids
-        idsQuery("my_type", "type2")
-                .addIds("1", "4", "100");
-
         idsQuery()                                                   // <1>
                 .addIds("1", "4", "100");
         // end::ids
@@ -437,12 +425,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         // end::terms
     }
 
-    public void testType() {
-        // tag::type
-        typeQuery("my_type");                                        // <1>
-        // end::type
-    }
-
     public void testWildcard() {
         // tag::wildcard
         wildcardQuery(
@@ -456,5 +438,31 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         String query = "{\"term\": {\"user\": \"kimchy\"}}"; // <1>
         wrapperQuery(query);
         // end::wrapper
+    }
+
+    public void testRankFeatureSaturation() {
+        RankFeatureQueryBuilders.saturation("pagerank");
+    }
+
+    public void testRankFeatureSaturationPivot() {
+        RankFeatureQueryBuilders.saturation(
+            "pagerank",
+            8
+        );
+    }
+
+    public void testRankFeatureLog() {
+        RankFeatureQueryBuilders.log(
+            "pagerank",
+            4f
+        );
+    }
+
+    public void testRankFeatureSigmoid() {
+        RankFeatureQueryBuilders.sigmoid(
+            "pagerank",
+            7,
+            0.6f
+        );
     }
 }

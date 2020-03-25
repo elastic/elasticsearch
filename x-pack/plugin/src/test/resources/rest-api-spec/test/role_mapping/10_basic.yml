@@ -10,13 +10,13 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_role_mapping:
+      security.delete_role_mapping:
         name: "everyone"
         ignore: 404
 ---
 "Test put role_mapping api":
   - do:
-      xpack.security.put_role_mapping:
+      security.put_role_mapping:
         name: "everyone"
         body:  >
             {
@@ -31,7 +31,7 @@ teardown:
 
   # Get by name
   - do:
-      xpack.security.get_role_mapping:
+      security.get_role_mapping:
         name: "everyone"
   - match: { everyone.enabled:  true }
   - match: { everyone.roles.0:  "kibana_user" }
@@ -39,7 +39,7 @@ teardown:
 
   # Get all
   - do:
-      xpack.security.get_role_mapping:
+      security.get_role_mapping:
         name: null
   - match: { everyone.enabled:  true }
   - match: { everyone.roles.0:  "kibana_user" }

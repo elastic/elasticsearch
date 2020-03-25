@@ -6,7 +6,10 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 public class LicensingClient {
@@ -37,16 +40,16 @@ public class LicensingClient {
         return new DeleteLicenseRequestBuilder(client);
     }
 
-    public void deleteLicense(DeleteLicenseRequest request, ActionListener<DeleteLicenseResponse> listener) {
+    public void deleteLicense(DeleteLicenseRequest request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteLicenseAction.INSTANCE, request, listener);
     }
 
     public PostStartTrialRequestBuilder preparePostStartTrial() {
-        return new PostStartTrialRequestBuilder(client, PostStartTrialAction.INSTANCE);
+        return new PostStartTrialRequestBuilder(client);
     }
 
     public GetTrialStatusRequestBuilder prepareGetStartTrial() {
-        return new GetTrialStatusRequestBuilder(client, GetTrialStatusAction.INSTANCE);
+        return new GetTrialStatusRequestBuilder(client);
     }
 
     public void postStartTrial(PostStartTrialRequest request, ActionListener<PostStartTrialResponse> listener) {
@@ -58,10 +61,10 @@ public class LicensingClient {
     }
 
     public PostStartBasicRequestBuilder preparePostStartBasic() {
-        return new PostStartBasicRequestBuilder(client, PostStartBasicAction.INSTANCE);
+        return new PostStartBasicRequestBuilder(client);
     }
 
     public GetBasicStatusRequestBuilder prepareGetStartBasic() {
-        return new GetBasicStatusRequestBuilder(client, GetBasicStatusAction.INSTANCE);
+        return new GetBasicStatusRequestBuilder(client);
     }
 }

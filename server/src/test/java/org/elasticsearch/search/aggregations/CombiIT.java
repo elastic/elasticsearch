@@ -60,14 +60,14 @@ public class CombiIT extends ESIntegTestCase {
             String name = "name_" + randomIntBetween(1, 10);
             if (rarely()) {
                 missingValues++;
-                builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+                builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
                         .startObject()
                         .field("name", name)
                         .endObject());
             } else {
                 int value = randomIntBetween(1, 10);
                 values.put(value, values.getOrDefault(value, 0) + 1);
-                builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+                builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
                         .startObject()
                         .field("name", name)
                         .field("value", value)
@@ -83,7 +83,7 @@ public class CombiIT extends ESIntegTestCase {
                 .addAggregation(missing("missing_values").field("value"))
                 .addAggregation(terms("values").field("value")
                         .collectMode(aggCollectionMode ))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -111,13 +111,13 @@ public class CombiIT extends ESIntegTestCase {
      */
     public void testSubAggregationForTopAggregationOnUnmappedField() throws Exception {
 
-        prepareCreate("idx").addMapping("type", jsonBuilder()
+        prepareCreate("idx").setMapping(jsonBuilder()
                 .startObject()
-                .startObject("type").startObject("properties")
+                .startObject("_doc").startObject("properties")
                     .startObject("name").field("type", "keyword").endObject()
                     .startObject("value").field("type", "integer").endObject()
                 .endObject().endObject()
-                .endObject()).execute().actionGet();
+                .endObject()).get();
 
         ensureSearchable("idx");
 
@@ -126,9 +126,9 @@ public class CombiIT extends ESIntegTestCase {
                 .addAggregation(histogram("values").field("value1").interval(1)
                         .subAggregation(terms("names").field("name")
                                 .collectMode(aggCollectionMode )))
-                .execute().actionGet();
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(0L));
         Histogram values = searchResponse.getAggregations().get("values");
         assertThat(values, notNullValue());
         assertThat(values.getBuckets().isEmpty(), is(true));

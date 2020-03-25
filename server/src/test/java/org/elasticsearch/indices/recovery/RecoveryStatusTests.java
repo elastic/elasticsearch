@@ -20,8 +20,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -32,9 +30,6 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-
 public class RecoveryStatusTests extends ESSingleNodeTestCase {
     private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = org.elasticsearch.Version.CURRENT
         .minimumIndexCompatibilityVersion().luceneVersion;
@@ -42,35 +37,27 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         IndexService service = createIndex("foo");
 
         IndexShard indexShard = service.getShardOrNull(0);
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        RecoveryTarget status = new RecoveryTarget(indexShard, node, new PeerRecoveryTargetService.RecoveryListener() {
-            @Override
-            public void onRecoveryDone(RecoveryState state) {
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-            }
-        }, version -> {});
-        try (IndexOutput indexOutput = status.openAndPutIndexOutput("foo.bar", new StoreFileMetaData("foo.bar", 8 + CodecUtil.footerLength()
-            , "9z51nw", MIN_SUPPORTED_LUCENE_VERSION), status.store())) {
+        MultiFileWriter multiFileWriter = new MultiFileWriter(indexShard.store(),
+            indexShard.recoveryState().getIndex(), "recovery.test.", logger, () -> {});
+        try (IndexOutput indexOutput = multiFileWriter.openAndPutIndexOutput("foo.bar",
+            new StoreFileMetaData("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw", MIN_SUPPORTED_LUCENE_VERSION), indexShard.store())) {
             indexOutput.writeInt(1);
-            IndexOutput openIndexOutput = status.getOpenIndexOutput("foo.bar");
+            IndexOutput openIndexOutput = multiFileWriter.getOpenIndexOutput("foo.bar");
             assertSame(openIndexOutput, indexOutput);
             openIndexOutput.writeInt(1);
             CodecUtil.writeFooter(indexOutput);
         }
 
         try {
-            status.openAndPutIndexOutput("foo.bar", new StoreFileMetaData("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw",
-                MIN_SUPPORTED_LUCENE_VERSION), status.store());
+            multiFileWriter.openAndPutIndexOutput("foo.bar", new StoreFileMetaData("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw",
+                MIN_SUPPORTED_LUCENE_VERSION), indexShard.store());
             fail("file foo.bar is already opened and registered");
         } catch (IllegalStateException ex) {
             assertEquals("output for file [foo.bar] has already been created", ex.getMessage());
             // all well = it's already registered
         }
-        status.removeOpenIndexOutputs("foo.bar");
-        Set<String> strings = Sets.newHashSet(status.store().directory().listAll());
+        multiFileWriter.removeOpenIndexOutputs("foo.bar");
+        Set<String> strings = Sets.newHashSet(indexShard.store().directory().listAll());
         String expectedFile = null;
         for (String file : strings) {
             if (Pattern.compile("recovery[.][\\w-]+[.]foo[.]bar").matcher(file).matches()) {
@@ -80,11 +67,10 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         }
         assertNotNull(expectedFile);
         indexShard.close("foo", false);// we have to close it here otherwise rename fails since the write.lock is held by the engine
-        status.renameAllTempFiles();
-        strings = Sets.newHashSet(status.store().directory().listAll());
+        multiFileWriter.renameAllTempFiles();
+        strings = Sets.newHashSet(indexShard.store().directory().listAll());
         assertTrue(strings.toString(), strings.contains("foo.bar"));
         assertFalse(strings.toString(), strings.contains(expectedFile));
-        // we must fail the recovery because marking it as done will try to move the shard to POST_RECOVERY, which will fail because it's started
-        status.fail(new RecoveryFailedException(status.state(), "end of test. OK.", null), false);
+        multiFileWriter.close();
     }
 }

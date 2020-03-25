@@ -18,23 +18,23 @@
  */
 package org.elasticsearch.persistent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -47,9 +47,11 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * This component is responsible for coordination of execution of persistent tasks on individual nodes. It runs on all
- * non-transport client nodes in the cluster and monitors cluster state changes to detect started commands.
+ * nodes in the cluster and monitors cluster state changes to detect started commands.
  */
-public class PersistentTasksNodeService extends AbstractComponent implements ClusterStateListener {
+public class PersistentTasksNodeService implements ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(PersistentTasksNodeService.class);
 
     private final Map<Long, AllocatedPersistentTask> runningTasks = new HashMap<>();
     private final PersistentTasksService persistentTasksService;
@@ -57,11 +59,9 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
     private final TaskManager taskManager;
     private final NodePersistentTasksExecutor nodePersistentTasksExecutor;
 
-    public PersistentTasksNodeService(Settings settings,
-                                      PersistentTasksService persistentTasksService,
+    public PersistentTasksNodeService(PersistentTasksService persistentTasksService,
                                       PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
                                       TaskManager taskManager, NodePersistentTasksExecutor nodePersistentTasksExecutor) {
-        super(settings);
         this.persistentTasksService = persistentTasksService;
         this.persistentTasksExecutorRegistry = persistentTasksExecutorRegistry;
         this.taskManager = taskManager;
@@ -112,7 +112,13 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                         AllocatedPersistentTask persistentTask = runningTasks.get(allocationId);
                         if (persistentTask == null) {
                             // New task - let's start it
-                            startTask(taskInProgress);
+                            try {
+                                startTask(taskInProgress);
+                            } catch (Exception e) {
+                                logger.error("Unable to start allocated task [" + taskInProgress.getTaskName()
+                                    + "] with id [" + taskInProgress.getId()
+                                    + "] and allocation id [" + taskInProgress.getAllocationId() + "]", e);
+                            }
                         } else {
                             // The task is still running
                             notVisitedTasks.remove(allocationId);
@@ -163,11 +169,21 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                 return executor.createTask(id, type, action, parentTaskId, taskInProgress, headers);
             }
         };
-        AllocatedPersistentTask task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]",
-                request);
+
+        AllocatedPersistentTask task;
+        try {
+            task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]", request);
+        } catch (Exception e) {
+            logger.error("Fatal error registering persistent task [" + taskInProgress.getTaskName()
+                + "] with id [" + taskInProgress.getId() + "] and allocation id [" + taskInProgress.getAllocationId()
+                + "], removing from persistent tasks", e);
+            notifyMasterOfFailedTask(taskInProgress, e);
+            return;
+        }
+
         boolean processed = false;
         try {
-            task.init(persistentTasksService, taskManager, logger, taskInProgress.getId(), taskInProgress.getAllocationId());
+            task.init(persistentTasksService, taskManager, taskInProgress.getId(), taskInProgress.getAllocationId());
             logger.trace("Persistent task [{}] with id [{}] and allocation id [{}] was created", task.getAction(),
                     task.getPersistentTaskId(), task.getAllocationId());
             try {
@@ -186,6 +202,25 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                 taskManager.unregister(task);
             }
         }
+    }
+
+    private <Params extends PersistentTaskParams> void notifyMasterOfFailedTask(PersistentTask<Params> taskInProgress,
+                                                                                Exception originalException) {
+        persistentTasksService.sendCompletionRequest(taskInProgress.getId(), taskInProgress.getAllocationId(), originalException,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(PersistentTask<?> persistentTask) {
+                    logger.trace("completion notification for failed task [{}] with id [{}] was successful", taskInProgress.getTaskName(),
+                        taskInProgress.getAllocationId());
+                }
+
+                @Override
+                public void onFailure(Exception notificationException) {
+                    notificationException.addSuppressed(originalException);
+                    logger.warn(new ParameterizedMessage("notification for task [{}] with id [{}] failed",
+                        taskInProgress.getTaskName(), taskInProgress.getAllocationId()), notificationException);
+                }
+            });
     }
 
     /**

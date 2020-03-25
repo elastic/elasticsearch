@@ -1,0 +1,45 @@
+{
+  "data_frame_transform_deprecated.stop_transform":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-transform.html"
+    },
+    "stability":"beta",
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_frame/transforms/{transform_id}/_stop",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "transform_id":{
+              "type":"string",
+              "description":"The id of the transform to stop"
+            }
+          },
+          "deprecated":{
+            "version":"7.5.0",
+            "description":"[_data_frame/transforms/] is deprecated, use [_transform/] in the future."
+          }
+        }
+      ]
+    },
+    "params":{
+      "wait_for_completion":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to wait for the transform to fully stop before returning or not. Default to false"
+      },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait until the transform has stopped. Default to 30 seconds"
+      },
+      "allow_no_match":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no transforms. (This includes `_all` string or when no transforms have been specified)"
+      }
+    }
+  }
+}

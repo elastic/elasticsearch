@@ -51,7 +51,8 @@ public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTestCas
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode, Object missingValue, Nested nested) {
+    protected IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode,
+                                                                                Object missingValue, Nested nested) {
         IndexNumericFieldData fieldData = getForField(fieldName);
         return new DoubleValuesComparatorSource(fieldData, missingValue, sortMode, nested);
     }
@@ -65,11 +66,13 @@ public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTestCas
     protected void assertAvgScoreMode(Query parentFilter, IndexSearcher searcher) throws IOException {
         MultiValueMode sortMode = MultiValueMode.AVG;
         Query childFilter = Queries.not(parentFilter);
-        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127, createNested(searcher, parentFilter, childFilter));
-        Query query = new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter), new QueryBitSetProducer(parentFilter), ScoreMode.None);
+        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127,
+            createNested(searcher, parentFilter, childFilter));
+        Query query = new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter),
+            new QueryBitSetProducer(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopDocs topDocs = searcher.search(query, 5, sort);
-        assertThat(topDocs.totalHits, equalTo(7L));
+        assertThat(topDocs.totalHits.value, equalTo(7L));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(11));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).intValue(), equalTo(2));

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.routing;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.mockito.internal.util.collections.Sets;
@@ -44,7 +44,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_routing_shards", shards)
                         .put("index.routing_partition_size", partitionSize))
-                    .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+                    .setMapping("{\"_routing\":{\"required\":true}}")
                     .execute().actionGet();
                 ensureGreen();
 
@@ -58,6 +58,8 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
     }
 
     public void testShrinking() throws Exception {
+        assumeFalse("http://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
+
         // creates random routing groups and repeatedly halves the index until it is down to 1 shard
         // verifying that the count is correct for each shrunken index
         final int partitionSize = 3;
@@ -71,7 +73,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 .put("index.number_of_routing_shards", currentShards)
                 .put("index.number_of_replicas", numberOfReplicas())
                 .put("index.routing_partition_size", partitionSize))
-            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+            .setMapping("{\"_routing\":{\"required\":true}}")
             .execute().actionGet();
         ensureGreen();
 
@@ -130,11 +132,11 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 .execute().actionGet();
 
             logger.info("--> routed search on index [" + index + "] visited [" + response.getTotalShards()
-                + "] shards for routing [" + routing + "] and got hits [" + response.getHits().getTotalHits() + "]");
+                + "] shards for routing [" + routing + "] and got hits [" + response.getHits().getTotalHits().value + "]");
 
             assertTrue(response.getTotalShards() + " was not in " + expectedShards + " for " + index,
                     expectedShards.contains(response.getTotalShards()));
-            assertEquals(expectedDocuments, response.getHits().getTotalHits());
+            assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
 
             Set<String> found = new HashSet<>();
             response.getHits().forEach(h -> found.add(h.getId()));
@@ -155,7 +157,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 .execute().actionGet();
 
             assertEquals(expectedShards, response.getTotalShards());
-            assertEquals(expectedDocuments, response.getHits().getTotalHits());
+            assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
 
             Set<String> found = new HashSet<>();
             response.getHits().forEach(h -> found.add(h.getId()));
@@ -169,7 +171,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             String routing = routingEntry.getKey();
 
             for (String id : routingEntry.getValue()) {
-                assertTrue(client().prepareGet(index, "type", id).setRouting(routing).execute().actionGet().isExists());
+                assertTrue(client().prepareGet(index, id).setRouting(routing).execute().actionGet().isExists());
             }
         }
     }
@@ -187,7 +189,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 String id = routingValue + "_" + String.valueOf(k);
                 routingToDocumentIds.get(routingValue).add(id);
 
-                client().prepareIndex(index, "type", id)
+                client().prepareIndex(index).setId(id)
                     .setRouting(routingValue)
                     .setSource("foo", "bar")
                     .get();

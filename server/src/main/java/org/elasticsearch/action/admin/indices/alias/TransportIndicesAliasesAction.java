@@ -20,9 +20,13 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -36,15 +40,20 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableList;
@@ -52,16 +61,26 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Add/remove aliases action
  */
-public class TransportIndicesAliasesAction extends TransportMasterNodeAction<IndicesAliasesRequest, IndicesAliasesResponse> {
+public class TransportIndicesAliasesAction extends TransportMasterNodeAction<IndicesAliasesRequest, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
 
     private final MetaDataIndexAliasesService indexAliasesService;
+    private final RequestValidators<IndicesAliasesRequest> requestValidators;
 
     @Inject
-    public TransportIndicesAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesAliasesRequest::new);
+    public TransportIndicesAliasesAction(
+            final TransportService transportService,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final MetaDataIndexAliasesService indexAliasesService,
+            final ActionFilters actionFilters,
+            final IndexNameExpressionResolver indexNameExpressionResolver,
+            final RequestValidators<IndicesAliasesRequest> requestValidators) {
+        super(IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesAliasesRequest::new,
+            indexNameExpressionResolver);
         this.indexAliasesService = indexAliasesService;
+        this.requestValidators = Objects.requireNonNull(requestValidators);
     }
 
     @Override
@@ -71,8 +90,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     }
 
     @Override
-    protected IndicesAliasesResponse newResponse() {
-        return new IndicesAliasesResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -85,7 +104,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     }
 
     @Override
-    protected void masterOperation(final IndicesAliasesRequest request, final ClusterState state, final ActionListener<IndicesAliasesResponse> listener) {
+    protected void masterOperation(Task task, final IndicesAliasesRequest request, final ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
 
         //Expand the indices names
         List<AliasActions> actions = request.aliasActions();
@@ -94,23 +114,28 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         // Resolve all the AliasActions into AliasAction instances and gather all the aliases
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), action.indices());
+            final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), action.indices());
+            final Optional<Exception> maybeException = requestValidators.validateRequest(request, state, concreteIndices);
+            if (maybeException.isPresent()) {
+                listener.onFailure(maybeException.get());
+                return;
+            }
             Collections.addAll(aliases, action.getOriginalAliases());
-            for (String index : concreteIndices) {
+            for (final Index index : concreteIndices) {
                 switch (action.actionType()) {
                 case ADD:
-                    for (String alias : concreteAliases(action, state.metaData(), index)) {
-                        finalActions.add(new AliasAction.Add(index, alias, action.filter(), action.indexRouting(),
-                            action.searchRouting(), action.writeIndex()));
+                    for (String alias : concreteAliases(action, state.metaData(), index.getName())) {
+                        finalActions.add(new AliasAction.Add(index.getName(), alias, action.filter(), action.indexRouting(),
+                            action.searchRouting(), action.writeIndex(), action.isHidden()));
                     }
                     break;
                 case REMOVE:
-                    for (String alias : concreteAliases(action, state.metaData(), index)) {
-                        finalActions.add(new AliasAction.Remove(index, alias));
+                    for (String alias : concreteAliases(action, state.metaData(), index.getName())) {
+                        finalActions.add(new AliasAction.Remove(index.getName(), alias));
                     }
                     break;
                 case REMOVE_INDEX:
-                    finalActions.add(new AliasAction.RemoveIndex(index));
+                    finalActions.add(new AliasAction.RemoveIndex(index.getName()));
                     break;
                 default:
                     throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
@@ -127,7 +152,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         indexAliasesService.indicesAliases(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new IndicesAliasesResponse(response.isAcknowledged()));
+                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
             }
 
             @Override

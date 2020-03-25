@@ -6,22 +6,20 @@ A metric aggregation that computes the bounding box containing all geo_point val
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /museums
 {
     "mappings": {
-        "doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_point"
-                }
+        "properties": {
+            "location": {
+                "type": "geo_point"
             }
         }
     }
 }
 
-POST /museums/doc/_bulk?refresh
+POST /museums/_bulk?refresh
 {"index":{"_id":1}}
 {"location": "52.374081,4.912350", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
@@ -50,7 +48,6 @@ POST /museums/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The `geo_bounds` aggregation specifies the field to use to obtain the bounds
 <2> `wrap_longitude` is an optional parameter which specifies whether the bounding box should be allowed to overlap the international date line. The default value is `true`
@@ -59,7 +56,7 @@ The above aggregation demonstrates how one would compute the bounding box of the
 
 The response for the above aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

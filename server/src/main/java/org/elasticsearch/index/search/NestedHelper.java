@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.search;
 
+import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -28,6 +29,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.elasticsearch.index.mapper.MapperService;
@@ -54,9 +56,18 @@ public final class NestedHelper {
         } else if (query instanceof MatchNoDocsQuery) {
             return false;
         } else if (query instanceof TermQuery) {
-            // We only handle term queries and range queries, which should already
+            // We only handle term(s) queries and range queries, which should already
             // cover a high majority of use-cases
             return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
+        }  else if (query instanceof TermInSetQuery) {
+            PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
+            if (terms.size() > 0) {
+                PrefixCodedTerms.TermIterator it = terms.iterator();
+                it.next();
+                return mightMatchNestedDocs(it.field());
+            } else {
+                return false;
+            }
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNestedDocs(((PointRangeQuery) query).getField());
         } else if (query instanceof IndexOrDocValuesQuery) {
@@ -92,7 +103,7 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (mapperService.fullName(field) == null) {
+        if (mapperService.fieldType(field) == null) {
             // field does not exist
             return false;
         }
@@ -118,6 +129,15 @@ public final class NestedHelper {
             return false;
         } else if (query instanceof TermQuery) {
             return mightMatchNonNestedDocs(((TermQuery) query).getTerm().field(), nestedPath);
+        } else if (query instanceof TermInSetQuery) {
+            PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
+            if (terms.size() > 0) {
+                PrefixCodedTerms.TermIterator it = terms.iterator();
+                it.next();
+                return mightMatchNonNestedDocs(it.field(), nestedPath);
+            } else {
+                return false;
+            }
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNonNestedDocs(((PointRangeQuery) query).getField(), nestedPath);
         } else if (query instanceof IndexOrDocValuesQuery) {
@@ -152,7 +172,7 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (mapperService.fullName(field) == null) {
+        if (mapperService.fieldType(field) == null) {
             return false;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
@@ -172,7 +192,7 @@ public final class NestedHelper {
         return true; // the field is not a sub field of the nested path
     }
 
-    private static String parentObject(String field) {
+    public static String parentObject(String field) {
         int lastDot = field.lastIndexOf('.');
         if (lastDot == -1) {
             return null;

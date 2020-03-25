@@ -100,7 +100,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             }
         }
 
-        if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+        if (clusterState.blocks().hasGlobalBlockWithStatus(RestStatus.SERVICE_UNAVAILABLE)) {
             computeStatus = ClusterHealthStatus.RED;
         }
 
@@ -134,7 +134,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         unassignedShards = in.readVInt();
         numberOfNodes = in.readVInt();
         numberOfDataNodes = in.readVInt();
-        status = ClusterHealthStatus.fromValue(in.readByte());
+        status = ClusterHealthStatus.readFrom(in);
         int size = in.readVInt();
         indices = new HashMap<>(size);
         for (int i = 0; i < size; i++) {

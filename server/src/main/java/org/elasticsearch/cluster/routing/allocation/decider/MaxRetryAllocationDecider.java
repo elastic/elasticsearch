@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  * An allocation decider that prevents shards from being allocated on any node if the shards allocation has been retried N times without
@@ -38,18 +37,9 @@ import org.elasticsearch.common.settings.Settings;
 public class MaxRetryAllocationDecider extends AllocationDecider {
 
     public static final Setting<Integer> SETTING_ALLOCATION_MAX_RETRY = Setting.intSetting("index.allocation.max_retries", 5, 0,
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
+        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize);
 
     public static final String NAME = "max_retry";
-
-    /**
-     * Initializes a new {@link MaxRetryAllocationDecider}
-     *
-     * @param settings {@link Settings} used by this {@link AllocationDecider}
-     */
-    public MaxRetryAllocationDecider(Settings settings) {
-        super(settings);
-    }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {

@@ -7,13 +7,18 @@ package org.elasticsearch.xpack.core.security;
 
 import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,35 +34,47 @@ import java.util.function.BiConsumer;
 public interface SecurityExtension {
 
     /**
+     * This interface provides access to components (clients and services) that may be used
+     * within custom realms and role providers.
+     */
+    interface SecurityComponents {
+        /** Global settings for the current node */
+        Settings settings();
+        /** Provides access to key filesystem paths */
+        Environment environment();
+        /** An internal client for retrieving information/data from this cluster */
+        Client client();
+        /** The Elasticsearch thread pools */
+        ThreadPool threadPool();
+        /** Provides the ability to monitor files for changes */
+        ResourceWatcherService resourceWatcherService();
+        /** Access to listen to changes in cluster state and settings  */
+        ClusterService clusterService();
+        /** Provides support for mapping users' roles from groups and metadata */
+        UserRoleMapper roleMapper();
+    }
+    /**
      * Returns authentication realm implementations added by this extension.
      *
      * The key of the returned {@link Map} is the type name of the realm, and the value
      * is a {@link Realm.Factory} which will construct
      * that realm for use in authentication when that realm type is configured.
      *
-     * @param resourceWatcherService Use to watch configuration files for changes
+     * @param components Access to components that may be used to build realms
      */
-    default Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
+    default Map<String, Realm.Factory> getRealms(SecurityComponents components) {
         return Collections.emptyMap();
     }
-
-    /**
-     * Returns the set of {@link Setting settings} that may be configured for the each type of realm.
-     *
-     * Each <em>setting key</em> must be unqualified and is in the same format as will be provided via {@link RealmConfig#settings()}.
-     * If a given realm-type is not present in the returned map, then it will be treated as if it supported <em>all</em> possible settings.
-     *
-     * The life-cycle of an extension dictates that this method will be called before {@link #getRealms(ResourceWatcherService)}
-     */
-    default Map<String, Set<Setting<?>>> getRealmSettings() { return Collections.emptyMap(); }
 
     /**
      * Returns a handler for authentication failures, or null to use the default handler.
      *
      * Only one installed extension may have an authentication failure handler. If more than
      * one extension returns a non-null handler, an error is raised.
+     *
+     * @param components Access to components that may be used to build the handler
      */
-    default AuthenticationFailureHandler getAuthenticationFailureHandler() {
+    default AuthenticationFailureHandler getAuthenticationFailureHandler(SecurityComponents components) {
         return null;
     }
 
@@ -72,18 +89,33 @@ public interface SecurityExtension {
      * should be asynchronous if the computation is lengthy or any disk and/or network
      * I/O is involved.  The implementation is responsible for resolving whatever roles
      * it can into a set of {@link RoleDescriptor} instances.  If successful, the
-     * implementation must invoke {@link ActionListener#onResponse(Object)} to pass along
-     * the resolved set of role descriptors.  If a failure was encountered, the
-     * implementation must invoke {@link ActionListener#onFailure(Exception)}.
+     * implementation must wrap the set of {@link RoleDescriptor} instances in a
+     * {@link RoleRetrievalResult} using {@link RoleRetrievalResult#success(Set)} and then invoke
+     * {@link ActionListener#onResponse(Object)}.  If a failure was encountered, the
+     * implementation should wrap the failure in a {@link RoleRetrievalResult} using
+     * {@link RoleRetrievalResult#failure(Exception)} and then invoke
+     * {@link ActionListener#onResponse(Object)} unless the failure needs to terminate the request,
+     * in which case the implementation should invoke {@link ActionListener#onFailure(Exception)}.
      *
      * By default, an empty list is returned.
      *
-     * @param settings The configured settings for the node
-     * @param resourceWatcherService Use to watch configuration files for changes
+     * @param components Access to components that may be used to build roles
      */
-    default List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>>
-        getRolesProviders(Settings settings, ResourceWatcherService resourceWatcherService) {
+    default List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
+        getRolesProviders(SecurityComponents components) {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns a authorization engine for authorizing requests, or null to use the default authorization mechanism.
+     *
+     * Only one installed extension may have an authorization engine. If more than
+     * one extension returns a non-null authorization engine, an error is raised.
+     *
+     * @param settings The configured settings for the node
+     */
+    default AuthorizationEngine getAuthorizationEngine(Settings settings) {
+        return null;
     }
 
     /**

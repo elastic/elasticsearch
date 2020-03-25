@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Exponential_function">e<sup>x</sup></a>
  * function.
  */
 public class Exp extends MathFunction {
-    public Exp(Location location, Expression field) {
-        super(location, field);
+    public Exp(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -26,7 +26,7 @@ public class Exp extends MathFunction {
 
     @Override
     protected Exp replaceChild(Expression newChild) {
-        return new Exp(location(), newChild);
+        return new Exp(source(), newChild);
     }
 
     @Override

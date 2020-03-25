@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -28,21 +29,24 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportPutStoredScriptAction extends TransportMasterNodeAction<PutStoredScriptRequest, PutStoredScriptResponse> {
+import java.io.IOException;
+
+public class TransportPutStoredScriptAction extends TransportMasterNodeAction<PutStoredScriptRequest, AcknowledgedResponse> {
 
     private final ScriptService scriptService;
 
     @Inject
-    public TransportPutStoredScriptAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportPutStoredScriptAction(TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
-        super(settings, PutStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutStoredScriptRequest::new);
+        super(PutStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                PutStoredScriptRequest::new, indexNameExpressionResolver);
         this.scriptService = scriptService;
     }
 
@@ -52,13 +56,13 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
     }
 
     @Override
-    protected PutStoredScriptResponse newResponse() {
-        return new PutStoredScriptResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(PutStoredScriptRequest request, ClusterState state,
-                                   ActionListener<PutStoredScriptResponse> listener) throws Exception {
+    protected void masterOperation(Task task, PutStoredScriptRequest request, ClusterState state,
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
         scriptService.putStoredScript(clusterService, request, listener);
     }
 

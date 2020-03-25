@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="gold+"]
 [[certgen]]
-== certgen
+== elasticsearch-certgen
 
-deprecated[6.1,Replaced by <<certutil,`certutil`>>.]
+deprecated[6.1,"Replaced by <<certutil,`elasticsearch-certutil`>>."]
 
 The `elasticsearch-certgen` command simplifies the creation of certificate
 authorities (CA), certificate signing requests (CSR), and signed certificates
@@ -51,7 +51,8 @@ keys for each instance. If you chose to generate a CA, which is the default
 behavior, the certificate and private key are included in the output file. If
 you chose to generate CSRs, you should provide them to your commercial or
 organization-specific certificate authority to obtain signed certificates. The
-signed certificates must be in PEM format to work with {security}.
+signed certificates must be in PEM format to work with the {stack}
+{security-features}.
 
 [float]
 === Parameters

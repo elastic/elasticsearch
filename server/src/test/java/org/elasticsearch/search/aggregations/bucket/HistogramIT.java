@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.LongHashSet;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -30,15 +31,15 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.search.aggregations.metrics.stats.Stats;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.metrics.Avg;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Stats;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -109,6 +110,15 @@ public class HistogramIT extends ESIntegTestCase {
 
             return scripts;
         }
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("Math.random()", vars -> HistogramIT.randomDouble());
+
+            return scripts;
+        }
     }
 
     @Override
@@ -139,7 +149,7 @@ public class HistogramIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, i + 1)
                     .startArray(MULTI_VALUED_FIELD_NAME).value(i + 1).value(i + 2).endArray()
@@ -150,9 +160,9 @@ public class HistogramIT extends ESIntegTestCase {
 
         getMultiSortDocs(builders);
 
-        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, i * 2)
                     .endObject()));
@@ -181,35 +191,35 @@ public class HistogramIT extends ESIntegTestCase {
         addExpectedBucket(7, 1, 5, 1);
 
         assertAcked(client().admin().indices().prepareCreate("sort_idx")
-            .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=double").get());
+            .setMapping(SINGLE_VALUED_FIELD_NAME, "type=double").get());
         for (int i = 1; i <= 3; i++) {
-            builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 1).field("l", 1).field("d", i).endObject()));
-            builders.add(client().prepareIndex("sort_idx", "type").setSource(
+            builders.add(client().prepareIndex("sort_idx").setSource(
                 jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 2).field("l", 2).field("d", i).endObject()));
         }
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 3).field("l", 3).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 3.8).field("l", 3).field("d", 2).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 4).field("l", 3).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 4.4).field("l", 3).field("d", 3).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 5).field("l", 5).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 5.1).field("l", 5).field("d", 2).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 6).field("l", 5).field("d", 1).endObject()));
-        builders.add(client().prepareIndex("sort_idx", "type").setSource(
+        builders.add(client().prepareIndex("sort_idx").setSource(
             jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, 7).field("l", 5).field("d", 1).endObject()));
     }
 
     public void testSingleValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -233,7 +243,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval1).offset(offset))
-                .execute().actionGet();
+                .get();
 
         // from setup we have between 6 and 20 documents, each with value 1 in test field
         int expectedNumberOfBuckets = (offset >= (numDocs % interval + 1)) ? numValueBuckets   : numValueBuckets + 1;
@@ -264,7 +274,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).offset(offset))
-                .execute().actionGet();
+                .get();
         assertSearchResponse(response);
         // shifting by offset>2 creates new extra bucket [0,offset-1]
         // if offset is >= number of values in original last bucket, that effect is canceled
@@ -297,7 +307,7 @@ public class HistogramIT extends ESIntegTestCase {
     public void testSingleValuedFieldOrderedByKeyAsc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(BucketOrder.key(true)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -319,7 +329,7 @@ public class HistogramIT extends ESIntegTestCase {
     public void testsingleValuedFieldOrderedByKeyDesc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(BucketOrder.key(false)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -341,7 +351,7 @@ public class HistogramIT extends ESIntegTestCase {
     public void testSingleValuedFieldOrderedByCountAsc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(BucketOrder.count(true)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -369,7 +379,7 @@ public class HistogramIT extends ESIntegTestCase {
     public void testSingleValuedFieldOrderedByCountDesc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(BucketOrder.count(false)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -398,7 +408,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -442,7 +452,7 @@ public class HistogramIT extends ESIntegTestCase {
                                 .interval(interval)
                                 .order(BucketOrder.aggregation("sum", true))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -485,7 +495,7 @@ public class HistogramIT extends ESIntegTestCase {
                                 .interval(interval)
                                 .order(BucketOrder.aggregation("sum", false))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -528,7 +538,7 @@ public class HistogramIT extends ESIntegTestCase {
                                 .interval(interval)
                                 .order(BucketOrder.aggregation("stats.sum", false))
                         .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -574,7 +584,7 @@ public class HistogramIT extends ESIntegTestCase {
                                 .order(BucketOrder.aggregation("filter>max", asc))
                         .subAggregation(filter("filter", matchAllQuery())
                         .subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -612,7 +622,7 @@ public class HistogramIT extends ESIntegTestCase {
                 .interval(interval)
                 .order(BucketOrder.aggregation("max_constant", randomBoolean()))
                 .subAggregation(max("max_constant").field("constant")))
-            .execute().actionGet();
+            .get();
 
         assertSearchResponse(response);
 
@@ -643,7 +653,7 @@ public class HistogramIT extends ESIntegTestCase {
                             .interval(interval)
                             .field(MULTI_VALUED_FIELD_NAME)
                             .subAggregation(avg("avg").field("value"))))
-                .execute().actionGet();
+                .get();
             fail("Expected an exception");
         } catch (SearchPhaseExecutionException e) {
             ElasticsearchException[] rootCauses = e.guessRootCauses();
@@ -668,7 +678,7 @@ public class HistogramIT extends ESIntegTestCase {
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", emptyMap()))
                                 .interval(interval))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -696,7 +706,7 @@ public class HistogramIT extends ESIntegTestCase {
     public void testMultiValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(MULTI_VALUED_FIELD_NAME).interval(interval))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -718,7 +728,7 @@ public class HistogramIT extends ESIntegTestCase {
     public void testMultiValuedFieldOrderedByKeyDesc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(MULTI_VALUED_FIELD_NAME).interval(interval).order(BucketOrder.key(false)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -744,7 +754,7 @@ public class HistogramIT extends ESIntegTestCase {
                                 .field(MULTI_VALUED_FIELD_NAME)
                                 .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", emptyMap()))
                                 .interval(interval))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -780,7 +790,7 @@ public class HistogramIT extends ESIntegTestCase {
                         histogram("histo")
                             .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['l_value'].value", emptyMap()))
                             .interval(interval))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -804,7 +814,7 @@ public class HistogramIT extends ESIntegTestCase {
                         histogram("histo")
                                 .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['l_values']", emptyMap()))
                                 .interval(interval))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -825,7 +835,7 @@ public class HistogramIT extends ESIntegTestCase {
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -839,7 +849,7 @@ public class HistogramIT extends ESIntegTestCase {
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -899,9 +909,9 @@ public class HistogramIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L).minDocCount(0)
                         .subAggregation(histogram("sub_histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L)))
-                .execute().actionGet();
+                .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -957,7 +967,7 @@ public class HistogramIT extends ESIntegTestCase {
                             .interval(interval)
                             .minDocCount(0)
                             .extendedBounds(boundsMin, boundsMax))
-                    .execute().actionGet();
+                    .get();
 
             if (invalidBoundsError) {
                 fail("Expected an exception to be thrown when bounds.min is greater than bounds.max");
@@ -1034,7 +1044,7 @@ public class HistogramIT extends ESIntegTestCase {
                             .interval(interval)
                             .minDocCount(0)
                             .extendedBounds(boundsMin, boundsMax))
-                    .execute().actionGet();
+                    .get();
 
             if (invalidBoundsError) {
                 fail("Expected an exception to be thrown when bounds.min is greater than bounds.max");
@@ -1073,7 +1083,7 @@ public class HistogramIT extends ESIntegTestCase {
     public void testExeptionOnNegativerInterval() {
         try {
             client().prepareSearch("empty_bucket_idx")
-                    .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(-1).minDocCount(0)).execute().actionGet();
+                    .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(-1).minDocCount(0)).get();
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.toString(), containsString("[interval] must be >0 for histogram aggregation [histo]"));
@@ -1081,10 +1091,10 @@ public class HistogramIT extends ESIntegTestCase {
     }
 
     public void testDecimalIntervalAndOffset() throws Exception {
-        assertAcked(prepareCreate("decimal_values").addMapping("type", "d", "type=float").get());
+        assertAcked(prepareCreate("decimal_values").setMapping("d", "type=float").get());
         indexRandom(true,
-                client().prepareIndex("decimal_values", "type", "1").setSource("d", -0.6),
-                client().prepareIndex("decimal_values", "type", "2").setSource("d", 0.1));
+                client().prepareIndex("decimal_values").setId("1").setSource("d", -0.6),
+                client().prepareIndex("decimal_values").setId("2").setSource("d", 0.1));
 
         SearchResponse r = client().prepareSearch("decimal_values")
                 .addAggregation(histogram("histo").field("d").interval(0.7).offset(0.05))
@@ -1101,15 +1111,15 @@ public class HistogramIT extends ESIntegTestCase {
     }
 
     /**
-     * Make sure that a request using a script does not get cached and a request
-     * not using a script does get cached.
+     * Make sure that a request using a deterministic script or not using a script get cached.
+     * Ensure requests using nondeterministic scripts do not get cached.
      */
-    public void testDontCacheScripts() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=float")
+    public void testScriptCaching() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").setMapping("d", "type=float")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("d", -0.6),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource("d", 0.1));
+        indexRandom(true, client().prepareIndex("cache_test_idx").setId("1").setSource("d", -0.6),
+                client().prepareIndex("cache_test_idx").setId("2").setSource("d", 0.1));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -1117,9 +1127,10 @@ public class HistogramIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script does not get cached
+        // Test that a request using a nondeterministic script does not get cached
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(histogram("histo").field("d")
-                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", emptyMap())).interval(0.7).offset(0.05)).get();
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", emptyMap())).interval(0.7).offset(0.05))
+                .get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -1127,8 +1138,17 @@ public class HistogramIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // To make sure that the cache is working test that a request not using
-        // a script is cached
+        // Test that a request using a deterministic script gets cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(histogram("histo").field("d")
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", emptyMap())).interval(0.7).offset(0.05)).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
+
+        // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(histogram("histo").field("d").interval(0.7).offset(0.05))
                 .get();
         assertSearchResponse(r);
@@ -1136,7 +1156,7 @@ public class HistogramIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
-                .getMissCount(), equalTo(1L));
+                .getMissCount(), equalTo(2L));
     }
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAndKeyDesc() throws Exception {
@@ -1178,10 +1198,9 @@ public class HistogramIT extends ESIntegTestCase {
     private void assertMultiSortResponse(long[] expectedKeys, BucketOrder... order) {
         SearchResponse response = client()
             .prepareSearch("sort_idx")
-            .setTypes("type")
             .addAggregation(
                 histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).order(BucketOrder.compound(order))
-                    .subAggregation(avg("avg_l").field("l")).subAggregation(sum("sum_d").field("d"))).execute().actionGet();
+                    .subAggregation(avg("avg_l").field("l")).subAggregation(sum("sum_d").field("d"))).get();
 
         assertSearchResponse(response);
 

@@ -42,7 +42,15 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private String clusterUuid;
     private Build build;
 
-    MainResponse() {
+    MainResponse() {}
+
+    MainResponse(StreamInput in) throws IOException {
+        super(in);
+        nodeName = in.readString();
+        version = Version.readVersion(in);
+        clusterName = new ClusterName(in);
+        clusterUuid = in.readString();
+        build = Build.readBuild(in);
     }
 
     public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
@@ -61,6 +69,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return version;
     }
 
+
     public ClusterName getClusterName() {
         return clusterName;
     }
@@ -75,28 +84,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(nodeName);
         Version.writeVersion(version, out);
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
-            out.writeBoolean(true);
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodeName = in.readString();
-        version = Version.readVersion(in);
-        clusterName = new ClusterName(in);
-        clusterUuid = in.readString();
-        build = Build.readBuild(in);
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
-            in.readBoolean();
-        }
     }
 
     @Override
@@ -106,10 +98,10 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
-            .field("number", version.toString())
+            .field("number", build.getQualifiedVersion())
             .field("build_flavor", build.flavor().displayName())
             .field("build_type", build.type().displayName())
-            .field("build_hash", build.shortHash())
+            .field("build_hash", build.hash())
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
             .field("lucene_version", version.luceneVersion.toString())
@@ -134,12 +126,22 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             final String buildType = (String) value.get("build_type");
             response.build =
                     new Build(
-                            buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor),
-                            buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType),
+                            /*
+                             * Be lenient when reading on the wire, the enumeration values from other versions might be different than what
+                             * we know.
+                             */
+                            buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor, false),
+                            buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType, false),
                             (String) value.get("build_hash"),
                             (String) value.get("build_date"),
-                            (boolean) value.get("build_snapshot"));
-            response.version = Version.fromString((String) value.get("number"));
+                            (boolean) value.get("build_snapshot"),
+                            (String) value.get("number")
+                    );
+            response.version = Version.fromString(
+                ((String) value.get("number"))
+                    .replace("-SNAPSHOT", "")
+                    .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
+            );
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }
 
@@ -166,5 +168,16 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(nodeName, version, clusterUuid, build, clusterName);
+    }
+
+    @Override
+    public String toString() {
+        return "MainResponse{" +
+            "nodeName='" + nodeName + '\'' +
+            ", version=" + version +
+            ", clusterName=" + clusterName +
+            ", clusterUuid='" + clusterUuid + '\'' +
+            ", build=" + build +
+            '}';
     }
 }

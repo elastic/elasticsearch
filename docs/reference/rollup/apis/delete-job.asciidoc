@@ -1,0 +1,92 @@
+[role="xpack"]
+[testenv="basic"]
+[[rollup-delete-job]]
+=== Delete {rollup-jobs} API
+[subs="attributes"]
+++++
+<titleabbrev>Delete {rollup-jobs}</titleabbrev>
+++++
+
+Deletes an existing {rollup-job}. 
+
+experimental[]
+
+[[rollup-delete-job-request]]
+==== {api-request-title}
+
+`DELETE _rollup/job/<job_id>`
+
+[[rollup-delete-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage` or
+`manage_rollup` cluster privileges to use this API. For more information, see
+<<security-privileges>>.
+
+[[rollup-delete-job-desc]]
+==== {api-description-title}
+
+A job must be *stopped* first before it can be deleted. If you attempt to delete
+a started job, an error occurs. Similarly, if you attempt to delete a
+nonexistent job, an exception occurs.
+
+[IMPORTANT]
+===============================
+When a job is deleted, that only removes the process that is actively monitoring
+and rolling up data. It does not delete any previously rolled up data. This is
+by design; a user may wish to roll up a static dataset. Because the dataset is
+static, once it has been fully rolled up there is no need to keep the indexing
+rollup job around (as there will be no new data). So the job can be deleted,
+leaving behind the rolled up data for analysis.
+
+If you wish to also remove the rollup data, and the rollup index only contains
+the data for a single job, you can simply delete the whole rollup index. If the
+rollup index stores data from several jobs, you must issue a delete-by-query
+that targets the rollup job's ID in the rollup index.
+
+[source,js]
+--------------------------------------------------
+POST my_rollup_index/_delete_by_query
+{
+  "query": {
+    "term": {
+      "_rollup.id": "the_rollup_job_id"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+===============================
+
+[[rollup-delete-job-path-params]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the job.
+
+[[rollup-delete-job-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  This code indicates that there are no resources that match the request. It
+  occurs if you try to delete a job that doesn't exist.
+
+[[rollup-delete-job-example]]
+==== {api-example-title}
+
+If we have a rollup job named `sensor`, it can be deleted with:
+
+[source,console]
+--------------------------------------------------
+DELETE _rollup/job/sensor
+--------------------------------------------------
+// TEST[setup:sensor_rollup_job]
+
+Which will return the response:
+
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----

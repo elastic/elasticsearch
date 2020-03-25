@@ -1,18 +1,20 @@
 ---
 "Verify native store security actions":
+  - skip:
+      features: headers
   # create native user and role
   - do:
-     xpack.security.put_user:
+      security.put_user:
        username: "native_user"
        body:  >
            {
              "password" : "x-pack-test-password",
              "roles" : [ "native_role" ]
            }
-  - match: { user: { created: true } }
+  - match: { created: true }
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "native_role"
         body:  >
             {
@@ -34,11 +36,11 @@
   - match: { timed_out: false }
 
   - do:
-      xpack.security.clear_cached_roles:
+      security.clear_cached_roles:
         name: "native_role"
 
   - do:
-      xpack.security.clear_cached_realms:
+      security.clear_cached_realms:
         realms: "_all"
 
   - do:
@@ -49,16 +51,16 @@
   # Check that enabling a user in old cluster will not prevent the user from having a "default password" in the new cluster.
   # See: org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator.doConvertDefaultPasswords
   - do:
-      xpack.security.disable_user:
+      security.disable_user:
         username: "kibana"
 
   - do:
-      xpack.security.get_user:
+      security.get_user:
         username: "kibana"
   - match: { kibana.enabled: false }
 
   - do:
-      xpack.security.change_password:
+      security.change_password:
         username: "logstash_system"
         body: >
             {
@@ -66,10 +68,10 @@
             }
 
   - do:
-      xpack.security.enable_user:
+      security.enable_user:
         username: "logstash_system"
 
   - do:
-      xpack.security.get_user:
+      security.get_user:
         username: "logstash_system"
   - match: { logstash_system.enabled: true }

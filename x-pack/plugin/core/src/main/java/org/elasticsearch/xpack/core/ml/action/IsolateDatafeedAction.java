@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -35,24 +35,18 @@ import java.util.Objects;
  * task ensures the current datafeed task can complete inconsequentially while
  * the datafeed persistent task may be stopped or reassigned on another node.
  */
-public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response> {
+public class IsolateDatafeedAction extends ActionType<IsolateDatafeedAction.Response> {
 
     public static final IsolateDatafeedAction INSTANCE = new IsolateDatafeedAction();
     public static final String NAME = "cluster:internal/xpack/ml/datafeed/isolate";
 
     private IsolateDatafeedAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, IsolateDatafeedAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
         }
@@ -78,6 +72,17 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            datafeedId = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(datafeedId);
+        }
+
         public String getDatafeedId() {
             return datafeedId;
         }
@@ -91,18 +96,6 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedId = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(datafeedId);
         }
 
         @Override
@@ -133,7 +126,7 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
 
     public static class Response extends BaseTasksResponse implements Writeable {
 
-        private boolean isolated;
+        private final boolean isolated;
 
         public Response(boolean isolated) {
             super(null, null);
@@ -141,17 +134,7 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
         }
 
         public Response(StreamInput in) throws IOException {
-            super(null, null);
-            readFrom(in);
-        }
-
-        public Response() {
-            super(null, null);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             isolated = in.readBoolean();
         }
 

@@ -27,7 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.JoinUtil;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,6 +54,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+
 /**
  * A query builder for {@code has_child} query.
  */
@@ -67,7 +69,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     /**
      * The default minimum number of children that are required to match for the parent to be considered a match.
      */
-    public static final int DEFAULT_MIN_CHILDREN = 0;
+    public static final int DEFAULT_MIN_CHILDREN = 1;
 
     /**
      * The default value for ignore_unmapped.
@@ -125,15 +127,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         out.writeInt(maxChildren);
         out.writeVInt(scoreMode.ordinal());
         out.writeNamedWriteable(query);
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            final boolean hasInnerHit = innerHitBuilder != null;
-            out.writeBoolean(hasInnerHit);
-            if (hasInnerHit) {
-                innerHitBuilder.writeToParentChildBWC(out, query, type);
-            }
-        } else {
-            out.writeOptionalWriteable(innerHitBuilder);
-        }
+        out.writeOptionalWriteable(innerHitBuilder);
         out.writeBoolean(ignoreUnmapped);
     }
 
@@ -142,11 +136,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      * the maximum number of children that are required to match for the parent to be considered a match.
      */
     public HasChildQueryBuilder minMaxChildren(int minChildren, int maxChildren) {
-        if (minChildren < 0) {
-            throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'min_children' field");
+        if (minChildren <= 0) {
+            throw new IllegalArgumentException("[" + NAME + "] requires positive 'min_children' field");
         }
-        if (maxChildren < 0) {
-            throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'max_children' field");
+        if (maxChildren <= 0) {
+            throw new IllegalArgumentException("[" + NAME + "] requires positive 'max_children' field");
         }
         if (maxChildren < minChildren) {
             throw new IllegalArgumentException("[" + NAME + "] 'max_children' is less than 'min_children'");
@@ -192,7 +186,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     /**
      * Returns the minimum number of children that are required to match for the parent to be considered a match.
-     * The default is {@value #DEFAULT_MAX_CHILDREN}
+     * The default is {@value #DEFAULT_MIN_CHILDREN}
      */
     public int minChildren() {
         return minChildren;
@@ -200,7 +194,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     /**
      * Returns the maximum number of children that are required to match for the parent to be considered a match.
-     * The default is {@value #DEFAULT_MIN_CHILDREN}
+     * The default is {@value #DEFAULT_MAX_CHILDREN}
      */
     public int maxChildren() { return maxChildren; }
 
@@ -304,6 +298,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[joining] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
+
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
         if (joinFieldMapper == null) {
             if (ignoreUnmapped) {
@@ -469,9 +468,13 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     @Override
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         if (innerHitBuilder != null) {
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;
+            if (innerHits.containsKey(name)) {
+                throw new IllegalArgumentException("[inner_hits] already contains an entry for key [" + name + "]");
+            }
+
             Map<String, InnerHitContextBuilder> children = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(query, children);
-            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;
             InnerHitContextBuilder innerHitContextBuilder =
                 new ParentChildInnerHitContextBuilder(type, true, query, innerHitBuilder, children);
             innerHits.put(name, innerHitContextBuilder);

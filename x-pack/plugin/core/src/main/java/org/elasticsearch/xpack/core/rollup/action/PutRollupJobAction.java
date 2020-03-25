@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -25,18 +25,13 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class PutRollupJobAction extends Action<PutRollupJobAction.Response> {
+public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutRollupJobAction INSTANCE = new PutRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/put";
 
     private PutRollupJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -48,13 +43,17 @@ public class PutRollupJobAction extends Action<PutRollupJobAction.Response> {
             this.config = config;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.config = new RollupJobConfig(in);
+        }
+
         public Request() {
 
         }
 
-        public static Request parseRequest(String id, XContentParser parser) {
-            RollupJobConfig.Builder config = RollupJobConfig.Builder.fromXContent(id, parser);
-            return new Request(config.build());
+        public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
+            return new Request(RollupJobConfig.fromXContent(parser, id));
         }
 
         public RollupJobConfig getConfig() {
@@ -63,12 +62,6 @@ public class PutRollupJobAction extends Action<PutRollupJobAction.Response> {
 
         public void setConfig(RollupJobConfig config) {
             this.config = config;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.config = new RollupJobConfig(in);
         }
 
         @Override
@@ -128,21 +121,10 @@ public class PutRollupJobAction extends Action<PutRollupJobAction.Response> {
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, PutRollupJobAction action) {
             super(client, action, new Request());
-        }
-    }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
         }
     }
 }

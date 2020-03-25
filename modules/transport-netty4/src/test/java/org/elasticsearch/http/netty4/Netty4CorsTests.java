@@ -29,6 +29,7 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.rest.RestStatus;
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class Netty4CorsTests extends ESTestCase {
 
     public void testCorsEnabledWithoutAllowOrigins() {
-        // Set up a HTTP transport with only the CORS enabled setting
+        // Set up an HTTP transport with only the CORS enabled setting
         Settings settings = Settings.builder()
             .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
             .build();
@@ -57,7 +58,7 @@ public class Netty4CorsTests extends ESTestCase {
 
     public void testCorsEnabledWithAllowOrigins() {
         final String originValue = "remote-host";
-        // create a http transport with CORS enabled and allow origin configured
+        // create an HTTP transport with CORS enabled and allow origin configured
         Settings settings = Settings.builder()
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
@@ -72,7 +73,7 @@ public class Netty4CorsTests extends ESTestCase {
     public void testCorsAllowOriginWithSameHost() {
         String originValue = "remote-host";
         String host = "remote-host";
-        // create a http transport with CORS enabled
+        // create an HTTP transport with CORS enabled
         Settings settings = Settings.builder()
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .build();
@@ -140,7 +141,7 @@ public class Netty4CorsTests extends ESTestCase {
         }
         httpRequest.headers().add(HttpHeaderNames.HOST, host);
         EmbeddedChannel embeddedChannel = new EmbeddedChannel();
-        embeddedChannel.pipeline().addLast(new Netty4CorsHandler(Netty4HttpServerTransport.buildCorsConfig(settings)));
+        embeddedChannel.pipeline().addLast(new Netty4CorsHandler(CorsHandler.fromSettings(settings)));
         Netty4HttpRequest nettyRequest = new Netty4HttpRequest(httpRequest, 0);
         embeddedChannel.writeOutbound(nettyRequest.createResponse(RestStatus.OK, new BytesArray("content")));
         return embeddedChannel.readOutbound();

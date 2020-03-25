@@ -23,22 +23,22 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheReque
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestClearIndicesCacheAction extends BaseRestHandler {
 
-    public RestClearIndicesCacheAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(POST, "/_cache/clear", this);
-        controller.registerHandler(POST, "/{index}/_cache/clear", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_cache/clear"),
+            new Route(POST, "/{index}/_cache/clear"));
     }
 
     @Override

@@ -22,7 +22,6 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -32,33 +31,37 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 public final class NetworkService {
 
     /** By default, we bind to loopback interfaces */
     public static final String DEFAULT_NETWORK_HOST = "_local_";
+    public static final Setting<Boolean> NETWORK_SERVER =
+        Setting.boolSetting("network.server", true, Property.NodeScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING =
         Setting.listSetting("network.host", Collections.emptyList(), Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> GLOBAL_NETWORK_BINDHOST_SETTING =
+    public static final Setting<List<String>> GLOBAL_NETWORK_BIND_HOST_SETTING =
         Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISHHOST_SETTING =
+    public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISH_HOST_SETTING =
         Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, Property.NodeScope);
 
     public static final Setting<Boolean> TCP_NO_DELAY =
         Setting.boolSetting("network.tcp.no_delay", true, Property.NodeScope);
     public static final Setting<Boolean> TCP_KEEP_ALIVE =
         Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
+    public static final Setting<Integer> TCP_KEEP_IDLE =
+        Setting.intSetting("network.tcp.keep_idle", -1, -1, Property.NodeScope);
+    public static final Setting<Integer> TCP_KEEP_INTERVAL =
+        Setting.intSetting("network.tcp.keep_interval", -1, -1, Property.NodeScope);
+    public static final Setting<Integer> TCP_KEEP_COUNT =
+        Setting.intSetting("network.tcp.keep_count", -1, -1, Property.NodeScope);
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =
         Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
         Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
         Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
-    public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
-        Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), Property.NodeScope);
 
     /**
      * A custom name resolver can support custom lookup keys (my_net_key:ipv4) and also change
@@ -113,7 +116,8 @@ public final class NetworkService {
             }
             // check if its a wildcard address: this is only ok if its the only address!
             if (address.isAnyLocalAddress() && addresses.length > 1) {
-                throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) + "} is wildcard, but multiple addresses specified: this makes no sense");
+                throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) +
+                    "} is wildcard, but multiple addresses specified: this makes no sense");
             }
         }
         return addresses;
@@ -156,12 +160,14 @@ public final class NetworkService {
         for (InetAddress address : addresses) {
             // check if its multicast: flat out mistake
             if (address.isMulticastAddress()) {
-                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is invalid: multicast address");
+                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) +
+                    "} is invalid: multicast address");
             }
             // check if its a wildcard address: this is only ok if its the only address!
             // (if it was a single wildcard address, it was replaced by step 1 above)
             if (address.isAnyLocalAddress()) {
-                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is wildcard, but multiple addresses specified: this makes no sense");
+                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) +
+                    "} is wildcard, but multiple addresses specified: this makes no sense");
             }
         }
 

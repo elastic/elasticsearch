@@ -1,0 +1,210 @@
+[role="xpack"]
+[testenv="gold"]
+[[configuring-metricbeat]]
+== Collecting {es} monitoring data with {metricbeat}
+
+[subs="attributes"]
+++++
+<titleabbrev>Collecting monitoring data with {metricbeat}</titleabbrev>
+++++
+
+In 6.5 and later, you can use {metricbeat} to collect data about {es} 
+and ship it to the monitoring cluster, rather than routing it through exporters 
+as described in <<collecting-monitoring-data>>. 
+
+image::monitoring/images/metricbeat.png[Example monitoring architecture]
+
+//NOTE: The tagged regions are re-used in the Stack Overview.
+
+. Enable the collection of monitoring data. +
++
+--
+// tag::enable-collection[]
+Set `xpack.monitoring.collection.enabled` to `true` on the
+production cluster. By default, it is is disabled (`false`). 
+
+You can use the following APIs to review and change this setting:
+
+[source,console]
+----------------------------------
+GET _cluster/settings
+
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.monitoring.collection.enabled": true
+  }
+}
+---------------------------------- 
+
+If {es} {security-features} are enabled, you must have `monitor` cluster privileges to 
+view the cluster settings and `manage` cluster privileges to change them.
+
+// end::enable-collection[]
+For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
+--
+
+. {metricbeat-ref}/metricbeat-installation.html[Install {metricbeat}] on each
+{es} node in the production cluster.
+
+. Enable the {es} {xpack} module in {metricbeat} on each {es} node. +
++
+--
+// tag::enable-es-module[]
+For example, to enable the default configuration in the `modules.d` directory, 
+run the following command:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+metricbeat modules enable elasticsearch-xpack
+----------------------------------------------------------------------
+
+For more information, see 
+{metricbeat-ref}/configuration-metricbeat.html[Specify which modules to run] and 
+{metricbeat-ref}/metricbeat-module-elasticsearch.html[{es} module]. 
+
+// end::enable-es-module[]
+--
+
+. Configure the {es} {xpack} module in {metricbeat} on each {es} node. +
++
+--
+// tag::configure-es-module[]
+The `modules.d/elasticsearch-xpack.yml` file contains the following settings:
+
+[source,yaml]
+----------------------------------
+  - module: elasticsearch
+    metricsets:
+      - ccr
+      - cluster_stats
+      - index
+      - index_recovery
+      - index_summary
+      - ml_job
+      - node_stats
+      - shard
+    period: 10s
+    hosts: ["http://localhost:9200"]
+    #username: "user"
+    #password: "secret"
+    xpack.enabled: true
+----------------------------------
+
+By default, the module collects {es} monitoring metrics from
+`http://localhost:9200`. If that host and port number are not correct, you must
+update the `hosts` setting. If you configured {es} to use encrypted
+communications, you must access it via HTTPS. For example, use a `hosts` setting
+like `https://localhost:9200`.
+// end::configure-es-module[]
+
+// tag::remote-monitoring-user[]
+If Elastic {security-features} are enabled, you must also provide a user ID
+and password so that {metricbeat} can collect metrics successfully: 
+
+.. Create a user on the production cluster that has the
+<<built-in-roles,`remote_monitoring_collector` built-in role>>. 
+Alternatively, use the
+<<built-in-users,`remote_monitoring_user` built-in user>>.
+
+.. Add the `username` and `password` settings to the {es} module configuration
+file. 
+// end::remote-monitoring-user[]
+--
+
+. Optional: Disable the system module in {metricbeat}.
++
+--
+// tag::disable-system-module[]
+By default, the {metricbeat-ref}/metricbeat-module-system.html[system module] is
+enabled. The information it collects, however, is not shown on the *Monitoring*
+page in {kib}. Unless you want to use that information for other purposes, run
+the following command:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+metricbeat modules disable system
+----------------------------------------------------------------------
+
+// end::disable-system-module[] 
+--
+
+. Identify where to send the monitoring data. +
++
+--
+TIP: In production environments, we strongly recommend using a separate cluster 
+(referred to as the _monitoring cluster_) to store the data. Using a separate 
+monitoring cluster prevents production cluster outages from impacting your 
+ability to access your monitoring data. It also prevents monitoring activities 
+from impacting the performance of your production cluster.
+
+For example, specify the {es} output information in the {metricbeat} 
+configuration file (`metricbeat.yml`):
+
+[source,yaml]
+----------------------------------
+output.elasticsearch:
+  # Array of hosts to connect to.
+  hosts: ["http://es-mon-1:9200", "http://es-mon2:9200"] <1>
+  
+  # Optional protocol and basic auth credentials.
+  #protocol: "https"
+  #username: "elastic"
+  #password: "changeme"
+----------------------------------
+<1> In this example, the data is stored on a monitoring cluster with nodes 
+`es-mon-1` and `es-mon-2`. 
+
+If you configured the monitoring cluster to use encrypted communications, you
+must access it via HTTPS. For example, use a `hosts` setting like
+`https://es-mon-1:9200`.
+
+IMPORTANT: The {es} {monitor-features} use ingest pipelines, therefore the
+cluster that stores the monitoring data must have at least one 
+<<ingest,ingest node>>. 
+
+If {es} {security-features} are enabled on the monitoring cluster, you must
+provide a valid user ID and password so that {metricbeat} can send metrics 
+successfully: 
+
+.. Create a user on the monitoring cluster that has the 
+<<built-in-roles,`remote_monitoring_agent` built-in role>>. 
+Alternatively, use the 
+<<built-in-users,`remote_monitoring_user` built-in user>>.
+
+.. Add the `username` and `password` settings to the {es} output information in 
+the {metricbeat} configuration file.
+
+For more information about these configuration options, see 
+{metricbeat-ref}/elasticsearch-output.html[Configure the {es} output].
+--
+
+. {metricbeat-ref}/metricbeat-starting.html[Start {metricbeat}] on each node. 
+
+. Disable the default collection of {es} monitoring metrics. +
++
+--
+// tag::disable-default-collection[]
+Set `xpack.monitoring.elasticsearch.collection.enabled` to `false` on the 
+production cluster.
+
+You can use the following API to change this setting:
+
+[source,console]
+----------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.monitoring.elasticsearch.collection.enabled": false
+  }
+}
+----------------------------------
+
+If {es} {security-features} are enabled, you must have `monitor` cluster
+privileges to  view the cluster settings and `manage` cluster privileges
+to change them.
+
+// end::disable-default-collection[]
+--
+
+. {kibana-ref}/monitoring-data.html[View the monitoring data in {kib}]. 

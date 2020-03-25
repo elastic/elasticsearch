@@ -33,6 +33,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
@@ -52,25 +53,27 @@ public class VersionLookupTests extends ESTestCase {
         Document doc = new Document();
         doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.addDocument(doc);
         writer.addDocument(new Document());
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
         PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
         // found doc
-        DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), segment);
+        DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
         assertEquals(87, result.version);
         assertEquals(0, result.docId);
         // not found doc
-        assertNull(lookup.lookupVersion(new BytesRef("7"), segment));
+        assertNull(lookup.lookupVersion(new BytesRef("7"), randomBoolean(), segment));
         // deleted doc
         writer.deleteDocuments(new Term(IdFieldMapper.NAME, "6"));
         reader.close();
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().get(0);
         lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
-        assertNull(lookup.lookupVersion(new BytesRef("6"), segment));
+        assertNull(lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment));
         reader.close();
         writer.close();
         dir.close();
@@ -86,6 +89,8 @@ public class VersionLookupTests extends ESTestCase {
         Document doc = new Document();
         doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.addDocument(doc);
         writer.addDocument(doc);
         writer.addDocument(new Document());
@@ -93,7 +98,7 @@ public class VersionLookupTests extends ESTestCase {
         LeafReaderContext segment = reader.leaves().get(0);
         PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
         // return the last doc when there are duplicates
-        DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), segment);
+        DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
         assertEquals(87, result.version);
         assertEquals(1, result.docId);
@@ -103,7 +108,7 @@ public class VersionLookupTests extends ESTestCase {
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().get(0);
         lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
-        result = lookup.lookupVersion(new BytesRef("6"), segment);
+        result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
         assertEquals(87, result.version);
         assertEquals(1, result.docId);
@@ -113,7 +118,7 @@ public class VersionLookupTests extends ESTestCase {
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().get(0);
         lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
-        assertNull(lookup.lookupVersion(new BytesRef("6"), segment));
+        assertNull(lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment));
         reader.close();
         writer.close();
         dir.close();

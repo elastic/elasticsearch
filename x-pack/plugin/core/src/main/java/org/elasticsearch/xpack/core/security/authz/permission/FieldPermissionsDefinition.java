@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -80,6 +82,14 @@ public final class FieldPermissionsDefinition {
             int result = Arrays.hashCode(grantedFields);
             result = 31 * result + Arrays.hashCode(excludedFields);
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName()
+                + "[grant=" + Strings.arrayToCommaDelimitedString(grantedFields)
+                + "; exclude=" + Strings.arrayToCommaDelimitedString(excludedFields)
+                + "]";
         }
     }
 }

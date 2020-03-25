@@ -1,0 +1,76 @@
+---
+"Test execute watch api with an inline watch":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      watcher.execute_watch:
+        body: >
+          {
+            "trigger_data" : {
+              "scheduled_time" : "2015-05-05T20:58:02.443Z",
+              "triggered_time" : "2015-05-05T20:58:02.443Z"
+            },
+            "alternative_input" : {
+              "foo" : "bar"
+            },
+            "ignore_condition" : true,
+            "action_modes" : {
+              "_all" : "force_simulate"
+            },
+            "watch" : {
+              "trigger" : {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input" : {
+                "search" : {
+                  "request" : {
+                    "indices" : [ "logstash*" ],
+                    "rest_total_hits_as_int": true,
+                    "body" : {
+                      "query" : {
+                        "bool" : {
+                          "must": {
+                            "match": {
+                              "response": 404
+                            }
+                          },
+                          "filter": {
+                            "range": {
+                              "@timestamp" : {
+                                "from": "{{ctx.trigger.scheduled_time}}||-5m",
+                                "to": "{{ctx.trigger.triggered_time}}"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "condition" : {
+                "script" : {
+                  "source" : "ctx.payload.hits.total > 1",
+                  "lang" : "painless"
+                }
+              },
+              "actions" : {
+                "email_admin" : {
+                  "email" : {
+                    "to" : "someone@domain.host.com",
+                    "subject" : "404 recently encountered"
+                  }
+                }
+              }
+            }
+          }
+  - match: { "watch_record.state": "executed" }
+  - match: { "watch_record.trigger_event.manual.schedule.scheduled_time": "2015-05-05T20:58:02.443Z" }
+  - match: { "watch_record.result.input.type": "simple" }
+  - match: { "watch_record.result.input.payload.foo": "bar" }
+  - match: { "watch_record.result.condition.met": true }
+  - match: { "watch_record.result.actions.0.id" : "email_admin" }
+  - match: { "watch_record.result.actions.0.status" : "simulated" }
+  - match: { "watch_record.result.actions.0.email.message.subject" : "404 recently encountered" }

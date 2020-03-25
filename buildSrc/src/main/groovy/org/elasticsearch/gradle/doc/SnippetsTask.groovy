@@ -28,6 +28,7 @@ import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.ConfigurableFileTree
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 
 import java.nio.file.Path
@@ -36,21 +37,22 @@ import java.util.regex.Matcher
 /**
  * A task which will run a closure on each snippet in the documentation.
  */
-public class SnippetsTask extends DefaultTask {
+class SnippetsTask extends DefaultTask {
     private static final String SCHAR = /(?:\\\/|[^\/])/
     private static final String SUBSTITUTION = /s\/($SCHAR+)\/($SCHAR*)\//
     private static final String CATCH = /catch:\s*((?:\/[^\/]+\/)|[^ \]]+)/
     private static final String SKIP = /skip:([^\]]+)/
     private static final String SETUP = /setup:([^ \]]+)/
     private static final String WARNING = /warning:(.+)/
-    private static final String CAT = /(_cat)/
+    private static final String NON_JSON = /(non_json)/
     private static final String TEST_SYNTAX =
-        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$WARNING) ?/
+        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$WARNING|(skip_shard_failures)) ?/
 
     /**
      * Action to take on each snippet. Called with a single parameter, an
      * instance of Snippet.
      */
+    @Internal
     Closure perSnippet
 
     /**
@@ -64,6 +66,8 @@ public class SnippetsTask extends DefaultTask {
         exclude 'build.gradle'
         // That is where the snippets go, not where they come from!
         exclude 'build'
+        exclude 'build-idea'
+        exclude 'build-eclipse'
     }
 
     /**
@@ -73,13 +77,14 @@ public class SnippetsTask extends DefaultTask {
     Map<String, String> defaultSubstitutions = [:]
 
     @TaskAction
-    public void executeTask() {
+    void executeTask() {
         /*
          * Walks each line of each file, building snippets as it encounters
          * the lines that make up the snippet.
          */
         for (File file: docs) {
             String lastLanguage
+            String name
             int lastLanguageLine
             Snippet snippet = null
             StringBuilder contents = null
@@ -122,7 +127,9 @@ public class SnippetsTask extends DefaultTask {
                             + "contain `curl`.")
                     }
                 }
-                if (snippet.testResponse && snippet.language == 'js') {
+                if (snippet.testResponse
+                        && ('js' == snippet.language || 'console-result' == snippet.language)
+                        && null == snippet.skip) {
                     String quoted = snippet.contents
                         // quote values starting with $
                         .replaceAll(/([:,])\s*(\$[^ ,\n}]+)/, '$1 "$2"')
@@ -151,19 +158,21 @@ public class SnippetsTask extends DefaultTask {
                 if (line ==~ /-{4,}\s*/) { // Four dashes looks like a snippet
                     if (snippet == null) {
                         Path path = docs.dir.toPath().relativize(file.toPath())
-                        snippet = new Snippet(path: path, start: lineNumber, testEnv: testEnv)
+                        snippet = new Snippet(path: path, start: lineNumber, testEnv: testEnv, name: name)
                         if (lastLanguageLine == lineNumber - 1) {
                             snippet.language = lastLanguage
                         }
+                        name = null
                     } else {
                         snippet.end = lineNumber
                     }
                     return
                 }
-                matcher = line =~ /\["?source"?,\s*"?(\w+)"?(,.*)?].*/
-                if (matcher.matches()) {
-                    lastLanguage = matcher.group(1)
+                def source = matchSource(line)
+                if (source.matches) {
+                    lastLanguage = source.language
                     lastLanguageLine = lineNumber
+                    name = source.name
                     return
                 }
                 if (line ==~ /\/\/\s*AUTOSENSE\s*/) {
@@ -216,7 +225,7 @@ public class SnippetsTask extends DefaultTask {
                                 return
                             }
                             if (it.group(4) != null) {
-                                snippet.skipTest = it.group(4)
+                                snippet.skip = it.group(4)
                                 return
                             }
                             if (it.group(5) != null) {
@@ -229,6 +238,10 @@ public class SnippetsTask extends DefaultTask {
                             }
                             if (it.group(7) != null) {
                                 snippet.warnings.add(it.group(7))
+                                return
+                            }
+                            if (it.group(8) != null) {
+                                snippet.skipShardsFailures = true
                                 return
                             }
                             throw new InvalidUserDataException(
@@ -249,16 +262,19 @@ public class SnippetsTask extends DefaultTask {
                             substitutions = []
                         }
                         String loc = "$file:$lineNumber"
-                        parse(loc, matcher.group(2), /(?:$SUBSTITUTION|$CAT) ?/) {
+                        parse(loc, matcher.group(2), /(?:$SUBSTITUTION|$NON_JSON|$SKIP) ?/) {
                             if (it.group(1) != null) {
                                 // TESTRESPONSE[s/adsf/jkl/]
                                 substitutions.add([it.group(1), it.group(2)])
                             } else if (it.group(3) != null) {
-                                // TESTRESPONSE[_cat]
+                                // TESTRESPONSE[non_json]
                                 substitutions.add(['^', '/'])
                                 substitutions.add(['\n$', '\\\\s*/'])
                                 substitutions.add(['( +)', '$1\\\\s+'])
                                 substitutions.add(['\n', '\\\\s*\n '])
+                            } else if (it.group(4) != null) {
+                                // TESTRESPONSE[skip:reason]
+                                snippet.skip = it.group(4)
                             }
                         }
                     }
@@ -266,6 +282,10 @@ public class SnippetsTask extends DefaultTask {
                 }
                 if (line ==~ /\/\/\s*TESTSETUP\s*/) {
                     snippet.testSetup = true
+                    return
+                }
+                if (line ==~ /\/\/\s*TEARDOWN\s*/) {
+                    snippet.testTearDown = true
                     return
                 }
                 if (snippet == null) {
@@ -284,11 +304,29 @@ public class SnippetsTask extends DefaultTask {
                     contents.append(line).append('\n')
                     return
                 }
+                // Allow line continuations for console snippets within lists
+                if (snippet != null && line.trim() == '+') {
+                    return
+                }
                 // Just finished
                 emit()
             }
             if (snippet != null) emit()
         }
+    }
+
+    static Source matchSource(String line) {
+        def matcher = line =~ /\["?source"?,\s*"?([-\w]+)"?(,((?!id=).)*(id="?([-\w]+)"?)?(.*))?].*/
+        if(matcher.matches()){
+            return new Source(matches: true, language: matcher.group(1),  name: matcher.group(5))
+        }
+        return new Source(matches: false)
+    }
+
+    static class Source {
+        boolean matches
+        String language
+        String name
     }
 
     static class Snippet {
@@ -308,13 +346,16 @@ public class SnippetsTask extends DefaultTask {
         boolean test = false
         boolean testResponse = false
         boolean testSetup = false
-        String skipTest = null
+        boolean testTearDown = false
+        String skip = null
         boolean continued = false
         String language = null
         String catchPart = null
         String setup = null
         boolean curl
         List warnings = new ArrayList()
+        boolean skipShardsFailures = false
+        String name
 
         @Override
         public String toString() {
@@ -333,8 +374,8 @@ public class SnippetsTask extends DefaultTask {
                 if (catchPart) {
                     result += "[catch: $catchPart]"
                 }
-                if (skipTest) {
-                    result += "[skip=$skipTest]"
+                if (skip) {
+                    result += "[skip=$skip]"
                 }
                 if (continued) {
                     result += '[continued]'
@@ -345,9 +386,15 @@ public class SnippetsTask extends DefaultTask {
                 for (String warning in warnings) {
                     result += "[warning:$warning]"
                 }
+                if (skipShardsFailures) {
+                    result += '[skip_shard_failures]'
+                }
             }
             if (testResponse) {
                 result += '// TESTRESPONSE'
+                if (skip) {
+                    result += "[skip=$skip]"
+                }
             }
             if (testSetup) {
                 result += '// TESTSETUP'

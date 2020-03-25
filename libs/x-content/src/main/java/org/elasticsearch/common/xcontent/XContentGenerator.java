@@ -23,6 +23,8 @@ import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 
 public interface XContentGenerator extends Closeable, Flushable {
 
@@ -69,6 +71,14 @@ public interface XContentGenerator extends Closeable, Flushable {
     void writeNumber(long value) throws IOException;
 
     void writeNumber(short value) throws IOException;
+
+    void writeNumber(BigInteger value) throws IOException;
+
+    void writeNumberField(String name, BigInteger value) throws IOException;
+
+    void writeNumber(BigDecimal value) throws IOException;
+
+    void writeNumberField(String name, BigDecimal value) throws IOException;
 
     void writeStringField(String name, String value) throws IOException;
 

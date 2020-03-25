@@ -1,29 +1,56 @@
 {
-  "scroll": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-scroll.html",
-    "methods": ["GET", "POST"],
-    "url": {
-      "path": "/_search/scroll",
-      "paths": ["/_search/scroll", "/_search/scroll/{scroll_id}"],
-      "parts": {
-        "scroll_id": {
-          "type" : "string",
-          "description" : "The scroll ID"
-        }
-      },
-      "params": {
-        "scroll": {
-          "type" : "time",
-          "description" : "Specify how long a consistent view of the index should be maintained for scrolled search"
+  "scroll":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll",
+      "description":"Allows to retrieve a large numbers of results from a single search request."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_search/scroll",
+          "methods":[
+            "GET",
+            "POST"
+          ]
         },
-        "scroll_id": {
-          "type" : "string",
-          "description" : "The scroll ID for scrolled search"
+        {
+          "path":"/_search/scroll/{scroll_id}",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "scroll_id":{
+              "type":"string",
+              "description":"The scroll ID",
+              "deprecated":true
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"A scroll id can be quite large and should be specified as part of the body"
+          }
         }
+      ]
+    },
+    "params":{
+      "scroll":{
+        "type":"time",
+        "description":"Specify how long a consistent view of the index should be maintained for scrolled search"
+      },
+      "scroll_id":{
+        "type":"string",
+        "description":"The scroll ID for scrolled search"
+      },
+      "rest_total_hits_as_int":{
+        "type":"boolean",
+        "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
+        "default":false
       }
     },
-    "body": {
-      "description": "The scroll ID if not passed by URL or query parameter."
+    "body":{
+      "description":"The scroll ID if not passed by URL or query parameter."
     }
   }
 }

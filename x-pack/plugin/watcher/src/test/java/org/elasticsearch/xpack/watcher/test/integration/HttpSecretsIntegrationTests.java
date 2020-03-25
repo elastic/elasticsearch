@@ -13,25 +13,29 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.ApplicableBasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.Base64;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -48,7 +52,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
@@ -87,8 +90,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
     }
 
     public void testHttpInput() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-        watcherClient.preparePutWatch("_id")
+        new PutWatchRequestBuilder(client()).setId("_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 * ? 2020")))
                         .input(httpInput(HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
@@ -100,7 +102,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // verifying the basic auth password is stored encrypted in the index when security
         // is enabled, and when it's not enabled, it's stored in plain text
-        GetResponse response = client().prepareGet(Watch.INDEX, Watch.DOC_TYPE, "_id").get();
+        GetResponse response = client().prepareGet().setIndex(Watch.INDEX).setId("_id").get();
         assertThat(response, notNullValue());
         assertThat(response.getId(), is("_id"));
         Map<String, Object> source = response.getSource();
@@ -118,7 +120,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         }
 
         // verifying the password is not returned by the GET watch API
-        GetWatchResponse watchResponse = watcherClient.prepareGetWatch("_id").get();
+        GetWatchResponse watchResponse = new GetWatchRequestBuilder(client()).setId("_id").get();
         assertThat(watchResponse, notNullValue());
         assertThat(watchResponse.getId(), is("_id"));
         XContentSource contentSource = watchResponse.getSource();
@@ -140,8 +142,8 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
                 BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
 
-        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
-        ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
+        ExecuteWatchResponse executeResponse = new ExecuteWatchRequestBuilder(client()).setId("_id")
                 .setRecordExecution(false)
                 .setTriggerEvent(triggerEvent)
                 .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)
@@ -154,7 +156,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
 
         assertThat(webServer.requests(), hasSize(1));
         assertThat(webServer.requests().get(0).getHeader("Authorization"),
-                is(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
+                is(headerValue(USERNAME, PASSWORD.toCharArray())));
 
         // now trigger the by the scheduler and make sure that the password is also correctly transmitted
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
@@ -162,13 +164,11 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         timeWarp().trigger("_id");
         assertThat(webServer.requests(), hasSize(2));
         assertThat(webServer.requests().get(1).getHeader("Authorization"),
-            is(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
+            is(headerValue(USERNAME, PASSWORD.toCharArray())));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30094")
     public void testWebhookAction() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-        watcherClient.preparePutWatch("_id")
+        new PutWatchRequestBuilder(client()).setId("_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 * ? 2020")))
                         .input(simpleInput())
@@ -179,8 +179,8 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                         .get();
 
         // verifying the basic auth password is stored encrypted in the index when security
-        // is enabled, when it's not enabled, the the passowrd should be stored in plain text
-        GetResponse response = client().prepareGet(Watch.INDEX, Watch.DOC_TYPE, "_id").get();
+        // is enabled, when it's not enabled, the password should be stored in plain text
+        GetResponse response = client().prepareGet().setIndex(Watch.INDEX).setId("_id").get();
         assertThat(response, notNullValue());
         assertThat(response.getId(), is("_id"));
         Map<String, Object> source = response.getSource();
@@ -199,7 +199,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         }
 
         // verifying the password is not returned by the GET watch API
-        GetWatchResponse watchResponse = watcherClient.prepareGetWatch("_id").get();
+        GetWatchResponse watchResponse = new GetWatchRequestBuilder(client()).setId("_id").get();
         assertThat(watchResponse, notNullValue());
         assertThat(watchResponse.getId(), is("_id"));
         XContentSource contentSource = watchResponse.getSource();
@@ -221,8 +221,8 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
                 BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
 
-        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
-        ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
+        ExecuteWatchResponse executeResponse = new ExecuteWatchRequestBuilder(client()).setId("_id")
                 .setRecordExecution(false)
                 .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)
                 .setTriggerEvent(triggerEvent)
@@ -252,6 +252,10 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
 
         assertThat(webServer.requests(), hasSize(1));
         assertThat(webServer.requests().get(0).getHeader("Authorization"),
-                is(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
+                is(headerValue(USERNAME, PASSWORD.toCharArray())));
+    }
+
+    private String headerValue(String username, char[] password) {
+        return "Basic " + Base64.getEncoder().encodeToString((username + ":" + new String(password)).getBytes(StandardCharsets.UTF_8));
     }
 }

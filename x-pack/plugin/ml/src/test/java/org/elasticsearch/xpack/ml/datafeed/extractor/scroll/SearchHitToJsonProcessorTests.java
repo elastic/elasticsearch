@@ -7,23 +7,29 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.extractor.DocValueField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.TimeField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchHitToJsonProcessorTests extends ESTestCase {
 
     public void testProcessGivenSingleHit() throws IOException {
-        ExtractedField timeField = ExtractedField.newField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField missingField = ExtractedField.newField("missing", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField singleField = ExtractedField.newField("single", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField arrayField = ExtractedField.newField("array", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField, missingField, singleField, arrayField));
+        ExtractedField timeField = new TimeField("time", ExtractedField.Method.DOC_VALUE);
+        ExtractedField missingField = new DocValueField("missing", Collections.singleton("float"));
+        ExtractedField singleField = new DocValueField("single", Collections.singleton("keyword"));
+        ExtractedField arrayField = new DocValueField("array", Collections.singleton("keyword"));
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField,
+                Arrays.asList(timeField, missingField, singleField, arrayField));
 
         SearchHit hit = new SearchHitBuilder(8)
                 .addField("time", 1000L)
@@ -37,11 +43,12 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
     }
 
     public void testProcessGivenMultipleHits() throws IOException {
-        ExtractedField timeField = ExtractedField.newField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField missingField = ExtractedField.newField("missing", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField singleField = ExtractedField.newField("single", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedField arrayField = ExtractedField.newField("array", ExtractedField.ExtractionMethod.DOC_VALUE);
-        ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField, missingField, singleField, arrayField));
+        ExtractedField timeField = new TimeField("time", ExtractedField.Method.DOC_VALUE);
+        ExtractedField missingField = new DocValueField("missing", Collections.singleton("float"));
+        ExtractedField singleField = new DocValueField("single", Collections.singleton("keyword"));
+        ExtractedField arrayField = new DocValueField("array", Collections.singleton("keyword"));
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField,
+                Arrays.asList(timeField, missingField, singleField, arrayField));
 
         SearchHit hit1 = new SearchHitBuilder(8)
                 .addField("time", 1000L)

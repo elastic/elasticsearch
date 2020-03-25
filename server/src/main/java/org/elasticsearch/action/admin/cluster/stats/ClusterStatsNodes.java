@@ -21,12 +21,13 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.PluginInfo;
@@ -47,6 +49,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClusterStatsNodes implements ToXContentFragment {
@@ -59,6 +64,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final FsInfo.Path fs;
     private final Set<PluginInfo> plugins;
     private final NetworkTypes networkTypes;
+    private final DiscoveryTypes discoveryTypes;
+    private final PackagingTypes packagingTypes;
+    private final IngestStats ingestStats;
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
@@ -90,6 +98,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.process = new ProcessStats(nodeStats);
         this.jvm = new JvmStats(nodeInfos, nodeStats);
         this.networkTypes = new NetworkTypes(nodeInfos);
+        this.discoveryTypes = new DiscoveryTypes(nodeInfos);
+        this.packagingTypes = new PackagingTypes(nodeInfos);
+        this.ingestStats = new IngestStats(nodeStats);
     }
 
     public Counts getCounts() {
@@ -167,6 +178,13 @@ public class ClusterStatsNodes implements ToXContentFragment {
         builder.startObject(Fields.NETWORK_TYPES);
         networkTypes.toXContent(builder, params);
         builder.endObject();
+
+        discoveryTypes.toXContent(builder, params);
+
+        packagingTypes.toXContent(builder, params);
+
+        ingestStats.toXContent(builder, params);
+
         return builder;
     }
 
@@ -176,27 +194,27 @@ public class ClusterStatsNodes implements ToXContentFragment {
         private final int total;
         private final Map<String, Integer> roles;
 
-        private Counts(List<NodeInfo> nodeInfos) {
-            this.roles = new HashMap<>();
-            for (DiscoveryNode.Role role : DiscoveryNode.Role.values()) {
-                this.roles.put(role.getRoleName(), 0);
+        private Counts(final List<NodeInfo> nodeInfos) {
+            // TODO: do we need to report zeros?
+            final Map<String, Integer> roles = new HashMap<>(DiscoveryNode.getPossibleRoleNames().size());
+            roles.put(COORDINATING_ONLY, 0);
+            for (final String possibleRoleName : DiscoveryNode.getPossibleRoleNames()) {
+                roles.put(possibleRoleName, 0);
             }
-            this.roles.put(COORDINATING_ONLY, 0);
 
             int total = 0;
-            for (NodeInfo nodeInfo : nodeInfos) {
+            for (final NodeInfo nodeInfo : nodeInfos) {
                 total++;
                 if (nodeInfo.getNode().getRoles().isEmpty()) {
-                    Integer count = roles.get(COORDINATING_ONLY);
-                    roles.put(COORDINATING_ONLY, ++count);
+                    roles.merge(COORDINATING_ONLY, 1, Integer::sum);
                 } else {
-                    for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
-                        Integer count = roles.get(role.getRoleName());
-                        roles.put(role.getRoleName(), ++count);
+                    for (DiscoveryNodeRole role : nodeInfo.getNode().getRoles()) {
+                        roles.merge(role.roleName(), 1, Integer::sum);
                     }
                 }
             }
             this.total = total;
+            this.roles = Map.copyOf(roles);
         }
 
         public int getTotal() {
@@ -215,7 +233,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         public XContentBuilder toXContent(XContentBuilder builder, Params params)
                 throws IOException {
             builder.field(Fields.TOTAL, total);
-            for (Map.Entry<String, Integer> entry : roles.entrySet()) {
+            for (Map.Entry<String, Integer> entry : new TreeMap<>(roles).entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
             return builder;
@@ -226,6 +244,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         final int availableProcessors;
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
+        final ObjectIntHashMap<String> prettyNames;
         final org.elasticsearch.monitor.os.OsStats.Mem mem;
 
         /**
@@ -233,6 +252,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
          */
         private OsStats(List<NodeInfo> nodeInfos, List<NodeStats> nodeStatsList) {
             this.names = new ObjectIntHashMap<>();
+            this.prettyNames = new ObjectIntHashMap<>();
             int availableProcessors = 0;
             int allocatedProcessors = 0;
             for (NodeInfo nodeInfo : nodeInfos) {
@@ -241,6 +261,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
                 if (nodeInfo.getOs().getName() != null) {
                     names.addTo(nodeInfo.getOs().getName(), 1);
+                }
+                if (nodeInfo.getOs().getPrettyName() != null) {
+                    prettyNames.addTo(nodeInfo.getOs().getPrettyName(), 1);
                 }
             }
             this.availableProcessors = availableProcessors;
@@ -280,6 +303,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
             static final String ALLOCATED_PROCESSORS = "allocated_processors";
             static final String NAME = "name";
             static final String NAMES = "names";
+            static final String PRETTY_NAME = "pretty_name";
+            static final String PRETTY_NAMES = "pretty_names";
             static final String COUNT = "count";
         }
 
@@ -289,11 +314,27 @@ public class ClusterStatsNodes implements ToXContentFragment {
             builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
             builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
             builder.startArray(Fields.NAMES);
-            for (ObjectIntCursor<String> name : names) {
-                builder.startObject();
-                builder.field(Fields.NAME, name.key);
-                builder.field(Fields.COUNT, name.value);
-                builder.endObject();
+            {
+                for (ObjectIntCursor<String> name : names) {
+                    builder.startObject();
+                    {
+                        builder.field(Fields.NAME, name.key);
+                        builder.field(Fields.COUNT, name.value);
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            builder.startArray(Fields.PRETTY_NAMES);
+            {
+                for (final ObjectIntCursor<String> prettyName : prettyNames) {
+                    builder.startObject();
+                    {
+                        builder.field(Fields.PRETTY_NAME, prettyName.key);
+                        builder.field(Fields.COUNT, prettyName.value);
+                    }
+                    builder.endObject();
+                }
             }
             builder.endArray();
             mem.toXContent(builder, params);
@@ -474,6 +515,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
             static final String VM_NAME = "vm_name";
             static final String VM_VERSION = "vm_version";
             static final String VM_VENDOR = "vm_vendor";
+            static final String BUNDLED_JDK = "bundled_jdk";
+            static final String USING_BUNDLED_JDK = "using_bundled_jdk";
             static final String COUNT = "count";
             static final String THREADS = "threads";
             static final String MAX_UPTIME = "max_uptime";
@@ -496,6 +539,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 builder.field(Fields.VM_NAME, v.key.vmName);
                 builder.field(Fields.VM_VERSION, v.key.vmVersion);
                 builder.field(Fields.VM_VENDOR, v.key.vmVendor);
+                builder.field(Fields.BUNDLED_JDK, v.key.bundledJdk);
+                builder.field(Fields.USING_BUNDLED_JDK, v.key.usingBundledJdk);
                 builder.field(Fields.COUNT, v.value);
                 builder.endObject();
             }
@@ -515,12 +560,16 @@ public class ClusterStatsNodes implements ToXContentFragment {
         String vmName;
         String vmVersion;
         String vmVendor;
+        boolean bundledJdk;
+        Boolean usingBundledJdk;
 
         JvmVersion(JvmInfo jvmInfo) {
             version = jvmInfo.version();
             vmName = jvmInfo.getVmName();
             vmVersion = jvmInfo.getVmVersion();
             vmVendor = jvmInfo.getVmVendor();
+            bundledJdk = jvmInfo.getBundledJdk();
+            usingBundledJdk = jvmInfo.getUsingBundledJdk();
         }
 
         @Override
@@ -582,6 +631,129 @@ public class ClusterStatsNodes implements ToXContentFragment {
             builder.startObject("http_types");
             for (final Map.Entry<String, AtomicInteger> entry : httpTypes.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue().get());
+            }
+            builder.endObject();
+            return builder;
+        }
+
+    }
+
+    static class DiscoveryTypes implements ToXContentFragment {
+
+        private final Map<String, AtomicInteger> discoveryTypes;
+
+        DiscoveryTypes(final List<NodeInfo> nodeInfos) {
+            final Map<String, AtomicInteger> discoveryTypes = new HashMap<>();
+            for (final NodeInfo nodeInfo : nodeInfos) {
+                final Settings settings = nodeInfo.getSettings();
+                final String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
+                discoveryTypes.computeIfAbsent(discoveryType, k -> new AtomicInteger()).incrementAndGet();
+            }
+            this.discoveryTypes = Collections.unmodifiableMap(discoveryTypes);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("discovery_types");
+            for (final Map.Entry<String, AtomicInteger> entry : discoveryTypes.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue().get());
+            }
+            builder.endObject();
+            return builder;
+        }
+    }
+
+    static class PackagingTypes implements ToXContentFragment {
+
+        private final Map<Tuple<String, String>, AtomicInteger> packagingTypes;
+
+        PackagingTypes(final List<NodeInfo> nodeInfos) {
+            final var packagingTypes = new HashMap<Tuple<String, String>, AtomicInteger>();
+            for (final var nodeInfo : nodeInfos) {
+                final var flavor = nodeInfo.getBuild().flavor().displayName();
+                final var type = nodeInfo.getBuild().type().displayName();
+                packagingTypes.computeIfAbsent(Tuple.tuple(flavor, type), k -> new AtomicInteger()).incrementAndGet();
+            }
+            this.packagingTypes = Collections.unmodifiableMap(packagingTypes);
+        }
+
+        @Override
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            builder.startArray("packaging_types");
+            {
+                for (final var entry : packagingTypes.entrySet()) {
+                    builder.startObject();
+                    {
+                        builder.field("flavor", entry.getKey().v1());
+                        builder.field("type", entry.getKey().v2());
+                        builder.field("count", entry.getValue().get());
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            return builder;
+        }
+
+    }
+
+    static class IngestStats implements ToXContentFragment {
+
+        final int pipelineCount;
+        final SortedMap<String, long[]> stats;
+
+        IngestStats(final List<NodeStats> nodeStats) {
+            Set<String> pipelineIds = new HashSet<>();
+            SortedMap<String, long[]> stats = new TreeMap<>();
+            for (NodeStats nodeStat : nodeStats) {
+                if (nodeStat.getIngestStats() != null) {
+                    for (Map.Entry<String,
+                            List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat.getIngestStats()
+                            .getProcessorStats().entrySet()) {
+                        pipelineIds.add(processorStats.getKey());
+                        for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
+                            stats.compute(stat.getType(), (k, v) -> {
+                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.getStats();
+                                if (v == null) {
+                                    return new long[] {
+                                        nodeIngestStats.getIngestCount(),
+                                        nodeIngestStats.getIngestFailedCount(),
+                                        nodeIngestStats.getIngestCurrent(),
+                                        nodeIngestStats.getIngestTimeInMillis()
+                                    };
+                                } else {
+                                    v[0] += nodeIngestStats.getIngestCount();
+                                    v[1] += nodeIngestStats.getIngestFailedCount();
+                                    v[2] += nodeIngestStats.getIngestCurrent();
+                                    v[3] += nodeIngestStats.getIngestTimeInMillis();
+                                    return v;
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            this.pipelineCount = pipelineIds.size();
+            this.stats = Collections.unmodifiableSortedMap(stats);
+        }
+
+        @Override
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            builder.startObject("ingest");
+            {
+                builder.field("number_of_pipelines", pipelineCount);
+                builder.startObject("processor_stats");
+                for (Map.Entry<String, long[]> stat : stats.entrySet()) {
+                    long[] statValues = stat.getValue();
+                    builder.startObject(stat.getKey());
+                    builder.field("count", statValues[0]);
+                    builder.field("failed", statValues[1]);
+                    builder.field("current", statValues[2]);
+                    builder.humanReadableField("time_in_millis", "time",
+                        new TimeValue(statValues[3], TimeUnit.MILLISECONDS));
+                    builder.endObject();
+                }
+                builder.endObject();
             }
             builder.endObject();
             return builder;

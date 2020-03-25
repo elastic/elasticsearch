@@ -5,37 +5,48 @@
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestStartDatafeedAction extends BaseRestHandler {
 
     private static final String DEFAULT_START = "0";
 
-    public RestStartDatafeedAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.POST,
-                MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_start", this);
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        // TODO: remove deprecated endpoint in 8.0.0
+        return Collections.singletonList(
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_start",
+                POST, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_start")
+        );
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_start_datafeed_action";
+        return "ml_start_datafeed_action";
     }
 
     @Override
@@ -60,10 +71,10 @@ public class RestStartDatafeedAction extends BaseRestHandler {
         }
         return channel -> {
             client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest,
-                    new RestBuilderListener<StartDatafeedAction.Response>(channel) {
+                    new RestBuilderListener<AcknowledgedResponse>(channel) {
 
                         @Override
-                        public RestResponse buildResponse(StartDatafeedAction.Response r, XContentBuilder builder) throws Exception {
+                        public RestResponse buildResponse(AcknowledgedResponse r, XContentBuilder builder) throws Exception {
                             builder.startObject();
                             builder.field("started", r.isAcknowledged());
                             builder.endObject();

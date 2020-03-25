@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -21,15 +22,39 @@ public final class DatafeedJobValidator {
      * @param datafeedConfig the datafeed config
      * @param job the job
      */
-    public static void validate(DatafeedConfig datafeedConfig, Job job) {
+    public static void validate(DatafeedConfig datafeedConfig, Job job, NamedXContentRegistry xContentRegistry) {
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         if (analysisConfig.getLatency() != null && analysisConfig.getLatency().seconds() > 0) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY));
         }
         if (datafeedConfig.hasAggregations()) {
             checkSummaryCountFieldNameIsSet(analysisConfig);
-            checkValidHistogramInterval(datafeedConfig, analysisConfig);
-            checkFrequencyIsMultipleOfHistogramInterval(datafeedConfig);
+            checkValidHistogramInterval(datafeedConfig, analysisConfig, xContentRegistry);
+            checkFrequencyIsMultipleOfHistogramInterval(datafeedConfig, xContentRegistry);
+        }
+
+        DelayedDataCheckConfig delayedDataCheckConfig = datafeedConfig.getDelayedDataCheckConfig();
+        TimeValue bucketSpan = analysisConfig.getBucketSpan();
+        if (delayedDataCheckConfig.isEnabled()) {
+            checkValidDelayedDataCheckConfig(bucketSpan, delayedDataCheckConfig);
+        }
+    }
+
+    private static void checkValidDelayedDataCheckConfig(TimeValue bucketSpan, DelayedDataCheckConfig delayedDataCheckConfig) {
+        TimeValue delayedDataCheckWindow =  delayedDataCheckConfig.getCheckWindow();
+        if (delayedDataCheckWindow != null) { // NULL implies we calculate on use and thus is always valid
+            if (delayedDataCheckWindow.compareTo(bucketSpan) < 0) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL,
+                        delayedDataCheckWindow,
+                        bucketSpan));
+            }
+            if (delayedDataCheckWindow.millis() > bucketSpan.millis() * DelayedDataCheckConfig.MAX_NUMBER_SPANABLE_BUCKETS) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS,
+                        delayedDataCheckWindow,
+                        bucketSpan));
+            }
         }
     }
 
@@ -40,8 +65,10 @@ public final class DatafeedJobValidator {
         }
     }
 
-    private static void checkValidHistogramInterval(DatafeedConfig datafeedConfig, AnalysisConfig analysisConfig) {
-        long histogramIntervalMillis = datafeedConfig.getHistogramIntervalMillis();
+    private static void checkValidHistogramInterval(DatafeedConfig datafeedConfig,
+                                                    AnalysisConfig analysisConfig,
+                                                    NamedXContentRegistry xContentRegistry) {
+        long histogramIntervalMillis = datafeedConfig.getHistogramIntervalMillis(xContentRegistry);
         long bucketSpanMillis = analysisConfig.getBucketSpan().millis();
         if (histogramIntervalMillis > bucketSpanMillis) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(
@@ -58,10 +85,10 @@ public final class DatafeedJobValidator {
         }
     }
 
-    private static void checkFrequencyIsMultipleOfHistogramInterval(DatafeedConfig datafeedConfig) {
+    private static void checkFrequencyIsMultipleOfHistogramInterval(DatafeedConfig datafeedConfig, NamedXContentRegistry xContentRegistry) {
         TimeValue frequency = datafeedConfig.getFrequency();
         if (frequency != null) {
-            long histogramIntervalMillis = datafeedConfig.getHistogramIntervalMillis();
+            long histogramIntervalMillis = datafeedConfig.getHistogramIntervalMillis(xContentRegistry);
             long frequencyMillis = frequency.millis();
             if (frequencyMillis % histogramIntervalMillis != 0) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(

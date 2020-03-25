@@ -12,6 +12,7 @@ import java.io.IOException;
  * The super class will provide appropriate group mappings via configGroupMappings()
  */
 public class GroupMappingIT extends AbstractAdLdapRealmTestCase {
+
     public void testAuthcAuthz() throws IOException {
         String avenger = realmConfig.loginWithCommonName ? "Natasha Romanoff" : "blackwidow";
         assertAccessAllowed(avenger, "avengers");

@@ -20,14 +20,10 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 
-import java.io.IOException;
-
-public abstract class TransportMessage implements Streamable, Writeable {
+public abstract class TransportMessage implements Writeable {
 
     private TransportAddress remoteAddress;
 
@@ -39,13 +35,14 @@ public abstract class TransportMessage implements Streamable, Writeable {
         return remoteAddress;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
+    /**
+     * Constructs a new empty transport message
+     */
+    public TransportMessage() {}
 
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-
-    }
+    /**
+     * Constructs a new transport message with the data from the {@link StreamInput}. This is
+     * currently a no-op
+     */
+    public TransportMessage(StreamInput in) {}
 }

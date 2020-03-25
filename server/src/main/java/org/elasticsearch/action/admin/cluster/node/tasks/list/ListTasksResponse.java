@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -51,25 +52,29 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class ListTasksResponse extends BaseTasksResponse implements ToXContentObject {
     private static final String TASKS = "tasks";
-    private static final String TASK_FAILURES = "task_failures";
-    private static final String NODE_FAILURES = "node_failures";
 
-    private List<TaskInfo> tasks;
+    private final List<TaskInfo> tasks;
 
     private Map<String, List<TaskInfo>> perNodeTasks;
 
     private List<TaskGroup> groups;
 
-    public ListTasksResponse() {
-        this(null, null, null);
-    }
-
     public ListTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures,
             List<? extends ElasticsearchException> nodeFailures) {
         super(taskFailures, nodeFailures);
-        this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+        this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
     }
 
+    public ListTasksResponse(StreamInput in) throws IOException {
+        super(in);
+        tasks = Collections.unmodifiableList(in.readList(TaskInfo::new));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeList(tasks);
+    }
 
     protected static <T> ConstructingObjectParser<T, Void> setupParser(String name,
                                                                        TriFunction<
@@ -97,18 +102,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
 
     private static final ConstructingObjectParser<ListTasksResponse, Void> PARSER =
         setupParser("list_tasks_response", ListTasksResponse::new);
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        tasks = Collections.unmodifiableList(in.readList(TaskInfo::new));
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeList(tasks);
-    }
 
     /**
      * Returns the list of tasks by node
@@ -183,8 +176,8 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
                 builder.field("ip", node.getAddress());
 
                 builder.startArray("roles");
-                for (DiscoveryNode.Role role : node.getRoles()) {
-                    builder.value(role.getRoleName());
+                for (DiscoveryNodeRole role : node.getRoles()) {
+                    builder.value(role.roleName());
                 }
                 builder.endArray();
 
@@ -244,28 +237,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
         toXContentGroupedByNone(builder, params);
         builder.endObject();
         return builder;
-    }
-
-    private void toXContentCommon(XContentBuilder builder, Params params) throws IOException {
-        if (getTaskFailures() != null && getTaskFailures().size() > 0) {
-            builder.startArray(TASK_FAILURES);
-            for (TaskOperationFailure ex : getTaskFailures()){
-                builder.startObject();
-                builder.value(ex);
-                builder.endObject();
-            }
-            builder.endArray();
-        }
-
-        if (getNodeFailures() != null && getNodeFailures().size() > 0) {
-            builder.startArray(NODE_FAILURES);
-            for (ElasticsearchException ex : getNodeFailures()) {
-                builder.startObject();
-                ex.toXContent(builder, params);
-                builder.endObject();
-            }
-            builder.endArray();
-        }
     }
 
     public static ListTasksResponse fromXContent(XContentParser parser) {

@@ -26,11 +26,15 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.Consts;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.TargetAuthenticationStrategy;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.entity.NStringEntity;
@@ -45,21 +49,26 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
+import static org.elasticsearch.client.RestClientTestUtil.randomHttpMethod;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -74,6 +83,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     private RestClient restClient;
     private String pathPrefix;
     private Header[] defaultHeaders;
+    private WaitForCancelHandler waitForCancelHandler;
 
     @Before
     public void startHttpServer() throws Exception {
@@ -90,7 +100,29 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         for (int statusCode : getAllStatusCodes()) {
             httpServer.createContext(pathPrefix + "/" + statusCode, new ResponseHandler(statusCode));
         }
+        waitForCancelHandler = new WaitForCancelHandler();
+        httpServer.createContext(pathPrefix + "/wait", waitForCancelHandler);
         return httpServer;
+    }
+
+    private static class WaitForCancelHandler implements HttpHandler {
+
+        private final CountDownLatch cancelHandlerLatch = new CountDownLatch(1);
+
+        void cancelDone() {
+            cancelHandlerLatch.countDown();
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            try {
+                cancelHandlerLatch.await();
+            } catch (InterruptedException ignore) {
+            } finally {
+                exchange.sendResponseHeaders(200, 0);
+                exchange.close();
+            }
+        }
     }
 
     private static class ResponseHandler implements HttpHandler {
@@ -202,12 +234,88 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         }
     }
 
+    public void testCancelAsyncRequest() throws Exception {
+        Request request = new Request(randomHttpMethod(getRandom()), "/wait");
+        CountDownLatch requestLatch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Cancellable cancellable = restClient.performRequestAsync(request, new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                throw new AssertionError("onResponse called unexpectedly");
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                error.set(exception);
+                requestLatch.countDown();
+            }
+        });
+        cancellable.cancel();
+        waitForCancelHandler.cancelDone();
+        assertTrue(requestLatch.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(CancellationException.class));
+    }
+
+    /**
+     * This test verifies some assumptions that we rely upon around the way the async http client works when reusing the same request
+     * throughout multiple retries, and the use of the {@link HttpRequestBase#abort()} method.
+     * In fact the low-level REST client reuses the same request instance throughout multiple retries, and relies on the http client
+     * to set the future ref to the request properly so that when abort is called, the proper future gets cancelled.
+     */
+    public void testRequestResetAndAbort() throws Exception {
+        try (CloseableHttpAsyncClient client = HttpAsyncClientBuilder.create().build()) {
+            client.start();
+            HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
+            HttpGet httpGet = new HttpGet(pathPrefix + "/200");
+
+            //calling abort before the request is sent is a no-op
+            httpGet.abort();
+            assertTrue(httpGet.isAborted());
+
+            {
+                httpGet.reset();
+                assertFalse(httpGet.isAborted());
+                httpGet.abort();
+                Future<HttpResponse> future = client.execute(httpHost, httpGet, null);
+                try {
+                    future.get();
+                    fail("expected cancellation exception");
+                } catch(CancellationException e) {
+                    //expected
+                }
+                assertTrue(future.isCancelled());
+            }
+            {
+                httpGet.reset();
+                Future<HttpResponse> future = client.execute(httpHost, httpGet, null);
+                assertFalse(httpGet.isAborted());
+                httpGet.abort();
+                assertTrue(httpGet.isAborted());
+                try {
+                    assertTrue(future.isCancelled());
+                    future.get();
+                    throw new AssertionError("exception should have been thrown");
+                } catch(CancellationException e) {
+                    //expected
+                }
+            }
+            {
+                httpGet.reset();
+                assertFalse(httpGet.isAborted());
+                Future<HttpResponse> future = client.execute(httpHost, httpGet, null);
+                assertFalse(httpGet.isAborted());
+                assertEquals(200, future.get().getStatusLine().getStatusCode());
+                assertFalse(future.isCancelled());
+            }
+        }
+    }
+
     /**
      * End to end test for headers. We test it explicitly against a real http client as there are different ways
      * to set/add headers to the {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever headers it received.
      */
-    public void testHeaders() throws IOException {
+    public void testHeaders() throws Exception {
         for (String method : getHttpMethods()) {
             final Set<String> standardHeaders = new HashSet<>(Arrays.asList("Connection", "Host", "User-agent", "Date"));
             if (method.equals("HEAD") == false) {
@@ -215,9 +323,15 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             }
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
+            Request request = new Request(method, "/" + statusCode);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            for (Header header : requestHeaders) {
+                options.addHeader(header.getName(), header.getValue());
+            }
+            request.setOptions(options);
             Response esResponse;
             try {
-                esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), requestHeaders);
+                esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             } catch (ResponseException e) {
                 esResponse = e.getResponse();
             }
@@ -241,7 +355,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
      * out of the box by {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever body it received.
      */
-    public void testDeleteWithBody() throws IOException {
+    public void testDeleteWithBody() throws Exception {
         bodyTest("DELETE");
     }
 
@@ -250,57 +364,57 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
      * out of the box by {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever body it received.
      */
-    public void testGetWithBody() throws IOException {
+    public void testGetWithBody() throws Exception {
         bodyTest("GET");
     }
 
-    public void testEncodeParams() throws IOException {
+    public void testEncodeParams() throws Exception {
         {
             Request request = new Request("PUT", "/200");
             request.addParameter("routing", "this/is/the/routing");
-            Response response = restClient.performRequest(request);
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(pathPrefix + "/200?routing=this%2Fis%2Fthe%2Frouting", response.getRequestLine().getUri());
         }
         {
             Request request = new Request("PUT", "/200");
             request.addParameter("routing", "this|is|the|routing");
-            Response response = restClient.performRequest(request);
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(pathPrefix + "/200?routing=this%7Cis%7Cthe%7Crouting", response.getRequestLine().getUri());
         }
         {
             Request request = new Request("PUT", "/200");
             request.addParameter("routing", "routing#1");
-            Response response = restClient.performRequest(request);
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(pathPrefix + "/200?routing=routing%231", response.getRequestLine().getUri());
         }
         {
             Request request = new Request("PUT", "/200");
             request.addParameter("routing", "中文");
-            Response response = restClient.performRequest(request);
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(pathPrefix + "/200?routing=%E4%B8%AD%E6%96%87", response.getRequestLine().getUri());
         }
         {
             Request request = new Request("PUT", "/200");
             request.addParameter("routing", "foo bar");
-            Response response = restClient.performRequest(request);
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(pathPrefix + "/200?routing=foo+bar", response.getRequestLine().getUri());
         }
         {
             Request request = new Request("PUT", "/200");
             request.addParameter("routing", "foo+bar");
-            Response response = restClient.performRequest(request);
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(pathPrefix + "/200?routing=foo%2Bbar", response.getRequestLine().getUri());
         }
         {
             Request request = new Request("PUT", "/200");
             request.addParameter("routing", "foo/bar");
-            Response response = restClient.performRequest(request);
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(pathPrefix + "/200?routing=foo%2Fbar", response.getRequestLine().getUri());
         }
         {
             Request request = new Request("PUT", "/200");
             request.addParameter("routing", "foo^bar");
-            Response response = restClient.performRequest(request);
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
             assertEquals(pathPrefix + "/200?routing=foo%5Ebar", response.getRequestLine().getUri());
         }
     }
@@ -308,7 +422,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     /**
      * Verify that credentials are sent on the first request with preemptive auth enabled (default when provided with credentials).
      */
-    public void testPreemptiveAuthEnabled() throws IOException {
+    public void testPreemptiveAuthEnabled() throws Exception {
         final String[] methods = {"POST", "PUT", "GET", "DELETE"};
 
         try (RestClient restClient = createRestClient(true, true)) {
@@ -323,7 +437,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     /**
      * Verify that credentials are <em>not</em> sent on the first request with preemptive auth disabled.
      */
-    public void testPreemptiveAuthDisabled() throws IOException {
+    public void testPreemptiveAuthDisabled() throws Exception {
         final String[] methods = {"POST", "PUT", "GET", "DELETE"};
 
         try (RestClient restClient = createRestClient(true, false)) {
@@ -338,7 +452,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     /**
      * Verify that credentials continue to be sent even if a 401 (Unauthorized) response is received
      */
-    public void testAuthCredentialsAreNotClearedOnAuthChallenge() throws IOException {
+    public void testAuthCredentialsAreNotClearedOnAuthChallenge() throws Exception {
         final String[] methods = {"POST", "PUT", "GET", "DELETE"};
 
         try (RestClient restClient = createRestClient(true, true)) {
@@ -351,20 +465,19 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
                 assertThat(response200.getHeader("Authorization"), startsWith("Basic"));
             }
         }
-
     }
 
     public void testUrlWithoutLeadingSlash() throws Exception {
         if (pathPrefix.length() == 0) {
             try {
-                restClient.performRequest(new Request("GET", "200"));
+                RestClientSingleHostTests.performRequestSyncOrAsync(restClient, new Request("GET", "200"));
                 fail("request should have failed");
             } catch (ResponseException e) {
                 assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
             }
         } else {
             {
-                Response response = restClient.performRequest(new Request("GET", "200"));
+                Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, new Request("GET", "200"));
                 //a trailing slash gets automatically added if a pathPrefix is configured
                 assertEquals(200, response.getStatusLine().getStatusCode());
             }
@@ -373,7 +486,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
                 try (RestClient restClient = RestClient.builder(
                     new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort()))
                     .setPathPrefix(pathPrefix.substring(1)).build()) {
-                    Response response = restClient.performRequest(new Request("GET", "200"));
+                    Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, new Request("GET", "200"));
                     //a trailing slash gets automatically added if a pathPrefix is configured
                     assertEquals(200, response.getStatusLine().getStatusCode());
                 }
@@ -381,16 +494,16 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         }
     }
 
-    private Response bodyTest(final String method) throws IOException {
+    private Response bodyTest(final String method) throws Exception {
         return bodyTest(restClient, method);
     }
 
-    private Response bodyTest(final RestClient restClient, final String method) throws IOException {
+    private Response bodyTest(final RestClient restClient, final String method) throws Exception {
         int statusCode = randomStatusCode(getRandom());
         return bodyTest(restClient, method, statusCode, new Header[0]);
     }
 
-    private Response bodyTest(RestClient restClient, String method, int statusCode, Header[] headers) throws IOException {
+    private Response bodyTest(RestClient restClient, String method, int statusCode, Header[] headers) throws Exception {
         String requestBody = "{ \"field\": \"value\" }";
         Request request = new Request(method, "/" + statusCode);
         request.setJsonEntity(requestBody);
@@ -401,7 +514,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         request.setOptions(options);
         Response esResponse;
         try {
-            esResponse = restClient.performRequest(request);
+            esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
         } catch(ResponseException e) {
             esResponse = e.getResponse();
         }

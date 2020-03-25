@@ -1,0 +1,51 @@
+[role="xpack"]
+[testenv="basic"]
+[[index-lifecycle-management]]
+= Manage the index lifecycle
+
+[partintro]
+--
+You can configure {ilm} ({ilm-init}) policies to automatically manage indices according to
+your performance, resiliency, and retention requirements. 
+For example, you could use {ilm-init} to:
+
+* Create a new index each day, week, or month and archive previous ones
+* Spin up a new index when an index reaches a certain size
+* Delete stale indices to enforce data retention standards
+
+[TIP]
+To automatically back up your indices and manage snapshots, 
+use <<getting-started-snapshot-lifecycle-management,snapshot lifecycle policies>>.
+
+* <<overview-index-lifecycle-management>>
+* <<getting-started-index-lifecycle-management>>
+* <<ilm-policy-definition>>
+* <<set-up-lifecycle-policy>>
+* <<update-lifecycle-policy>>
+* <<index-lifecycle-error-handling>>
+* <<start-stop-ilm>>
+* <<using-policies-rollover>>
+* <<ilm-with-existing-indices>>
+* <<index-lifecycle-and-snapshots>>
+
+--
+include::overview-ilm.asciidoc[]
+
+include::getting-started-ilm.asciidoc[]
+
+include::policy-definitions.asciidoc[]
+
+include::set-up-lifecycle-policy.asciidoc[]
+
+include::update-lifecycle-policy.asciidoc[]
+
+include::error-handling.asciidoc[]
+
+include::start-stop-ilm.asciidoc[]
+
+include::using-policies-rollover.asciidoc[]
+
+include::ilm-with-existing-indices.asciidoc[]
+
+include::ilm-and-snapshots.asciidoc[]
+

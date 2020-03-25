@@ -43,10 +43,10 @@ public abstract class Command implements Closeable {
     /** The option parser for this command. */
     protected final OptionParser parser = new OptionParser();
 
-    private final OptionSpec<Void> helpOption = parser.acceptsAll(Arrays.asList("h", "help"), "show help").forHelp();
-    private final OptionSpec<Void> silentOption = parser.acceptsAll(Arrays.asList("s", "silent"), "show minimal output");
+    private final OptionSpec<Void> helpOption = parser.acceptsAll(Arrays.asList("h", "help"), "Show help").forHelp();
+    private final OptionSpec<Void> silentOption = parser.acceptsAll(Arrays.asList("s", "silent"), "Show minimal output");
     private final OptionSpec<Void> verboseOption =
-        parser.acceptsAll(Arrays.asList("v", "verbose"), "show verbose output").availableUnless(silentOption);
+        parser.acceptsAll(Arrays.asList("v", "verbose"), "Show verbose output").availableUnless(silentOption);
 
     /**
      * Construct the command with the specified command description and runnable to execute before main is invoked.
@@ -73,7 +73,7 @@ public abstract class Command implements Closeable {
                         StringWriter sw = new StringWriter();
                         PrintWriter pw = new PrintWriter(sw)) {
                         e.printStackTrace(pw);
-                        terminal.println(sw.toString());
+                        terminal.errorPrintln(sw.toString());
                     } catch (final IOException impossible) {
                         // StringWriter#close declares a checked IOException from the Closeable interface but the Javadocs for StringWriter
                         // say that an exception here is impossible
@@ -89,14 +89,17 @@ public abstract class Command implements Closeable {
         try {
             mainWithoutErrorHandling(args, terminal);
         } catch (OptionException e) {
-            printHelp(terminal);
-            terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+            // print help to stderr on exceptions
+            printHelp(terminal, true);
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
             return ExitCodes.USAGE;
         } catch (UserException e) {
             if (e.exitCode == ExitCodes.USAGE) {
-                printHelp(terminal);
+                printHelp(terminal, true);
             }
-            terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+            if (e.getMessage() != null) {
+                terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+            }
             return e.exitCode;
         }
         return ExitCodes.OK;
@@ -109,7 +112,7 @@ public abstract class Command implements Closeable {
         final OptionSet options = parser.parse(args);
 
         if (options.has(helpOption)) {
-            printHelp(terminal);
+            printHelp(terminal, false);
             return;
         }
 
@@ -125,11 +128,17 @@ public abstract class Command implements Closeable {
     }
 
     /** Prints a help message for the command to the terminal. */
-    private void printHelp(Terminal terminal) throws IOException {
-        terminal.println(description);
-        terminal.println("");
-        printAdditionalHelp(terminal);
-        parser.printHelpOn(terminal.getWriter());
+    private void printHelp(Terminal terminal, boolean toStdError) throws IOException {
+        if (toStdError) {
+            terminal.errorPrintln(description);
+            terminal.errorPrintln("");
+            parser.printHelpOn(terminal.getErrorWriter());
+        } else {
+            terminal.println(description);
+            terminal.println("");
+            printAdditionalHelp(terminal);
+            parser.printHelpOn(terminal.getWriter());
+        }
     }
 
     /** Prints additional help information, specific to the command */

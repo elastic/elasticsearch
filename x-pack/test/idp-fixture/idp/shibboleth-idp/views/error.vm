@@ -1,0 +1,73 @@
+##
+## Velocity Template for error end-state
+##
+## Velocity context will contain the following properties
+## flowRequestContext - the Spring Web Flow RequestContext
+## profileRequestContext - root of context tree
+## encoder - HTMLEncoder class
+## request - HttpServletRequest
+## response - HttpServletResponse
+## environment - Spring Environment object for property resolution
+## custom - arbitrary object injected by deployer
+##
+#set ($title = $springMacroRequestContext.getMessage("idp.title", "Web Login Service"))
+#set ($defaultTitleSuffix = $springMacroRequestContext.getMessage("idp.title.suffix", "Error"))
+##
+#if ($flowRequestContext)
+	## This handles flow events, the most common case.
+    #set ($eventId = $flowRequestContext.getCurrentEvent().getId())
+    #set ($eventKey = $springMacroRequestContext.getMessage("$eventId", "error"))
+    #set ($titleSuffix = $springMacroRequestContext.getMessage("${eventKey}.title", "$defaultTitleSuffix"))
+    #set ($message = $springMacroRequestContext.getMessage("${eventKey}.message", "$defaultTitleSuffix: $eventId"))
+    #if ($eventId == "AccessDenied" or $eventId == "ContextCheckDenied")
+        $response.setStatus(403)
+    #elseif ($eventId == "AttributeReleaseRejected" || $eventId == "TermsRejected")
+        $response.setStatus(200)
+    #elseif ($eventKey == "unexpected" || $eventKey == "runtime-error" || $eventKey == "error")
+        $response.setStatus(500)
+    #else
+        $response.setStatus(400)
+    #end
+#elseif ($exception)
+	## This handles exceptions that reach the Spring-MVC exception handler.
+    #set ($eventId = $exception.getClass().getSimpleName())
+    #set ($eventKey = $springMacroRequestContext.getMessage("$eventId", "error"))
+    #set ($titleSuffix = $springMacroRequestContext.getMessage("${eventKey}.title", "$defaultTitleSuffix"))
+    #set ($message = $springMacroRequestContext.getMessage("${eventKey}.message", "$defaultTitleSuffix: $eventId"))
+#else
+	## This is a catch-all that theoretically shouldn't happen?
+    #set ($titleSuffix = $defaultTitleSuffix)
+    #set ($message = $springMacroRequestContext.getMessage("idp.message", "An unidentified error occurred."))
+#end
+##
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+        <title>$title - $titleSuffix</title>
+        <link rel="stylesheet" type="text/css" href="$request.getContextPath()/css/main.css">
+    </head>
+  	
+    <body>
+    <div class="wrapper">
+    	<div class="container">
+        	<header>
+				<img src="$request.getContextPath()#springMessage("idp.logo")" alt="#springMessageText("idp.logo.alt-text", "logo")">
+				<h3>$title - $titleSuffix</h3>
+			</header>
+		
+        	<div class="content">
+            #evaluate($message)
+            </div>
+    	</div>
+
+      	<footer>
+        	<div class="container container-footer">
+          		<p class="footer-text">#springMessageText("idp.footer", "Insert your footer text here.")</p>
+        	</div>
+      	</footer>
+      	
+    </div>
+    </body>
+</html>

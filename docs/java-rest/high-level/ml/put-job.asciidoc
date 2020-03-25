@@ -1,0 +1,129 @@
+--
+:api: put-job
+:request: PutJobRequest
+:response: PutJobResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Put {anomaly-job} API
+
+Creates a new {anomaly-job} in the cluster. The API accepts a +{request}+ object
+as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Put {anomaly-job} request
+
+A +{request}+ requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The configuration of the {anomaly-job} to create as a `Job`
+
+[id="{upid}-{api}-config"]
+==== Job configuration
+
+The `Job` object contains all the details about the {anomaly-job}
+configuration.
+
+A `Job` requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config]
+--------------------------------------------------
+<1> The job ID
+<2> An analysis configuration
+<3> A data description
+<4> Optionally, a human-readable description
+
+[id="{upid}-{api}-analysis-config"]
+==== Analysis configuration
+
+The analysis configuration of the {anomaly-job} is defined in the `AnalysisConfig`.
+`AnalysisConfig` reflects all the configuration
+settings that can be defined using the REST API.
+
+Using the REST API, we could define this analysis configuration:
+
+[source,js]
+--------------------------------------------------
+"analysis_config" : {
+  "bucket_span" : "10m",
+  "detectors" : [
+    {
+      "detector_description" : "Sum of total",
+      "function" : "sum",
+      "field_name" : "total"
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Using the `AnalysisConfig` object and the high level REST client, the list
+of detectors must be built first.
+
+An example of building a `Detector` instance is as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-detector]
+--------------------------------------------------
+<1> The function to use
+<2> The field to apply the function to
+<3> Optionally, a human-readable description
+
+Then the same configuration would be:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-analysis-config]
+--------------------------------------------------
+<1> Create a list of detectors
+<2> Pass the list of detectors to the analysis config builder constructor
+<3> The bucket span
+
+[id="{upid}-{api}-data-description"]
+==== Data description
+
+After defining the analysis config, the next thing to define is the
+data description, using a `DataDescription` instance. `DataDescription`
+reflects all the configuration settings that can be defined using the
+REST API.
+
+Using the REST API, we could define this metrics configuration:
+
+[source,js]
+--------------------------------------------------
+"data_description" : {
+  "time_field" : "timestamp"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Using the `DataDescription` object and the high level REST client, the same
+configuration would be:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-data-description]
+--------------------------------------------------
+<1> The time field
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ returns the full representation of
+the new {ml} job if it has been successfully created. This will
+contain the creation time and other fields initialized using
+default values:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The creation time is a field that was not passed in the `Job` object in the request

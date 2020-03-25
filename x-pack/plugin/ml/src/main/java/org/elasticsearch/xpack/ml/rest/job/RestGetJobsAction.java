@@ -8,31 +8,40 @@ package org.elasticsearch.xpack.ml.rest.job;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetJobsAction extends BaseRestHandler {
 
-    public RestGetJobsAction(Settings settings, RestController controller) {
-        super(settings);
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
 
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH
-                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH
-                + "anomaly_detectors", this);
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        // TODO: remove deprecated endpoint in 8.0.0
+        return List.of(
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}",
+                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors",
+                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors")
+        );
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_get_jobs_action";
+        return "ml_get_jobs_action";
     }
 
     @Override

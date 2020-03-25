@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
-import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -51,14 +51,14 @@ public class GlobalIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         numDocs = randomIntBetween(3, 20);
         for (int i = 0; i < numDocs / 2; i++) {
-            builders.add(client().prepareIndex("idx", "type", ""+i+1).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setId(""+i+1).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i + 1)
                     .field("tag", "tag1")
                     .endObject()));
         }
         for (int i = numDocs / 2; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx", "type", ""+i+1).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setId(""+i+1).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i + 1)
                     .field("tag", "tag2")
@@ -74,7 +74,7 @@ public class GlobalIT extends ESIntegTestCase {
                 .setQuery(QueryBuilders.termQuery("tag", "tag1"))
                 .addAggregation(global("global")
                         .subAggregation(stats("value_stats").field("value")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -107,7 +107,7 @@ public class GlobalIT extends ESIntegTestCase {
                     .setQuery(QueryBuilders.termQuery("tag", "tag1"))
                     .addAggregation(global("global")
                             .subAggregation(global("inner_global")))
-                    .execute().actionGet();
+                    .get();
 
             fail("expected to fail executing non-top-level global aggregator. global aggregations are only allowed as top level" +
                     "aggregations");

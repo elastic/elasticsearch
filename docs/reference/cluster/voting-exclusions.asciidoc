@@ -1,0 +1,84 @@
+[[voting-config-exclusions]]
+=== Voting configuration exclusions API
+++++
+<titleabbrev>Voting configuration exclusions</titleabbrev>
+++++
+
+Adds or removes master-eligible nodes from the
+<<modules-discovery-voting,voting configuration exclusion list>>.
+
+
+[[voting-config-exclusions-api-request]]
+==== {api-request-title}
+
+`POST _cluster/voting_config_exclusions/<node_name>` +
+
+`DELETE _cluster/voting_config_exclusions`
+
+
+[[voting-config-exclusions-api-desc]]
+==== {api-description-title}
+  
+By default, if there are more than three master-eligible nodes in the cluster
+and you remove fewer than half of the master-eligible nodes in the cluster at
+once, the <<modules-discovery-voting,voting configuration>> automatically
+shrinks.
+
+If you want to shrink the voting configuration to contain fewer than three nodes
+or to remove half or more of the master-eligible nodes in the cluster at once,
+you must use this API to remove departed nodes from the voting configuration
+manually. It adds an entry for that node in the voting configuration exclusions
+list. The cluster then tries to reconfigure the voting configuration to remove
+that node and to prevent it from returning.
+
+If the API fails, you can safely retry it.  Only a successful response
+guarantees that the node has been removed from the voting configuration and will
+not be reinstated.
+
+NOTE: Voting exclusions are required only when you remove at least half of the
+master-eligible nodes from a cluster in a short time period. They are not
+required when removing master-ineligible nodes or fewer than half of the
+master-eligible nodes.
+
+For more information, see <<modules-discovery-removing-nodes>>.
+
+
+[[voting-config-exclusions-api-path-params]]
+==== {api-path-parms-title}
+
+`<node_name>`::
+  A <<cluster-nodes,node filter>> that identifies {es} nodes.
+
+
+[[voting-config-exclusions-api-query-params]]
+==== {api-query-parms-title}
+
+`cluster.auto_shrink_voting_configuration`::
+    (Optional, boolean) If `false`, you must use this API to maintain the voting 
+    configuration. Defaults to `true`.
+
+`cluster.max_voting_config_exclusions`::
+    (Optional, integer) Limits the size of the voting configuration exclusion 
+    list. The default value is `10`. Since voting configuration exclusions are 
+    persistent and limited in number, you must clear the voting config 
+    exclusions list once the exclusions are no longer required.
+
+  
+[[voting-config-exclusions-api-example]]
+==== {api-examples-title}
+
+Add `nodeId1` to the voting configuration exclusions list:
+
+[source,console]
+-------------------------------------------------- 
+POST /_cluster/voting_config_exclusions/nodeId1
+--------------------------------------------------
+// TEST[catch:bad_request]
+
+
+Remove all exclusions from the list:
+
+[source,console]
+--------------------------------------------------
+DELETE /_cluster/voting_config_exclusions
+--------------------------------------------------

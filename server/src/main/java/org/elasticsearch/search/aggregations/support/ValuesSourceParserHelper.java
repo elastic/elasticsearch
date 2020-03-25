@@ -25,16 +25,24 @@ import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
-import org.joda.time.DateTimeZone;
+
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 public final class ValuesSourceParserHelper {
 
     private ValuesSourceParserHelper() {} // utility class, no instantiation
 
     public static <T> void declareAnyFields(
-            AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
-            boolean scriptable, boolean formattable) {
-        declareFields(objectParser, scriptable, formattable, false, null);
+        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
+        boolean scriptable, boolean formattable) {
+        declareAnyFields(objectParser, scriptable, formattable, false);
+    }
+
+    public static <T> void declareAnyFields(
+        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<ValuesSource, ?>, T> objectParser,
+        boolean scriptable, boolean formattable, boolean timezoneAware) {
+        declareFields(objectParser, scriptable, formattable, timezoneAware, null);
     }
 
     public static <T> void declareNumericFields(
@@ -91,9 +99,9 @@ public final class ValuesSourceParserHelper {
         if (timezoneAware) {
             objectParser.declareField(ValuesSourceAggregationBuilder::timeZone, p -> {
                 if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return DateTimeZone.forID(p.text());
+                    return ZoneId.of(p.text());
                 } else {
-                    return DateTimeZone.forOffsetHours(p.intValue());
+                    return ZoneOffset.ofHours(p.intValue());
                 }
             }, ParseField.CommonFields.TIME_ZONE, ObjectParser.ValueType.LONG);
         }

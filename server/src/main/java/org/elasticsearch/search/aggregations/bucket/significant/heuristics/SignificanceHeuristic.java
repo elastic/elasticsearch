@@ -21,9 +21,9 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
-import org.elasticsearch.search.internal.SearchContext;
 
 /**
  * Heuristic for that {@link SignificantTerms} uses to pick out significant terms.
@@ -38,9 +38,11 @@ public abstract class SignificanceHeuristic implements NamedWriteable, ToXConten
      */
     public abstract double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize);
 
-    protected void checkFrequencyValidity(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize, String scoreFunctionName) {
+    protected void checkFrequencyValidity(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize,
+            String scoreFunctionName) {
         if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
-            throw new IllegalArgumentException("Frequencies of subset and superset must be positive in " + scoreFunctionName + ".getScore()");
+            throw new IllegalArgumentException("Frequencies of subset and superset must be positive in " + scoreFunctionName +
+                    ".getScore()");
         }
         if (subsetFreq > subsetSize) {
             throw new IllegalArgumentException("subsetFreq > subsetSize, in " + scoreFunctionName);
@@ -63,10 +65,10 @@ public abstract class SignificanceHeuristic implements NamedWriteable, ToXConten
     /**
      * Provides a hook for subclasses to provide a version of the heuristic
      * prepared for execution on data on a shard. 
-     * @param context the search context on the data node
+     * @param queryShardContext the shard context on the data node
      * @return a version of this heuristic suitable for execution
      */
-    public SignificanceHeuristic rewrite(SearchContext context) {
+    public SignificanceHeuristic rewrite(QueryShardContext queryShardContext) {
         return this;
     }
 }

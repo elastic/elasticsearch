@@ -1,0 +1,28 @@
+{
+  "ml.delete_calendar_job":{
+    "documentation":{
+      "url":null
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}/jobs/{job_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to modify"
+            },
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job to remove from the calendar"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

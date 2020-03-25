@@ -5,15 +5,16 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction.Request;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-public class UpdateFilterActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class UpdateFilterActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     private String filterId = randomAlphaOfLength(20);
 
@@ -32,6 +33,11 @@ public class UpdateFilterActionRequestTests extends AbstractStreamableXContentTe
         return request;
     }
 
+    @Override
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
+    }
+
     private static Collection<String> generateRandomStrings() {
         int size = randomIntBetween(0, 10);
         List<String> strings = new ArrayList<>(size);
@@ -44,11 +50,6 @@ public class UpdateFilterActionRequestTests extends AbstractStreamableXContentTe
     @Override
     protected boolean supportsUnknownFields() {
         return false;
-    }
-
-    @Override
-    protected Request createBlankInstance() {
-        return new Request();
     }
 
     @Override

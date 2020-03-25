@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -45,7 +46,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
 
     private static final String INDEX_NAME = "index";
-    private static final String TYPE_NAME = "type";
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
         return BulkProcessor.builder(
@@ -82,6 +82,7 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                internalPolicy.logResponse(failure);
                 responses.add(failure);
                 latch.countDown();
             }
@@ -105,16 +106,8 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
                         BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
                         if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
                             if (rejectedExecutionExpected == false) {
-                                Iterator<TimeValue> backoffState = internalPolicy.backoffStateFor(bulkResponse);
-                                assertNotNull("backoffState is null (indicates a bulk request got rejected without retry)", backoffState);
-                                if (backoffState.hasNext()) {
-                                    // we're not expecting that we overwhelmed it even once when we maxed out the number of retries
-                                    throw new AssertionError("Got rejected although backoff policy would allow more retries",
-                                        failure.getCause());
-                                } else {
-                                    rejectedAfterAllRetries = true;
-                                    logger.debug("We maxed out the number of bulk retries and got rejected (this is ok).");
-                                }
+                                assertRetriedCorrectly(internalPolicy, bulkResponse, failure.getCause());
+                                rejectedAfterAllRetries = true;
                             }
                         } else {
                             throw new AssertionError("Unexpected failure with status: " + failure.getStatus());
@@ -122,9 +115,18 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
                     }
                 }
             } else {
-                Throwable t = (Throwable) response;
-                // we're not expecting any other errors
-                throw new AssertionError("Unexpected failure", t);
+                if (response instanceof RemoteTransportException
+                    && ((RemoteTransportException) response).status() == RestStatus.TOO_MANY_REQUESTS) {
+                    if (rejectedExecutionExpected == false) {
+                        assertRetriedCorrectly(internalPolicy, response, ((Throwable) response).getCause());
+                        rejectedAfterAllRetries = true;
+                    }
+                    // ignored, we exceeded the write queue size when dispatching the initial bulk request
+                } else {
+                    Throwable t = (Throwable) response;
+                    // we're not expecting any other errors
+                    throw new AssertionError("Unexpected failure", t);
+                }
             }
         }
 
@@ -141,12 +143,23 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
 
     }
 
+    private void assertRetriedCorrectly(CorrelatingBackoffPolicy internalPolicy, Object bulkResponse, Throwable failure) {
+        Iterator<TimeValue> backoffState = internalPolicy.backoffStateFor(bulkResponse);
+        assertNotNull("backoffState is null (indicates a bulk request got rejected without retry)", backoffState);
+        if (backoffState.hasNext()) {
+            // we're not expecting that we overwhelmed it even once when we maxed out the number of retries
+            throw new AssertionError("Got rejected although backoff policy would allow more retries", failure);
+        } else {
+            logger.debug("We maxed out the number of bulk retries and got rejected (this is ok).");
+        }
+    }
+
     private static MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(new IndexRequest(INDEX_NAME, TYPE_NAME, Integer.toString(i))
+            processor.add(new IndexRequest(INDEX_NAME).id(Integer.toString(i))
                 .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30)));
-            multiGetRequest.add(INDEX_NAME, TYPE_NAME, Integer.toString(i));
+            multiGetRequest.add(INDEX_NAME, Integer.toString(i));
         }
         return multiGetRequest;
     }
@@ -159,7 +172,7 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
      * as the last call to the backoff policy's iterator. The advantage is that this is non-invasive to the rest of the production code.
      */
     private static class CorrelatingBackoffPolicy extends BackoffPolicy {
-        private final Map<BulkResponse, Iterator<TimeValue>> correlations = new ConcurrentHashMap<>();
+        private final Map<Object, Iterator<TimeValue>> correlations = new ConcurrentHashMap<>();
         // this is intentionally *not* static final. We will only ever have one instance of this class per test case and want the
         // thread local to be eligible for garbage collection right after the test to avoid leaks.
         private final ThreadLocal<Iterator<TimeValue>> iterators = new ThreadLocal<>();
@@ -170,13 +183,13 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
             this.delegate = delegate;
         }
 
-        public Iterator<TimeValue> backoffStateFor(BulkResponse response) {
+        public Iterator<TimeValue> backoffStateFor(Object response) {
             return correlations.get(response);
         }
 
         // Assumption: This method is called from the same thread as the last call to the internal iterator's #hasNext() / #next()
         // see also Retry.AbstractRetryHandler#onResponse().
-        public void logResponse(BulkResponse response) {
+        public void logResponse(Object response) {
             Iterator<TimeValue> iterator = iterators.get();
             // did we ever retry?
             if (iterator != null) {

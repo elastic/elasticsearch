@@ -1,10 +1,10 @@
 ---
 "Index result field":
 
+
   - do:
       index:
           index:  test_index
-          type:   test
           id:     1
           body:   { foo: bar }
 
@@ -13,7 +13,6 @@
   - do:
       index:
           index:    test_index
-          type:     test
           id:       1
           body:     { foo: bar }
           op_type:  index

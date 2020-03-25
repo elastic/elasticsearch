@@ -1,0 +1,36 @@
+--
+:api: get-deprecation-info
+:request: DeprecationInfoRequest
+:response: DeprecationInfoResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Deprecation Info
+
+[id="{upid}-{api}-request"]
+==== Get Deprecation Info Request
+
+A +{request}+ can be applied to one or more indices:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Create a new request instance
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Deprecation Info Response
+
+The returned +{response}+ contains information about deprecated features currently
+in use at the cluster, node, and index level.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> a List of Cluster deprecations
+<2> a List of Node deprecations
+<3> a Map of key IndexName, value List of deprecations for the index
+<4> a list of Machine Learning related deprecations

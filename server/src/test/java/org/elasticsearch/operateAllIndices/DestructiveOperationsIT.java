@@ -69,7 +69,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
             assertAcked(client().admin().indices().prepareDelete("*").get());
         }
 
-        assertThat(client().admin().indices().prepareExists("_all").get().isExists(), equalTo(false));
+        assertThat(indexExists("_all"), equalTo(false));
     }
 
     public void testCloseIndexIsRejected() throws Exception {

@@ -3,37 +3,39 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestPostStartTrialLicense extends XPackRestHandler {
+public class RestPostStartTrialLicense extends BaseRestHandler {
 
-    RestPostStartTrialLicense(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(POST, URI_BASE + "/license/start_trial", this);
+    RestPostStartTrialLicense() {}
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_license/start_trial"));
     }
 
     @Override
-    protected RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         PostStartTrialRequest startTrialRequest = new PostStartTrialRequest();
-        startTrialRequest.setType(request.param("type", "trial"));
+        startTrialRequest.setType(request.param("type", License.LicenseType.TRIAL.getTypeName()));
         startTrialRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
-        return channel -> client.licensing().postStartTrial(startTrialRequest,
-                new RestBuilderListener<PostStartTrialResponse>(channel) {
+        return channel -> client.execute(PostStartTrialAction.INSTANCE, startTrialRequest,
+                new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(PostStartTrialResponse response, XContentBuilder builder) throws Exception {
                         PostStartTrialResponse.Status status = response.getStatus();
@@ -68,6 +70,7 @@ public class RestPostStartTrialLicense extends XPackRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_upgrade_to_trial_action";
+        return "post_start_trial";
     }
+
 }

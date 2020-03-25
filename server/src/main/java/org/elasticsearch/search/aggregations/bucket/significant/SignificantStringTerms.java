@@ -43,9 +43,10 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         BytesRef termBytes;
 
         public Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations,
-                DocValueFormat format) {
+                DocValueFormat format, double score) {
             super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
             this.termBytes = term;
+            this.score = score;
         }
 
         /**
@@ -57,7 +58,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();
             score = in.readDouble();
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
 
         @Override
@@ -67,12 +68,6 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
             out.writeVLong(supersetDf);
             out.writeDouble(getSignificanceScore());
             aggregations.writeTo(out);
-        }
-
-        public Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize,
-                InternalAggregations aggregations, double score, DocValueFormat format) {
-            this(term, subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
-            this.score = score;
         }
 
         @Override
@@ -92,17 +87,16 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         }
 
         @Override
-        Bucket newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
-            return new Bucket(termBytes, subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
-        }
-
-        @Override
         protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             return builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
         }
 
         @Override
         public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            if (super.equals(obj) == false) return false;
+
             return super.equals(obj) && Objects.equals(termBytes, ((SignificantStringTerms.Bucket) obj).termBytes);
         }
 
@@ -140,7 +134,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
     @Override
     public Bucket createBucket(InternalAggregations aggregations, SignificantStringTerms.Bucket prototype) {
         return new Bucket(prototype.termBytes, prototype.subsetDf, prototype.subsetSize, prototype.supersetDf, prototype.supersetSize,
-                aggregations, prototype.format);
+                aggregations, prototype.format, prototype.score);
     }
 
     @Override
@@ -152,5 +146,11 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
     @Override
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
+    }
+
+    @Override
+    Bucket createBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
+                        InternalAggregations aggregations, SignificantStringTerms.Bucket prototype) {
+        return new Bucket(prototype.termBytes, subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format, prototype.score);
     }
 }

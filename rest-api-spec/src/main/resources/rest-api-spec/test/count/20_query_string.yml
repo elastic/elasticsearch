@@ -5,15 +5,13 @@
           index:  test
           body:
             mappings:
-              test:
-                properties:
-                  number:
-                    type: integer
+              properties:
+                number:
+                  type: integer
 
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { field: foo bar}
 

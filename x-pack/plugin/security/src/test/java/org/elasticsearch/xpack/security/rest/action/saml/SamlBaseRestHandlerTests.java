@@ -17,26 +17,23 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.hamcrest.Matchers;
 
+import java.util.Collections;
+import java.util.List;
+
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SamlBaseRestHandlerTests extends ESTestCase {
 
     public void testSamlAvailableOnTrialAndPlatinum() {
-        final SamlBaseRestHandler handler = buildHandler(randomFrom(License.OperationMode.TRIAL, License.OperationMode.PLATINUM));
+        final SamlBaseRestHandler handler = buildHandler(randomFrom(
+            License.OperationMode.TRIAL, License.OperationMode.PLATINUM, License.OperationMode.ENTERPRISE));
         assertThat(handler.checkFeatureAvailable(new FakeRestRequest()), Matchers.nullValue());
     }
 
-    public void testSecurityNotAvailableOnBasic() {
-        final SamlBaseRestHandler handler = buildHandler(License.OperationMode.BASIC);
-        Exception e = handler.checkFeatureAvailable(new FakeRestRequest());
-        assertThat(e, instanceOf(ElasticsearchException.class));
-        ElasticsearchException elasticsearchException = (ElasticsearchException) e;
-        assertThat(elasticsearchException.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), contains("security"));
-    }
-
-    public void testSamlNotAvailableOnStandardOrGold() {
-        final SamlBaseRestHandler handler = buildHandler(randomFrom(License.OperationMode.STANDARD, License.OperationMode.GOLD));
+    public void testSamlNotAvailableOnBasicStandardOrGold() {
+        final SamlBaseRestHandler handler = buildHandler(randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD,
+            License.OperationMode.GOLD));
         Exception e = handler.checkFeatureAvailable(new FakeRestRequest());
         assertThat(e, instanceOf(ElasticsearchException.class));
         ElasticsearchException elasticsearchException = (ElasticsearchException) e;
@@ -55,6 +52,11 @@ public class SamlBaseRestHandlerTests extends ESTestCase {
             @Override
             public String getName() {
                 return "saml_test";
+            }
+
+            @Override
+            public List<Route> routes() {
+                return Collections.emptyList();
             }
 
             @Override

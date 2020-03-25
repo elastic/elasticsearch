@@ -20,7 +20,6 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
@@ -318,10 +317,5 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
                 assertEquals((int) bytesValue, instance.bytesAsInt());
             }
         }
-    }
-
-    public void testOldSerialisation() throws IOException {
-        ByteSizeValue original = createTestInstance();
-        assertSerialization(original, randomFrom(Version.V_5_6_4, Version.V_5_6_5, Version.V_6_0_0, Version.V_6_0_1, Version.V_6_1_0));
     }
 }

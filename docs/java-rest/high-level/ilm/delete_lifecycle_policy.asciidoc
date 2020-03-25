@@ -1,0 +1,36 @@
+--
+:api: ilm-delete-lifecycle-policy
+:request: DeleteLifecyclePolicyRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Delete Lifecycle Policy API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Delete Lifecycle Policy API allows you to delete an Index Lifecycle
+Management Policy from the cluster.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The policy named `my_policy` will be deleted.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the delete lifecycle policy request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the delete lifecycle policy request was acknowledged.
+
+include::../execution.asciidoc[]
+
+

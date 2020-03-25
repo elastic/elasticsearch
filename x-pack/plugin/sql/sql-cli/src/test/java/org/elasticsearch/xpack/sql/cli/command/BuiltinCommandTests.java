@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.cli.command;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 
 import static org.hamcrest.Matchers.containsString;
@@ -93,6 +94,7 @@ public class BuiltinCommandTests extends ESTestCase {
         testTerminal.print("not clean");
         assertTrue(new PrintLogoCommand().handle(testTerminal, cliSession, "logo"));
         assertThat(testTerminal.toString(), containsString("SQL"));
+        assertThat(testTerminal.toString(), containsString(ClientVersion.CURRENT.version));
         verifyNoMoreInteractions(httpClient);
     }
 

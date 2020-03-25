@@ -7,36 +7,47 @@ package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestGetCalendarsAction extends BaseRestHandler {
 
-    public RestGetCalendarsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "calendars/{" +
-                        Calendar.ID.getPreferredName() + "}", this);
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "calendars/", this);
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
 
-        // endpoints that support body parameters must also accept POST
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "calendars/{" +
-                        Calendar.ID.getPreferredName() + "}", this);
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "calendars/", this);
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        // TODO: remove deprecated endpoint in 8.0.0
+        return List.of(
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}",
+                GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "calendars/",
+                GET, MachineLearning.PRE_V7_BASE_PATH + "calendars/"),
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}",
+                POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "calendars/",
+                POST, MachineLearning.PRE_V7_BASE_PATH + "calendars/")
+        );
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_get_calendars_action";
+        return "ml_get_calendars_action";
     }
 
     @Override

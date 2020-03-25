@@ -20,14 +20,20 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.function.Function;
 
 /**
  * Provides helper methods and classes for use in PipelineAggregation tests,
@@ -138,5 +144,14 @@ public class PipelineAggregationHelperTests extends ESTestCase {
         }
 
         return 0.0;
+    }
+
+    static AggregationBuilder getRandomSequentiallyOrderedParentAgg() throws IOException {
+        @SuppressWarnings("unchecked")
+        Function<String, AggregationBuilder> builder = randomFrom(
+                HistogramAggregationBuilder::new,
+                DateHistogramAggregationBuilder::new,
+                AutoDateHistogramAggregationBuilder::new);
+        return builder.apply("name");
     }
 }

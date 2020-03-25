@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -24,18 +24,13 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ForecastJobAction extends Action<ForecastJobAction.Response> {
+public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
 
     public static final ForecastJobAction INSTANCE = new ForecastJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast";
 
     private ForecastJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, ForecastJobAction.Response::new);
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {
@@ -43,8 +38,8 @@ public class ForecastJobAction extends Action<ForecastJobAction.Response> {
         public static final ParseField DURATION = new ParseField("duration");
         public static final ParseField EXPIRES_IN = new ParseField("expires_in");
 
-        // Max allowed duration: 8 weeks
-        private static final TimeValue MAX_DURATION = TimeValue.parseTimeValue("56d", "");
+        // Max allowed duration: 10 years
+        private static final TimeValue MAX_DURATION = TimeValue.parseTimeValue("3650d", "");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -66,6 +61,19 @@ public class ForecastJobAction extends Action<ForecastJobAction.Response> {
         private TimeValue expiresIn;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.duration = in.readOptionalTimeValue();
+            this.expiresIn = in.readOptionalTimeValue();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalTimeValue(duration);
+            out.writeOptionalTimeValue(expiresIn);
         }
 
         public Request(String jobId) {
@@ -106,20 +114,6 @@ public class ForecastJobAction extends Action<ForecastJobAction.Response> {
                 throw new IllegalArgumentException("[" + EXPIRES_IN.getPreferredName() + "] must be non-negative: ["
                         + expiresIn.getStringRep() + "]");
             }
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.duration = in.readOptionalTimeValue();
-            this.expiresIn = in.readOptionalTimeValue();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalTimeValue(duration);
-            out.writeOptionalTimeValue(expiresIn);
         }
 
         @Override
@@ -168,27 +162,14 @@ public class ForecastJobAction extends Action<ForecastJobAction.Response> {
         private boolean acknowledged;
         private String forecastId;
 
-        public Response() {
-            super(null, null);
-        }
-
         public Response(boolean acknowledged, String forecastId) {
             super(null, null);
             this.acknowledged = acknowledged;
             this.forecastId = forecastId;
         }
 
-        public boolean isAcknowledged() {
-            return acknowledged;
-        }
-
-        public String getForecastId() {
-            return forecastId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             acknowledged = in.readBoolean();
             forecastId = in.readString();
         }
@@ -198,6 +179,14 @@ public class ForecastJobAction extends Action<ForecastJobAction.Response> {
             super.writeTo(out);
             out.writeBoolean(acknowledged);
             out.writeString(forecastId);
+        }
+
+        public boolean isAcknowledged() {
+            return acknowledged;
+        }
+
+        public String getForecastId() {
+            return forecastId;
         }
 
         @Override

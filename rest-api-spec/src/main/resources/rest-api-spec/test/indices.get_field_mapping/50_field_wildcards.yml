@@ -1,44 +1,43 @@
 ---
 setup:
+
   - do:
         indices.create:
           index: test_index
           body:
               mappings:
-                test_type:
-                  properties:
-                    t1:
-                      type:     text
-                    t2:
-                      type:     text
-                    obj:
-                      properties:
-                        t1:
-                          type:   text
-                        i_t1:
-                          type:   text
-                        i_t3:
-                          type:   text
+                properties:
+                  t1:
+                    type:     text
+                  t2:
+                    type:     text
+                  obj:
+                    properties:
+                      t1:
+                        type:   text
+                      i_t1:
+                        type:   text
+                      i_t3:
+                        type:   text
 
   - do:
         indices.create:
           index: test_index_2
           body:
               mappings:
-                test_type_2:
-                  properties:
-                    t1:
-                      type:     text
-                    t2:
-                      type:     text
-                    obj:
-                      properties:
-                        t1:
-                          type:   text
-                        i_t1:
-                          type:   text
-                        i_t3:
-                          type:   text
+                properties:
+                  t1:
+                    type:     text
+                  t2:
+                    type:     text
+                  obj:
+                    properties:
+                      t1:
+                        type:   text
+                      i_t1:
+                        type:   text
+                      i_t3:
+                        type:   text
 
 ---
 "Get field mapping with * for fields":
@@ -47,11 +46,11 @@ setup:
       indices.get_field_mapping:
         fields: "*"
 
-  - match: {test_index.mappings.test_type.t1.full_name:     t1     }
-  - match: {test_index.mappings.test_type.t2.full_name:     t2     }
-  - match: {test_index.mappings.test_type.obj\.t1.full_name: obj.t1 }
-  - match: {test_index.mappings.test_type.obj\.i_t1.full_name: obj.i_t1 }
-  - match: {test_index.mappings.test_type.obj\.i_t3.full_name: obj.i_t3 }
+  - match: {test_index.mappings.t1.full_name:     t1     }
+  - match: {test_index.mappings.t2.full_name:     t2     }
+  - match: {test_index.mappings.obj\.t1.full_name: obj.t1 }
+  - match: {test_index.mappings.obj\.i_t1.full_name: obj.i_t1 }
+  - match: {test_index.mappings.obj\.i_t3.full_name: obj.i_t3 }
 
 ---
 "Get field mapping with t* for fields":
@@ -61,9 +60,9 @@ setup:
         index: test_index
         fields: "t*"
 
-  - match:  {test_index.mappings.test_type.t1.full_name:     t1       }
-  - match:  {test_index.mappings.test_type.t2.full_name:     t2       }
-  - length: {test_index.mappings.test_type: 2}
+  - match:  {test_index.mappings.t1.full_name:     t1       }
+  - match:  {test_index.mappings.t2.full_name:     t2       }
+  - length: {test_index.mappings: 2}
 
 ---
 "Get field mapping with *t1 for fields":
@@ -72,10 +71,10 @@ setup:
       indices.get_field_mapping:
         index: test_index
         fields: "*t1"
-  - match:  {test_index.mappings.test_type.t1.full_name:        t1       }
-  - match:  {test_index.mappings.test_type.obj\.t1.full_name:   obj.t1   }
-  - match:  {test_index.mappings.test_type.obj\.i_t1.full_name: obj.i_t1 }
-  - length: {test_index.mappings.test_type: 3}
+  - match:  {test_index.mappings.t1.full_name:        t1       }
+  - match:  {test_index.mappings.obj\.t1.full_name:   obj.t1   }
+  - match:  {test_index.mappings.obj\.i_t1.full_name: obj.i_t1 }
+  - length: {test_index.mappings: 3}
 
 ---
 "Get field mapping with wildcarded relative names":
@@ -84,52 +83,49 @@ setup:
       indices.get_field_mapping:
         index: test_index
         fields: "obj.i_*"
-  - match:  {test_index.mappings.test_type.obj\.i_t1.full_name: obj.i_t1 }
-  - match:  {test_index.mappings.test_type.obj\.i_t3.full_name: obj.i_t3 }
-  - length: {test_index.mappings.test_type: 2}
+  - match:  {test_index.mappings.obj\.i_t1.full_name: obj.i_t1 }
+  - match:  {test_index.mappings.obj\.i_t3.full_name: obj.i_t3 }
+  - length: {test_index.mappings: 2}
 
 ---
-"Get field mapping should work using '_all' for indices and types":
+"Get field mapping should work using '_all' for index":
 
   - do:
       indices.get_field_mapping:
         index: _all
-        type: _all
         fields: "t*"
-  - match:  {test_index.mappings.test_type.t1.full_name: t1 }
-  - match:  {test_index.mappings.test_type.t2.full_name: t2 }
-  - length: {test_index.mappings.test_type: 2}
-  - match:  {test_index_2.mappings.test_type_2.t1.full_name: t1 }
-  - match:  {test_index_2.mappings.test_type_2.t2.full_name: t2 }
-  - length: {test_index_2.mappings.test_type_2: 2}
+  - match:  {test_index.mappings.t1.full_name: t1 }
+  - match:  {test_index.mappings.t2.full_name: t2 }
+  - length: {test_index.mappings: 2}
+  - match:  {test_index_2.mappings.t1.full_name: t1 }
+  - match:  {test_index_2.mappings.t2.full_name: t2 }
+  - length: {test_index_2.mappings: 2}
 
 ---
-"Get field mapping should work using '*' for indices and types":
+"Get field mapping should work using '*' for index":
 
   - do:
       indices.get_field_mapping:
         index: '*'
-        type: '*'
         fields: "t*"
-  - match:  {test_index.mappings.test_type.t1.full_name: t1 }
-  - match:  {test_index.mappings.test_type.t2.full_name: t2 }
-  - length: {test_index.mappings.test_type: 2}
-  - match:  {test_index_2.mappings.test_type_2.t1.full_name: t1 }
-  - match:  {test_index_2.mappings.test_type_2.t2.full_name: t2 }
-  - length: {test_index_2.mappings.test_type_2: 2}
+  - match:  {test_index.mappings.t1.full_name: t1 }
+  - match:  {test_index.mappings.t2.full_name: t2 }
+  - length: {test_index.mappings: 2}
+  - match:  {test_index_2.mappings.t1.full_name: t1 }
+  - match:  {test_index_2.mappings.t2.full_name: t2 }
+  - length: {test_index_2.mappings: 2}
 
 ---
-"Get field mapping should work using comma_separated values for indices and types":
+"Get field mapping should work using comma_separated values for indices":
 
   - do:
       indices.get_field_mapping:
         index: 'test_index,test_index_2'
-        type: 'test_type,test_type_2'
         fields: "t*"
-  - match:  {test_index.mappings.test_type.t1.full_name: t1 }
-  - match:  {test_index.mappings.test_type.t2.full_name: t2 }
-  - length: {test_index.mappings.test_type: 2}
-  - match:  {test_index_2.mappings.test_type_2.t1.full_name: t1 }
-  - match:  {test_index_2.mappings.test_type_2.t2.full_name: t2 }
-  - length: {test_index_2.mappings.test_type_2: 2}
+  - match:  {test_index.mappings.t1.full_name: t1 }
+  - match:  {test_index.mappings.t2.full_name: t2 }
+  - length: {test_index.mappings: 2}
+  - match:  {test_index_2.mappings.t1.full_name: t1 }
+  - match:  {test_index_2.mappings.t2.full_name: t2 }
+  - length: {test_index_2.mappings: 2}
 

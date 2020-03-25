@@ -18,19 +18,21 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
+import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingLevel;
@@ -94,7 +96,13 @@ public class WatcherScheduleEngineBenchmark {
 
 
         // First clean everything and index the watcher (but not via put alert api!)
-        try (Node node = new Node(Settings.builder().put(SETTINGS).put("node.data", false).build()).start()) {
+        try (Node node = new Node(InternalSettingsPreparer.prepareEnvironment(
+                    Settings.builder().put(SETTINGS).put("node.data", false).build(),
+                    emptyMap(),
+                    null,
+                    () -> {
+                        throw new IllegalArgumentException("settings must have [node.name]");
+                    })).start()) {
             try (Client client = node.client()) {
                 ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                 if (response.getNumberOfNodes() != 2 && response.getNumberOfDataNodes() != 1) {
@@ -103,19 +111,19 @@ public class WatcherScheduleEngineBenchmark {
 
                 client.admin().indices().prepareDelete("_all").get();
                 client.admin().indices().prepareCreate("test").get();
-                client.prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
+                client.prepareIndex().setIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
 
                 System.out.println("===============> indexing [" + numWatches + "] watches");
                 for (int i = 0; i < numWatches; i++) {
                     final String id = "_id_" + i;
-                    client.prepareIndex(Watch.INDEX, Watch.DOC_TYPE, id)
+                    client.prepareIndex().setIndex(Watch.INDEX).setId(id)
                             .setSource(new WatchSourceBuilder()
                                             .trigger(schedule(interval(interval + "s")))
                                             .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
                                             .condition(new ScriptCondition(new Script(
                                                     ScriptType.INLINE,
                                                     Script.DEFAULT_SCRIPT_LANG,
-                                                    "ctx.payload.hits.total > 0",
+                                                    "ctx.payload.hits.total.value > 0",
                                                     emptyMap())))
                                             .addAction("logging", ActionBuilders.loggingAction("test").setLevel(LoggingLevel.TRACE))
                                             .buildAsBytes(XContentType.JSON), XContentType.JSON
@@ -146,12 +154,11 @@ public class WatcherScheduleEngineBenchmark {
                     client.admin().cluster().prepareHealth(Watch.INDEX, "test").setWaitForYellowStatus().get();
 
                     Clock clock = node.injector().getInstance(Clock.class);
-                    WatcherClient watcherClient = node.injector().getInstance(WatcherClient.class);
-                    while (!watcherClient.prepareWatcherStats().get().getNodes().stream()
+                    while (!new WatcherStatsRequestBuilder(client).get().getNodes().stream()
                             .allMatch(r -> r.getWatcherState() == WatcherState.STARTED)) {
                         Thread.sleep(100);
                     }
-                    long actualLoadedWatches = watcherClient.prepareWatcherStats().get().getWatchesCount();
+                    long actualLoadedWatches = new WatcherStatsRequestBuilder(client).get().getWatchesCount();
                     if (actualLoadedWatches != numWatches) {
                         throw new IllegalStateException("Expected [" + numWatches + "] watched to be loaded, but only [" +
                                 actualLoadedWatches + "] watches were actually loaded");
@@ -221,7 +228,7 @@ public class WatcherScheduleEngineBenchmark {
                     Percentiles percentiles = searchResponse.getAggregations().get("percentile_delay");
                     stats.setDelayPercentiles(percentiles);
                     stats.setAvgJvmUsed(jvmUsedHeapSpace);
-                    watcherClient.prepareWatchService().stop().get();
+                    new WatcherServiceRequestBuilder(client).stop().get();
                 }
             }
         }

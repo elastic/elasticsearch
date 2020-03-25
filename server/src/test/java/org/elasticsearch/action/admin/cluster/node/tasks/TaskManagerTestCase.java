@@ -37,22 +37,24 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransport;
+import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,7 +63,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -73,20 +74,13 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
  */
 public abstract class TaskManagerTestCase extends ESTestCase {
 
-    protected static ThreadPool threadPool;
-    public static final Settings CLUSTER_SETTINGS = Settings.builder().put("cluster.name", "test-cluster").build();
+    protected ThreadPool threadPool;
     protected TestNode[] testNodes;
     protected int nodesCount;
 
-    @BeforeClass
-    public static void beforeClass() {
+    @Before
+    public void setupThreadPool() {
         threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName());
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        threadPool = null;
     }
 
     public void setupTestNodes(Settings settings) {
@@ -102,13 +96,15 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         for (TestNode testNode : testNodes) {
             testNode.close();
         }
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
     }
 
 
     static class NodeResponse extends BaseNodeResponse {
 
-        protected NodeResponse() {
-            super();
+        protected NodeResponse(StreamInput in) throws IOException {
+            super(in);
         }
 
         protected NodeResponse(DiscoveryNode node) {
@@ -124,12 +120,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readStreamableList(NodeResponse::new);
+            return in.readList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
 
         public int failureCount() {
@@ -143,10 +139,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends BaseNodeRequest>
             extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
-        AbstractTestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
-                                ClusterService clusterService, TransportService transportService, Supplier<NodesRequest> request,
-                                Supplier<NodeRequest> nodeRequest) {
-            super(settings, actionName, threadPool, clusterService, transportService,
+        AbstractTestNodesAction(String actionName, ThreadPool threadPool,
+                                ClusterService clusterService, TransportService transportService, Writeable.Reader<NodesRequest> request,
+                                Writeable.Reader<NodeRequest> nodeRequest) {
+            super(actionName, threadPool, clusterService, transportService,
                     new ActionFilters(new HashSet<>()),
                 request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
@@ -157,12 +153,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
 
         @Override
-        protected NodeResponse newNodeResponse() {
-            return new NodeResponse();
+        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+            return new NodeResponse(in);
         }
 
         @Override
-        protected abstract NodeResponse nodeOperation(NodeRequest request);
+        protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
 
     }
 
@@ -174,9 +170,9 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                  return discoveryNode.get();
                 };
             transportService = new TransportService(settings,
-                new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(),
-                    new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    new NetworkService(Collections.emptyList())),
+                new MockNioTransport(settings, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
+                    PageCacheRecycler.NON_RECYCLING_INSTANCE, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                    new NoneCircuitBreakerService()),
                 threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null,
                 Collections.emptySet()) {
                 @Override
@@ -192,8 +188,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
             ActionFilters actionFilters = new ActionFilters(emptySet());
-            transportListTasksAction = new TransportListTasksAction(settings, clusterService, transportService, actionFilters);
-            transportCancelTasksAction = new TransportCancelTasksAction(settings, clusterService, transportService, actionFilters);
+            transportListTasksAction = new TransportListTasksAction(clusterService, transportService, actionFilters);
+            transportCancelTasksAction = new TransportCancelTasksAction(clusterService, transportService, actionFilters);
             transportService.acceptIncomingRequests();
         }
 
@@ -227,7 +223,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
         for (TestNode nodeA : nodes) {
             for (TestNode nodeB : nodes) {
-                nodeA.transportService.connectToNode(nodeB.discoveryNode());
+                AbstractSimpleTransportTestCase.connectToNode(nodeA.transportService, nodeB.discoveryNode());
             }
         }
     }

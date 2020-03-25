@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,7 +32,7 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpand();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
     private String[] originalAliases = Strings.EMPTY_ARRAY;
 
     public GetAliasesRequest(String... aliases) {
@@ -49,9 +48,7 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
         indices = in.readStringArray();
         aliases = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            originalAliases = in.readStringArray();
-        }
+        originalAliases = in.readStringArray();
     }
 
     @Override
@@ -60,9 +57,7 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
         out.writeStringArray(indices);
         out.writeStringArray(aliases);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeStringArray(originalAliases);
-        }
+        out.writeStringArray(originalAliases);
     }
 
     @Override
@@ -117,10 +112,5 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

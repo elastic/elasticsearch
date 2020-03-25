@@ -5,19 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
  * Converts an int ASCII code to a character value.
  */
 public class Char extends UnaryStringIntFunction {
 
-    public Char(Location location, Expression field) {
-        super(location, field);
+    public Char(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -27,7 +28,7 @@ public class Char extends UnaryStringIntFunction {
 
     @Override
     protected Char replaceChild(Expression newChild) {
-        return new Char(location(), newChild);
+        return new Char(source(), newChild);
     }
 
     @Override
@@ -37,6 +38,6 @@ public class Char extends UnaryStringIntFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataTypes.KEYWORD;
     }
 }

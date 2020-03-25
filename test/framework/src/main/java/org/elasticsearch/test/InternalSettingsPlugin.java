@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Arrays;
@@ -32,8 +33,6 @@ import java.util.concurrent.TimeUnit;
 
 public final class InternalSettingsPlugin extends Plugin {
 
-    public static final Setting<Integer> VERSION_CREATED =
-        Setting.intSetting("index.version.created", 0, Property.IndexScope, Property.NodeScope);
     public static final Setting<String> PROVIDED_NAME_SETTING =
         Setting.simpleString("index.provided_name",Property.IndexScope, Property.NodeScope);
     public static final Setting<Boolean> MERGE_ENABLED =
@@ -47,12 +46,13 @@ public final class InternalSettingsPlugin extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-                VERSION_CREATED,
                 MERGE_ENABLED,
                 INDEX_CREATION_DATE_SETTING,
                 PROVIDED_NAME_SETTING,
                 TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING,
                 IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING,
+                IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING,
+                IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING
             );
     }

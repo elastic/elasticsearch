@@ -6,7 +6,7 @@ A `single-value` metrics aggregation that sums up numeric values that are extrac
 Assuming the data consists of documents representing sales records we can sum
 the sale price of all hats with:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -22,12 +22,11 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 Resulting in:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -40,13 +39,13 @@ Resulting in:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-The name of the aggregation (`intraday_return` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
+The name of the aggregation (`hat_prices` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
 ==== Script
 
 We could also use a script to fetch the sales price:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -68,12 +67,11 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a stored script use the following syntax:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -98,7 +96,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales,stored_example_script]
 
 ===== Value Script
@@ -106,7 +103,7 @@ POST /sales/_search?size=0
 It is also possible to access the field value from the script using `_value`.
 For example, this will sum the square of the prices for all hats:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -129,7 +126,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ==== Missing value
@@ -139,7 +135,7 @@ be treated. By default documents missing the value will be ignored but it is
 also possible to treat them as if they had a value. For example, this treats
 all hat sales without a price as being `100`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -160,5 +156,4 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]

@@ -29,6 +29,13 @@ public final class DeletePrivilegesRequest extends ActionRequest
     private String[] privileges;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public DeletePrivilegesRequest(StreamInput in) throws IOException {
+        super(in);
+        application = in.readString();
+        privileges = in.readStringArray();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     public DeletePrivilegesRequest() {
         this(null, Strings.EMPTY_ARRAY);
     }
@@ -80,14 +87,6 @@ public final class DeletePrivilegesRequest extends ActionRequest
 
     public void privileges(String[] privileges) {
         this.privileges = privileges;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        application = in.readString();
-        privileges = in.readStringArray();
-        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override

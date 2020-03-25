@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsReq
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.hamcrest.Matcher;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -38,7 +39,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class HotThreadsIT extends ESIntegTestCase {
 
@@ -109,15 +112,16 @@ public class HotThreadsIT extends ESIntegTestCase {
             });
 
             indexRandom(true,
-                    client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
-                    client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
-                    client().prepareIndex("test", "type1", "3").setSource("field1", "value3"));
+                    client().prepareIndex("test").setId("1").setSource("field1", "value1"),
+                    client().prepareIndex("test").setId("2").setSource("field1", "value2"),
+                    client().prepareIndex("test").setId("3").setSource("field1", "value3"));
             ensureSearchable();
             while(latch.getCount() > 0) {
                 assertHitCount(
                         client().prepareSearch()
                                 .setQuery(matchAllQuery())
-                                .setPostFilter(boolQuery().must(matchAllQuery()).mustNot(boolQuery().must(termQuery("field1", "value1")).must(termQuery("field1", "value2"))))
+                                .setPostFilter(boolQuery().must(matchAllQuery()).mustNot(boolQuery()
+                                    .must(termQuery("field1", "value1")).must(termQuery("field1", "value2"))))
                                 .get(),
                         3L);
             }
@@ -135,9 +139,13 @@ public class HotThreadsIT extends ESIntegTestCase {
         builder.setThreads(Integer.MAX_VALUE);
         NodesHotThreadsResponse response = builder.execute().get();
 
+        final Matcher<String> containsCachedTimeThreadRunMethod
+            = containsString("org.elasticsearch.threadpool.ThreadPool$CachedTimeThread.run");
+
         int totSizeAll = 0;
         for (NodeHotThreads node : response.getNodesMap().values()) {
             totSizeAll += node.getHotThreads().length();
+            assertThat(node.getHotThreads(), containsCachedTimeThreadRunMethod);
         }
 
         // Second time, do ignore idle threads:
@@ -151,6 +159,7 @@ public class HotThreadsIT extends ESIntegTestCase {
         int totSizeIgnoreIdle = 0;
         for (NodeHotThreads node : response.getNodesMap().values()) {
             totSizeIgnoreIdle += node.getHotThreads().length();
+            assertThat(node.getHotThreads(), not(containsCachedTimeThreadRunMethod));
         }
 
         // The filtered stacks should be smaller than unfiltered ones:

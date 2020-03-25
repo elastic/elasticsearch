@@ -27,7 +27,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,18 +39,19 @@ import java.util.Objects;
 /**
  * Stores information about failures that occurred during shard snapshotting process
  */
-public class SnapshotShardFailure implements ShardOperationFailedException {
-    private ShardId shardId;
-
-    private String reason;
+public class SnapshotShardFailure extends ShardOperationFailedException {
 
     @Nullable
     private String nodeId;
+    private ShardId shardId;
 
-    private RestStatus status;
-
-    private SnapshotShardFailure() {
-
+    SnapshotShardFailure(StreamInput in) throws IOException {
+        nodeId = in.readOptionalString();
+        shardId = new ShardId(in);
+        super.shardId = shardId.getId();
+        index = shardId.getIndexName();
+        reason = in.readString();
+        status = RestStatus.readFrom(in);
     }
 
     /**
@@ -74,56 +74,9 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      * @param status  rest status
      */
     private SnapshotShardFailure(@Nullable String nodeId, ShardId shardId, String reason, RestStatus status) {
-        assert reason != null;
+        super(shardId.getIndexName(), shardId.id(), reason, status, new IndexShardSnapshotFailedException(shardId, reason));
         this.nodeId = nodeId;
         this.shardId = shardId;
-        this.reason = reason;
-        this.status = status;
-    }
-
-    /**
-     * Returns index where failure occurred
-     *
-     * @return index
-     */
-    @Override
-    public String index() {
-        return this.shardId.getIndexName();
-    }
-
-    /**
-     * Returns shard id where failure occurred
-     *
-     * @return shard id
-     */
-    @Override
-    public int shardId() {
-        return this.shardId.id();
-    }
-
-    /**
-     * Returns reason for the failure
-     *
-     * @return reason for the failure
-     */
-    @Override
-    public String reason() {
-        return this.reason;
-    }
-
-    /**
-     * Returns {@link RestStatus} corresponding to this failure
-     *
-     * @return REST status
-     */
-    @Override
-    public RestStatus status() {
-        return status;
-    }
-
-    @Override
-    public Throwable getCause() {
-        return new IndexShardSnapshotFailedException(shardId, reason);
     }
 
     /**
@@ -134,26 +87,6 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
     @Nullable
     public String nodeId() {
         return nodeId;
-    }
-
-    /**
-     * Reads shard failure information from stream input
-     *
-     * @param in stream input
-     * @return shard failure information
-     */
-    public static SnapshotShardFailure readSnapshotShardFailure(StreamInput in) throws IOException {
-        SnapshotShardFailure exp = new SnapshotShardFailure();
-        exp.readFrom(in);
-        return exp;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        nodeId = in.readOptionalString();
-        shardId = ShardId.readShardId(in);
-        reason = in.readString();
-        status = RestStatus.readFrom(in);
     }
 
     @Override
@@ -172,19 +105,6 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
             ", nodeId='" + nodeId + '\'' +
             ", status=" + status +
             '}';
-    }
-
-    /**
-     * Serializes snapshot failure information into JSON
-     *
-     * @param snapshotShardFailure snapshot failure information
-     * @param builder              XContent builder
-     * @param params               additional parameters
-     */
-    public static void toXContent(SnapshotShardFailure snapshotShardFailure, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        snapshotShardFailure.toXContent(builder, params);
-        builder.endObject();
     }
 
     static final ConstructingObjectParser<SnapshotShardFailure, Void> SNAPSHOT_SHARD_FAILURE_PARSER =
@@ -218,16 +138,6 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
 
         ShardId shardId = new ShardId(index, indexUuid != null ? indexUuid : IndexMetaData.INDEX_UUID_NA_VALUE, intShardId);
 
-        // Workaround for https://github.com/elastic/elasticsearch/issues/25878
-        // Some old snapshot might still have null in shard failure reasons
-        String nonNullReason;
-        if (reason != null) {
-            nonNullReason = reason;
-        } else {
-            nonNullReason = "";
-        }
-
-
         RestStatus restStatus;
         if (status != null) {
             restStatus = RestStatus.valueOf(status);
@@ -235,7 +145,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
             restStatus = RestStatus.INTERNAL_SERVER_ERROR;
         }
 
-        return new SnapshotShardFailure(nodeId, shardId, nonNullReason, restStatus);
+        return new SnapshotShardFailure(nodeId, shardId, reason, restStatus);
     }
 
     /**
@@ -250,6 +160,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field("index", shardId.getIndexName());
         builder.field("index_uuid", shardId.getIndexName());
         builder.field("shard_id", shardId.id());
@@ -258,6 +169,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
             builder.field("node_id", nodeId);
         }
         builder.field("status", status.name());
+        builder.endObject();
         return builder;
     }
 

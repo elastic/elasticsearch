@@ -81,6 +81,16 @@ public class ByteSizeUnitTests extends ESTestCase {
         assertThat(PB.toPB(1), equalTo(1L));
     }
 
+    public void testToString() {
+        int v = randomIntBetween(1, 1023);
+        assertThat(new ByteSizeValue(PB.toBytes(v)).toString(), equalTo(v + "pb"));
+        assertThat(new ByteSizeValue(TB.toBytes(v)).toString(), equalTo(v + "tb"));
+        assertThat(new ByteSizeValue(GB.toBytes(v)).toString(), equalTo(v + "gb"));
+        assertThat(new ByteSizeValue(MB.toBytes(v)).toString(), equalTo(v + "mb"));
+        assertThat(new ByteSizeValue(KB.toBytes(v)).toString(), equalTo(v + "kb"));
+        assertThat(new ByteSizeValue(BYTES.toBytes(v)).toString(), equalTo(v + "b"));
+    }
+
     public void testSerialization() throws IOException {
         for (ByteSizeUnit unit : ByteSizeUnit.values()) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {

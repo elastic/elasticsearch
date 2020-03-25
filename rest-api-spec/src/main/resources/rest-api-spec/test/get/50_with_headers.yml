@@ -2,11 +2,9 @@
 "REST test with headers":
   - skip:
       features: ["headers", "yaml"]
-
   - do:
       index:
         index: test_1
-        type:  test
         id:    1
         body:  { "body": "foo" }
 
@@ -15,11 +13,9 @@
         Accept: application/yaml
       get:
         index: test_1
-        type: _all
         id:   1
 
   - match: {_index: "test_1"}
-  - match: {_type: "test"}
   - match: {_id: "1"}
   - match: {_version: 1}
   - match: {found: true}

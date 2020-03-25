@@ -24,31 +24,74 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsReq
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesHotThreadsAction extends BaseRestHandler {
-    public RestNodesHotThreadsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hot_threads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hot_threads", this);
 
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/hot_threads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/hotthreads", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/hot_threads", this);
+    private static final String formatDeprecatedMessageWithoutNodeID = "[%s] is a deprecated endpoint. " + 
+        "Please use [/_nodes/hot_threads] instead.";
+    private static final String formatDeprecatedMessageWithNodeID = "[%s] is a deprecated endpoint. " + 
+        "Please use [/_nodes/{nodeId}/hot_threads] instead.";
+    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS = String.format(Locale.ROOT, 
+        formatDeprecatedMessageWithoutNodeID, 
+        "/_cluster/nodes/hot_threads"
+    ); 
+    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOT_THREADS = String.format(Locale.ROOT, 
+        formatDeprecatedMessageWithNodeID, 
+        "/_cluster/nodes/{nodeId}/hot_threads"
+    );
+    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS = String.format(Locale.ROOT, 
+        formatDeprecatedMessageWithoutNodeID, 
+        "/_cluster/nodes/hotthreads"
+    ); 
+    private static final String DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS = String.format(Locale.ROOT, 
+        formatDeprecatedMessageWithNodeID, 
+        "/_cluster/nodes/{nodeId}/hotthreads"
+    ); 
+    private static final String DEPRECATED_MESSAGE_NODES_HOTTHREADS = String.format(Locale.ROOT, 
+        formatDeprecatedMessageWithoutNodeID, 
+        "/_nodes/hotthreads"
+    ); 
+    private static final String DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS = String.format(Locale.ROOT, 
+        formatDeprecatedMessageWithNodeID, 
+        "/_nodes/{nodeId}/hotthreads"
+    );
+
+    @Override
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return List.of(
+            new DeprecatedRoute(GET, "/_cluster/nodes/hot_threads",
+                    DEPRECATED_MESSAGE_CLUSTER_NODES_HOT_THREADS),
+            new DeprecatedRoute(GET, "/_cluster/nodes/{nodeId}/hot_threads",
+                    DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOT_THREADS),
+            new DeprecatedRoute(GET, "/_cluster/nodes/hotthreads",
+                    DEPRECATED_MESSAGE_CLUSTER_NODES_HOTTHREADS),
+            new DeprecatedRoute(GET, "/_cluster/nodes/{nodeId}/hotthreads",
+                    DEPRECATED_MESSAGE_CLUSTER_NODES_NODEID_HOTTHREADS),
+            new DeprecatedRoute(GET, "/_nodes/hotthreads",
+                    DEPRECATED_MESSAGE_NODES_HOTTHREADS),
+            new DeprecatedRoute(GET, "/_nodes/{nodeId}/hotthreads",
+                    DEPRECATED_MESSAGE_NODES_NODEID_HOTTHREADS));
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_nodes/hot_threads"),
+            new Route(GET, "/_nodes/{nodeId}/hot_threads")
+        );
     }
 
     @Override

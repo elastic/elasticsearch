@@ -10,8 +10,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 class PostStartBasicRequestBuilder extends ActionRequestBuilder<PostStartBasicRequest, PostStartBasicResponse> {
 
-    PostStartBasicRequestBuilder(ElasticsearchClient client, PostStartBasicAction action) {
-        super(client, action, new PostStartBasicRequest());
+    PostStartBasicRequestBuilder(ElasticsearchClient client) {
+        super(client, PostStartBasicAction.INSTANCE, new PostStartBasicRequest());
     }
 
     public PostStartBasicRequestBuilder setAcknowledge(boolean acknowledge) {

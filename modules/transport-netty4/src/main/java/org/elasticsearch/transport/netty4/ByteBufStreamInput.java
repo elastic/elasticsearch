@@ -28,7 +28,7 @@ import java.io.EOFException;
 import java.io.IOException;
 
 /**
- * A Netty {@link io.netty.buffer.ByteBuf} based {@link org.elasticsearch.common.io.stream.StreamInput}.
+ * A Netty {@link ByteBuf} based {@link StreamInput}.
  */
 class ByteBufStreamInput extends StreamInput {
 
@@ -110,6 +110,39 @@ class ByteBufStreamInput extends StreamInput {
     }
 
     @Override
+    public short readShort() throws IOException {
+        try {
+            return buffer.readShort();
+        } catch (IndexOutOfBoundsException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
+    }
+
+    @Override
+    public int readInt() throws IOException {
+        try {
+            return buffer.readInt();
+        } catch (IndexOutOfBoundsException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
+    }
+
+    @Override
+    public long readLong() throws IOException {
+        try {
+            return buffer.readLong();
+        } catch (IndexOutOfBoundsException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
+    }
+
+    @Override
     public void reset() throws IOException {
         buffer.resetReaderIndex();
     }
@@ -132,7 +165,13 @@ class ByteBufStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        return buffer.readByte();
+        try {
+            return buffer.readByte();
+        } catch (IndexOutOfBoundsException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
     }
 
     @Override

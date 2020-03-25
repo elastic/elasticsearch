@@ -24,15 +24,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -47,52 +43,51 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoPolygonIT extends ESIntegTestCase {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
 
-        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", "location",
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("location",
             "type=geo_point", "alias",
             "type=alias,path=location"));
         ensureGreen();
 
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        indexRandom(true, client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
                 .field("name", "New York")
                 .startObject("location").field("lat", 40.714).field("lon", -74.006).endObject()
                 .endObject()),
         // to NY: 5.286 km
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject()
                 .field("name", "Times Square")
                 .startObject("location").field("lat", 40.759).field("lon", -73.984).endObject()
                 .endObject()),
         // to NY: 0.4621 km
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("3").setSource(jsonBuilder().startObject()
                 .field("name", "Tribeca")
                 .startObject("location").field("lat", 40.718).field("lon", -74.008).endObject()
                 .endObject()),
         // to NY: 1.055 km
-        client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("4").setSource(jsonBuilder().startObject()
                 .field("name", "Wall Street")
                 .startObject("location").field("lat", 40.705).field("lon", -74.009).endObject()
                 .endObject()),
         // to NY: 1.258 km
-        client().prepareIndex("test", "type1", "5").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("5").setSource(jsonBuilder().startObject()
                 .field("name", "Soho")
                 .startObject("location").field("lat", 40.725).field("lon", -74).endObject()
                 .endObject()),
         // to NY: 2.029 km
-        client().prepareIndex("test", "type1", "6").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("6").setSource(jsonBuilder().startObject()
                 .field("name", "Greenwich Village")
                 .startObject("location").field("lat", 40.731).field("lon", -73.996).endObject()
                 .endObject()),
         // to NY: 8.572 km
-        client().prepareIndex("test", "type1", "7").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test").setId("7").setSource(jsonBuilder().startObject()
                 .field("name", "Brooklyn")
                 .startObject("location").field("lat", 40.65).field("lon", -73.95).endObject()
                 .endObject()));
@@ -108,7 +103,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.7, -74.0));
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
                 .setQuery(boolQuery().must(geoPolygonQuery("location", points)))
-                .execute().actionGet();
+                .get();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
@@ -123,7 +118,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.8, -74.1));
         points.add(new GeoPoint(40.8, -74.0));
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
-                .setQuery(boolQuery().must(geoPolygonQuery("location", points))).execute().actionGet();
+                .setQuery(boolQuery().must(geoPolygonQuery("location", points))).get();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
@@ -140,7 +135,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.7, -74.0));
         SearchResponse searchResponse = client().prepareSearch("test") // from NY
             .setQuery(boolQuery().must(geoPolygonQuery("alias", points)))
-            .execute().actionGet();
+            .get();
         assertHitCount(searchResponse, 4);
     }
 }

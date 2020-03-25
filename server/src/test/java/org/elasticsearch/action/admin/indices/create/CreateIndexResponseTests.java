@@ -19,17 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
-public class CreateIndexResponseTests extends AbstractStreamableXContentTestCase<CreateIndexResponse> {
+public class CreateIndexResponseTests extends AbstractSerializingTestCase<CreateIndexResponse> {
 
     @Override
     protected CreateIndexResponse createTestInstance() {
@@ -40,8 +38,8 @@ public class CreateIndexResponseTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected CreateIndexResponse createBlankInstance() {
-        return new CreateIndexResponse();
+    protected Writeable.Reader<CreateIndexResponse> instanceReader() {
+        return CreateIndexResponse::new;
     }
 
     @Override
@@ -65,25 +63,6 @@ public class CreateIndexResponseTests extends AbstractStreamableXContentTestCase
     @Override
     protected CreateIndexResponse doParseInstance(XContentParser parser) {
         return CreateIndexResponse.fromXContent(parser);
-    }
-
-    public void testSerializationWithOldVersion() throws IOException {
-        Version oldVersion = Version.V_5_4_0;
-        CreateIndexResponse response = new CreateIndexResponse(true, true, "foo");
-
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(oldVersion);
-            response.writeTo(output);
-
-            try (StreamInput in = output.bytes().streamInput()) {
-                in.setVersion(oldVersion);
-                CreateIndexResponse serialized = new CreateIndexResponse();
-                serialized.readFrom(in);
-                assertEquals(response.isShardsAcknowledged(), serialized.isShardsAcknowledged());
-                assertEquals(response.isAcknowledged(), serialized.isAcknowledged());
-                assertNull(serialized.index());
-            }
-        }
     }
 
     public void testToXContent() {

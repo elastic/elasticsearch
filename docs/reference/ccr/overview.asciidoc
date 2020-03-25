@@ -1,0 +1,228 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-overview]]
+=== Overview
+
+
+{ccr-cap} is done on an index-by-index basis. Replication is
+configured at the index level. For each configured replication there is a
+replication source index called the _leader index_ and a replication target
+index called the _follower index_.
+
+Replication is active-passive. This means that while the leader index
+can directly be written into, the follower index can not directly receive
+writes.
+
+Replication is pull-based. This means that replication is driven by the
+follower index. This simplifies state management on the leader index and means
+that {ccr} does not interfere with indexing on the leader index.
+
+In {ccr}, the cluster performing this pull is known as the _local cluster_. The
+cluster being replicated is known as the _remote cluster_.
+
+==== Prerequisites
+
+* {ccr-cap} requires <<modules-remote-clusters, remote clusters>>.
+
+* The {es} version of the local cluster must be **the same as or newer** than
+the remote cluster. If newer, the versions must also be compatible as outlined
+in the following matrix.
+
+include::../modules/remote-clusters.asciidoc[tag=remote-cluster-compatibility-matrix]
+
+==== Configuring replication
+
+Replication can be configured in two ways:
+
+* Manually creating specific follower indices (in {kib} or by using the
+{ref}/ccr-put-follow.html[create follower API])
+
+* Automatically creating follower indices from auto-follow patterns (in {kib} or
+by using the {ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API])
+
+For more information about managing {ccr} in {kib}, see
+{kibana-ref}/working-remote-clusters.html[Working with remote clusters].
+
+NOTE: You must also <<ccr-requirements,configure the leader index>>.
+
+When you initiate replication either manually or through an auto-follow pattern, the
+follower index is created on the local cluster. Once the follower index is created,
+the <<remote-recovery, remote recovery>> process copies all of the Lucene segment
+files from the remote cluster to the local cluster.
+
+By default, if you initiate following manually (by using {kib} or the create follower API),
+the recovery process is asynchronous in relationship to the
+{ref}/ccr-put-follow.html[create follower request]. The request returns before
+the <<remote-recovery, remote recovery>> process completes. If you would like to wait on
+the process to complete, you can use the `wait_for_active_shards` parameter.
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : "leader_index"
+}
+--------------------------------------------------
+// TESTSETUP
+// TEST[setup:remote_cluster_and_leader_index]
+
+[source,console]
+--------------------------------------------------
+POST /follower_index/_ccr/pause_follow
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////
+
+
+==== The mechanics of replication
+
+While replication is managed at the index level, replication is performed at the
+shard level. When a follower index is created, it is automatically
+configured to have an identical number of shards as the leader index. A follower
+shard task in the follower index pulls from the corresponding leader shard in
+the leader index by sending read requests for new operations. These read
+requests can be served from any copy of the leader shard (primary or replicas).
+
+For each read request sent by the follower shard task, if there are new
+operations available on the leader shard, the leader shard responds with
+operations limited by the read parameters that you established when you
+configured the follower index. If there are no new operations available on the
+leader shard, the leader shard waits up to a configured timeout for new
+operations. If new operations occur within that timeout, the leader shard
+immediately responds with those new operations. Otherwise, if the timeout
+elapses, the leader shard replies that there are no new operations. The
+follower shard task updates some statistics and immediately sends another read
+request to the leader shard. This ensures that the network connections between
+the remote cluster and the local cluster are continually being used so as to
+avoid forceful termination by an external source (such as a firewall).
+
+If a read request fails, the cause of the failure is inspected. If the
+cause of the failure is deemed to be a failure that can be recovered from (for 
+example, a network failure), the follower shard task enters into a retry
+loop. Otherwise, the follower shard task is paused and requires user
+intervention before it can be resumed with the
+{ref}/ccr-post-resume-follow.html[resume follower API].
+
+When operations are received by the follower shard task, they are placed in a
+write buffer. The follower shard task manages this write buffer and submits
+bulk write requests from this write buffer to the follower shard.  The write
+buffer and these write requests are managed by the write parameters that you 
+established when you configured the follower index.  The write buffer serves as
+back-pressure against read requests. If the write buffer exceeds its configured
+limits, no additional read requests are sent by the follower shard task. The
+follower shard task resumes sending read requests when the write buffer no
+longer exceeds its configured limits.
+
+NOTE: The intricacies of how operations are replicated from the leader are
+governed by settings that you can configure when you create the follower index
+in {kib} or by using the {ref}/ccr-put-follow.html[create follower API].
+
+Mapping updates applied to the leader index are automatically retrieved
+as-needed by the follower index. It is not possible to manually modify the
+mapping of a follower index.
+
+Settings updates applied to the leader index that are needed by the follower
+index are automatically retried as-needed by the follower index. Not all
+settings updates are needed by the follower index. For example, changing the
+number of replicas on the leader index is not replicated by the follower index.
+
+Alias updates applied to the leader index are automatically retrieved by the
+follower index. It is not possible to manually modify an alias of a follower
+index.
+
+NOTE: If you apply a non-dynamic settings change to the leader index that is
+needed by the follower index, the follower index will go through a cycle of
+closing itself, applying the settings update, and then re-opening itself. The
+follower index will be unavailable for reads and not replicating writes
+during this cycle.
+
+
+==== Inspecting the progress of replication
+
+You can inspect the progress of replication at the shard level with the
+{ref}/ccr-get-follow-stats.html[get follower stats API]. This API gives you
+insight into the read and writes managed by the follower shard task. It also
+reports read exceptions that can be retried and fatal exceptions that require
+user intervention.
+
+
+==== Pausing and resuming replication
+
+You can pause replication with the
+{ref}/ccr-post-pause-follow.html[pause follower API] and then later resume
+replication with the {ref}/ccr-post-resume-follow.html[resume follower API].
+Using these APIs in tandem enables you to adjust the read and write parameters
+on the follower shard task if your initial configuration is not suitable for
+your use case.
+
+
+==== Leader index retaining operations for replication
+
+If the follower is unable to replicate operations from a leader for a period of
+time, the following process can fail due to the leader lacking a complete history
+of operations necessary for replication.
+
+Operations replicated to the follower are identified using a sequence number
+generated when the operation was initially performed. Lucene segment files are
+occasionally merged in order to optimize searches and save space. When these
+merges occur, it is possible for operations associated with deleted or updated
+documents to be pruned during the merge. When the follower requests the sequence
+number for a pruned operation, the process will fail due to the operation missing
+on the leader.
+
+This scenario is not possible in an append-only workflow. As documents are never
+deleted or updated, the underlying operation will not be pruned.
+
+Elasticsearch attempts to mitigate this potential issue for update workflows using
+a Lucene feature called soft deletes. When a document is updated or deleted, the
+underlying operation is retained in the Lucene index for a period of time. This
+period of time is governed by the `index.soft_deletes.retention_lease.period`
+setting which can be <<ccr-requirements,configured on the leader index>>.
+
+When a follower initiates the index following, it acquires a retention lease from
+the leader. This informs the leader that it should not allow a soft delete to be
+pruned until either the follower indicates that it has received the operation or
+the lease expires. It is valuable to have monitoring in place to detect a follower
+replication issue prior to the lease expiring so that the problem can be remedied
+before the follower falls fatally behind.
+
+
+==== Remedying a follower that has fallen behind
+
+If a follower falls sufficiently behind a leader that it can no longer replicate
+operations this can be detected in {kib} or by using the
+{ref}/ccr-get-follow-stats.html[get follow stats API]. It will be reported as a
+`indices[].fatal_exception`.
+
+In order to restart the follower, you must pause the following process, close the
+index, and the create follower index again. For example:
+
+[source,console]
+----------------------------------------------------------------------
+POST /follower_index/_ccr/pause_follow
+
+POST /follower_index/_close
+
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : "leader_index"
+}
+----------------------------------------------------------------------
+
+Re-creating the follower index is a destructive action. All of the existing Lucene
+segment files are deleted on the follower cluster. The
+<<remote-recovery, remote recovery>> process copies the Lucene segment
+files from the leader again. After the follower index initializes, the
+following process starts again.
+
+
+==== Terminating replication
+
+You can terminate replication with the
+{ref}/ccr-post-unfollow.html[unfollow API]. This API converts a follower index
+to a regular (non-follower) index.

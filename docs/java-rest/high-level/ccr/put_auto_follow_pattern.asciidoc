@@ -1,0 +1,37 @@
+--
+:api: ccr-put-auto-follow-pattern
+:request: PutAutoFollowPatternRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Put Auto Follow Pattern API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Put Auto Follow Pattern API allows you to store auto follow patterns in order
+to automatically follow leader indices in a remote clusters matching certain
+index name patterns.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of the auto follow pattern.
+<2> The name of the remote cluster.
+<3> The leader index patterns.
+<4> The pattern used to create the follower index
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the put auto follow pattern request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the put auto follow pattern request was acknowledged.
+
+include::../execution.asciidoc[]

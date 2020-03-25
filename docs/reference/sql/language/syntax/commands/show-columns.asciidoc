@@ -1,0 +1,26 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-syntax-show-columns]]
+=== SHOW COLUMNS
+
+.Synopsis:
+[source, sql]
+----
+SHOW COLUMNS [ FROM | IN ]?
+    [table identifier | <1>
+    [LIKE pattern] ]    <2>
+----
+
+<1> single table identifier or double quoted es multi index
+<2> SQL LIKE pattern
+
+See <<sql-index-patterns, index patterns>> for more information about
+patterns.
+
+*Description*: List the columns in table and their data type (and other attributes).
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[showColumns]
+----
+

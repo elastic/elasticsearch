@@ -1,0 +1,19 @@
+{
+  "ilm.start":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-start.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ilm/start",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

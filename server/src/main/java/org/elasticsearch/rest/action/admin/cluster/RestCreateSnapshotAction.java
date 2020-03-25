@@ -21,13 +21,12 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.client.Requests.createSnapshotRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -37,10 +36,12 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Creates a new snapshot
  */
 public class RestCreateSnapshotAction extends BaseRestHandler {
-    public RestCreateSnapshotAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(PUT, "/_snapshot/{repository}/{snapshot}", this);
-        controller.registerHandler(POST, "/_snapshot/{repository}/{snapshot}", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(PUT, "/_snapshot/{repository}/{snapshot}"),
+            new Route(POST, "/_snapshot/{repository}/{snapshot}"));
     }
 
     @Override

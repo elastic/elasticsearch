@@ -1,0 +1,30 @@
+{
+  "ccr.get_auto_follow_pattern":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-auto-follow-pattern.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ccr/auto_follow",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_ccr/auto_follow/{name}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"The name of the auto follow pattern."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -6,37 +6,52 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
-import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.sql.DatabaseMetaData;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isSigned;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDateTimeSub;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlMaximumScale;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlMinimumScale;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlRadix;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.precision;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.sqlType;
 
+/**
+ * System command designed to be used by JDBC / ODBC for column metadata.
+ * In JDBC it used for {@link DatabaseMetaData#getTypeInfo()},
+ * in ODBC for <a href="https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function">SQLGetTypeInfo</a>
+ */
 public class SysTypes extends Command {
 
-    public SysTypes(Location location) {
-        super(location);
+    private final Integer type;
+
+    public SysTypes(Source source, int type) {
+        super(source);
+        this.type = Integer.valueOf(type);
     }
 
     @Override
     protected NodeInfo<SysTypes> info() {
-        return NodeInfo.create(this);
+        return NodeInfo.create(this, SysTypes::new, type);
     }
 
     @Override
@@ -65,47 +80,48 @@ public class SysTypes extends Command {
     }
 
     @Override
-    public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        List<List<?>> rows = Stream.of(DataType.values())
-                // sort by SQL int type (that's what the JDBC/ODBC specs want)
-                .sorted(Comparator.comparing(t -> t.jdbcType.getVendorTypeNumber()))
-                .map(t -> asList(t.esType.toUpperCase(Locale.ROOT),
-                        t.jdbcType.getVendorTypeNumber(),
-                        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size?view=sql-server-2017
-                        t.defaultPrecision,
+    public final void execute(SqlSession session, ActionListener<Page> listener) {
+        Stream<DataType> values = SqlDataTypes.types().stream();
+        if (type.intValue() != 0) {
+            values = values.filter(t -> type.equals(sqlType(t).getVendorTypeNumber()));
+        }
+        List<List<?>> rows = values
+                // sort by SQL int type (that's what the JDBC/ODBC specs want) followed by name
+                .sorted(Comparator.comparing((DataType t) -> sqlType(t).getVendorTypeNumber())
+                        .thenComparing((DataType t) -> sqlType(t).getName()))
+                .map(t -> asList(t.toString(),
+                        sqlType(t).getVendorTypeNumber(), precision(t),
                         "'",
                         "'",
                         null,
                         // don't be specific on nullable
                         DatabaseMetaData.typeNullableUnknown,
                         // all strings are case-sensitive
-                        t.isString(),
+                        isString(t),
                         // everything is searchable,
                         DatabaseMetaData.typeSearchable,
                         // only numerics are signed
-                        !t.isSigned(),
+                        isSigned(t) == false,
                         //no fixed precision scale SQL_FALSE
                         Boolean.FALSE,
                         // not auto-incremented
                         Boolean.FALSE,
                         null,
-                        DataTypes.metaSqlMinimumScale(t),
-                        DataTypes.metaSqlMaximumScale(t),
+                        metaSqlMinimumScale(t), metaSqlMaximumScale(t),
                         // SQL_DATA_TYPE - ODBC wants this to be not null
-                        DataTypes.metaSqlDataType(t),
-                        DataTypes.metaSqlDateTimeSub(t),
+                        metaSqlDataType(t), metaSqlDateTimeSub(t),
                         // Radix
-                        DataTypes.metaSqlRadix(t),
+                        metaSqlRadix(t),
                         null
                         ))
                 .collect(toList());
         
-        listener.onResponse(Rows.of(output(), rows));
+        listener.onResponse(of(session, rows));
     }
 
     @Override
     public int hashCode() {
-        return getClass().hashCode();
+        return type.hashCode();
     }
 
     @Override
@@ -118,6 +134,6 @@ public class SysTypes extends Command {
             return false;
         }
 
-        return true;
+        return type.equals(((SysTypes) obj).type);
     }
 }

@@ -1,8 +1,5 @@
 ---
 "Test cat thread_pool output":
-  - skip:
-        version: " - 6.99.99"
-        reason: this API was changed in a backwards-incompatible fashion in 7.0.0 so we need to skip in a mixed cluster
 
   - do:
       cat.thread_pool: {}

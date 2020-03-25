@@ -8,7 +8,7 @@ setup:
           wait_for_status: yellow
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "mixed_role"
         body:  >
             {
@@ -22,7 +22,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "test_user"
         body:  >
           {
@@ -40,10 +40,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       indices.create:
@@ -54,10 +53,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
   - do:
       indices.create:
         index: only_delete
@@ -67,10 +65,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
   - do:
       indices.create:
         index: read_write
@@ -80,10 +77,9 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
   - do:
       indices.create:
         index: everything
@@ -93,35 +89,34 @@ setup:
               number_of_shards:   1
               number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                name:
-                  type: "keyword"
+            properties:
+              name:
+                type: "keyword"
 
   - do:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "only_read", "_type": "doc", "_id": "1"}}'
+            - '{"index": {"_index": "only_read", "_id": "1"}}'
             - '{"name": "doc1"}'
-            - '{"index": {"_index": "only_index", "_type": "doc", "_id": "2"}}'
+            - '{"index": {"_index": "only_index", "_id": "2"}}'
             - '{"name": "doc2"}'
-            - '{"index": {"_index": "only_delete", "_type": "doc", "_id": "3"}}'
+            - '{"index": {"_index": "only_delete", "_id": "3"}}'
             - '{"name": "doc3"}'
-            - '{"index": {"_index": "read_write", "_type": "doc", "_id": "4"}}'
+            - '{"index": {"_index": "read_write", "_id": "4"}}'
             - '{"name": "doc4"}'
-            - '{"index": {"_index": "everything", "_type": "doc", "_id": "5"}}'
+            - '{"index": {"_index": "everything", "_id": "5"}}'
             - '{"name": "doc5"}'
 
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "test_user"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "mixed_role"
         ignore: 404
 
@@ -133,7 +128,6 @@ teardown:
       get:
         id: 1
         index: only_read
-        type: doc
 
   - match: { _index: only_read }
   - match: { _id: "1" }
@@ -144,7 +138,6 @@ teardown:
       get:
         id: 4
         index: read_write
-        type: doc
   - match: { _index: read_write }
   - match: { _id: "4" }
   - match: { _source.name: "doc4" }
@@ -154,7 +147,6 @@ teardown:
       get:
         id: 5
         index: everything
-        type: doc
   - match: { _index: everything }
   - match: { _id: "5" }
   - match: { _source.name: "doc5" }
@@ -164,9 +156,9 @@ teardown:
       mget:
         body:
             docs:
-              - { _index: "only_read", _type: "doc", _id: "1" }
-              - { _index: "read_write", _type: "doc", _id: "4" }
-              - { _index: "everything", _type: "doc", _id: "5" }
+              - { _index: "only_read", _id: "1" }
+              - { _index: "read_write", _id: "4" }
+              - { _index: "everything", _id: "5" }
   - match: { docs.0._index: "only_read" }
   - match: { docs.0._id: "1" }
   - match: { docs.0._source.name: "doc1" }
@@ -182,7 +174,7 @@ teardown:
       mget:
         body:
             docs:
-              - { _index: "only_read", _type: "doc", _id: "1" }
+              - { _index: "only_read", _id: "1" }
   - match: { docs.0._index: "only_read"}
   - match: { docs.0._id: "1" }
   - match: { docs.0._source.name: "doc1" }
@@ -192,7 +184,7 @@ teardown:
       mget:
         body:
             docs:
-              - { _index: "read_write", _type: "doc", _id: "4" }
+              - { _index: "read_write", _id: "4" }
   - match: { docs.0._index: read_write}
   - match: { docs.0._id: "4" }
   - match: { docs.0._source.name: "doc4" }
@@ -202,7 +194,7 @@ teardown:
       mget:
         body:
             docs:
-              - { _index: "everything", _type: "doc", _id: "5" }
+              - { _index: "everything", _id: "5" }
   - match: { docs.0._index: "everything"}
   - match: { docs.0._id: "5" }
   - match: { docs.0._source.name: "doc5" }
@@ -216,7 +208,6 @@ teardown:
       get:
         id: 2
         index: only_index
-        type: doc
 
   - do:
       catch: forbidden
@@ -224,15 +215,14 @@ teardown:
       get:
         id: 3
         index: only_delete
-        type: doc
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       mget:
         body:
             docs:
-              - { _index: "only_index", _type: "doc", _id: "2" }
-              - { _index: "only_delete", _type: "doc", _id: "3" }
+              - { _index: "only_index", _id: "2" }
+              - { _index: "only_delete", _id: "3" }
   - match: { docs.0._index: "only_index"}
   - match: { docs.0._id: "2" }
   - match: { docs.0.error.type: "security_exception" }
@@ -245,7 +235,7 @@ teardown:
       mget:
         body:
             docs:
-              - { _index: "only_index", _type: "doc", _id: "2" }
+              - { _index: "only_index", _id: "2" }
   - match: { docs.0._index: "only_index"}
   - match: { docs.0._id: "2" }
   - match: { docs.0.error.type: "security_exception" }
@@ -255,7 +245,7 @@ teardown:
       mget:
         body:
             docs:
-              - { _index: "only_delete", _type: "doc", _id: "3" }
+              - { _index: "only_delete", _id: "3" }
   - match: { docs.0._index: "only_delete"}
   - match: { docs.0._id: "3" }
   - match: { docs.0.error.type: "security_exception" }
@@ -267,11 +257,11 @@ teardown:
       mget:
         body:
             docs:
-              - { _index: "only_read"  , _type: "doc", _id: "1" }
-              - { _index: "only_index" , _type: "doc", _id: "2" }
-              - { _index: "only_delete", _type: "doc", _id: "3" }
-              - { _index: "read_write" , _type: "doc", _id: "4" }
-              - { _index: "everything" , _type: "doc", _id: "5" }
+              - { _index: "only_read"  , _id: "1" }
+              - { _index: "only_index" , _id: "2" }
+              - { _index: "only_delete", _id: "3" }
+              - { _index: "read_write" , _id: "4" }
+              - { _index: "everything" , _id: "5" }
 
   - match: { docs.0._index: "only_read" }
   - match: { docs.0._id: "1" }

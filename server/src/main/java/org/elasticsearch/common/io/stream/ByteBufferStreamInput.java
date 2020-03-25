@@ -20,6 +20,7 @@ package org.elasticsearch.common.io.stream;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 
 public class ByteBufferStreamInput extends StreamInput {
@@ -74,6 +75,39 @@ public class ByteBufferStreamInput extends StreamInput {
             throw new EOFException();
         }
         buffer.get(b, offset, len);
+    }
+
+    @Override
+    public short readShort() throws IOException {
+        try {
+            return buffer.getShort();
+        } catch (BufferUnderflowException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
+    }
+
+    @Override
+    public int readInt() throws IOException {
+        try {
+            return buffer.getInt();
+        } catch (BufferUnderflowException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
+    }
+
+    @Override
+    public long readLong() throws IOException {
+        try {
+            return buffer.getLong();
+        } catch (BufferUnderflowException ex) {
+            EOFException eofException = new EOFException();
+            eofException.initCause(ex);
+            throw eofException;
+        }
     }
 
     @Override

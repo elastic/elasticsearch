@@ -33,7 +33,7 @@ public class ParsedDocument {
 
     private final Field version;
 
-    private final String id, type;
+    private final String id;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
 
     private final String routing;
@@ -48,7 +48,6 @@ public class ParsedDocument {
     public ParsedDocument(Field version,
                           SeqNoFieldMapper.SequenceIDFields seqID,
                           String id,
-                          String type,
                           String routing,
                           List<Document> documents,
                           BytesReference source,
@@ -57,7 +56,6 @@ public class ParsedDocument {
         this.version = version;
         this.seqID = seqID;
         this.id = id;
-        this.type = type;
         this.routing = routing;
         this.documents = documents;
         this.source = source;
@@ -69,10 +67,6 @@ public class ParsedDocument {
         return this.id;
     }
 
-    public String type() {
-        return this.type;
-    }
-
     public Field version() {
         return version;
     }
@@ -81,6 +75,17 @@ public class ParsedDocument {
         this.seqID.seqNo.setLongValue(sequenceNumber);
         this.seqID.seqNoDocValue.setLongValue(sequenceNumber);
         this.seqID.primaryTerm.setLongValue(primaryTerm);
+    }
+
+    /**
+     * Makes the processing document as a tombstone document rather than a regular document.
+     * Tombstone documents are stored in Lucene index to represent delete operations or Noops.
+     */
+    ParsedDocument toTombstone() {
+        assert docs().size() == 1 : "Tombstone should have a single doc [" + docs() + "]";
+        this.seqID.tombstoneField.setLongValue(1);
+        rootDoc().add(this.seqID.tombstoneField);
+        return this;
     }
 
     public String routing() {

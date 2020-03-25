@@ -5,22 +5,39 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.plan.TableIdentifier;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedRelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FromClauseContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.GroupByContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.GroupingElementContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinCriteriaContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinRelationContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinTypeContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LimitClauseContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NamedQueryContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NamedValueExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PivotArgsContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PivotClauseContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryNoWithContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QuerySpecificationContext;
@@ -28,30 +45,21 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.RelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SetQuantifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TableNameContext;
-import org.elasticsearch.xpack.sql.plan.TableIdentifier;
-import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
-import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
-import org.elasticsearch.xpack.sql.plan.logical.Join.JoinType;
-import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
-import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.session.EmptyExecutable;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.toList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -69,7 +77,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         Map<String, SubQueryAlias> cteRelations = new LinkedHashMap<>(namedQueries.size());
         for (SubQueryAlias namedQuery : namedQueries) {
             if (cteRelations.put(namedQuery.alias(), namedQuery) != null) {
-                throw new ParsingException(namedQuery.location(), "Duplicate alias {}", namedQuery.alias());
+                throw new ParsingException(namedQuery.source(), "Duplicate alias {}", namedQuery.alias());
             }
         }
 
@@ -87,7 +95,9 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         LogicalPlan plan = plan(ctx.queryTerm());
 
         if (!ctx.orderBy().isEmpty()) {
-            plan = new OrderBy(source(ctx.ORDER()), plan, visitList(ctx.orderBy(), Order.class));
+            List<OrderByContext> orders = ctx.orderBy();
+            OrderByContext endContext = orders.get(orders.size() - 1);
+            plan = new OrderBy(source(ctx.ORDER(), endContext), plan, visitList(ctx.orderBy(), Order.class));
         }
 
         LimitClauseContext limitClause = ctx.limitClause();
@@ -95,7 +105,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             Token limit = limitClause.limit;
             if (limit != null && limitClause.INTEGER_VALUE() != null) {
                 plan = new Limit(source(limitClause), new Literal(source(limitClause),
-                        Integer.parseInt(limit.getText()), DataType.INTEGER), plan);
+                        Integer.parseInt(limit.getText()), DataTypes.INTEGER), plan);
             }
         }
 
@@ -106,7 +116,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitQuerySpecification(QuerySpecificationContext ctx) {
         LogicalPlan query;
         if (ctx.fromClause() == null) {
-            query = new LocalRelation(source(ctx), new EmptyExecutable(emptyList()));
+            query = new LocalRelation(source(ctx), new SingletonExecutable());
         } else {
             query = plan(ctx.fromClause());
         }
@@ -116,14 +126,8 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             query = new Filter(source(ctx), query, expression(ctx.where));
         }
 
-        List<NamedExpression> selectTarget = emptyList();
-
-        // SELECT a, b, c ...
-        if (!ctx.selectItem().isEmpty()) {
-            selectTarget = expressions(ctx.selectItem()).stream()
-                    .map(e -> (e instanceof NamedExpression) ? (NamedExpression) e : new UnresolvedAlias(e.location(), e))
-                    .collect(toList());
-        }
+        List<NamedExpression> selectTarget = ctx.selectItems().isEmpty() ? emptyList() : visitList(ctx.selectItems().selectItem(),
+                NamedExpression.class);
 
         // GROUP BY
         GroupByContext groupByCtx = ctx.groupBy();
@@ -133,11 +137,13 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             if (groupByAll != null) {
                 throw new ParsingException(source(groupByAll), "GROUP BY ALL is not supported");
             }
-            List<Expression> groupBy = expressions(groupByCtx.groupingElement());
-            query = new Aggregate(source(groupByCtx), query, groupBy, selectTarget);
+            List<GroupingElementContext> groupingElement = groupByCtx.groupingElement();
+            List<Expression> groupBy = expressions(groupingElement);
+            ParserRuleContext endSource = groupingElement.isEmpty() ? groupByCtx : groupingElement.get(groupingElement.size() - 1);
+            query = new Aggregate(source(ctx.GROUP(), endSource), query, groupBy, selectTarget);
         }
         else if (!selectTarget.isEmpty()) {
-            query = new Project(source(ctx.selectItem(0)), query, selectTarget);
+            query = new Project(source(ctx.selectItems()), query, selectTarget);
         }
 
         // HAVING
@@ -155,9 +161,37 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitFromClause(FromClauseContext ctx) {
         // if there are multiple FROM clauses, convert each pair in a inner join
         List<LogicalPlan> plans = plans(ctx.relation());
-        return plans.stream()
+        LogicalPlan plan = plans.stream()
                 .reduce((left, right) -> new Join(source(ctx), left, right, Join.JoinType.IMPLICIT, null))
                 .get();
+
+        // PIVOT
+        if (ctx.pivotClause() != null) {
+            PivotClauseContext pivotClause = ctx.pivotClause();
+            UnresolvedAttribute column = new UnresolvedAttribute(source(pivotClause.column), visitQualifiedName(pivotClause.column));
+            List<NamedExpression> values = namedValues(pivotClause.aggs);
+            if (values.size() > 1) {
+                throw new ParsingException(source(pivotClause.aggs), "PIVOT currently supports only one aggregation, found [{}]",
+                        values.size());
+            }
+            plan = new Pivot(source(pivotClause), plan, column, namedValues(pivotClause.vals), namedValues(pivotClause.aggs));
+        }
+        return plan;
+    }
+
+    private List<NamedExpression> namedValues(PivotArgsContext args) {
+        if (args == null || args.isEmpty()) {
+            return emptyList();
+        }
+        List<NamedExpression> values = new ArrayList<>();
+
+        for (NamedValueExpressionContext value : args.namedValueExpression()) {
+            Expression exp = expression(value.valueExpression());
+            String alias = visitIdentifier(value.identifier());
+            Source source = source(value);
+            values.add(alias != null ? new Alias(source, alias, exp) : new UnresolvedAlias(source, exp));
+        }
+        return values;
     }
 
     @Override
@@ -168,39 +202,20 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         LogicalPlan result = plan(ctx.relationPrimary());
         for (JoinRelationContext j : ctx.joinRelation()) {
-            result = doJoin(result, j);
+            result = doJoin(j);
         }
 
         return result;
     }
 
-    private Join doJoin(LogicalPlan left, JoinRelationContext ctx) {
-        JoinTypeContext joinType = ctx.joinType();
+    private Join doJoin(JoinRelationContext ctx) {
 
-        Join.JoinType type = JoinType.INNER;
-        if (joinType != null) {
-            if (joinType.FULL() != null) {
-                type = JoinType.FULL;
-            }
-            if (joinType.LEFT() != null) {
-                type = JoinType.LEFT;
-            }
-            if (joinType.RIGHT() != null) {
-                type = JoinType.RIGHT;
-            }
-        }
-
-        Expression condition = null;
         JoinCriteriaContext criteria = ctx.joinCriteria();
         if (criteria != null) {
             if (criteria.USING() != null) {
                 throw new UnsupportedOperationException();
             }
-            if (criteria.booleanExpression() != null) {
-                condition = expression(criteria.booleanExpression());
-            }
         }
-
         // We would return this if we actually supported JOINs, but we don't yet.
         // new Join(source(ctx), left, plan(ctx.right), type, condition);
         throw new ParsingException(source(ctx), "Queries with JOIN are not yet supported");
@@ -225,6 +240,6 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitTableName(TableNameContext ctx) {
         String alias = visitQualifiedName(ctx.qualifiedName());
         TableIdentifier tableIdentifier = visitTableIdentifier(ctx.tableIdentifier());
-        return new UnresolvedRelation(source(ctx), tableIdentifier, alias);
+        return new UnresolvedRelation(source(ctx), tableIdentifier, alias, ctx.FROZEN() != null);
     }
 }

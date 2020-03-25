@@ -1,10 +1,10 @@
 ---
 "Doc as upsert":
 
+
   - do:
       update:
           index:            test_1
-          type:             test
           id:               1
           body:
             doc:            { foo: bar, count: 1 }
@@ -13,7 +13,6 @@
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
   - match:  { _source.foo:   bar }
@@ -23,7 +22,6 @@
   - do:
       update:
           index:            test_1
-          type:             test
           id:               1
           body:
             doc:            { count: 2 }
@@ -32,7 +30,6 @@
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
   - match:  { _source.foo:   bar }

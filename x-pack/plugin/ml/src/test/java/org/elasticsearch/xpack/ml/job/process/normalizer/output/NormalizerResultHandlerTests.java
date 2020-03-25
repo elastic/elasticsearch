@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer.output;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerResult;
 
@@ -32,7 +31,7 @@ public class NormalizerResultHandlerTests extends ESTestCase {
                 + "\"value_field_name\":\"x\",\"probability\":0.03,\"normalized_score\":22.22}\n";
 
         InputStream is = new ByteArrayInputStream(testData.getBytes(StandardCharsets.UTF_8));
-        NormalizerResultHandler handler = new NormalizerResultHandler(Settings.EMPTY, is);
+        NormalizerResultHandler handler = new NormalizerResultHandler(is);
         handler.process();
         List<NormalizerResult> results = handler.getNormalizedResults();
         assertEquals(3, results.size());

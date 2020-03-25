@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class MultiTermVectorsAction extends Action<MultiTermVectorsResponse> {
+public class MultiTermVectorsAction extends ActionType<MultiTermVectorsResponse> {
 
     public static final MultiTermVectorsAction INSTANCE = new MultiTermVectorsAction();
     public static final String NAME = "indices:data/read/mtv";
 
     private MultiTermVectorsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public MultiTermVectorsResponse newResponse() {
-        return new MultiTermVectorsResponse();
+        super(NAME, MultiTermVectorsResponse::new);
     }
 }

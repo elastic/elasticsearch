@@ -264,8 +264,9 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         final String missingValue = values[1];
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(missingValue, MultiValueMode.MIN, null, reverse);
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
-        assertEquals(numDocs, topDocs.totalHits);
+        TopFieldDocs topDocs =
+            searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
+        assertEquals(numDocs, topDocs.totalHits.value);
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
             final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
@@ -318,8 +319,9 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         final IndexFieldData<?> indexFieldData = getForField("value");
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(first ? "_first" : "_last", MultiValueMode.MIN, null, reverse);
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
-        assertEquals(numDocs, topDocs.totalHits);
+        TopFieldDocs topDocs =
+            searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
+        assertEquals(numDocs, topDocs.totalHits.value);
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
             final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
@@ -406,8 +408,10 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         Query parentFilter = new TermQuery(new Term("type", "parent"));
         Query childFilter = Queries.not(parentFilter);
         Nested nested = createNested(searcher, parentFilter, childFilter);
-        BytesRefFieldComparatorSource nestedComparatorSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode, nested);
-        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter), new QueryBitSetProducer(parentFilter), ScoreMode.None);
+        BytesRefFieldComparatorSource nestedComparatorSource =
+            new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode, nested);
+        ToParentBlockJoinQuery query =
+            new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter), new QueryBitSetProducer(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("text", nestedComparatorSource));
         TopFieldDocs topDocs = searcher.search(query, randomIntBetween(1, numParents), sort);
         assertTrue(topDocs.scoreDocs.length > 0);
@@ -461,9 +465,9 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(topLevelReader.leaves().size(), equalTo(3));
 
         // First segment
-        assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.class));
+        assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.Consumer.class));
         LeafReaderContext leaf = topLevelReader.leaves().get(0);
-        AtomicOrdinalsFieldData afd = globalOrdinals.load(leaf);
+        LeafOrdinalsFieldData afd = globalOrdinals.load(leaf);
         SortedSetDocValues values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));
         long ord = values.nextOrd();
@@ -549,7 +553,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
 
         IndexOrdinalsFieldData ifd = getForField("value");
         for (LeafReaderContext atomicReaderContext : atomicReaderContexts) {
-            AtomicOrdinalsFieldData afd = ifd.load(atomicReaderContext);
+            LeafOrdinalsFieldData afd = ifd.load(atomicReaderContext);
 
             TermsEnum termsEnum = afd.getOrdinalsValues().termsEnum();
             int size = 0;
@@ -586,7 +590,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         IndexOrdinalsFieldData ifd = getForField("string", "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertNotNull(globalOrdinals.getOrdinalMap());
-        assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
+        assertThat(ifd.loadGlobal(topLevelReader).getOrdinalMap(), sameInstance(globalOrdinals.getOrdinalMap()));
         // 3 b/c 1 segment level caches and 1 top level cache
         // in case of doc values, we don't cache atomic FD, so only the top-level cache is there
         assertThat(indicesFieldDataCache.getCache().weight(), equalTo(hasDocValues() ? 1L : 4L));
@@ -598,7 +602,8 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
                 break;
             }
         }
-        assertThat(cachedInstance, sameInstance(globalOrdinals));
+        assertNotSame(cachedInstance, globalOrdinals);
+        assertThat(cachedInstance.getOrdinalMap(), sameInstance(globalOrdinals.getOrdinalMap()));
         topLevelReader.close();
         // Now only 3 segment level entries, only the toplevel reader has been closed, but the segment readers are still used by IW
         assertThat(indicesFieldDataCache.getCache().weight(), equalTo(hasDocValues() ? 0L : 3L));

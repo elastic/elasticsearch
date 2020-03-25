@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.concurrent.CountDownLatch;
@@ -44,7 +43,7 @@ public final class BulkRequestHandler {
     BulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy,
                        BulkProcessor.Listener listener, Scheduler scheduler, int concurrentRequests) {
         assert concurrentRequests >= 0;
-        this.logger = Loggers.getLogger(getClass());
+        this.logger = LogManager.getLogger(getClass());
         this.consumer = consumer;
         this.listener = listener;
         this.concurrentRequests = concurrentRequests;
@@ -60,27 +59,20 @@ public final class BulkRequestHandler {
             semaphore.acquire();
             toRelease = semaphore::release;
             CountDownLatch latch = new CountDownLatch(1);
-            retry.withBackoff(consumer, bulkRequest, new ActionListener<BulkResponse>() {
+            retry.withBackoff(consumer, bulkRequest, ActionListener.runAfter(new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse response) {
-                    try {
-                        listener.afterBulk(executionId, bulkRequest, response);
-                    } finally {
-                        semaphore.release();
-                        latch.countDown();
-                    }
+                    listener.afterBulk(executionId, bulkRequest, response);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    try {
-                        listener.afterBulk(executionId, bulkRequest, e);
-                    } finally {
-                        semaphore.release();
-                        latch.countDown();
-                    }
+                    listener.afterBulk(executionId, bulkRequest, e);
                 }
-            }, Settings.EMPTY);
+            }, () -> {
+                semaphore.release();
+                latch.countDown();
+            }));
             bulkRequestSetupSuccessful = true;
             if (concurrentRequests == 0) {
                 latch.await();

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -53,9 +54,11 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -187,6 +190,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public Number parsePoint(byte[] value) {
+                return HalfFloatPoint.decodeDimension(value, 0);
+            }
+
+            @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
@@ -279,6 +287,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public Number parsePoint(byte[] value) {
+                return FloatPoint.decodeDimension(value, 0);
+            }
+
+            @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
@@ -357,6 +370,11 @@ public class NumberFieldMapper extends FieldMapper {
                 double parsed = objectToDouble(value);
                 validateParsed(parsed);
                 return parsed;
+            }
+
+            @Override
+            public Number parsePoint(byte[] value) {
+                return DoublePoint.decodeDimension(value, 0);
             }
 
             @Override
@@ -452,6 +470,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public Number parsePoint(byte[] value) {
+                return INTEGER.parsePoint(value).byteValue();
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 int value = parser.intValue(coerce);
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
@@ -508,6 +531,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public Number parsePoint(byte[] value) {
+                return INTEGER.parsePoint(value).shortValue();
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.shortValue(coerce);
             }
@@ -557,6 +585,11 @@ public class NumberFieldMapper extends FieldMapper {
                 }
 
                 return (int) doubleValue;
+            }
+
+            @Override
+            public Number parsePoint(byte[] value) {
+                return IntPoint.decodeDimension(value, 0);
             }
 
             @Override
@@ -674,6 +707,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public Number parsePoint(byte[] value) {
+                return LongPoint.decodeDimension(value, 0);
+            }
+
+            @Override
             public Long parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.longValue(coerce);
             }
@@ -779,7 +817,7 @@ public class NumberFieldMapper extends FieldMapper {
             return name;
         }
         /** Get the associated numeric type */
-        final NumericType numericType() {
+        public final NumericType numericType() {
             return numericType;
         }
         public abstract Query termQuery(String field, Object value);
@@ -789,6 +827,7 @@ public class NumberFieldMapper extends FieldMapper {
                                   boolean hasDocValues);
         public abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
         public abstract Number parse(Object value, boolean coerce);
+        public abstract Number parsePoint(byte[] value);
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
                                                  boolean docValued, boolean stored);
         Number valueForSearch(Number value) {
@@ -871,6 +910,10 @@ public class NumberFieldMapper extends FieldMapper {
             return type.name;
         }
 
+        public NumericType numericType() {
+            return type.numericType();
+        }
+
         @Override
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
@@ -917,6 +960,11 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.NUMERIC;
+        }
+
+        @Override
         public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
@@ -925,7 +973,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             if (timeZone != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
                     + "] does not support custom time zones");
@@ -935,6 +983,10 @@ public class NumberFieldMapper extends FieldMapper {
             } else {
                 return new DocValueFormat.Decimal(format);
             }
+        }
+
+        public Number parsePoint(byte[] value) {
+            return type.parsePoint(value);
         }
 
         @Override
@@ -1002,8 +1054,8 @@ public class NumberFieldMapper extends FieldMapper {
         } else {
             try {
                 numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (IllegalArgumentException e) {
-                if (ignoreMalformed.value()) {
+            } catch (IllegalArgumentException | JsonParseException e) {
+                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(fieldType.name());
                     return;
                 } else {

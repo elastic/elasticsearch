@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -30,24 +33,32 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Put index template action.
  */
-public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<PutIndexTemplateRequest, PutIndexTemplateResponse> {
+public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<PutIndexTemplateRequest, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutIndexTemplateAction.class);
 
     private final MetaDataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public TransportPutIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportPutIndexTemplateAction(TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, IndexScopedSettings indexScopedSettings) {
-        super(settings, PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutIndexTemplateRequest::new);
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                           IndexScopedSettings indexScopedSettings) {
+        super(PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            PutIndexTemplateRequest::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
     }
@@ -59,8 +70,8 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
     }
 
     @Override
-    protected PutIndexTemplateResponse newResponse() {
-        return new PutIndexTemplateResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -69,7 +80,8 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
     }
 
     @Override
-    protected void masterOperation(final PutIndexTemplateRequest request, final ClusterState state, final ActionListener<PutIndexTemplateResponse> listener) {
+    protected void masterOperation(Task task, final PutIndexTemplateRequest request, final ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
@@ -83,7 +95,6 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                 .settings(templateSettingsBuilder.build())
                 .mappings(request.mappings())
                 .aliases(request.aliases())
-                .customs(request.customs())
                 .create(request.create())
                 .masterTimeout(request.masterNodeTimeout())
                 .version(request.version()),
@@ -91,7 +102,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                 new MetaDataIndexTemplateService.PutListener() {
                     @Override
                     public void onResponse(MetaDataIndexTemplateService.PutResponse response) {
-                        listener.onResponse(new PutIndexTemplateResponse(response.acknowledged()));
+                        listener.onResponse(new AcknowledgedResponse(response.acknowledged()));
                     }
 
                     @Override

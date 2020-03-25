@@ -34,11 +34,17 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -60,6 +66,28 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
         return Arrays.stream(fieldTypes).collect(Collectors.toMap(
             ft -> ft.name() + "-alias",
             Function.identity()));
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new SignificantTextAggregationBuilder("foo", fieldName);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        // TODO it is likely accidental that SigText supports anything other than Bytes, and then only text fields
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.RANGE,
+            CoreValuesSourceType.GEOPOINT);
+    }
+
+    @Override
+    protected List<String> unsupportedMappedFieldTypes() {
+        return List.of(
+            BinaryFieldMapper.CONTENT_TYPE, // binary fields are not supported because they do not have analyzers
+            GeoPointFieldMapper.CONTENT_TYPE // geopoint fields cannot use term queries
+        );
     }
 
     /**
@@ -88,7 +116,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd" which should have no duplication
-                Sampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType);
+                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType);
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
 
                 assertNull(terms.getBucketByKey("even"));
@@ -109,6 +137,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
                 assertNotNull(terms.getBucketByKey("even"));
 
+                assertTrue(AggregationInspectionHelper.hasValue(sampler));
             }
         }
     }
@@ -142,8 +171,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 SamplerAggregationBuilder samplerAgg = sampler("sampler").subAggregation(agg);
                 SamplerAggregationBuilder aliasSamplerAgg = sampler("sampler").subAggregation(aliasAgg);
 
-                Sampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), samplerAgg, textFieldType);
-                Sampler aliasSampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aliasSamplerAgg, textFieldType);
+                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), samplerAgg, textFieldType);
+                InternalSampler aliasSampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")),
+                    aliasSamplerAgg, textFieldType);
 
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
                 SignificantTerms aliasTerms = aliasSampler.getAggregations().get("sig_text");
@@ -157,6 +187,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 aliasTerms = aliasSampler.getAggregations().get("sig_text");
                 assertFalse(terms.getBuckets().isEmpty());
                 assertEquals(terms, aliasTerms);
+
+                assertTrue(AggregationInspectionHelper.hasValue(sampler));
+                assertTrue(AggregationInspectionHelper.hasValue(aliasSampler));
             }
         }
     }

@@ -13,13 +13,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
+import java.time.Clock;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -129,20 +131,23 @@ public class CleanerServiceTests extends ESTestCase {
     public void testNextExecutionDelay() {
         CleanerService.ExecutionScheduler scheduler = new CleanerService.DefaultExecutionScheduler();
 
-        DateTime now = new DateTime(2015, 1, 1, 0, 0, DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.of(2015, 1, 1, 0, 0,0,0, ZoneOffset.UTC);
         assertThat(scheduler.nextExecutionDelay(now).millis(), equalTo(TimeValue.timeValueHours(1).millis()));
 
-        now = new DateTime(2015, 1, 1, 1, 0, DateTimeZone.UTC);
+        now = ZonedDateTime.of(2015, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC);
         assertThat(scheduler.nextExecutionDelay(now).millis(), equalTo(TimeValue.timeValueHours(24).millis()));
 
-        now = new DateTime(2015, 1, 1, 0, 59, DateTimeZone.UTC);
+        now = ZonedDateTime.of(2015, 1, 1, 0, 59, 0, 0, ZoneOffset.UTC);
         assertThat(scheduler.nextExecutionDelay(now).millis(), equalTo(TimeValue.timeValueMinutes(1).millis()));
 
-        now = new DateTime(2015, 1, 1, 23, 59, DateTimeZone.UTC);
+        now = ZonedDateTime.of(2015, 1, 1, 23, 59, 0, 0, ZoneOffset.UTC);
         assertThat(scheduler.nextExecutionDelay(now).millis(), equalTo(TimeValue.timeValueMinutes(60 + 1).millis()));
 
-        now = new DateTime(2015, 1, 1, 12, 34, 56);
-        assertThat(scheduler.nextExecutionDelay(now).millis(), equalTo(new DateTime(2015, 1, 2, 1, 0, 0).getMillis() - now.getMillis()));
+        ZoneId defaultZone = Clock.systemDefaultZone().getZone();
+        now = ZonedDateTime.of(2015, 1, 1, 12, 34, 56, 0, defaultZone);
+        long nextScheduledMillis = ZonedDateTime.of(2015, 1, 2, 1, 0, 0,0,
+            defaultZone).toInstant().toEpochMilli();
+        assertThat(scheduler.nextExecutionDelay(now).millis(), equalTo(nextScheduledMillis - now.toInstant().toEpochMilli()));
 
     }
 
@@ -197,7 +202,7 @@ public class CleanerServiceTests extends ESTestCase {
         }
 
         @Override
-        public TimeValue nextExecutionDelay(DateTime now) {
+        public TimeValue nextExecutionDelay(ZonedDateTime now) {
             return TimeValue.timeValueMillis(offset);
         }
     }

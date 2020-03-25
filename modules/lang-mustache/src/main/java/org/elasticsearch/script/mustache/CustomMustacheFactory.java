@@ -30,7 +30,7 @@ import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
-
+import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -41,7 +41,6 @@ import java.io.Writer;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,15 +59,11 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
     private static final String DEFAULT_MIME_TYPE = JSON_MIME_TYPE;
 
-    private static final Map<String, Supplier<Encoder>> ENCODERS;
-    static {
-        Map<String, Supplier<Encoder>> encoders = new HashMap<>();
-        encoders.put(JSON_MIME_TYPE_WITH_CHARSET, JsonEscapeEncoder::new);
-        encoders.put(JSON_MIME_TYPE, JsonEscapeEncoder::new);
-        encoders.put(PLAIN_TEXT_MIME_TYPE, DefaultEncoder::new);
-        encoders.put(X_WWW_FORM_URLENCODED_MIME_TYPE, UrlEncoder::new);
-        ENCODERS = Collections.unmodifiableMap(encoders);
-    }
+    private static final Map<String, Supplier<Encoder>> ENCODERS = Map.of(
+            JSON_MIME_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
+            JSON_MIME_TYPE, JsonEscapeEncoder::new,
+            PLAIN_TEXT_MIME_TYPE, DefaultEncoder::new,
+            X_WWW_FORM_URLENCODED_MIME_TYPE, UrlEncoder::new);
 
     private final Encoder encoder;
 
@@ -92,7 +87,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     }
 
     static Encoder createEncoder(String mimeType) {
-        Supplier<Encoder> supplier = ENCODERS.get(mimeType);
+        final Supplier<Encoder> supplier = ENCODERS.get(mimeType);
         if (supplier == null) {
             throw new IllegalArgumentException("No encoder found for MIME type [" + mimeType + "]");
         }

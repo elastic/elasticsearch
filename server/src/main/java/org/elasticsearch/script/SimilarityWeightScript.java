@@ -21,8 +21,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.index.similarity.ScriptedSimilarity;
 
-import java.io.IOException;
-
 /** A script that is used to compute scoring factors that are the same for all documents. */
 public abstract class SimilarityWeightScript  {
 
@@ -32,9 +30,9 @@ public abstract class SimilarityWeightScript  {
      * @param term   term-level statistics
      */
     public abstract double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field,
-            ScriptedSimilarity.Term term) throws IOException;
+            ScriptedSimilarity.Term term);
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         SimilarityWeightScript newInstance();
     }
 

@@ -1,0 +1,39 @@
+--
+:api: ack-watch
+:request: AckWatchRequest
+:response: AckWatchResponse
+--
+
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Ack watch API
+
+[id="{upid}-{api}-request"]
+==== Execution
+
+{ref}/actions.html#actions-ack-throttle[Acknowledging a watch] enables you
+to manually throttle execution of a watch's actions. A watch can be acknowledged
+through the following request:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The ID of the watch to ack.
+<2> An optional list of IDs representing the watch actions that should be acked.
+If no action IDs are provided, then all of the watch's actions will be acked.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the new status of the requested watch:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The status of a specific action that was acked.
+<2> The acknowledgement state of the action. If the action was successfully
+acked, this state will be equal to `AckStatus.State.ACKED`.
+
+include::../execution.asciidoc[]

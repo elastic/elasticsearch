@@ -19,20 +19,16 @@
 
 package org.elasticsearch.index.similarity;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.similarities.AfterEffect;
 import org.apache.lucene.search.similarities.AfterEffectB;
 import org.apache.lucene.search.similarities.AfterEffectL;
-import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.BasicModel;
-import org.apache.lucene.search.similarities.BasicModelBE;
-import org.apache.lucene.search.similarities.BasicModelD;
 import org.apache.lucene.search.similarities.BasicModelG;
 import org.apache.lucene.search.similarities.BasicModelIF;
 import org.apache.lucene.search.similarities.BasicModelIn;
 import org.apache.lucene.search.similarities.BasicModelIne;
-import org.apache.lucene.search.similarities.BasicModelP;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
-import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.DFISimilarity;
 import org.apache.lucene.search.similarities.DFRSimilarity;
 import org.apache.lucene.search.similarities.Distribution;
@@ -53,70 +49,54 @@ import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
+import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-
-import static java.util.Collections.unmodifiableMap;
 
 final class SimilarityProviders {
 
     private SimilarityProviders() {} // no instantiation
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(SimilarityProviders.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SimilarityProviders.class));
     static final String DISCOUNT_OVERLAPS = "discount_overlaps";
 
-    private static final Map<String, BasicModel> BASIC_MODELS;
-    private static final Map<String, AfterEffect> AFTER_EFFECTS;
+    private static final Map<String, BasicModel> BASIC_MODELS = Map.of(
+            "g", new BasicModelG(),
+            "if", new BasicModelIF(),
+            "in", new BasicModelIn(),
+            "ine", new BasicModelIne());
 
-    static {
-        Map<String, BasicModel> models = new HashMap<>();
-        models.put("be", new BasicModelBE());
-        models.put("d", new BasicModelD());
-        models.put("g", new BasicModelG());
-        models.put("if", new BasicModelIF());
-        models.put("in", new BasicModelIn());
-        models.put("ine", new BasicModelIne());
-        models.put("p", new BasicModelP());
-        BASIC_MODELS = unmodifiableMap(models);
+    // TODO: be and g and both based on the bose-einstein model.
+    // Is there a better replacement for d and p which use the binomial model?
+    private static final Map<String, String> LEGACY_BASIC_MODELS = Map.of(
+            "be", "g",
+            "d", "ine",
+            "p", "ine");
 
-        Map<String, AfterEffect> effects = new HashMap<>();
-        effects.put("no", new AfterEffect.NoAfterEffect());
-        effects.put("b", new AfterEffectB());
-        effects.put("l", new AfterEffectL());
-        AFTER_EFFECTS = unmodifiableMap(effects);
-    }
+    private static final Map<String, AfterEffect> AFTER_EFFECTS = Map.of(
+            "b", new AfterEffectB(),
+            "l", new AfterEffectL());
+    // l is simpler than b, so this should be a better replacement for "no"
+    private static final Map<String, String> LEGACY_AFTER_EFFECTS = Map.of("no", "l");
 
-    private static final Map<String, Independence> INDEPENDENCE_MEASURES;
-    static {
-        Map<String, Independence> measures = new HashMap<>();
-        measures.put("standardized", new IndependenceStandardized());
-        measures.put("saturated", new IndependenceSaturated());
-        measures.put("chisquared", new IndependenceChiSquared());
-        INDEPENDENCE_MEASURES = unmodifiableMap(measures);
-    }
+    private static final Map<String, Independence> INDEPENDENCE_MEASURES =  Map.of(
+            "standardized", new IndependenceStandardized(),
+            "saturated", new IndependenceSaturated(),
+            "chisquared", new IndependenceChiSquared());
 
-    private static final Map<String, Distribution> DISTRIBUTIONS;
-    private static final Map<String, Lambda> LAMBDAS;
+    private static final Map<String, Distribution> DISTRIBUTIONS = Map.of(
+            "ll", new DistributionLL(),
+            "spl", new DistributionSPL());
 
-    static {
-        Map<String, Distribution> distributions = new HashMap<>();
-        distributions.put("ll", new DistributionLL());
-        distributions.put("spl", new DistributionSPL());
-        DISTRIBUTIONS = unmodifiableMap(distributions);
-
-        Map<String, Lambda> lamdas = new HashMap<>();
-        lamdas.put("df", new LambdaDF());
-        lamdas.put("ttf", new LambdaTTF());
-        LAMBDAS = unmodifiableMap(lamdas);
-    }
+    private static final Map<String, Lambda> LAMBDAS = Map.of(
+            "df", new LambdaDF(),
+            "ttf", new LambdaTTF());
 
     /**
      * Parses the given Settings and creates the appropriate {@link BasicModel}
@@ -124,9 +104,25 @@ final class SimilarityProviders {
      * @param settings Settings to parse
      * @return {@link BasicModel} referred to in the Settings
      */
-    private static BasicModel parseBasicModel(Settings settings) {
+    private static BasicModel parseBasicModel(Version indexCreatedVersion, Settings settings) {
         String basicModel = settings.get("basic_model");
         BasicModel model = BASIC_MODELS.get(basicModel);
+
+        if (model == null) {
+            String replacement = LEGACY_BASIC_MODELS.get(basicModel);
+            if (replacement != null) {
+                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
+                    throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
+                        "please use another model.");
+                } else {
+                    deprecationLogger.deprecated("Basic model [" + basicModel +
+                        "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
+                    model = BASIC_MODELS.get(replacement);
+                    assert model != null;
+                }
+            }
+        }
+
         if (model == null) {
             throw new IllegalArgumentException("Unsupported BasicModel [" + basicModel + "], expected one of " + BASIC_MODELS.keySet());
         }
@@ -139,9 +135,25 @@ final class SimilarityProviders {
      * @param settings Settings to parse
      * @return {@link AfterEffect} referred to in the Settings
      */
-    private static AfterEffect parseAfterEffect(Settings settings) {
+    private static AfterEffect parseAfterEffect(Version indexCreatedVersion, Settings settings) {
         String afterEffect = settings.get("after_effect");
         AfterEffect effect = AFTER_EFFECTS.get(afterEffect);
+
+        if (effect == null) {
+            String replacement = LEGACY_AFTER_EFFECTS.get(afterEffect);
+            if (replacement != null) {
+                if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
+                    throw new IllegalArgumentException("After effect [" + afterEffect +
+                        "] isn't supported anymore, please use another effect.");
+                } else {
+                    deprecationLogger.deprecated("After effect [" + afterEffect +
+                        "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
+                    effect = AFTER_EFFECTS.get(replacement);
+                    assert effect != null;
+                }
+            }
+        }
+
         if (effect == null) {
             throw new IllegalArgumentException("Unsupported AfterEffect [" + afterEffect + "], expected one of " + AFTER_EFFECTS.keySet());
         }
@@ -221,22 +233,22 @@ final class SimilarityProviders {
         unknownSettings.removeAll(Arrays.asList(supportedSettings));
         unknownSettings.remove("type"); // used to figure out which sim this is
         if (unknownSettings.isEmpty() == false) {
-            if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (version.onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
-                DEPRECATION_LOGGER.deprecated("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
+                deprecationLogger.deprecated("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             }
         }
     }
 
-    public static BM25Similarity createBM25Similarity(Settings settings, Version indexCreatedVersion) {
+    public static LegacyBM25Similarity createBM25Similarity(Settings settings, Version indexCreatedVersion) {
         assertSettingsIsSubsetOf("BM25", indexCreatedVersion, settings, "k1", "b", DISCOUNT_OVERLAPS);
 
         float k1 = settings.getAsFloat("k1", 1.2f);
         float b = settings.getAsFloat("b", 0.75f);
         boolean discountOverlaps = settings.getAsBoolean(DISCOUNT_OVERLAPS, true);
 
-        BM25Similarity similarity = new BM25Similarity(k1, b);
+        LegacyBM25Similarity similarity = new LegacyBM25Similarity(k1, b);
         similarity.setDiscountOverlaps(discountOverlaps);
         return similarity;
     }
@@ -246,16 +258,6 @@ final class SimilarityProviders {
         return new BooleanSimilarity();
     }
 
-    public static ClassicSimilarity createClassicSimilarity(Settings settings, Version indexCreatedVersion) {
-        assertSettingsIsSubsetOf("classic", indexCreatedVersion, settings, DISCOUNT_OVERLAPS);
-
-        boolean discountOverlaps = settings.getAsBoolean(DISCOUNT_OVERLAPS, true);
-
-        ClassicSimilarity similarity = new ClassicSimilarity();
-        similarity.setDiscountOverlaps(discountOverlaps);
-        return similarity;
-    }
-
     public static DFRSimilarity createDfrSimilarity(Settings settings, Version indexCreatedVersion) {
         assertSettingsIsSubsetOf("DFR", indexCreatedVersion, settings,
                 "basic_model", "after_effect", "normalization",
@@ -263,8 +265,8 @@ final class SimilarityProviders {
 
 
         return new DFRSimilarity(
-                parseBasicModel(settings),
-                parseAfterEffect(settings),
+                parseBasicModel(indexCreatedVersion, settings),
+                parseAfterEffect(indexCreatedVersion, settings),
                 parseNormalization(settings));
     }
 

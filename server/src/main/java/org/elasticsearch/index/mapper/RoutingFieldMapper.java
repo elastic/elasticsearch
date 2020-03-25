@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -82,8 +81,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
+            Builder builder = new Builder(parserContext.mapperService().fieldType(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -97,18 +97,13 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            if (fieldType != null) {
-                return new RoutingFieldMapper(indexSettings, fieldType);
-            } else {
-                return parse(NAME, Collections.emptyMap(), context)
-                        .build(new BuilderContext(indexSettings, new ContentPath(1)));
-            }
+            return new RoutingFieldMapper(indexSettings, Defaults.FIELD_TYPE);
         }
     }
 
-    static final class RoutingFieldType extends TermBasedFieldType {
+    static final class RoutingFieldType extends StringFieldType {
 
         RoutingFieldType() {
         }
@@ -158,11 +153,10 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // no need ot parse here, we either get the routing in the sourceToParse
         // or we don't have routing, if we get it in sourceToParse, we process it in preParse
         // which will always be called
-        return null;
     }
 
     @Override

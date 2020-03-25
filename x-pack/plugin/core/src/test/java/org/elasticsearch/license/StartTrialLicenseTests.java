@@ -15,7 +15,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
 
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(scope = SUITE)
 public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase {
@@ -45,23 +45,18 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, Netty4Plugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class);
-    }
-
     public void testStartTrial() throws Exception {
         LicensingClient licensingClient = new LicensingClient(client());
         ensureStartingWithBasic();
 
         RestClient restClient = getRestClient();
-        Response response = restClient.performRequest(new Request("GET", "/_xpack/license/trial_status"));
+        Response response = restClient.performRequest(new Request("GET", "/_license/trial_status"));
         String body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals("{\"eligible_to_start_trial\":true}", body);
 
         // Test that starting will fail without acknowledgement
-        Response response2 = restClient.performRequest(new Request("POST", "/_xpack/license/start_trial"));
+        Response response2 = restClient.performRequest(new Request("POST", "/_license/start_trial"));
         String body2 = Streams.copyToString(new InputStreamReader(response2.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response2.getStatusLine().getStatusCode());
         assertTrue(body2.contains("\"trial_was_started\":false"));
@@ -73,33 +68,33 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
             assertEquals("basic", getLicenseResponse.license().type());
         });
 
-        String type = randomFrom(LicenseService.VALID_TRIAL_TYPES);
+        License.LicenseType type = randomFrom(LicenseService.VALID_TRIAL_TYPES);
 
-        Request ackRequest = new Request("POST", "/_xpack/license/start_trial");
+        Request ackRequest = new Request("POST", "/_license/start_trial");
         ackRequest.addParameter("acknowledge", "true");
-        ackRequest.addParameter("type", type);
+        ackRequest.addParameter("type", type.getTypeName());
         Response response3 = restClient.performRequest(ackRequest);
         String body3 = Streams.copyToString(new InputStreamReader(response3.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response3.getStatusLine().getStatusCode());
-        assertTrue(body3.contains("\"trial_was_started\":true"));
-        assertTrue(body3.contains("\"type\":\"" + type + "\""));
-        assertTrue(body3.contains("\"acknowledged\":true"));
+        assertThat(body3, containsString("\"trial_was_started\":true"));
+        assertThat(body3, containsString("\"type\":\"" + type.getTypeName() + "\""));
+        assertThat(body3, containsString("\"acknowledged\":true"));
 
         assertBusy(() -> {
             GetLicenseResponse postTrialLicenseResponse = licensingClient.prepareGetLicense().get();
-            assertEquals(type, postTrialLicenseResponse.license().type());
+            assertEquals(type.getTypeName(), postTrialLicenseResponse.license().type());
         });
 
-        Response response4 = restClient.performRequest(new Request("GET", "/_xpack/license/trial_status"));
+        Response response4 = restClient.performRequest(new Request("GET", "/_license/trial_status"));
         String body4 = Streams.copyToString(new InputStreamReader(response4.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response4.getStatusLine().getStatusCode());
         assertEquals("{\"eligible_to_start_trial\":false}", body4);
 
-        String secondAttemptType = randomFrom(LicenseService.VALID_TRIAL_TYPES);
+        License.LicenseType secondAttemptType = randomFrom(LicenseService.VALID_TRIAL_TYPES);
 
-        Request startTrialWhenStartedRequest = new Request("POST", "/_xpack/license/start_trial");
+        Request startTrialWhenStartedRequest = new Request("POST", "/_license/start_trial");
         startTrialWhenStartedRequest.addParameter("acknowledge", "true");
-        startTrialWhenStartedRequest.addParameter("type", secondAttemptType);
+        startTrialWhenStartedRequest.addParameter("type", secondAttemptType.getTypeName());
         ResponseException ex = expectThrows(ResponseException.class, () -> restClient.performRequest(startTrialWhenStartedRequest));
         Response response5 = ex.getResponse();
         String body5 = Streams.copyToString(new InputStreamReader(response5.getEntity().getContent(), StandardCharsets.UTF_8));
@@ -111,14 +106,14 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
     public void testInvalidType() throws Exception {
         ensureStartingWithBasic();
 
-        Request request = new Request("POST", "/_xpack/license/start_trial");
+        Request request = new Request("POST", "/_license/start_trial");
         request.addParameter("type", "basic");
         ResponseException ex = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         Response response = ex.getResponse();
         String body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(400, response.getStatusLine().getStatusCode());
-        assertTrue(body.contains("\"type\":\"illegal_argument_exception\""));
-        assertTrue(body.contains("\"reason\":\"Cannot start trial of type [basic]. Valid trial types are ["));
+        assertThat(body, containsString("\"type\":\"illegal_argument_exception\""));
+        assertThat(body, containsString("\"reason\":\"Cannot start trial of type [basic]. Valid trial types are ["));
     }
 
     private void ensureStartingWithBasic() throws Exception {

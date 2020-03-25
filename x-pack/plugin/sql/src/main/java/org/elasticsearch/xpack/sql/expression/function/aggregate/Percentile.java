@@ -5,23 +5,28 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.Foldables;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Percentile extends NumericAggregate implements EnclosedAgg {
 
     private final Expression percent;
 
-    public Percentile(Location location, Expression field, Expression percent) {
-        super(location, field, singletonList(percent));
+    public Percentile(Source source, Expression field, Expression percent) {
+        super(source, field, singletonList(percent));
         this.percent = percent;
     }
 
@@ -35,18 +40,22 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
         if (newChildren.size() != 2) {
             throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
         }
-        return new Percentile(location(), newChildren.get(0), newChildren.get(1));
+        return new Percentile(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = super.resolveType();
-
-        if (TypeResolution.TYPE_RESOLVED.equals(resolution)) {
-            resolution = Expressions.typeMustBeNumeric(percent());
+        TypeResolution resolution = isFoldable(percent, sourceText(), ParamOrdinal.SECOND);
+        if (resolution.unresolved()) {
+            return resolution;
         }
 
-        return resolution;
+        resolution = super.resolveType();
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        return isNumeric(percent, sourceText(), ParamOrdinal.DEFAULT);
     }
 
     public Expression percent() {
@@ -55,11 +64,12 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DataTypes.DOUBLE;
     }
 
     @Override
     public String innerName() {
-        return Double.toString(Foldables.doubleValueOf(percent));
+        Double value = (Double) SqlDataTypeConverter.convert(Foldables.valueOf(percent), DataTypes.DOUBLE);
+        return Double.toString(value);
     }
 }

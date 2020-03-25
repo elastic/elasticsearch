@@ -25,7 +25,6 @@ import org.apache.http.client.AuthCache;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.elasticsearch.client.DeadHostStateTests.ConfigurableTimeSupplier;
 import org.elasticsearch.client.RestClient.NodeTuple;
 
 import java.io.IOException;
@@ -40,9 +39,10 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
@@ -58,7 +58,7 @@ public class RestClientTests extends RestClientTestCase {
     public void testCloseIsIdempotent() throws IOException {
         List<Node> nodes = singletonList(new Node(new HttpHost("localhost", 9200)));
         CloseableHttpAsyncClient closeableHttpAsyncClient = mock(CloseableHttpAsyncClient.class);
-        RestClient restClient = new RestClient(closeableHttpAsyncClient, 1_000, new Header[0], nodes, null, null, null);
+        RestClient restClient = new RestClient(closeableHttpAsyncClient, new Header[0], nodes, null, null, null, false);
         restClient.close();
         verify(closeableHttpAsyncClient, times(1)).close();
         restClient.close();
@@ -90,119 +90,10 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
-    /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link #testPerformAsyncWithUnsupportedMethod()}.
-     */
-    @Deprecated
-    public void testPerformAsyncOldStyleWithUnsupportedMethod() throws Exception {
-        final CountDownLatch latch = new CountDownLatch(1);
-        try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("unsupported", randomAsciiLettersOfLength(5), new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
-                }
-
-                @Override
-                public void onFailure(Exception exception) {
-                    try {
-                        assertThat(exception, instanceOf(UnsupportedOperationException.class));
-                        assertEquals("http method not supported: unsupported", exception.getMessage());
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-            });
-            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
-        }
-    }
-
-    /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddParameters()}.
-     */
-    @Deprecated
-    public void testPerformOldStyleAsyncWithNullParams() throws Exception {
-        final CountDownLatch latch = new CountDownLatch(1);
-        try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5), null, new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
-                }
-
-                @Override
-                public void onFailure(Exception exception) {
-                    try {
-                        assertThat(exception, instanceOf(NullPointerException.class));
-                        assertEquals("parameters cannot be null", exception.getMessage());
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-            });
-            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
-        }
-    }
-
-    /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests}.
-     */
-    @Deprecated
-    public void testPerformOldStyleAsyncWithNullHeaders() throws Exception {
-        final CountDownLatch latch = new CountDownLatch(1);
-        try (RestClient restClient = createRestClient()) {
-            ResponseListener listener = new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
-                }
-
-                @Override
-                public void onFailure(Exception exception) {
-                    try {
-                        assertThat(exception, instanceOf(NullPointerException.class));
-                        assertEquals("header cannot be null", exception.getMessage());
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-            };
-            restClient.performRequestAsync("GET", randomAsciiLettersOfLength(5), listener, (Header) null);
-            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
-        }
-    }
-
     public void testPerformAsyncWithWrongEndpoint() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync(new Request("GET", "::http:///"), new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
-                }
-
-                @Override
-                public void onFailure(Exception exception) {
-                    try {
-                        assertThat(exception, instanceOf(IllegalArgumentException.class));
-                        assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-            });
-            assertTrue("time out waiting for request to return", latch.await(1000, TimeUnit.MILLISECONDS));
-        }
-    }
-
-    /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link #testPerformAsyncWithWrongEndpoint()}.
-     */
-    @Deprecated
-    public void testPerformAsyncOldStyleWithWrongEndpoint() throws Exception {
-        final CountDownLatch latch = new CountDownLatch(1);
-        try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("GET", "::http:///", new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     throw new UnsupportedOperationException("onSuccess cannot be called when using a mocked http client");
@@ -256,34 +147,6 @@ public class RestClientTests extends RestClientTestCase {
             URI uri = RestClient.buildUri(null, "/index/type/id", Collections.singletonMap("foo$bar", "x/y/z"));
             assertEquals("/index/type/id", uri.getPath());
             assertEquals("foo$bar=x/y/z", uri.getQuery());
-        }
-    }
-
-    @Deprecated
-    public void testSetHostsWrongArguments() throws IOException {
-        try (RestClient restClient = createRestClient()) {
-            restClient.setHosts((HttpHost[]) null);
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null nor empty", e.getMessage());
-        }
-        try (RestClient restClient = createRestClient()) {
-            restClient.setHosts();
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null nor empty", e.getMessage());
-        }
-        try (RestClient restClient = createRestClient()) {
-            restClient.setHosts((HttpHost) null);
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("host cannot be null", e.getMessage());
-        }
-        try (RestClient restClient = createRestClient()) {
-            restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("host cannot be null", e.getMessage());
         }
     }
 
@@ -348,23 +211,6 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
-    /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testConstructor()}.
-     */
-    @Deprecated
-    public void testNullPath() throws IOException {
-        try (RestClient restClient = createRestClient()) {
-            for (String method : getHttpMethods()) {
-                try {
-                    restClient.performRequest(method, null);
-                    fail("path set to null should fail!");
-                } catch (NullPointerException e) {
-                    assertEquals("endpoint cannot be null", e.getMessage());
-                }
-            }
-        }
-    }
-
     public void testSelectHosts() throws IOException {
         Node n1 = new Node(new HttpHost("1"), null, null, "1", null, null);
         Node n2 = new Node(new HttpHost("2"), null, null, "2", null, null);
@@ -421,14 +267,24 @@ public class RestClientTests extends RestClientTestCase {
 
         // Mark all the nodes dead for a few test cases
         {
-            ConfigurableTimeSupplier timeSupplier = new ConfigurableTimeSupplier();
+            final AtomicLong time = new AtomicLong(0L);
+            Supplier<Long> timeSupplier = time::get;
             Map<HttpHost, DeadHostState> blacklist = new HashMap<>();
             blacklist.put(n1.getHost(), new DeadHostState(timeSupplier));
             blacklist.put(n2.getHost(), new DeadHostState(new DeadHostState(timeSupplier)));
             blacklist.put(n3.getHost(), new DeadHostState(new DeadHostState(new DeadHostState(timeSupplier))));
 
             /*
-             * selectHosts will revive a single host if regardless of
+             * case when fewer nodeTuple than blacklist, won't result in any IllegalCapacityException
+             */
+            {
+                NodeTuple<List<Node>> fewerNodeTuple = new NodeTuple<>(Arrays.asList(n1, n2), null);
+                assertSelectLivingHosts(Arrays.asList(n1), fewerNodeTuple, blacklist, NodeSelector.ANY);
+                assertSelectLivingHosts(Arrays.asList(n2), fewerNodeTuple, blacklist, not1);
+            }
+
+            /*
+             * selectHosts will revive a single host regardless of
              * blacklist time. It'll revive the node that is closest
              * to being revived that the NodeSelector is ok with.
              */
@@ -450,7 +306,7 @@ public class RestClientTests extends RestClientTestCase {
              * Now lets wind the clock forward, past the timeout for one of
              * the dead nodes. We should return it.
              */
-            timeSupplier.nanoTime = new DeadHostState(timeSupplier).getDeadUntilNanos();
+            time.set(new DeadHostState(timeSupplier).getDeadUntilNanos());
             assertSelectLivingHosts(Arrays.asList(n1), nodeTuple, blacklist, NodeSelector.ANY);
 
             /*
@@ -464,7 +320,7 @@ public class RestClientTests extends RestClientTestCase {
              * blacklist timeouts then we function as though the nodes aren't
              * in the blacklist at all.
              */
-            timeSupplier.nanoTime += DeadHostState.MAX_CONNECTION_TIMEOUT_NANOS;
+            time.addAndGet(DeadHostState.MAX_CONNECTION_TIMEOUT_NANOS);
             assertSelectLivingHosts(Arrays.asList(n1, n2, n3), nodeTuple, blacklist, NodeSelector.ANY);
             assertSelectLivingHosts(Arrays.asList(n2, n3), nodeTuple, blacklist, not1);
         }
@@ -499,8 +355,7 @@ public class RestClientTests extends RestClientTestCase {
 
     private static RestClient createRestClient() {
         List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
-        return new RestClient(mock(CloseableHttpAsyncClient.class), randomLongBetween(1_000, 30_000),
-                new Header[] {}, nodes, null, null, null);
+        return new RestClient(mock(CloseableHttpAsyncClient.class), new Header[] {}, nodes, null, null, null, false);
     }
 
     public void testRoundRobin() throws IOException {

@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
@@ -57,7 +57,7 @@ public class RandomScoreFunction extends ScoreFunction {
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
         final SortedBinaryDocValues values;
         if (fieldData != null) {
-            AtomicFieldData leafData = fieldData.load(ctx);
+            LeafFieldData leafData = fieldData.load(ctx);
             values = leafData.getBytesValues();
             if (values == null) throw new NullPointerException("failed to get fielddata");
         } else {
@@ -70,7 +70,7 @@ public class RandomScoreFunction extends ScoreFunction {
             public double score(int docId, float subQueryScore) throws IOException {
                 int hash;
                 if (values == null) {
-                    hash = BitMixer.mix(docId, saltedSeed);
+                    hash = BitMixer.mix(ctx.docBase + docId, saltedSeed);
                 } else if (values.advanceExact(docId)) {
                     hash = StringHelper.murmurhash3_x86_32(values.nextValue(), saltedSeed);
                 } else {
@@ -84,7 +84,7 @@ public class RandomScoreFunction extends ScoreFunction {
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 String field = fieldData == null ? null : fieldData.getFieldName();
                 return Explanation.match(
-                        (float) score(docId, subQueryScore.getValue()),
+                        (float) score(docId, subQueryScore.getValue().floatValue()),
                         "random score function (seed: " + originalSeed + ", field: " + field + ")");
             }
         };

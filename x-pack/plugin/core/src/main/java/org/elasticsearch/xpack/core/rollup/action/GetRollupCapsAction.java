@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
@@ -18,7 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -28,7 +27,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
+public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response> {
 
     public static final GetRollupCapsAction INSTANCE = new GetRollupCapsAction();
     public static final String NAME = "cluster:monitor/xpack/rollup/get/caps";
@@ -36,15 +35,10 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
     public static final ParseField STATUS = new ParseField("status");
 
     private GetRollupCapsAction() {
-        super(NAME);
+        super(NAME, GetRollupCapsAction.Response::new);
     }
 
-    @Override
-    public Response newResponse() {
-        return new Response();
-    }
-
-    public static class Request extends ActionRequest implements ToXContent {
+    public static class Request extends ActionRequest implements ToXContentFragment {
         private String indexPattern;
 
         public Request(String indexPattern) {
@@ -57,14 +51,13 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
 
         public Request() {}
 
-        public String getIndexPattern() {
-            return indexPattern;
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.indexPattern = in.readString();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.indexPattern = in.readString();
+        public String getIndexPattern() {
+            return indexPattern;
         }
 
         @Override
@@ -118,11 +111,11 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
         }
 
         public Response(Map<String, RollableIndexCaps> jobs) {
-            this.jobs = Objects.requireNonNull(jobs);
+            this.jobs = Collections.unmodifiableMap(Objects.requireNonNull(jobs));
         }
 
         Response(StreamInput in) throws IOException {
-            jobs = in.readMap(StreamInput::readString, RollableIndexCaps::new);
+            jobs = Collections.unmodifiableMap(in.readMap(StreamInput::readString, RollableIndexCaps::new));
         }
 
         public Map<String, RollableIndexCaps> getJobs() {
@@ -131,15 +124,16 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeMap(jobs, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            for (Map.Entry<String, RollableIndexCaps> entry : jobs.entrySet()) {
-                entry.getValue().toXContent(builder, params);
+            {
+                for (Map.Entry<String, RollableIndexCaps> entry : jobs.entrySet()) {
+                    entry.getValue().toXContent(builder, params);
+                }
             }
             builder.endObject();
             return builder;

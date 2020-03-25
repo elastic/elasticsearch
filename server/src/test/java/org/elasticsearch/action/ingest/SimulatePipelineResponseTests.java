@@ -47,8 +47,7 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        SimulatePipelineResponse otherResponse = new SimulatePipelineResponse();
-        otherResponse.readFrom(streamInput);
+        SimulatePipelineResponse otherResponse = new SimulatePipelineResponse(streamInput);
 
         assertThat(otherResponse.getPipelineId(), equalTo(response.getPipelineId()));
         assertThat(otherResponse.getResults().size(), equalTo(response.getResults().size()));
@@ -56,11 +55,14 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
         Iterator<SimulateDocumentResult> expectedResultIterator = response.getResults().iterator();
         for (SimulateDocumentResult result : otherResponse.getResults()) {
             if (isVerbose) {
-                SimulateDocumentVerboseResult expectedSimulateDocumentVerboseResult = (SimulateDocumentVerboseResult) expectedResultIterator.next();
+                SimulateDocumentVerboseResult expectedSimulateDocumentVerboseResult =
+                        (SimulateDocumentVerboseResult) expectedResultIterator.next();
                 assertThat(result, instanceOf(SimulateDocumentVerboseResult.class));
                 SimulateDocumentVerboseResult simulateDocumentVerboseResult = (SimulateDocumentVerboseResult) result;
-                assertThat(simulateDocumentVerboseResult.getProcessorResults().size(), equalTo(expectedSimulateDocumentVerboseResult.getProcessorResults().size()));
-                Iterator<SimulateProcessorResult> expectedProcessorResultIterator = expectedSimulateDocumentVerboseResult.getProcessorResults().iterator();
+                assertThat(simulateDocumentVerboseResult.getProcessorResults().size(),
+                        equalTo(expectedSimulateDocumentVerboseResult.getProcessorResults().size()));
+                Iterator<SimulateProcessorResult> expectedProcessorResultIterator =
+                        expectedSimulateDocumentVerboseResult.getProcessorResults().iterator();
                 for (SimulateProcessorResult simulateProcessorResult : simulateDocumentVerboseResult.getProcessorResults()) {
                     SimulateProcessorResult expectedProcessorResult = expectedProcessorResultIterator.next();
                     assertThat(simulateProcessorResult.getProcessorTag(), equalTo(expectedProcessorResult.getProcessorTag()));
@@ -80,7 +82,8 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
                 assertThat(result, instanceOf(SimulateDocumentBaseResult.class));
                 SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) result;
                 if (simulateDocumentBaseResult.getIngestDocument() != null) {
-                    assertIngestDocument(simulateDocumentBaseResult.getIngestDocument(), expectedSimulateDocumentBaseResult.getIngestDocument());
+                    assertIngestDocument(simulateDocumentBaseResult.getIngestDocument(),
+                            expectedSimulateDocumentBaseResult.getIngestDocument());
                 }
                 if (expectedSimulateDocumentBaseResult.getFailure() == null) {
                     assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
@@ -181,8 +184,8 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
         Supplier<SimulatePipelineResponse> instanceSupplier = SimulatePipelineResponseTests::createTestInstanceWithFailures;
         //exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields(), getShuffleFieldsExceptions(),
-            getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-            this::assertEqualInstances, assertToXContentEquivalence, getToXContentParams());
+        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields(),
+                getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
+                this::assertEqualInstances, assertToXContentEquivalence, getToXContentParams());
     }
 }

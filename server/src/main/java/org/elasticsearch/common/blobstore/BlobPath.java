@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.elasticsearch.common.Nullable;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -66,6 +68,20 @@ public class BlobPath implements Iterable<String> {
             return p;
         }
         return p + SEPARATOR;
+    }
+
+    /**
+     * Returns this path's parent path.
+     *
+     * @return Parent path or {@code null} if there is none
+     */
+    @Nullable
+    public BlobPath parent() {
+        if (paths.isEmpty()) {
+            return null;
+        } else {
+            return new BlobPath(List.copyOf(paths.subList(0, paths.size() - 1)));
+        }
     }
 
     @Override

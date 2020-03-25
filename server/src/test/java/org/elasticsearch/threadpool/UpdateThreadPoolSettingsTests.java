@@ -61,7 +61,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     }
 
     public void testWriteThreadPoolsMaxSize() throws InterruptedException {
-        final String name = Names.WRITE;
         final int maxSize = 1 + EsExecutors.numberOfProcessors(Settings.EMPTY);
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
 
@@ -188,7 +187,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                     EsExecutors.numberOfProcessors(Settings.EMPTY),
                     TimeValue.timeValueMinutes(1));
 
-            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1);
+            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1, false);
 
             threadPool = new ThreadPool(Settings.builder().put("node.name", "testCustomThreadPool").build(), scaling, fixed);
 

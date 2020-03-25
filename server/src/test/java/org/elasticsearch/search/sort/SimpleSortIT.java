@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -85,9 +84,9 @@ public class SimpleSortIT extends ESIntegTestCase {
                 return ((ScriptDocValues.Strings) doc.get("id")).getValue();
             });
 
-            scripts.put("doc['id'].values[0]", vars -> {
+            scripts.put("doc['id'][0]", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
-                return ((ScriptDocValues.Strings) doc.get("id")).getValues().get(0);
+                return ((ScriptDocValues.Strings) doc.get("id")).get(0);
             });
 
             scripts.put("get min long", vars -> getMinValueScript(vars, Long.MAX_VALUE, "lvalue", l -> (Long) l));
@@ -108,7 +107,7 @@ public class SimpleSortIT extends ESIntegTestCase {
             T retval = initialValue;
             Map<?, ?> doc = (Map) vars.get("doc");
             ScriptDocValues<?> values = (ScriptDocValues<?>) doc.get(fieldName);
-            for (Object v : values.getValues()) {
+            for (Object v : values) {
                 T value = converter.apply(v);
                 retval = (value.compareTo(retval) < 0) ? value : retval;
             }
@@ -119,9 +118,9 @@ public class SimpleSortIT extends ESIntegTestCase {
     public void testSimpleSorts() throws Exception {
         Random random = random();
         assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("type1")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("str_value")
                                         .field("type", "keyword")
@@ -153,7 +152,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            builders.add(client().prepareIndex("test", "type1", Integer.toString(i))
+            builders.add(client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource(jsonBuilder()
                             .startObject()
                                 .field("str_value", new String(new char[]{(char) (97 + i), (char) (97 + i)}))
@@ -169,7 +168,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         }
         Collections.shuffle(builders, random);
         for (IndexRequestBuilder builder : builders) {
-            builder.execute().actionGet();
+            builder.get();
             if (random.nextBoolean()) {
                 if (random.nextInt(5) != 0) {
                     refresh();
@@ -225,7 +224,6 @@ public class SimpleSortIT extends ESIntegTestCase {
     public void testSortMinValueScript() throws IOException {
         String mapping = Strings.toString(jsonBuilder()
                 .startObject()
-                    .startObject("type1")
                         .startObject("properties")
                             .startObject("lvalue")
                                 .field("type", "long")
@@ -240,14 +238,13 @@ public class SimpleSortIT extends ESIntegTestCase {
                                 .field("type", "geo_point")
                             .endObject()
                         .endObject()
-                    .endObject()
                 .endObject());
 
-        assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "type1", "" + i)
+            client().prepareIndex("test").setId("" + i)
                     .setSource(jsonBuilder()
                             .startObject()
                                 .field("ord", i)
@@ -263,7 +260,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         }
 
         for (int i = 10; i < 20; i++) { // add some docs that don't have values in those fields
-            client().prepareIndex("test", "type1", "" + i)
+            client().prepareIndex("test").setId("" + i)
                     .setSource(jsonBuilder()
                             .startObject()
                                 .field("ord", i)
@@ -344,7 +341,6 @@ public class SimpleSortIT extends ESIntegTestCase {
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
         String mapping = Strings.toString(jsonBuilder()
                 .startObject()
-                    .startObject("type1")
                         .startObject("properties")
                             .startObject("id")
                                 .field("type", "keyword")
@@ -353,26 +349,25 @@ public class SimpleSortIT extends ESIntegTestCase {
                                 .field("type", "keyword")
                             .endObject()
                         .endObject()
-                    .endObject()
                 .endObject());
-        assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
+        assertAcked(prepareCreate("test").setMapping(mapping));
         ensureGreen();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
                 .setSource(jsonBuilder().startObject()
                                             .field("id", "1")
                                             .field("svalue", "aaa")
                                         .endObject())
                 .get();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
                 .setSource(jsonBuilder().startObject()
                                             .field("id", "2")
                                             .nullField("svalue")
                                         .endObject())
                 .get();
 
-        client().prepareIndex("test", "type1")
+        client().prepareIndex("test")
                 .setSource(jsonBuilder().startObject()
                                             .field("id", "3")
                                             .field("svalue", "bbb")
@@ -392,20 +387,20 @@ public class SimpleSortIT extends ESIntegTestCase {
 
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'].values[0]", Collections.emptyMap()))
+                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'][0]", Collections.emptyMap()))
                 .addSort("svalue", SortOrder.ASC)
                 .get();
 
         assertNoFailures(searchResponse);
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
@@ -424,7 +419,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         }
         assertThat(searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
         assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(1).field("id").getValue(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(2).field("id").getValue(), equalTo("2"));
@@ -444,15 +439,15 @@ public class SimpleSortIT extends ESIntegTestCase {
         }
         assertThat(searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field("id").getValue(), equalTo("2"));
     }
 
     public void test2920() throws IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("test", jsonBuilder()
+                .setMapping(jsonBuilder()
                         .startObject()
-                            .startObject("test")
+                            .startObject("_doc")
                                 .startObject("properties")
                                     .startObject("value")
                                         .field("type", "keyword")
@@ -462,7 +457,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                         .endObject()));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "test", Integer.toString(i))
+            client().prepareIndex("test").setId(Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("value", "" + i).endObject()).get();
         }
         refresh();

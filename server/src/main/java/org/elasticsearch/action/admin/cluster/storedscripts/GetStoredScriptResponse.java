@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -66,7 +65,15 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
     private String id;
     private StoredScriptSource source;
 
-    GetStoredScriptResponse() {
+    public GetStoredScriptResponse(StreamInput in) throws IOException {
+        super(in);
+
+        if (in.readBoolean()) {
+            source = new StoredScriptSource(in);
+        } else {
+            source = null;
+        }
+        id = in.readString();
     }
 
     GetStoredScriptResponse(String id, StoredScriptSource source) {
@@ -110,33 +117,14 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        if (in.readBoolean()) {
-            source = new StoredScriptSource(in);
-        } else {
-            source = null;
-        }
-
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            id = in.readString();
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-
         if (source == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             source.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeString(id);
-        }
+        out.writeString(id);
     }
 
     @Override

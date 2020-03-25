@@ -92,33 +92,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            elasticsearchVersion = Version.readVersion(in);
-            javaVersion = in.readString();
-        } else {
-            // the plugin must have the version of whichever node we are talking to, since this is enforced on startup
-            elasticsearchVersion = in.getVersion();
-            // this might not be true, but it is not important, we just need something here for bwc that is a valid java version string
-            javaVersion = "1.8";
-        }
+        elasticsearchVersion = Version.readVersion(in);
+        javaVersion = in.readString();
         this.classname = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            extendedPlugins = in.readList(StreamInput::readString);
-        } else {
-            extendedPlugins = Collections.emptyList();
-        }
-        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
-            hasNativeController = in.readBoolean();
-        } else {
-            hasNativeController = false;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta2) && in.getVersion().before(Version.V_6_3_0)) {
-            /*
-             * Elasticsearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
-             * serialized into the plugin info. Therefore, we have to read and ignore this value from the stream.
-             */
-            in.readBoolean();
-        }
+        extendedPlugins = in.readStringList();
+        hasNativeController = in.readBoolean();
     }
 
     @Override
@@ -126,24 +104,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            Version.writeVersion(elasticsearchVersion, out);
-            out.writeString(javaVersion);
-        }
+        Version.writeVersion(elasticsearchVersion, out);
+        out.writeString(javaVersion);
         out.writeString(classname);
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeStringList(extendedPlugins);
-        }
-        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
-            out.writeBoolean(hasNativeController);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta2) && out.getVersion().before(Version.V_6_3_0)) {
-            /*
-             * Elasticsearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
-             * serialized into the plugin info. Therefore, we have to write out a value for this boolean.
-             */
-            out.writeBoolean(false);
-        }
+        out.writeStringCollection(extendedPlugins);
+        out.writeBoolean(hasNativeController);
     }
 
     /**
@@ -229,10 +194,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
                             hasNativeControllerValue);
                     throw new IllegalArgumentException(message);
             }
-        }
-
-        if (esVersion.before(Version.V_6_3_0) && esVersion.onOrAfter(Version.V_6_0_0_beta2)) {
-            propsMap.remove("requires.keystore");
         }
 
         if (propsMap.isEmpty() == false) {

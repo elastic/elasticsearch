@@ -85,7 +85,7 @@ public class EvilSecurityTests extends ESTestCase {
                 esHome.resolve("data2").toString());
         settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
         settingsBuilder.put(Environment.PATH_LOGS_SETTING.getKey(), esHome.resolve("logs").toString());
-        settingsBuilder.put(Environment.PIDFILE_SETTING.getKey(), esHome.resolve("test.pid").toString());
+        settingsBuilder.put(Environment.NODE_PIDFILE_SETTING.getKey(), esHome.resolve("test.pid").toString());
         Settings settings = settingsBuilder.build();
 
         Path fakeTmpDir = createTempDir();
@@ -126,9 +126,6 @@ public class EvilSecurityTests extends ESTestCase {
         for (Path dataPath : environment.dataFiles()) {
             assertExactPermissions(new FilePermission(dataPath.toString(), "read,readlink,write,delete"), permissions);
         }
-        for (Path dataPath : environment.dataWithClusterFiles()) {
-            assertExactPermissions(new FilePermission(dataPath.toString(), "read,readlink,write,delete"), permissions);
-        }
         assertExactPermissions(new FilePermission(environment.sharedDataFile().toString(), "read,readlink,write,delete"), permissions);
         // logs: r/w
         assertExactPermissions(new FilePermission(environment.logsFile().toString(), "read,readlink,write,delete"), permissions);
@@ -139,6 +136,7 @@ public class EvilSecurityTests extends ESTestCase {
     }
 
     public void testDuplicateDataPaths() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44558", Constants.WINDOWS);
         final Path path = createTempDir();
         final Path home = path.resolve("home");
         final Path data = path.resolve("data");

@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 
@@ -129,16 +130,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             listener.onResponse((cluster, node) -> nodes.get(node));
         } else {
             RemoteClusterService remoteClusterService = searchTransportService.getRemoteClusterService();
-            remoteClusterService.collectNodes(clusters, ActionListener.wrap(nodeFunction -> {
-                final BiFunction<String, String, DiscoveryNode> clusterNodeLookup = (clusterAlias, node) -> {
-                    if (clusterAlias == null) {
-                        return nodes.get(node);
-                    } else {
-                        return nodeFunction.apply(clusterAlias, node);
-                    }
-                };
-                listener.onResponse(clusterNodeLookup);
-            }, listener::onFailure));
+            remoteClusterService.collectNodes(clusters, ActionListener.map(listener,
+                nodeFunction -> (clusterAlias, node) -> clusterAlias == null ? nodes.get(node) : nodeFunction.apply(clusterAlias, node)));
         }
     }
 
@@ -155,11 +148,11 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                 }
                 connection = getConnection(target.getClusterAlias(), node);
             } catch (Exception ex) {
-                onShardFailure("query", counter, target.getScrollId(),
+                onShardFailure("query", counter, target.getContextId(),
                     ex, null, () -> SearchScrollAsyncAction.this.moveToNextPhase(clusterNodeLookup));
                 continue;
             }
-            final InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(target.getScrollId(), request);
+            final InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(target.getContextId(), request);
             // we can't create a SearchShardTarget here since we don't know the index and shard ID we are talking to
             // we only know the node and the search context ID. Yet, the response will contain the SearchShardTarget
             // from the target node instead...that's why we pass null here
@@ -199,7 +192,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
 
                 @Override
                 public void onFailure(Exception t) {
-                    onShardFailure("query", counter, target.getScrollId(), t, null,
+                    onShardFailure("query", counter, target.getContextId(), t, null,
                         () -> SearchScrollAsyncAction.this.moveToNextPhase(clusterNodeLookup));
                 }
             };
@@ -255,7 +248,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         }
     }
 
-    protected void onShardFailure(String phaseName, final CountDown counter, final long searchId, Exception failure,
+    protected void onShardFailure(String phaseName, final CountDown counter, final SearchContextId searchId, Exception failure,
                                   @Nullable SearchShardTarget searchShardTarget,
                                   Supplier<SearchPhase> nextPhaseSupplier) {
         if (logger.isDebugEnabled()) {

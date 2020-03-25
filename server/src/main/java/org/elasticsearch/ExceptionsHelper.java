@@ -19,13 +19,14 @@
 
 package org.elasticsearch;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
@@ -37,16 +38,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public final class ExceptionsHelper {
 
-    private static final Logger logger = Loggers.getLogger(ExceptionsHelper.class);
+    private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
 
     public static RuntimeException convertToRuntime(Exception e) {
         if (e instanceof RuntimeException) {
@@ -67,6 +71,8 @@ public final class ExceptionsHelper {
             if (t instanceof ElasticsearchException) {
                 return ((ElasticsearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
+                return RestStatus.BAD_REQUEST;
+            } else if (t instanceof JsonParseException) {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof EsRejectedExecutionException) {
                 return RestStatus.TOO_MANY_REQUESTS;
@@ -95,35 +101,6 @@ public final class ExceptionsHelper {
         return result;
     }
 
-    /**
-     * @deprecated Don't swallow exceptions, allow them to propagate.
-     */
-    @Deprecated
-    public static String detailedMessage(Throwable t) {
-        if (t == null) {
-            return "Unknown";
-        }
-        if (t.getCause() != null) {
-            StringBuilder sb = new StringBuilder();
-            while (t != null) {
-                sb.append(t.getClass().getSimpleName());
-                if (t.getMessage() != null) {
-                    sb.append("[");
-                    sb.append(t.getMessage());
-                    sb.append("]");
-                }
-                sb.append("; ");
-                t = t.getCause();
-                if (t != null) {
-                    sb.append("nested: ");
-                }
-            }
-            return sb.toString();
-        } else {
-            return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
-        }
-    }
-
     public static String stackTrace(Throwable e) {
         StringWriter stackTraceStringWriter = new StringWriter();
         PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);
@@ -133,42 +110,6 @@ public final class ExceptionsHelper {
 
     public static String formatStackTrace(final StackTraceElement[] stackTrace) {
         return Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
-    }
-
-    static final int MAX_ITERATIONS = 1024;
-
-    /**
-     * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
-     *
-     * @param cause the root throwable
-     *
-     * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
-     */
-    public static Optional<Error> maybeError(final Throwable cause, final Logger logger) {
-        // early terminate if the cause is already an error
-        if (cause instanceof Error) {
-            return Optional.of((Error) cause);
-        }
-
-        final Queue<Throwable> queue = new LinkedList<>();
-        queue.add(cause);
-        int iterations = 0;
-        while (!queue.isEmpty()) {
-            iterations++;
-            if (iterations > MAX_ITERATIONS) {
-                logger.warn("giving up looking for fatal errors", cause);
-                break;
-            }
-            final Throwable current = queue.remove();
-            if (current instanceof Error) {
-                return Optional.of((Error) current);
-            }
-            Collections.addAll(queue, current.getSuppressed());
-            if (current.getCause() != null) {
-                queue.add(current.getCause());
-            }
-        }
-        return Optional.empty();
     }
 
     /**
@@ -209,15 +150,41 @@ public final class ExceptionsHelper {
         return first;
     }
 
+    private static final List<Class<? extends IOException>> CORRUPTION_EXCEPTIONS =
+        List.of(CorruptIndexException.class, IndexFormatTooOldException.class, IndexFormatTooNewException.class);
+
+    /**
+     * Looks at the given Throwable's and its cause(s) as well as any suppressed exceptions on the Throwable as well as its causes
+     * and returns the first corruption indicating exception (as defined by {@link #CORRUPTION_EXCEPTIONS}) it finds.
+     * @param t Throwable
+     * @return Corruption indicating exception if one is found, otherwise {@code null}
+     */
     public static IOException unwrapCorruption(Throwable t) {
-        return (IOException) unwrap(t, CorruptIndexException.class,
-                                       IndexFormatTooOldException.class,
-                                       IndexFormatTooNewException.class);
+        return t == null ? null : ExceptionsHelper.<IOException>unwrapCausesAndSuppressed(t, cause -> {
+            for (Class<?> clazz : CORRUPTION_EXCEPTIONS) {
+                if (clazz.isInstance(cause)) {
+                    return true;
+                }
+            }
+            return false;
+        }).orElse(null);
     }
 
+    /**
+     * Looks at the given Throwable and its cause(s) and returns the first Throwable that is of one of the given classes or {@code null}
+     * if no matching Throwable is found. Unlike {@link #unwrapCorruption} this method does only check the given Throwable and its causes
+     * but does not look at any suppressed exceptions.
+     * @param t Throwable
+     * @param clazzes Classes to look for
+     * @return Matching Throwable if one is found, otherwise {@code null}
+     */
     public static Throwable unwrap(Throwable t, Class<?>... clazzes) {
         if (t != null) {
+            final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
             do {
+                if (seen.add(t) == false) {
+                    return null;
+                }
                 for (Class<?> clazz : clazzes) {
                     if (clazz.isInstance(t)) {
                         return t;
@@ -242,20 +209,56 @@ public final class ExceptionsHelper {
         return true;
     }
 
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> Optional<T> unwrapCausesAndSuppressed(Throwable cause, Predicate<Throwable> predicate) {
+        if (predicate.test(cause)) {
+            return Optional.of((T) cause);
+        }
+
+        final Queue<Throwable> queue = new LinkedList<>();
+        queue.add(cause);
+        final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        while (queue.isEmpty() == false) {
+            final Throwable current = queue.remove();
+            if (seen.add(current) == false) {
+                continue;
+            }
+            if (predicate.test(current)) {
+                return Optional.of((T) current);
+            }
+            Collections.addAll(queue, current.getSuppressed());
+            if (current.getCause() != null) {
+                queue.add(current.getCause());
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
+     *
+     * @param cause the root throwable
+     * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
+     */
+    public static Optional<Error> maybeError(final Throwable cause) {
+        return unwrapCausesAndSuppressed(cause, t -> t instanceof Error);
+    }
+
     /**
      * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
-     * caught and bubbles up to the uncaught exception handler.
+     * caught and bubbles up to the uncaught exception handler. Note that the cause tree is examined for any {@link Error}. See
+     * {@link #maybeError(Throwable)} for the semantics.
      *
-     * @param throwable the throwable to test
+     * @param throwable the throwable to possibly throw on another thread
      */
-    public static void dieOnError(Throwable throwable) {
-        final Optional<Error> maybeError = ExceptionsHelper.maybeError(throwable, logger);
-        if (maybeError.isPresent()) {
+    public static void maybeDieOnAnotherThread(final Throwable throwable) {
+        ExceptionsHelper.maybeError(throwable).ifPresent(error -> {
             /*
-             * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
-             * invocations of user-code in try/catch blocks that swallow all throwables. This means that a rethrow here will not bubble up
-             * to where we want it to. So, we fork a thread and throw the exception from there where Netty can not get to it. We do not wrap
-             * the exception so as to not lose the original cause during exit.
+             * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, sometimes the stack
+             * contains statements that catch any throwable (e.g., Netty, and the JDK futures framework). This means that a rethrow here
+             * will not bubble up to where we want it to. So, we fork a thread and throw the exception from there where we are sure the
+             * stack does not contain statements that catch any throwable. We do not wrap the exception so as to not lose the original cause
+             * during exit.
              */
             try {
                 // try to log the current stack trace
@@ -263,12 +266,12 @@ public final class ExceptionsHelper {
                 logger.error("fatal error\n{}", formatted);
             } finally {
                 new Thread(
-                    () -> {
-                        throw maybeError.get();
-                    })
-                    .start();
+                        () -> {
+                            throw error;
+                        })
+                        .start();
             }
-        }
+        });
     }
 
     /**
@@ -278,7 +281,7 @@ public final class ExceptionsHelper {
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {
-            GroupBy reason = new GroupBy(failure.getCause());
+            GroupBy reason = new GroupBy(failure);
             if (reasons.contains(reason) == false) {
                 reasons.add(reason);
                 uniqueFailures.add(failure);
@@ -287,46 +290,47 @@ public final class ExceptionsHelper {
         return uniqueFailures.toArray(new ShardOperationFailedException[0]);
     }
 
-    static class GroupBy {
+    private static class GroupBy {
         final String reason;
         final String index;
         final Class<? extends Throwable> causeType;
 
-        GroupBy(Throwable t) {
-            if (t instanceof ElasticsearchException) {
-                final Index index = ((ElasticsearchException) t).getIndex();
-                if (index != null) {
-                    this.index = index.getName();
-                } else {
-                    this.index = null;
+        GroupBy(ShardOperationFailedException failure) {
+            Throwable cause = failure.getCause();
+            //the index name from the failure contains the cluster alias when using CCS. Ideally failures should be grouped by
+            //index name and cluster alias. That's why the failure index name has the precedence over the one coming from the cause,
+            //which does not include the cluster alias.
+            String indexName = failure.index();
+            if (indexName == null) {
+                if (cause instanceof ElasticsearchException) {
+                    final Index index = ((ElasticsearchException) cause).getIndex();
+                    if (index != null) {
+                        indexName = index.getName();
+                    }
                 }
-            } else {
-                index = null;
             }
-            reason = t.getMessage();
-            causeType = t.getClass();
+            this.index = indexName;
+            this.reason = cause.getMessage();
+            this.causeType = cause.getClass();
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             GroupBy groupBy = (GroupBy) o;
-
-            if (!causeType.equals(groupBy.causeType)) return false;
-            if (index != null ? !index.equals(groupBy.index) : groupBy.index != null) return false;
-            if (reason != null ? !reason.equals(groupBy.reason) : groupBy.reason != null) return false;
-
-            return true;
+            return Objects.equals(reason, groupBy.reason) &&
+                Objects.equals(index, groupBy.index) &&
+                Objects.equals(causeType, groupBy.causeType);
         }
 
         @Override
         public int hashCode() {
-            int result = reason != null ? reason.hashCode() : 0;
-            result = 31 * result + (index != null ? index.hashCode() : 0);
-            result = 31 * result + causeType.hashCode();
-            return result;
+            return Objects.hash(reason, index, causeType);
         }
     }
 }

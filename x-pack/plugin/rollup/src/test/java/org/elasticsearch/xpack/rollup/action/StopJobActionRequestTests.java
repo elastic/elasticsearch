@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction.Request;
 
-public class StopJobActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class StopJobActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -16,8 +17,7 @@ public class StopJobActionRequestTests extends AbstractStreamableTestCase<Reques
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
-
 }

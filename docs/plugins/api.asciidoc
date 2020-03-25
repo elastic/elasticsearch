@@ -23,9 +23,6 @@ A number of plugins have been contributed by our community:
 * https://github.com/zentity-io/zentity[Entity Resolution Plugin] (https://zentity.io[zentity]):
   Real-time entity resolution with pure Elasticsearch (by Dave Moore)
 
-* https://github.com/NLPchina/elasticsearch-sql/[SQL language Plugin]:
-  Allows Elasticsearch to be queried with SQL (by nlpcn)
-
 * https://github.com/ritesh-kapoor/elasticsearch-pql[PQL language Plugin]:
   Allows Elasticsearch to be queried with simple pipeline query syntax.
 

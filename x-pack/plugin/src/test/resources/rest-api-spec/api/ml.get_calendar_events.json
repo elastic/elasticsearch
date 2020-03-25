@@ -1,0 +1,46 @@
+{
+  "ml.get_calendar_events":{
+    "documentation":{
+      "url":null
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}/events",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar containing the events"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "job_id":{
+        "type":"string",
+        "description":"Get events for the job. When this option is used calendar_id must be '_all'"
+      },
+      "start":{
+        "type":"string",
+        "description":"Get events after this time"
+      },
+      "end":{
+        "type":"date",
+        "description":"Get events before this time"
+      },
+      "from":{
+        "type":"int",
+        "description":"Skips a number of events"
+      },
+      "size":{
+        "type":"int",
+        "description":"Specifies a max number of events to get"
+      }
+    }
+  }
+}

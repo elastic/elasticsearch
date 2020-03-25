@@ -1,0 +1,33 @@
+plugins {
+  id 'java'
+  id 'elasticsearch.build'
+}
+
+ext.licenseFile = file("LICENSE")
+ext.noticeFile = file("NOTICE")
+
+dependencies {
+  compile "junit:junit:${versions.junit}"
+  // missing classes in thirdparty audit
+  compile 'org.hamcrest:hamcrest-core:1.3'
+}
+
+repositories {
+  jcenter()
+}
+
+// todo remove offending rules
+forbiddenApisMain.enabled = false
+forbiddenApisTest.enabled = false
+// requires dependency on testing fw
+jarHell.enabled = false
+// we don't have tests for now
+test.enabled = false
+// This requires an additional Jar not part of build-tools
+loggerUsageCheck.enabled = false
+
+task hello {
+  doFirst {
+    println "build plugin can be applied"
+  }
+}

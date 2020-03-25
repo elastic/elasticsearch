@@ -1,0 +1,122 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-move-to-step]]
+=== Move to lifecycle step API
+++++
+<titleabbrev>Move to step</titleabbrev>
+++++
+
+Triggers execution of a specific step in the lifecycle policy.
+
+[[ilm-move-to-step-request]]
+==== {api-request-title}
+
+`POST _ilm/move/<index>`
+
+[[ilm-move-to-step-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage_ilm`
+privileges on the indices being managed to use this API. For more information,
+see <<security-privileges>>.
+
+[[ilm-move-to-step-desc]]
+==== {api-description-title}
+
+WARNING: This operation can result in the loss of data. Manually moving an index
+into a specific step executes that step even if it has already been performed.
+This is a potentially destructive action and this should be considered an expert
+level API.
+
+Manually moves an index into the specified step and executes that step.
+You must specify both the current step and the step to be executed in the
+body of the request.
+
+The request will fail if the current step does not match the step currently
+being executed for the index. This is to prevent the index from being moved from
+an unexpected step into the next step.
+
+[[ilm-move-to-step-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+  (Required, string) Identifier for the index.
+
+[[ilm-move-to-step-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[[ilm-move-to-step-example]]
+==== {api-examples-title}
+
+The following example moves `my_index` from the initial step to the
+`forcemerge` step:
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "min_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my_index
+{
+  "settings": {
+    "index.lifecycle.name": "my_policy"
+  }
+}
+--------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+POST _ilm/move/my_index
+{
+  "current_step": { <1>
+    "phase": "new",
+    "action": "complete",
+    "name": "complete"
+  },
+  "next_step": { <2>
+    "phase": "warm",
+    "action": "forcemerge",
+    "name": "forcemerge"
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+<1> The step that the index is expected to be in
+<2> The step that you want to execute
+
+If the request succeeds, you receive the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+
+The request will fail if the index is not in the `new` phase as specified
+by the `current_step`.

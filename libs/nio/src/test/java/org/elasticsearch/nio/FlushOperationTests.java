@@ -21,7 +21,6 @@ package org.elasticsearch.nio;
 
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -61,36 +60,50 @@ public class FlushOperationTests extends ESTestCase {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10), ByteBuffer.allocate(15), ByteBuffer.allocate(3)};
         FlushOperation writeOp = new FlushOperation(buffers, listener);
 
-        ArgumentCaptor<ByteBuffer[]> buffersCaptor = ArgumentCaptor.forClass(ByteBuffer[].class);
-
         writeOp.incrementIndex(5);
         assertFalse(writeOp.isFullyFlushed());
         ByteBuffer[] byteBuffers = writeOp.getBuffersToWrite();
         assertEquals(3, byteBuffers.length);
         assertEquals(5, byteBuffers[0].remaining());
+        ByteBuffer[] byteBuffersWithLimit = writeOp.getBuffersToWrite(10);
+        assertEquals(2, byteBuffersWithLimit.length);
+        assertEquals(5, byteBuffersWithLimit[0].remaining());
+        assertEquals(5, byteBuffersWithLimit[1].remaining());
 
         writeOp.incrementIndex(5);
         assertFalse(writeOp.isFullyFlushed());
         byteBuffers = writeOp.getBuffersToWrite();
         assertEquals(2, byteBuffers.length);
         assertEquals(15, byteBuffers[0].remaining());
+        assertEquals(3, byteBuffers[1].remaining());
+        byteBuffersWithLimit = writeOp.getBuffersToWrite(10);
+        assertEquals(1, byteBuffersWithLimit.length);
+        assertEquals(10, byteBuffersWithLimit[0].remaining());
 
         writeOp.incrementIndex(2);
         assertFalse(writeOp.isFullyFlushed());
         byteBuffers = writeOp.getBuffersToWrite();
         assertEquals(2, byteBuffers.length);
         assertEquals(13, byteBuffers[0].remaining());
+        assertEquals(3, byteBuffers[1].remaining());
+        byteBuffersWithLimit = writeOp.getBuffersToWrite(10);
+        assertEquals(1, byteBuffersWithLimit.length);
+        assertEquals(10, byteBuffersWithLimit[0].remaining());
 
         writeOp.incrementIndex(15);
         assertFalse(writeOp.isFullyFlushed());
         byteBuffers = writeOp.getBuffersToWrite();
         assertEquals(1, byteBuffers.length);
         assertEquals(1, byteBuffers[0].remaining());
+        byteBuffersWithLimit = writeOp.getBuffersToWrite(10);
+        assertEquals(1, byteBuffersWithLimit.length);
+        assertEquals(1, byteBuffersWithLimit[0].remaining());
 
         writeOp.incrementIndex(1);
         assertTrue(writeOp.isFullyFlushed());
         byteBuffers = writeOp.getBuffersToWrite();
-        assertEquals(1, byteBuffers.length);
-        assertEquals(0, byteBuffers[0].remaining());
+        assertEquals(0, byteBuffers.length);
+        byteBuffersWithLimit = writeOp.getBuffersToWrite(10);
+        assertEquals(0, byteBuffersWithLimit.length);
     }
 }

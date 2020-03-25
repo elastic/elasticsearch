@@ -19,11 +19,14 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedFunction;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Interface for pull - parsing {@link XContent} see {@link XContentType} for supported types.
@@ -114,7 +117,7 @@ public interface XContentParser extends Closeable {
     }
 
     enum NumberType {
-        INT, LONG, FLOAT, DOUBLE
+        INT, BIG_INTEGER, LONG, FLOAT, DOUBLE, BIG_DECIMAL
     }
 
     XContentType contentType();
@@ -133,7 +136,17 @@ public interface XContentParser extends Closeable {
 
     Map<String, String> mapStrings() throws IOException;
 
-    Map<String, String> mapStringsOrdered() throws IOException;
+    /**
+     * Returns an instance of {@link Map} holding parsed map.
+     * Serves as a replacement for the "map", "mapOrdered" and "mapStrings" methods above.
+     *
+     * @param mapFactory factory for creating new {@link Map} objects
+     * @param mapValueParser parser for parsing a single map value
+     * @param <T> map value type
+     * @return {@link Map} object
+     */
+    <T> Map<String, T> map(
+        Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException;
 
     List<Object> list() throws IOException;
 
@@ -203,26 +216,6 @@ public interface XContentParser extends Closeable {
     boolean isBooleanValue() throws IOException;
 
     boolean booleanValue() throws IOException;
-
-    // TODO #22298: Remove this method and replace all call sites with #isBooleanValue()
-    /**
-     * returns true if the current value is boolean in nature.
-     * values that are considered booleans:
-     * - boolean value (true/false)
-     * - numeric integers (=0 is considered as false, !=0 is true)
-     * - one of the following strings: "true","false","on","off","yes","no","1","0"
-     *
-     * @deprecated Just present for providing backwards compatibility. Use {@link #isBooleanValue()} instead.
-     */
-    @Deprecated
-    boolean isBooleanValueLenient() throws IOException;
-
-    // TODO #22298: Remove this method and replace all call sites with #booleanValue()
-    /**
-     * @deprecated Just present for providing backwards compatibility. Use {@link #booleanValue()} instead.
-     */
-    @Deprecated
-    boolean booleanValueLenient() throws IOException;
 
     /**
      * Reads a plain binary value that was written via one of the following methods:

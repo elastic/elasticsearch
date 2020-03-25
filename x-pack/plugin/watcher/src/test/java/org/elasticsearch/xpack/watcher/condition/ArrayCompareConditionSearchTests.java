@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
@@ -29,9 +30,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
 
     public void testExecuteWithAggs() throws Exception {
         String index = "test-index";
-        String type = "test-type";
         client().admin().indices().prepareCreate(index)
-                .addMapping(type)
                 .get();
 
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
@@ -39,8 +38,8 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         int numberOfDocuments = randomIntBetween(1, 100);
         int numberOfDocumentsWatchingFor = 1 + numberOfDocuments;
         for (int i = 0; i < numberOfDocuments; i++) {
-            client().prepareIndex(index, type).setSource(source("elastic", "you know, for search", i)).get();
-            client().prepareIndex(index, type).setSource(source("fights_for_the_users", "you know, for the users", i)).get();
+            client().prepareIndex(index).setSource(source("elastic", "you know, for search", i)).get();
+            client().prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", i)).get();
         }
 
         refresh();
@@ -52,7 +51,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.aggregations.top_tweeters.buckets" , "doc_count", op,
                         numberOfDocumentsWatchingFor, quantifier, Clock.systemUTC());
 
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         Condition.Result result = condition.execute(ctx);
 
         boolean met = quantifier.eval(Arrays.<Object>asList(numberOfDocuments, numberOfDocuments), numberOfDocumentsWatchingFor, op);
@@ -70,13 +69,13 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.top_tweeters.buckets",
                 (Object) Arrays.asList(elastic, fightsForTheUsers)));
 
-        client().prepareIndex(index, type).setSource(source("fights_for_the_users", "you know, for the users", numberOfDocuments)).get();
+        client().prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", numberOfDocuments)).get();
         refresh();
 
         response = client().prepareSearch(index)
                 .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3)).get();
 
-        ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         result = condition.execute(ctx);
 
         met = quantifier.eval(Arrays.<Object>asList(numberOfDocumentsWatchingFor, numberOfDocuments), numberOfDocumentsWatchingFor, op);

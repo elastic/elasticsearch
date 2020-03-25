@@ -33,23 +33,24 @@ public class CircuitBreakingException extends ElasticsearchException {
 
     private final long bytesWanted;
     private final long byteLimit;
-
-    public CircuitBreakingException(String message) {
-        super(message);
-        this.bytesWanted = 0;
-        this.byteLimit = 0;
-    }
+    private final CircuitBreaker.Durability durability;
 
     public CircuitBreakingException(StreamInput in) throws IOException {
         super(in);
         byteLimit = in.readLong();
         bytesWanted = in.readLong();
+        durability = in.readEnum(CircuitBreaker.Durability.class);
     }
 
-    public CircuitBreakingException(String message, long bytesWanted, long byteLimit) {
+    public CircuitBreakingException(String message, CircuitBreaker.Durability durability) {
+        this(message, 0, 0, durability);
+    }
+
+    public CircuitBreakingException(String message, long bytesWanted, long byteLimit, CircuitBreaker.Durability durability) {
         super(message);
         this.bytesWanted = bytesWanted;
         this.byteLimit = byteLimit;
+        this.durability = durability;
     }
 
     @Override
@@ -57,6 +58,7 @@ public class CircuitBreakingException extends ElasticsearchException {
         super.writeTo(out);
         out.writeLong(byteLimit);
         out.writeLong(bytesWanted);
+        out.writeEnum(durability);
     }
 
     public long getBytesWanted() {
@@ -67,14 +69,19 @@ public class CircuitBreakingException extends ElasticsearchException {
         return this.byteLimit;
     }
 
+    public CircuitBreaker.Durability getDurability() {
+        return durability;
+    }
+
     @Override
     public RestStatus status() {
-        return RestStatus.SERVICE_UNAVAILABLE;
+        return RestStatus.TOO_MANY_REQUESTS;
     }
 
     @Override
     protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("bytes_wanted", bytesWanted);
         builder.field("bytes_limit", byteLimit);
+        builder.field("durability", durability);
     }
 }

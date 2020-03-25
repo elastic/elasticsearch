@@ -47,7 +47,9 @@ public class RandomQueryBuilder {
             case 1:
                 return new TermQueryBuilderTests().createTestQueryBuilder();
             case 2:
-                return new IdsQueryBuilderTests().createTestQueryBuilder();
+                // We make sure this query has no types to avoid deprecation warnings in the
+                // tests that use this method.
+            return new IdsQueryBuilderTests().createTestQueryBuilder();
             case 3:
                 return createMultiTermQuery(r);
             default:

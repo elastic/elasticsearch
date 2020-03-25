@@ -1,0 +1,86 @@
+[role="xpack"]
+[[java-rest-high-security-create-token]]
+=== Create Token API
+
+[[java-rest-high-security-create-token-request]]
+==== Request
+The `CreateTokenRequest` supports three different OAuth2 _grant types_:
+
+===== Password Grants
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-password-request]
+--------------------------------------------------
+
+===== Refresh Token Grants
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-refresh-request]
+--------------------------------------------------
+
+===== Client Credential Grants
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-client-credentials-request]
+--------------------------------------------------
+
+[[java-rest-high-security-create-token-execution]]
+==== Execution
+
+Creating a OAuth2 security token can be performed by passing the appropriate request to the
+ `security().createToken()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-execute]
+--------------------------------------------------
+
+[[java-rest-high-security-create-token-response]]
+==== Response
+
+The returned `CreateTokenResponse` contains the following properties:
+
+`accessToken`:: This is the newly created access token.
+   It can be used to authenticate to the Elasticsearch cluster.
+`type`:: The type of the token, this is always `"Bearer"`.
+`expiresIn`:: The length of time until the token will expire.
+   The token will be considered invalid after that time.
+`scope`:: The scope of the token. May be `null`.
+`refreshToken`:: A secondary "refresh" token that may be used to extend
+ the life of an access token. May be `null`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-response]
+--------------------------------------------------
+<1> The `accessToken` can be used to authentication to Elasticsearch.
+<2> The `refreshToken` can be used in to create a new `CreateTokenRequest` with a `refresh_token` grant.
+
+[[java-rest-high-security-create-token-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously using the `security().createTokenAsync()`
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-execute-async]
+--------------------------------------------------
+<1> The `CreateTokenRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once the request
+has completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for a `CreateTokenResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[create-token-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

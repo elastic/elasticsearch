@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.lucene.codecs.TermStats;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
@@ -29,7 +30,7 @@ public abstract class CandidateGenerator {
 
     public abstract boolean isKnownWord(BytesRef term) throws IOException;
 
-    public abstract long frequency(BytesRef term) throws IOException;
+    public abstract TermStats termStats(BytesRef term) throws IOException;
 
     public CandidateSet drawCandidates(BytesRef term) throws IOException {
         CandidateSet set = new CandidateSet(Candidate.EMPTY, createCandidate(term, true));
@@ -37,14 +38,14 @@ public abstract class CandidateGenerator {
     }
 
     public Candidate createCandidate(BytesRef term, boolean userInput) throws IOException {
-        return createCandidate(term, frequency(term), 1.0, userInput);
+        return createCandidate(term, termStats(term), 1.0, userInput);
     }
-    public Candidate createCandidate(BytesRef term, long frequency, double channelScore) throws IOException {
-        return createCandidate(term, frequency, channelScore, false);
+    public Candidate createCandidate(BytesRef term, TermStats termStats, double channelScore) throws IOException {
+        return createCandidate(term, termStats, channelScore, false);
     }
 
-    public abstract Candidate createCandidate(BytesRef term, long frequency, double channelScore, boolean userInput) throws IOException;
+    public abstract Candidate createCandidate(BytesRef term, TermStats termStats,
+                                                double channelScore, boolean userInput) throws IOException;
 
     public abstract CandidateSet drawCandidates(CandidateSet set) throws IOException;
-
 }

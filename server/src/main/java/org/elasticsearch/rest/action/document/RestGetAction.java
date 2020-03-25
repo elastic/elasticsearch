@@ -23,11 +23,8 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
@@ -35,6 +32,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -43,26 +41,22 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetAction extends BaseRestHandler {
 
-    public RestGetAction(final Settings settings, final RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/{index}/{type}/{id}", this);
-        controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
-    }
-
     @Override
     public String getName() {
         return "document_get_action";
     }
 
     @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/{index}/_doc/{id}"),
+            new Route(HEAD, "/{index}/_doc/{id}"));
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
-        final String type = request.param("type");
-        if (includeTypeName == false && MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
-            throw new IllegalArgumentException("You may only use the [include_type_name=false] option with the get APIs with the " +
-                    "[{index}/_doc/{id}] endpoint.");
-        }
-        final GetRequest getRequest = new GetRequest(request.param("index"), type, request.param("id"));
+        GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));
+
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));
         getRequest.preference(request.param("preference"));

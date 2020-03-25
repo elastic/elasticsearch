@@ -9,19 +9,18 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "admin_role2"
         ignore: 404
 
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
 
   - do:
       delete:
         index: foo
-        type: doc
         id: 1
         ignore: 404
 
@@ -29,7 +28,7 @@ teardown:
 "Test put role api using as array of index names":
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "admin_role2"
         body:  >
             {
@@ -44,19 +43,18 @@ teardown:
   - match: { role: { created: true } }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
               "password": "s3krit",
               "roles" : [ "admin_role2" ]
             }
-  - match: { user: { created: true } }
+  - match: { created: true }
 
   - do:
       index:
         index: foo
-        type: doc
         id: 1
         body: { foo: bar }
 
@@ -65,10 +63,8 @@ teardown:
         Authorization: "Basic am9lOnMza3JpdA=="
       get:
         index: foo
-        type: doc
         id: 1
   - match: { _index: foo }
-  - match: { _type: doc }
   - match: { _id: "1"}
   - match: { _source: { foo: bar }}
 
@@ -80,7 +76,7 @@ teardown:
   - match: { timed_out: false }
 
   - do:
-      xpack.security.get_role:
+      security.get_role:
         name: "admin_role2"
   - match: { admin_role2.cluster.0:  "all" }
   - match: { admin_role2.indices.0.names.0: "foo" }

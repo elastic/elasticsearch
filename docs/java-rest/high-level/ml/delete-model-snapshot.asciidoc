@@ -1,0 +1,31 @@
+--
+:api: delete-model-snapshot
+:request: DeleteModelSnapshotRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Delete Model Snapshot API
+
+[id="{upid}-{api}-request"]
+==== Delete Model Snapshot Request
+
+A +{request}+ object requires both a non-null `jobId` and a non-null `snapshotId`.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new request referencing existing `jobId` and `snapshotId`.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Delete Model Snapshot Response
+
+The returned +{response}+ object indicates the acknowledgement of the request:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+---------------------------------------------------
+<1> `isAcknowledged` was the deletion request acknowledged or not

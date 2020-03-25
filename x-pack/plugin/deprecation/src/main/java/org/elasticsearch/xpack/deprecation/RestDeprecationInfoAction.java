@@ -7,31 +7,34 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction.Request;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestDeprecationInfoAction extends BaseRestHandler {
-    public RestDeprecationInfoAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_xpack/migration/deprecations", this);
-        controller.registerHandler(RestRequest.Method.GET, "/{index}/_xpack/migration/deprecations", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_migration/deprecations"),
+            new Route(GET, "/{index}/_migration/deprecations"));
     }
 
     @Override
     public String getName() {
-        return "deprecation_info_action";
+        return "deprecation_info";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (request.method().equals(RestRequest.Method.GET)) {
+        if (request.method().equals(GET)) {
             return handleGet(request, client);
         } else {
             throw new IllegalArgumentException("illegal method [" + request.method() + "] for request [" + request.path() + "]");

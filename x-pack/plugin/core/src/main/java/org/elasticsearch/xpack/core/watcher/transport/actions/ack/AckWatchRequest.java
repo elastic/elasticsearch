@@ -90,11 +90,6 @@ public class AckWatchRequest extends ActionRequest {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("ack [").append(watchId).append("]");
         if (actionIds.length > 0) {

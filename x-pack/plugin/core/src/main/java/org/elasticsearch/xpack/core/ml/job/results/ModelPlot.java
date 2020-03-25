@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,9 +13,9 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.Date;
@@ -54,15 +53,8 @@ public class ModelPlot implements ToXContentObject, Writeable {
                 a -> new ModelPlot((String) a[0], (Date) a[1], (long) a[2], (int) a[3]));
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
-                    + Result.TIMESTAMP.getPreferredName() + "]");
-        }, Result.TIMESTAMP, ValueType.VALUE);
+        parser.declareField(ConstructingObjectParser.constructorArg(),
+                p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()), Result.TIMESTAMP, ValueType.VALUE);
         parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         parser.declareInt(ConstructingObjectParser.constructorArg(), DETECTOR_INDEX);
         parser.declareString((modelPlot, s) -> {}, Result.RESULT_TYPE);
@@ -109,20 +101,7 @@ public class ModelPlot implements ToXContentObject, Writeable {
 
     public ModelPlot(StreamInput in) throws IOException {
         jobId = in.readString();
-        // timestamp isn't optional in v5.5
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            if (in.readBoolean()) {
-                timestamp = new Date(in.readLong());
-            } else {
-                timestamp = new Date();
-            }
-        } else {
-            timestamp = new Date(in.readLong());
-        }
-        // bwc for removed id field
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            in.readOptionalString();
-        }
+        timestamp = new Date(in.readLong());
         partitionFieldName = in.readOptionalString();
         partitionFieldValue = in.readOptionalString();
         overFieldName = in.readOptionalString();
@@ -133,41 +112,15 @@ public class ModelPlot implements ToXContentObject, Writeable {
         modelLower = in.readDouble();
         modelUpper = in.readDouble();
         modelMedian = in.readDouble();
-        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
-            actual = in.readDouble();
-        } else {
-            actual = in.readOptionalDouble();
-        }
-        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-            bucketSpan = in.readLong();
-        } else {
-            bucketSpan = 0;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            detectorIndex = in.readInt();
-        } else {
-            // default to -1 as marker for no detector index
-            detectorIndex = -1;
-        }
+        actual = in.readOptionalDouble();
+        bucketSpan = in.readLong();
+        detectorIndex = in.readInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        // timestamp isn't optional in v5.5
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            boolean hasTimestamp = timestamp != null;
-            out.writeBoolean(hasTimestamp);
-            if (hasTimestamp) {
-                out.writeLong(timestamp.getTime());
-            }
-        } else {
-            out.writeLong(timestamp.getTime());
-        }
-        // bwc for removed id field
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            out.writeOptionalString(null);
-        }
+        out.writeLong(timestamp.getTime());
         out.writeOptionalString(partitionFieldName);
         out.writeOptionalString(partitionFieldValue);
         out.writeOptionalString(overFieldName);
@@ -178,23 +131,9 @@ public class ModelPlot implements ToXContentObject, Writeable {
         out.writeDouble(modelLower);
         out.writeDouble(modelUpper);
         out.writeDouble(modelMedian);
-        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
-            if (actual == null) {
-                // older versions cannot accommodate null, so we have no choice but to propagate the bug of
-                // https://github.com/elastic/x-pack-elasticsearch/issues/2528
-                out.writeDouble(0.0);
-            } else {
-                out.writeDouble(actual);
-            }
-        } else {
-            out.writeOptionalDouble(actual);
-        }
-        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-            out.writeLong(bucketSpan);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeInt(detectorIndex);
-        }
+        out.writeOptionalDouble(actual);
+        out.writeLong(bucketSpan);
+        out.writeInt(detectorIndex);
     }
 
     @Override
@@ -245,12 +184,8 @@ public class ModelPlot implements ToXContentObject, Writeable {
     }
 
     public String getId() {
-        int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        int length = (byFieldValue == null ? 0 : byFieldValue.length()) +
-                (overFieldValue == null ? 0 : overFieldValue.length()) +
-                (partitionFieldValue == null ? 0 : partitionFieldValue.length());
         return jobId + "_model_plot_" + timestamp.getTime() + "_" + bucketSpan
-                + "_" + detectorIndex + "_" + valuesHash + "_" + length;
+                + "_" + detectorIndex + "_" + MachineLearningField.valuesToId(byFieldValue, overFieldValue, partitionFieldValue);
     }
 
     public Date getTimestamp() {

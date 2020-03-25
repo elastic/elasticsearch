@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
@@ -82,11 +81,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
     public NodeAllocationResult(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
         shardStoreInfo = in.readOptionalWriteable(ShardStoreInfo::new);
-        if (in.getVersion().before(Version.V_5_2_1)) {
-            canAllocateDecision = Decision.readFrom(in);
-        } else {
-            canAllocateDecision = in.readOptionalWriteable(Decision::readFrom);
-        }
+        canAllocateDecision = in.readOptionalWriteable(Decision::readFrom);
         nodeDecision = AllocationDecision.readFrom(in);
         weightRanking = in.readVInt();
     }
@@ -95,15 +90,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
         out.writeOptionalWriteable(shardStoreInfo);
-        if (out.getVersion().before(Version.V_5_2_1)) {
-            if (canAllocateDecision == null) {
-                Decision.NO.writeTo(out);
-            } else {
-                canAllocateDecision.writeTo(out);
-            }
-        } else {
-            out.writeOptionalWriteable(canAllocateDecision);
-        }
+        out.writeOptionalWriteable(canAllocateDecision);
         nodeDecision.writeTo(out);
         out.writeVInt(weightRanking);
     }

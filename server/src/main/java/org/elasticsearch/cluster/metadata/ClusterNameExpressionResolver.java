@@ -19,9 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,21 +32,18 @@ import java.util.stream.Collectors;
  * Resolves cluster names from an expression. The expression must be the exact match of a cluster
  * name or must be a wildcard expression.
  */
-public final class ClusterNameExpressionResolver extends AbstractComponent {
+public final class ClusterNameExpressionResolver {
 
     private final WildcardExpressionResolver wildcardResolver = new WildcardExpressionResolver();
 
-    public ClusterNameExpressionResolver(Settings settings) {
-        super(settings);
-    }
-
     /**
-     * Resolves the provided cluster expression to matching cluster names. This method only
-     * supports exact or wildcard matches.
+     * Resolves the provided cluster expression to matching cluster names. Supports exact or wildcard matches.
+     * Throws {@link NoSuchRemoteClusterException} in case there are no registered remote clusters matching the provided expression.
      *
      * @param remoteClusters    the aliases for remote clusters
      * @param clusterExpression the expressions that can be resolved to cluster names.
      * @return the resolved cluster aliases.
+     * @throws NoSuchRemoteClusterException if there are no remote clusters matching the provided expression
      */
     public List<String> resolveClusterNames(Set<String> remoteClusters, String clusterExpression) {
         if (remoteClusters.contains(clusterExpression)) {
@@ -55,7 +51,7 @@ public final class ClusterNameExpressionResolver extends AbstractComponent {
         } else if (Regex.isSimpleMatchPattern(clusterExpression)) {
             return wildcardResolver.resolve(remoteClusters, clusterExpression);
         } else {
-            return Collections.emptyList();
+            throw new NoSuchRemoteClusterException(clusterExpression);
         }
     }
 
@@ -83,11 +79,7 @@ public final class ClusterNameExpressionResolver extends AbstractComponent {
         }
 
         private static Set<String> matches(Set<String> remoteClusters, String expression) {
-            if (expression.indexOf("*") == expression.length() - 1) {
-                return otherWildcard(remoteClusters, expression);
-            } else {
-                return otherWildcard(remoteClusters, expression);
-            }
+            return otherWildcard(remoteClusters, expression);
         }
 
         private static Set<String> otherWildcard(Set<String> remoteClusters, String expression) {

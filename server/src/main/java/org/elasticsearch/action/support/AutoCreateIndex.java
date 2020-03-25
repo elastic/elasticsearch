@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,13 +43,11 @@ public final class AutoCreateIndex {
     public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING =
         new Setting<>("action.auto_create_index", "true", AutoCreate::new, Property.NodeScope, Setting.Property.Dynamic);
 
-    private final boolean dynamicMappingDisabled;
     private final IndexNameExpressionResolver resolver;
     private volatile AutoCreate autoCreate;
 
     public AutoCreateIndex(Settings settings, ClusterSettings clusterSettings, IndexNameExpressionResolver resolver) {
         this.resolver = resolver;
-        dynamicMappingDisabled = !MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
         this.autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(AUTO_CREATE_INDEX_SETTING, this::setAutoCreate);
     }
@@ -73,12 +70,9 @@ public final class AutoCreateIndex {
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;
         if (autoCreate.autoCreateIndex == false) {
-            throw new IndexNotFoundException("no such index and [" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
+            throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
         }
-        if (dynamicMappingDisabled) {
-            throw new IndexNotFoundException("no such index and [" + MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey() + "] is [false]",
-                    index);
-        }
+
         // matches not set, default value of "true"
         if (autoCreate.expressions.isEmpty()) {
             return true;
@@ -90,11 +84,11 @@ public final class AutoCreateIndex {
                 if (include) {
                     return true;
                 }
-                throw new IndexNotFoundException("no such index and [" + AUTO_CREATE_INDEX_SETTING.getKey() + "] contains [-"
+                throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] contains [-"
                         + indexExpression + "] which forbids automatic creation of the index", index);
             }
         }
-        throw new IndexNotFoundException("no such index and [" + AUTO_CREATE_INDEX_SETTING.getKey() + "] ([" + autoCreate
+        throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] ([" + autoCreate
                 + "]) doesn't match", index);
     }
 

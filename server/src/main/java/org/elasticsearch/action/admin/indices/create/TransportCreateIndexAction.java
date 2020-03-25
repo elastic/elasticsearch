@@ -29,9 +29,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Create index action.
@@ -41,10 +44,11 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     private final MetaDataCreateIndexService createIndexService;
 
     @Inject
-    public TransportCreateIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportCreateIndexAction(TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CreateIndexRequest::new);
+        super(CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new,
+            indexNameExpressionResolver);
         this.createIndexService = createIndexService;
     }
 
@@ -55,8 +59,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     }
 
     @Override
-    protected CreateIndexResponse newResponse() {
-        return new CreateIndexResponse();
+    protected CreateIndexResponse read(StreamInput in) throws IOException {
+        return new CreateIndexResponse(in);
     }
 
     @Override
@@ -65,22 +69,23 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     }
 
     @Override
-    protected void masterOperation(final CreateIndexRequest request, final ClusterState state, final ActionListener<CreateIndexResponse> listener) {
+    protected void masterOperation(Task task, final CreateIndexRequest request, final ClusterState state,
+                                   final ActionListener<CreateIndexResponse> listener) {
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
         }
 
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
-        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(request, cause, indexName, request.index())
+        final CreateIndexClusterStateUpdateRequest updateRequest =
+            new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index())
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .settings(request.settings()).mappings(request.mappings())
-                .aliases(request.aliases()).customs(request.customs())
+                .aliases(request.aliases())
                 .waitForActiveShards(request.waitForActiveShards());
 
-        createIndexService.createIndex(updateRequest, ActionListener.wrap(response ->
-            listener.onResponse(new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)),
-            listener::onFailure));
+        createIndexService.createIndex(updateRequest, ActionListener.map(listener, response ->
+            new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));
     }
 
 }

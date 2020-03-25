@@ -27,6 +27,7 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.Nullable;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
@@ -79,7 +81,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     private BytesReference termVectors;
     private BytesReference headerRef;
     private String index;
-    private String type;
     private String id;
     private long docVersion;
     private boolean exists = false;
@@ -94,19 +95,38 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     int[] currentEndOffset = new int[0];
     BytesReference[] currentPayloads = new BytesReference[0];
 
-    public TermVectorsResponse(String index, String type, String id) {
+    public TermVectorsResponse(String index, String id) {
         this.index = index;
-        this.type = type;
         this.id = id;
     }
 
     TermVectorsResponse() {
     }
 
+    TermVectorsResponse(StreamInput in) throws IOException {
+        index = in.readString();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            // types no longer relevant so ignore
+            in.readString();
+        }
+        id = in.readString();
+        docVersion = in.readVLong();
+        exists = in.readBoolean();
+        artificial = in.readBoolean();
+        tookInMillis = in.readVLong();
+        if (in.readBoolean()) {
+            headerRef = in.readBytesReference();
+            termVectors = in.readBytesReference();
+        }
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            // types not supported so send an empty array to previous versions
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeVLong(docVersion);
         final boolean docExists = isExists();
@@ -123,21 +143,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     private boolean hasTermVectors() {
         assert (headerRef == null && termVectors == null) || (headerRef != null && termVectors != null);
         return headerRef != null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        type = in.readString();
-        id = in.readString();
-        docVersion = in.readVLong();
-        exists = in.readBoolean();
-        artificial = in.readBoolean();
-        tookInMillis = in.readVLong();
-        if (in.readBoolean()) {
-            headerRef = in.readBytesReference();
-            termVectors = in.readBytesReference();
-        }
     }
 
     public Fields getFields() throws IOException {
@@ -172,11 +177,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         assert index != null;
-        assert type != null;
         assert id != null;
         builder.startObject();
         builder.field(FieldStrings._INDEX, index);
-        builder.field(FieldStrings._TYPE, type);
         if (!isArtificial()) {
             builder.field(FieldStrings._ID, id);
         }
@@ -197,7 +200,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         return builder;
     }
 
-    private void buildField(XContentBuilder builder, final CharsRefBuilder spare, Fields theFields, Iterator<String> fieldIter) throws IOException {
+    private void buildField(XContentBuilder builder, final CharsRefBuilder spare,
+                            Fields theFields, Iterator<String> fieldIter) throws IOException {
         String fieldName = fieldIter.next();
         builder.startObject(fieldName);
         Terms curTerms = theFields.terms(fieldName);
@@ -213,7 +217,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         builder.endObject();
     }
 
-    private void buildTerm(XContentBuilder builder, final CharsRefBuilder spare, Terms curTerms, TermsEnum termIter, BoostAttribute boostAtt) throws IOException {
+    private void buildTerm(XContentBuilder builder, final CharsRefBuilder spare, Terms curTerms,
+                           TermsEnum termIter, BoostAttribute boostAtt) throws IOException {
         // start term, optimized writing
         BytesRef term = termIter.next();
         spare.copyUTF8Bytes(term);
@@ -235,7 +240,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         // boolean that says if these values actually were requested.
         // However, we can assume that they were not if the statistic values are
         // <= 0.
-        assert (((termIter.docFreq() > 0) && (termIter.totalTermFreq() > 0)) || ((termIter.docFreq() == -1) && (termIter.totalTermFreq() == -1)));
+        assert (((termIter.docFreq() > 0) && (termIter.totalTermFreq() > 0)) ||
+            ((termIter.docFreq() == -1) && (termIter.totalTermFreq() == -1)));
         int docFreq = termIter.docFreq();
         if (docFreq > 0) {
             builder.field(FieldStrings.DOC_FREQ, docFreq);
@@ -349,12 +355,13 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
          this.exists = exists;
     }
 
-    public void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
+    public void setFields(Fields termVectorsByField, Set<String> selectedFields,
+                          EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
         setFields(termVectorsByField, selectedFields, flags, topLevelFields, null, null);
     }
 
-    public void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields, @Nullable AggregatedDfs dfs,
-                          TermVectorsFilter termVectorsFilter) throws IOException {
+    public void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags,
+                          Fields topLevelFields, @Nullable AggregatedDfs dfs, TermVectorsFilter termVectorsFilter) throws IOException {
         TermVectorsWriter tvw = new TermVectorsWriter(this);
 
         if (termVectorsByField != null) {
@@ -381,10 +388,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     public String getIndex() {
         return index;
-    }
-
-    public String getType() {
-        return type;
     }
 
     public String getId() {

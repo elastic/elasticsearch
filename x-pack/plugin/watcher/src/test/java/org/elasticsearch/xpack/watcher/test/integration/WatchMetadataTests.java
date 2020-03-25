@@ -7,10 +7,12 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingLevel;
@@ -19,8 +21,9 @@ import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.joda.time.DateTime;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,7 +37,6 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
 
@@ -48,11 +50,11 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
         metaList.add("test");
 
         metadata.put("baz", metaList);
-        watcherClient().preparePutWatch("_name")
+        new PutWatchRequestBuilder(client()).setId("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(noneInput())
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+                        .condition(new CompareCondition("ctx.payload.hits.total.value", CompareCondition.Op.EQ, 1L))
                         .metadata(metadata))
                         .get();
 
@@ -62,7 +64,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
         SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
                 .setQuery(termQuery("metadata.foo", "bar"))
                 .get();
-        assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
     }
 
     public void testWatchMetadataAvailableAtExecution() throws Exception {
@@ -74,7 +76,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                 .setLevel(LoggingLevel.DEBUG)
                 .setCategory("test");
 
-        watcherClient().preparePutWatch("_name")
+        new PutWatchRequestBuilder(client()).setId("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 1 ? 2050")))
                         .input(noneInput())
@@ -84,8 +86,8 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                         .metadata(metadata))
                 .get();
 
-        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
-        ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_name")
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
+        ExecuteWatchResponse executeWatchResponse = new ExecuteWatchRequestBuilder(client()).setId("_name")
                 .setTriggerEvent(triggerEvent).setActionMode("_all", ActionExecutionMode.SIMULATE).get();
         Map<String, Object> result = executeWatchResponse.getRecordSource().getAsMap();
         logger.info("result=\n{}", result);

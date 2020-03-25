@@ -23,7 +23,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.TooLongFrameException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransport;
 
@@ -33,20 +32,27 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
 
     private static final int HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
 
+    {
+        setCumulator(COMPOSITE_CUMULATOR);
+    }
+
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         try {
-            BytesReference networkBytes = Netty4Utils.toBytesReference(in);
-            int messageLength = TcpTransport.readMessageLength(networkBytes);
-            // If the message length is -1, we have not read a complete header.
-            if (messageLength != -1) {
-                int messageLengthWithHeader = messageLength + HEADER_SIZE;
-                // If the message length is greater than the network bytes available, we have not read a complete frame.
-                if (messageLengthWithHeader <= networkBytes.length()) {
-                    final ByteBuf message = in.skipBytes(HEADER_SIZE);
-                    // 6 bytes would mean it is a ping. And we should ignore.
-                    if (messageLengthWithHeader != 6) {
+            while (in.readableBytes() >= HEADER_SIZE) {
+                int messageLength = TcpTransport.readMessageLength(Netty4Utils.toBytesReference(in));
+                if (messageLength == -1) {
+                    break;
+                } else {
+                    int messageLengthWithHeader = messageLength + HEADER_SIZE;
+                    // If the message length is greater than the network bytes available, we have not read a complete frame.
+                    if (messageLengthWithHeader > in.readableBytes()) {
+                        break;
+                    } else {
+                        final int readerIndex = in.readerIndex();
+                        final ByteBuf message = in.retainedSlice(readerIndex + HEADER_SIZE, messageLength);
                         out.add(message);
+                        in.readerIndex(readerIndex + messageLengthWithHeader);
                     }
                 }
             }

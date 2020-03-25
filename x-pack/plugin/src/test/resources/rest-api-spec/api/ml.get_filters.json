@@ -1,0 +1,40 @@
+{
+  "ml.get_filters":{
+    "documentation":{
+      "url":null
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/filters",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_ml/filters/{filter_id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "filter_id":{
+              "type":"string",
+              "description":"The ID of the filter to fetch"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "from":{
+        "type":"int",
+        "description":"skips a number of filters"
+      },
+      "size":{
+        "type":"int",
+        "description":"specifies a max number of filters to get"
+      }
+    }
+  }
+}

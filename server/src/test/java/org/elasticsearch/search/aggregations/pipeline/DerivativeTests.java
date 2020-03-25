@@ -19,9 +19,19 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
+
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativePipelineAggregationBuilder> {
 
@@ -46,4 +56,27 @@ public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativeP
         return factory;
     }
 
+    /**
+     * The validation should verify the parent aggregation is allowed.
+     */
+    public void testValidate() throws IOException {
+        assertThat(validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(),
+                new DerivativePipelineAggregationBuilder("name", "valid")), nullValue());
+    }
+
+    /**
+     * The validation should throw an IllegalArgumentException, since parent
+     * aggregation is not a type of HistogramAggregatorFactory,
+     * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
+     */
+    public void testValidateException() throws IOException {
+        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
+        aggBuilders.add(new DerivativePipelineAggregationBuilder("deriv", "der"));
+        AggregationBuilder parent = mock(AggregationBuilder.class);
+        when(parent.getName()).thenReturn("name");
+
+        assertThat(validate(parent, new DerivativePipelineAggregationBuilder("name", "invalid_agg>metric")), equalTo(
+                "Validation Failed: 1: derivative aggregation [name] must have a histogram, "
+                + "date_histogram or auto_date_histogram as parent;"));
+    }
 }

@@ -6,35 +6,45 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestFlushJobAction extends BaseRestHandler {
 
-    private final boolean DEFAULT_CALC_INTERIM = false;
-    private final String DEFAULT_START = "";
-    private final String DEFAULT_END = "";
-    private final String DEFAULT_ADVANCE_TIME = "";
-    private final String DEFAULT_SKIP_TIME = "";
+    private static final boolean DEFAULT_CALC_INTERIM = false;
+    private static final String DEFAULT_START = "";
+    private static final String DEFAULT_END = "";
+    private static final String DEFAULT_ADVANCE_TIME = "";
+    private static final String DEFAULT_SKIP_TIME = "";
 
-    public RestFlushJobAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH
-                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush", this);
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        // TODO: remove deprecated endpoint in 8.0.0
+        return Collections.singletonList(
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush",
+                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush")
+        );
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_flush_job_action";
+        return "ml_flush_job_action";
     }
 
     @Override

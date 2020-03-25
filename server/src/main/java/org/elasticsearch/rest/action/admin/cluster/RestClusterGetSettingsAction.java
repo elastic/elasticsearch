@@ -32,28 +32,33 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterGetSettingsAction extends BaseRestHandler {
 
+    private final Settings settings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
 
-    public RestClusterGetSettingsAction(Settings settings, RestController controller, ClusterSettings clusterSettings,
-            SettingsFilter settingsFilter) {
-        super(settings);
+    public RestClusterGetSettingsAction(Settings settings, ClusterSettings clusterSettings, SettingsFilter settingsFilter) {
+        this.settings = settings;
         this.clusterSettings = clusterSettings;
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
         this.settingsFilter = settingsFilter;
     }
 
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cluster/settings"));
+    }
     @Override
     public String getName() {
         return "cluster_get_settings_action";
@@ -87,13 +92,19 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     private XContentBuilder renderResponse(ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params)
             throws IOException {
-        return
-            new ClusterGetSettingsResponse(
-                state.metaData().persistentSettings(),
-                state.metaData().transientSettings(),
-                renderDefaults ?
-                    settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), this.settings)) :
-                    Settings.EMPTY
-            ).toXContent(builder, params);
+        return response(state, renderDefaults, settingsFilter, clusterSettings, settings).toXContent(builder, params);
     }
+
+    static ClusterGetSettingsResponse response(
+            final ClusterState state,
+            final boolean renderDefaults,
+            final SettingsFilter settingsFilter,
+            final ClusterSettings clusterSettings,
+            final Settings settings) {
+        return new ClusterGetSettingsResponse(
+                settingsFilter.filter(state.metaData().persistentSettings()),
+                settingsFilter.filter(state.metaData().transientSettings()),
+                renderDefaults ? settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), settings)) : Settings.EMPTY);
+    }
+
 }

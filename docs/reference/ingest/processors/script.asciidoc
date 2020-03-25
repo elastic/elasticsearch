@@ -1,0 +1,99 @@
+[[script-processor]]
+=== Script Processor
+
+Allows inline and stored scripts to be executed within ingest pipelines.
+
+See <<modules-scripting-using, How to use scripts>> to learn more about writing scripts. The Script Processor
+leverages caching of compiled scripts for improved performance. Since the
+script specified within the processor is potentially re-compiled per document, it is important
+to understand how script caching works. To learn more about
+caching see <<modules-scripting-using-caching, Script Caching>>.
+
+[[script-options]]
+.Script Options
+[options="header"]
+|======
+| Name                   | Required  | Default    | Description
+| `lang`                 | no        | "painless" | The scripting language
+| `id`                   | no        | -          | The stored script id to refer to
+| `source`               | no        | -          | An inline script to be executed
+| `params`               | no        | -          | Script Parameters
+include::common-options.asciidoc[]
+|======
+
+One of `id` or `source` options must be provided in order to properly reference a script to execute.
+
+You can access the current ingest document from within the script context by using the `ctx` variable.
+
+The following example sets a new field called `field_a_plus_b_times_c` to be the sum of two existing
+numeric fields `field_a` and `field_b` multiplied by the parameter param_c:
+
+[source,js]
+--------------------------------------------------
+{
+  "script": {
+    "lang": "painless",
+    "source": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
+    "params": {
+      "param_c": 10
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+It is possible to use the Script Processor to manipulate document metadata like `_index` during
+ingestion. Here is an example of an Ingest Pipeline that renames the index to `my_index` no matter what
+was provided in the original index request:
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/my_index
+{
+    "description": "use index:my_index",
+    "processors": [
+      {
+        "script": {
+          "source": """
+            ctx._index = 'my_index';
+          """
+        }
+      }
+    ]
+}
+--------------------------------------------------
+
+Using the above pipeline, we can attempt to index a document into the `any_index` index.
+
+[source,console]
+--------------------------------------------------
+PUT any_index/_doc/1?pipeline=my_index
+{
+  "message": "text"
+}
+--------------------------------------------------
+// TEST[continued]
+
+The response from the above index request:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "_index": "my_index",
+  "_id": "1",
+  "_version": 1,
+  "result": "created",
+  "_shards": {
+    "total": 2,
+    "successful": 1,
+    "failed": 0
+  },
+  "_seq_no": 89,
+  "_primary_term": 1,
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+
+In the above response, you can see that our document was actually indexed into `my_index` instead of
+`any_index`. This type of manipulation is often convenient in pipelines that have various branches of transformation,
+and depending on the progress made, indexed into different indices.

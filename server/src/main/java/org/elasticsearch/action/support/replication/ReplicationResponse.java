@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,15 +50,15 @@ public class ReplicationResponse extends ActionResponse {
 
     private ShardInfo shardInfo;
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardInfo = ReplicationResponse.ShardInfo.readShardInfo(in);
+    public ReplicationResponse() {}
+
+    public ReplicationResponse(StreamInput in) throws IOException {
+        super(in);
+        shardInfo = new ReplicationResponse.ShardInfo(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         shardInfo.writeTo(out);
     }
 
@@ -70,7 +70,7 @@ public class ReplicationResponse extends ActionResponse {
         this.shardInfo = shardInfo;
     }
 
-    public static class ShardInfo implements Streamable, ToXContentObject {
+    public static class ShardInfo implements Writeable, ToXContentObject {
 
         private static final String TOTAL = "total";
         private static final String SUCCESSFUL = "successful";
@@ -81,7 +81,16 @@ public class ReplicationResponse extends ActionResponse {
         private int successful;
         private Failure[] failures = EMPTY;
 
-        public ShardInfo() {
+        public ShardInfo() {}
+
+        public ShardInfo(StreamInput in) throws IOException {
+            total = in.readVInt();
+            successful = in.readVInt();
+            int size = in.readVInt();
+            failures = new Failure[size];
+            for (int i = 0; i < size; i++) {
+                failures[i] = new Failure(in);
+            }
         }
 
         public ShardInfo(int total, int successful, Failure... failures) {
@@ -129,19 +138,6 @@ public class ReplicationResponse extends ActionResponse {
                 }
             }
             return status;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            total = in.readVInt();
-            successful = in.readVInt();
-            int size = in.readVInt();
-            failures = new Failure[size];
-            for (int i = 0; i < size; i++) {
-                Failure failure = new Failure();
-                failure.readFrom(in);
-                failures[i] = failure;
-            }
         }
 
         @Override
@@ -218,13 +214,7 @@ public class ReplicationResponse extends ActionResponse {
                 '}';
         }
 
-        public static ShardInfo readShardInfo(StreamInput in) throws IOException {
-            ShardInfo shardInfo = new ShardInfo();
-            shardInfo.readFrom(in);
-            return shardInfo;
-        }
-
-        public static class Failure implements ShardOperationFailedException, ToXContentObject {
+        public static class Failure extends ShardOperationFailedException implements ToXContentObject {
 
             private static final String _INDEX = "_index";
             private static final String _SHARD = "_shard";
@@ -235,35 +225,26 @@ public class ReplicationResponse extends ActionResponse {
 
             private ShardId shardId;
             private String nodeId;
-            private Exception cause;
-            private RestStatus status;
             private boolean primary;
 
+            public Failure(StreamInput in) throws IOException {
+                shardId = new ShardId(in);
+                super.shardId = shardId.getId();
+                index = shardId.getIndexName();
+                nodeId = in.readOptionalString();
+                cause = in.readException();
+                status = RestStatus.readFrom(in);
+                primary = in.readBoolean();
+            }
+
             public Failure(ShardId  shardId, @Nullable String nodeId, Exception cause, RestStatus status, boolean primary) {
+                super(shardId.getIndexName(), shardId.getId(), ExceptionsHelper.stackTrace(cause), status, cause);
                 this.shardId = shardId;
                 this.nodeId = nodeId;
-                this.cause = cause;
-                this.status = status;
                 this.primary = primary;
             }
 
             Failure() {
-            }
-
-            /**
-             * @return On what index the failure occurred.
-             */
-            @Override
-            public String index() {
-                return shardId.getIndexName();
-            }
-
-            /**
-             * @return On what shard id the failure occurred.
-             */
-            @Override
-            public int shardId() {
-                return shardId.id();
             }
 
             public ShardId fullShardId() {
@@ -279,41 +260,11 @@ public class ReplicationResponse extends ActionResponse {
             }
 
             /**
-             * @return A text description of the failure
-             */
-            @Override
-            public String reason() {
-                return ExceptionsHelper.detailedMessage(cause);
-            }
-
-            /**
-             * @return The status to report if this failure was a primary failure.
-             */
-            @Override
-            public RestStatus status() {
-                return status;
-            }
-
-            @Override
-            public Throwable getCause() {
-                return cause;
-            }
-
-            /**
              * @return Whether this failure occurred on a primary shard.
              * (this only reports true for delete by query)
              */
             public boolean primary() {
                 return primary;
-            }
-
-            @Override
-            public void readFrom(StreamInput in) throws IOException {
-                shardId = ShardId.readShardId(in);
-                nodeId = in.readOptionalString();
-                cause = in.readException();
-                status = RestStatus.readFrom(in);
-                primary = in.readBoolean();
             }
 
             @Override

@@ -23,10 +23,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportService;
 
@@ -35,13 +35,14 @@ import java.util.List;
 /**
  * Flush Action.
  */
-public class TransportFlushAction extends TransportBroadcastReplicationAction<FlushRequest, FlushResponse, ShardFlushRequest, ReplicationResponse> {
+public class TransportFlushAction
+        extends TransportBroadcastReplicationAction<FlushRequest, FlushResponse, ShardFlushRequest, ReplicationResponse> {
 
     @Inject
-    public TransportFlushAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                TransportShardFlushAction replicatedFlushAction) {
-        super(FlushAction.NAME, FlushRequest::new, settings, clusterService, transportService, actionFilters, indexNameExpressionResolver, replicatedFlushAction);
+    public TransportFlushAction(ClusterService clusterService, TransportService transportService, NodeClient client,
+                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(FlushAction.NAME, FlushRequest::new, clusterService, transportService, client, actionFilters, indexNameExpressionResolver,
+            TransportShardFlushAction.TYPE);
     }
 
     @Override

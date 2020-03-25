@@ -25,6 +25,8 @@ import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
@@ -103,7 +105,8 @@ public final class XContentBuilder implements Closeable, Flushable {
         writers.put(ZonedDateTime.class, (b, v) -> b.value(v.toString()));
         writers.put(Calendar.class, XContentBuilder::timeValue);
         writers.put(GregorianCalendar.class, XContentBuilder::timeValue);
-
+        writers.put(BigInteger.class, (b, v) -> b.value((BigInteger) v));
+        writers.put(BigDecimal.class, (b, v) -> b.value((BigDecimal) v));
 
         Map<Class<?>, HumanReadableTransformer> humanReadableTransformer = new HashMap<>();
         Map<Class<?>, Function<Object, Object>> dateTransformers = new HashMap<>();
@@ -547,6 +550,81 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     ////////////////////////////////////////////////////////////////////////////
+    // BigInteger
+    //////////////////////////////////
+
+    public XContentBuilder field(String name, BigInteger value) throws IOException {
+        if (value == null) {
+            return nullField(name);
+        }
+        ensureNameNotNull(name);
+        generator.writeNumberField(name, value);
+        return this;
+    }
+
+    public XContentBuilder array(String name, BigInteger[] values) throws IOException {
+        return field(name).values(values);
+    }
+
+    private XContentBuilder values(BigInteger[] values) throws IOException {
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (BigInteger b : values) {
+            value(b);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder value(BigInteger value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        generator.writeNumber(value);
+        return this;
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    // BigDecimal
+    //////////////////////////////////
+
+    public XContentBuilder field(String name, BigDecimal value) throws IOException {
+        if (value == null) {
+            return nullField(name);
+        }
+        ensureNameNotNull(name);
+        generator.writeNumberField(name, value);
+        return this;
+    }
+
+    public XContentBuilder array(String name, BigDecimal[] values) throws IOException {
+        return field(name).values(values);
+    }
+
+    private XContentBuilder values(BigDecimal[] values) throws IOException {
+        if (values == null) {
+            return nullValue();
+        }
+        startArray();
+        for (BigDecimal b : values) {
+            value(b);
+        }
+        endArray();
+        return this;
+    }
+
+    public XContentBuilder value(BigDecimal value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        generator.writeNumber(value);
+        return this;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
     // String
     //////////////////////////////////
 
@@ -741,7 +819,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         } else if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             final Map<String, ?> valueMap = (Map<String, ?>) value;
-            map(valueMap, ensureNoSelfReferences);
+            map(valueMap, ensureNoSelfReferences, true);
         } else if (value instanceof Iterable) {
             value((Iterable<?>) value, ensureNoSelfReferences);
         } else if (value instanceof Object[]) {
@@ -789,10 +867,15 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public XContentBuilder map(Map<String, ?> values) throws IOException {
-        return map(values, true);
+        return map(values, true, true);
     }
 
-    private XContentBuilder map(Map<String, ?> values, boolean ensureNoSelfReferences) throws IOException {
+    /** writes a map without the start object and end object headers */
+    public XContentBuilder mapContents(Map<String, ?> values) throws IOException {
+        return map(values, true, false);
+    }
+
+    private XContentBuilder map(Map<String, ?> values, boolean ensureNoSelfReferences, boolean writeStartAndEndHeaders) throws IOException {
         if (values == null) {
             return nullValue();
         }
@@ -803,13 +886,17 @@ public final class XContentBuilder implements Closeable, Flushable {
             ensureNoSelfReferences(values);
         }
 
-        startObject();
+        if (writeStartAndEndHeaders) {
+            startObject();
+        }
         for (Map.Entry<String, ?> value : values.entrySet()) {
             field(value.getKey());
             // pass ensureNoSelfReferences=false as we already performed the check at a higher level
             unknownValue(value.getValue(), false);
         }
-        endObject();
+        if (writeStartAndEndHeaders) {
+            endObject();
+        }
         return this;
     }
 

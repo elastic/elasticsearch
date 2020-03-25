@@ -75,10 +75,14 @@ public class StartTrialClusterTask extends ClusterStateUpdateTask {
             License.Builder specBuilder = License.builder()
                     .uid(UUID.randomUUID().toString())
                     .issuedTo(clusterName)
-                    .maxNodes(LicenseService.SELF_GENERATED_LICENSE_MAX_NODES)
                     .issueDate(issueDate)
                     .type(request.getType())
                     .expiryDate(expiryDate);
+            if (License.LicenseType.isEnterprise(request.getType())) {
+                specBuilder.maxResourceUnits(LicenseService.SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS);
+            } else {
+                specBuilder.maxNodes(LicenseService.SELF_GENERATED_LICENSE_MAX_NODES);
+            }
             License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
             LicensesMetaData newLicensesMetaData = new LicensesMetaData(selfGeneratedLicense, Version.CURRENT);
             mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetaData);

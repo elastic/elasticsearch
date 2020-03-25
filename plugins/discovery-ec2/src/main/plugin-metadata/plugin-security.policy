@@ -27,4 +27,6 @@ grant {
 
   // ec2 client opens socket connections for discovery
   permission java.net.SocketPermission "*", "connect";
+
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

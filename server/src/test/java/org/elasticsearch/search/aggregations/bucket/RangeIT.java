@@ -33,7 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -84,11 +84,20 @@ public class RangeIT extends ESIntegTestCase {
                 return value.getValue();
             });
 
-            scripts.put("doc['" + MULTI_VALUED_FIELD_NAME + "'].values", vars -> {
+            scripts.put("doc['" + MULTI_VALUED_FIELD_NAME + "']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get(MULTI_VALUED_FIELD_NAME);
-                return value.getValues();
+                return value;
             });
+
+            return scripts;
+        }
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("Math.random()", vars -> RangeIT.randomDouble());
 
             return scripts;
         }
@@ -100,16 +109,16 @@ public class RangeIT extends ESIntegTestCase {
         numDocs = randomIntBetween(10, 20);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, i+1)
                     .startArray(MULTI_VALUED_FIELD_NAME).value(i+1).value(i+2).endArray()
                     .endObject()));
         }
         createIndex("idx_unmapped");
-        prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").execute().actionGet();
+        prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer").get();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(jsonBuilder()
                     .startObject()
                     // shift sequence by 1, to ensure we have negative values, and value 3 on the edge of the tested ranges
                     .field(SINGLE_VALUED_FIELD_NAME, i * 2 - 1)
@@ -119,16 +128,16 @@ public class RangeIT extends ESIntegTestCase {
         // Create two indices and add the field 'route_length_miles' as an alias in
         // one, and a concrete field in the other.
         prepareCreate("old_index")
-            .addMapping("_doc", "distance", "type=double", "route_length_miles", "type=alias,path=distance")
+            .setMapping("distance", "type=double", "route_length_miles", "type=alias,path=distance")
             .get();
         prepareCreate("new_index")
-            .addMapping("_doc", "route_length_miles", "type=double")
+            .setMapping("route_length_miles", "type=double")
             .get();
 
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 42.0));
-        builders.add(client().prepareIndex("old_index", "_doc").setSource("distance", 50.5));
-        builders.add(client().prepareIndex("new_index", "_doc").setSource("route_length_miles", 100.2));
-        builders.add(client().prepareIndex("new_index", "_doc").setSource(Collections.emptyMap()));
+        builders.add(client().prepareIndex("old_index").setSource("distance", 42.0));
+        builders.add(client().prepareIndex("old_index").setSource("distance", 50.5));
+        builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
+        builders.add(client().prepareIndex("new_index").setSource(Collections.emptyMap()));
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -142,7 +151,7 @@ public class RangeIT extends ESIntegTestCase {
                                         .addUnboundedTo(3)
                                         .addRange(3, 6)
                                         .addUnboundedFrom(6)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
         Terms terms = response.getAggregations().get("terms");
@@ -204,7 +213,7 @@ public class RangeIT extends ESIntegTestCase {
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -248,7 +257,7 @@ public class RangeIT extends ESIntegTestCase {
                 .prepareSearch("idx")
                 .addAggregation(
                         range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6).format("#"))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -294,7 +303,7 @@ public class RangeIT extends ESIntegTestCase {
                         .addUnboundedTo("r1", 3)
                         .addRange("r2", 3, 6)
                         .addUnboundedFrom("r3", 6))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -341,7 +350,7 @@ public class RangeIT extends ESIntegTestCase {
                         .addRange(3, 6)
                         .addUnboundedFrom(6)
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -473,7 +482,7 @@ public class RangeIT extends ESIntegTestCase {
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -647,7 +656,7 @@ public class RangeIT extends ESIntegTestCase {
                         .field(MULTI_VALUED_FIELD_NAME)
                         .addUnboundedTo(-1)
                         .addUnboundedFrom(1000))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -682,7 +691,7 @@ public class RangeIT extends ESIntegTestCase {
             client().prepareSearch("idx")
                 .addAggregation(range("foobar")
                     .field(SINGLE_VALUED_FIELD_NAME))
-                .execute().actionGet();
+                .get();
             fail();
         } catch (SearchPhaseExecutionException spee){
             Throwable rootCause = spee.getCause().getCause();
@@ -693,7 +702,7 @@ public class RangeIT extends ESIntegTestCase {
 
     public void testScriptMultiValued() throws Exception {
         Script script =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "'].values", Collections.emptyMap());
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -766,7 +775,7 @@ public class RangeIT extends ESIntegTestCase {
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -806,7 +815,7 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().get();
 
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(range("range")
@@ -814,7 +823,7 @@ public class RangeIT extends ESIntegTestCase {
                         .addUnboundedTo(3)
                         .addRange(3, 6)
                         .addUnboundedFrom(6))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -861,7 +870,7 @@ public class RangeIT extends ESIntegTestCase {
                         .addRange(3, 6)
                         .addRange(4, 5)
                         .addUnboundedFrom(4))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -923,7 +932,7 @@ public class RangeIT extends ESIntegTestCase {
                                                 .addRange("0-2", 0.0, 2.0)))
                 .get();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -945,16 +954,16 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     /**
-     * Make sure that a request using a script does not get cached and a request
-     * not using a script does get cached.
+     * Make sure that a request using a deterministic script or not using a script get cached.
+     * Ensure requests using nondeterministic scripts do not get cached.
      */
-    public void testDontCacheScripts() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "i", "type=integer")
+    public void testScriptCaching() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").setMapping("i", "type=integer")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
         indexRandom(true,
-                client().prepareIndex("cache_test_idx", "type", "1").setSource(jsonBuilder().startObject().field("i", 1).endObject()),
-                client().prepareIndex("cache_test_idx", "type", "2").setSource(jsonBuilder().startObject().field("i", 2).endObject()));
+                client().prepareIndex("cache_test_idx").setId("1").setSource(jsonBuilder().startObject().field("i", 1).endObject()),
+                client().prepareIndex("cache_test_idx").setId("2").setSource(jsonBuilder().startObject().field("i", 2).endObject()));
 
         // Make sure we are starting with a clear cache
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
@@ -962,12 +971,12 @@ public class RangeIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script does not get cached
+        // Test that a request using a nondeterministic script does not get cached
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
                 range("foo").field("i").script(
-                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap())).addRange(0, 10))
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap())).addRange(0, 10))
                 .get();
         assertSearchResponse(r);
 
@@ -976,15 +985,26 @@ public class RangeIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // To make sure that the cache is working test that a request not using
-        // a script is cached
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(range("foo").field("i").addRange(0, 10)).get();
+        // Test that a request using a deterministic script gets cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
+                range("foo").field("i").script(
+                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap())).addRange(0, 10))
+                .get();
         assertSearchResponse(r);
 
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
+
+        // Ensure that non-scripted requests are cached as normal
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(range("foo").field("i").addRange(0, 10)).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(2L));
     }
 
     public void testFieldAlias() {
@@ -994,7 +1014,7 @@ public class RangeIT extends ESIntegTestCase {
                 .addUnboundedTo(50.0)
                 .addRange(50.0, 150.0)
                 .addUnboundedFrom(150.0))
-            .execute().actionGet();
+            .get();
 
         assertSearchResponse(response);
 
@@ -1029,7 +1049,7 @@ public class RangeIT extends ESIntegTestCase {
                 .addUnboundedTo(50.0)
                 .addRange(50.0, 150.0)
                 .addUnboundedFrom(150.0))
-            .execute().actionGet();
+            .get();
 
         assertSearchResponse(response);
 

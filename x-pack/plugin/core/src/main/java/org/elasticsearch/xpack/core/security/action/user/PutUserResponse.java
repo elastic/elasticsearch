@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionResponse;
@@ -21,7 +22,9 @@ public class PutUserResponse extends ActionResponse implements ToXContentObject 
 
     private boolean created;
 
-    public PutUserResponse() {
+    public PutUserResponse(StreamInput in) throws IOException {
+        super(in);
+        this.created = in.readBoolean();
     }
 
     public PutUserResponse(boolean created) {
@@ -33,20 +36,14 @@ public class PutUserResponse extends ActionResponse implements ToXContentObject 
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject().field("created", created).endObject();
-        return builder;
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(created);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.created = in.readBoolean();
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+            .field("created", created)
+            .endObject();
     }
 }

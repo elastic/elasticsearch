@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -48,7 +51,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         //test store, ... all the parameters that are not to be changed just like in other fields
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject(fieldName)
                         .field("enabled", true)
                             .field("store", false)
@@ -57,7 +60,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             .endObject();
         XContentBuilder mappingUpdate = XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject(fieldName)
                         .field("enabled", true)
                         .field("store", true)
@@ -73,25 +76,26 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     }
 
     protected void testConflictWhileMergingAndMappingUnchanged(XContentBuilder mapping, XContentBuilder mappingUpdate) throws IOException {
-        IndexService indexService = createIndex("test", Settings.builder().build(), "type", mapping);
-        CompressedXContent mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
+        IndexService indexService = createIndex("test", Settings.builder().build(), mapping);
+        CompressedXContent mappingBeforeUpdate = indexService.mapperService().documentMapper().mappingSource();
         // simulate like in MetaDataMappingService#putMapping
         try {
-            indexService.mapperService().merge("type", new CompressedXContent(BytesReference.bytes(mappingUpdate)), MapperService.MergeReason.MAPPING_UPDATE);
+            indexService.mapperService().merge("type", new CompressedXContent(BytesReference.bytes(mappingUpdate)),
+                MapperService.MergeReason.MAPPING_UPDATE);
             fail();
         } catch (IllegalArgumentException e) {
             // expected
         }
         // make sure simulate flag actually worked - no mappings applied
-        CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
+        CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper().mappingSource();
         assertThat(mappingAfterUpdate, equalTo(mappingBeforeUpdate));
     }
 
     public void testConflictSameType() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("foo").field("type", "long").endObject()
                 .endObject().endObject().endObject();
-        MapperService mapperService = createIndex("test", Settings.builder().build(), "type", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().build(), mapping).mapperService();
 
         XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("foo").field("type", "double").endObject()
@@ -111,15 +115,15 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
         }
 
-        assertThat(((FieldMapper) mapperService.documentMapper("type").mapping().root().getMapper("foo")).fieldType().typeName(),
+        assertThat(((FieldMapper) mapperService.documentMapper().mapping().root().getMapper("foo")).fieldType().typeName(),
                 equalTo("long"));
     }
 
     public void testConflictNewType() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("foo").field("type", "long").endObject()
                 .endObject().endObject().endObject();
-        MapperService mapperService = createIndex("test", Settings.builder().build(), "type", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().build(), mapping).mapperService();
 
         XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("foo").field("type", "double").endObject()
@@ -133,7 +137,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [long] to [double]"));
         }
 
-        assertThat(((FieldMapper) mapperService.documentMapper("type").mapping().root().getMapper("foo")).fieldType().typeName(),
+        assertThat(((FieldMapper) mapperService.documentMapper().mapping().root().getMapper("foo")).fieldType().typeName(),
                 equalTo("long"));
     }
 
@@ -147,14 +151,14 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
             fail();
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice."));
         }
 
         try {
             mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
             fail();
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice."));
         }
     }
 
@@ -188,4 +192,28 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 () -> mapperService2.merge("type", new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), equalTo("mapper [foo] of different type, current_type [long], merged_type [ObjectMapper]"));
     }
+
+    public void testMappingVersion() {
+        createIndex("test", client().admin().indices().prepareCreate("test"));
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        {
+            final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
+            final PutMappingRequest request = new PutMappingRequest();
+            request.indices("test");
+            request.source("field", "type=text");
+            client().admin().indices().putMapping(request).actionGet();
+            assertThat(clusterService.state().metaData().index("test").getMappingVersion(), Matchers.equalTo(1 + previousVersion));
+        }
+
+        {
+            final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
+            final PutMappingRequest request = new PutMappingRequest();
+            request.indices("test");
+            request.source("field", "type=text");
+            client().admin().indices().putMapping(request).actionGet();
+            // the version should be unchanged after putting the same mapping again
+            assertThat(clusterService.state().metaData().index("test").getMappingVersion(), Matchers.equalTo(previousVersion));
+        }
+    }
+
 }

@@ -1,9 +1,9 @@
-[[search-request-version]]
-=== Version
+[[request-body-search-version]]
+==== Version
 
 Returns a version for each search hit.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -13,4 +13,3 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE

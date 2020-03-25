@@ -1,0 +1,56 @@
+[role="xpack"]
+[[java-rest-high-x-pack-watcher-put-watch]]
+=== Put watch API
+
+[[java-rest-high-x-pack-watcher-put-watch-execution]]
+==== Execution
+
+General information about the installed {watcher} features can be retrieved
+using the `watcher()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-execute]
+--------------------------------------------------
+<1> Allows to store the watch, but to not trigger it. Defaults to `true`
+
+[[java-rest-high-x-pack-watcher-put-watch-response]]
+==== Response
+
+The returned `PutWatchResponse` contains `created`, `id`,
+and `version` information.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-response]
+--------------------------------------------------
+<1> `_id` contains id of the watch
+<2> `created` is a boolean indicating whether the watch was created for the first time
+<3> `_version` returns the newly created version
+
+[[java-rest-high-x-pack-watcher-put-watch-async]]
+==== Asynchronous execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-execute-async]
+--------------------------------------------------
+<1> The `PutWatchRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `PutWatchResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

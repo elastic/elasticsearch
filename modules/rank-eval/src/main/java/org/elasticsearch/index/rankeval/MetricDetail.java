@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Details about a specific {@link EvaluationMetric} that should be included in the resonse.
+ * Details about a specific {@link EvaluationMetric} that should be included in the response.
  */
 public interface MetricDetail extends ToXContentObject, NamedWriteable {
 
@@ -37,7 +37,7 @@ public interface MetricDetail extends ToXContentObject, NamedWriteable {
         innerToXContent(builder, params);
         builder.endObject();
         return builder.endObject();
-    };
+    }
 
     default String getMetricName() {
         return getWriteableName();

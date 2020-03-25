@@ -20,25 +20,22 @@
 package org.elasticsearch.painless;
 
 import junit.framework.AssertionFailedError;
-import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.antlr.Walker;
-import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
+import static org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -66,8 +63,9 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(SearchScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(ExecutableScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.painless.test"));
+        contexts.put(PainlessTestScript.CONTEXT, whitelists);
         return contexts;
     }
 
@@ -85,27 +83,25 @@ public abstract class ScriptTestCase extends ESTestCase {
     public Object exec(String script, Map<String, Object> vars, boolean picky) {
         Map<String,String> compilerSettings = new HashMap<>();
         compilerSettings.put(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10");
-        return exec(script, vars, compilerSettings, null, picky);
+        return exec(script, vars, compilerSettings, picky);
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
-    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, Scorer scorer, boolean picky) {
+    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
-            PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
-            ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, GenericElasticsearchScript.class);
+            ScriptClassInfo scriptClassInfo =
+                    new ScriptClassInfo(scriptEngine.getContextsToLookups().get(PainlessTestScript.CONTEXT), PainlessTestScript.class);
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
-            Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), getTestName(), script, pickySettings, painlessLookup, null);
+            Walker.buildPainlessTree(scriptClassInfo, getTestName(), script, pickySettings,
+                    scriptEngine.getContextsToLookups().get(PainlessTestScript.CONTEXT), null);
         }
         // test actual script execution
-        ExecutableScript.Factory factory = scriptEngine.compile(null, script, ExecutableScript.CONTEXT, compileParams);
-        ExecutableScript executableScript = factory.newInstance(vars);
-        if (scorer != null) {
-            ((ScorerAware)executableScript).setScorer(scorer);
-        }
-        return executableScript.run();
+        PainlessTestScript.Factory factory = scriptEngine.compile(null, script, PainlessTestScript.CONTEXT, compileParams);
+        PainlessTestScript testScript = factory.newInstance(vars == null ? Collections.emptyMap() : vars);
+        return testScript.execute();
     }
 
     /**

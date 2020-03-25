@@ -35,9 +35,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -59,7 +62,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareCreate("index1"));
         assertAcked(client().admin().indices().prepareCreate("filtered"));
         assertAcked(client().admin().indices().preparePutMapping("index1", "filtered")
-                .setType("_doc").setSource(TEST_ITEM, XContentType.JSON));
+                .setSource(TEST_ITEM, XContentType.JSON));
     }
 
     public void testGetMappings() {
@@ -75,36 +78,50 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     public void testGetFieldMappings() {
         GetFieldMappingsResponse getFieldMappingsResponse = client().admin().indices().prepareGetFieldMappings().setFields("*").get();
-        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mappings = getFieldMappingsResponse.mappings();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings = getFieldMappingsResponse.mappings();
         assertEquals(2, mappings.size());
         assertFieldMappings(mappings.get("index1"), ALL_FLAT_FIELDS);
         assertFieldMappings(mappings.get("filtered"), FILTERED_FLAT_FIELDS);
         //double check that submitting the filtered mappings to an unfiltered index leads to the same get field mappings output
         //as the one coming from a filtered index with same mappings
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
-        ImmutableOpenMap<String, MappingMetaData> filtered = getMappingsResponse.getMappings().get("filtered");
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", filtered.get("_doc").getSourceAsMap()));
+        MappingMetaData filtered = getMappingsResponse.getMappings().get("filtered");
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(filtered.getSourceAsMap()));
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("test").setFields("*").get();
         assertEquals(1, response.mappings().size());
         assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
     }
 
+    public void testGetNonExistentFieldMapping() {
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings("index1").setFields("non-existent").get();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings = response.mappings();
+        assertEquals(1, mappings.size());
+        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldmapping = mappings.get("index1");
+        assertEquals(0, fieldmapping.size());
+    }
+
     public void testFieldCapabilities() {
+        List<String> allFields = new ArrayList<>(ALL_FLAT_FIELDS);
+        allFields.addAll(ALL_OBJECT_FIELDS);
         FieldCapabilitiesResponse index1 = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("index1")).actionGet();
-        assertFieldCaps(index1, ALL_FLAT_FIELDS);
+        assertFieldCaps(index1, allFields);
         FieldCapabilitiesResponse filtered = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("filtered")).actionGet();
-        assertFieldCaps(filtered, FILTERED_FLAT_FIELDS);
+        List<String> filteredFields = new ArrayList<>(FILTERED_FLAT_FIELDS);
+        filteredFields.addAll(ALL_OBJECT_FIELDS);
+        assertFieldCaps(filtered, filteredFields);
         //double check that submitting the filtered mappings to an unfiltered index leads to the same field_caps output
         //as the one coming from a filtered index with same mappings
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("filtered").get();
-        ImmutableOpenMap<String, MappingMetaData> filteredMapping = getMappingsResponse.getMappings().get("filtered");
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", filteredMapping.get("_doc").getSourceAsMap()));
+        MappingMetaData filteredMapping = getMappingsResponse.getMappings().get("filtered");
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(filteredMapping.getSourceAsMap()));
         FieldCapabilitiesResponse test = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("test")).actionGet();
-        assertFieldCaps(test, FILTERED_FLAT_FIELDS);
+        // properties.value is an object field in the new mapping
+        filteredFields.add("properties.value");
+        assertFieldCaps(test, filteredFields);
     }
 
-    private static void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, String[] expectedFields) {
-        Map<String, Map<String, FieldCapabilities>> responseMap = fieldCapabilitiesResponse.get();
+    private static void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, Collection<String> expectedFields) {
+        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>(fieldCapabilitiesResponse.get());
         Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
         for (String field : builtInMetaDataFields) {
             Map<String, FieldCapabilities> remove = responseMap.remove(field);
@@ -117,11 +134,10 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), 0, responseMap.size());
     }
 
-    private static void assertFieldMappings(Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings,
-                                            String[] expectedFields) {
-        assertEquals(1, mappings.size());
-        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(mappings.get("_doc"));
+    private static void assertFieldMappings(Map<String, GetFieldMappingsResponse.FieldMappingMetaData> actual,
+                                            Collection<String> expectedFields) {
         Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
+        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(actual);
         for (String field : builtInMetaDataFields) {
             GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = fields.remove(field);
             assertNotNull(" expected field [" + field + "] not found", fieldMappingMetaData);
@@ -133,17 +149,17 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
     }
 
-    private void assertExpectedMappings(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings) {
+    private void assertExpectedMappings(ImmutableOpenMap<String, MappingMetaData> mappings) {
         assertEquals(2, mappings.size());
         assertNotFiltered(mappings.get("index1"));
-        ImmutableOpenMap<String, MappingMetaData> filtered = mappings.get("filtered");
+        MappingMetaData filtered = mappings.get("filtered");
         assertFiltered(filtered);
-        assertMappingsAreValid(filtered.get("_doc").getSourceAsMap());
+        assertMappingsAreValid(filtered.getSourceAsMap());
     }
 
     private void assertMappingsAreValid(Map<String, Object> sourceAsMap) {
         //check that the returned filtered mappings are still valid mappings by submitting them and retrieving them back
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", sourceAsMap));
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping(sourceAsMap));
         GetMappingsResponse testMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
         assertEquals(1, testMappingsResponse.getMappings().size());
         //the mappings are returned unfiltered for this index, yet they are the same as the previous ones that were returned filtered
@@ -151,9 +167,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertFiltered(ImmutableOpenMap<String, MappingMetaData> mappings) {
-        assertEquals(1, mappings.size());
-        MappingMetaData mappingMetaData = mappings.get("_doc");
+    private static void assertFiltered(MappingMetaData mappingMetaData) {
         assertNotNull(mappingMetaData);
         Map<String, Object> sourceAsMap = mappingMetaData.getSourceAsMap();
         assertEquals(4, sourceAsMap.size());
@@ -198,9 +212,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertNotFiltered(ImmutableOpenMap<String, MappingMetaData> mappings) {
-        assertEquals(1, mappings.size());
-        MappingMetaData mappingMetaData = mappings.get("_doc");
+    private static void assertNotFiltered(MappingMetaData mappingMetaData) {
         assertNotNull(mappingMetaData);
         Map<String, Object> sourceAsMap = mappingMetaData.getSourceAsMap();
         assertEquals(4, sourceAsMap.size());
@@ -245,14 +257,18 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         }
     }
 
-    private static final String[] ALL_FLAT_FIELDS = new String[]{
+    private static final Collection<String> ALL_FLAT_FIELDS = Arrays.asList(
         "name.first", "name.last_visible", "birth", "age_visible", "address.street", "address.location", "address.area_visible",
         "properties.key_visible", "properties.key_visible.keyword", "properties.value", "properties.value.keyword_visible"
-    };
+    );
 
-    private static final String[] FILTERED_FLAT_FIELDS = new String[]{
-            "name.last_visible", "age_visible", "address.area_visible", "properties.key_visible", "properties.value.keyword_visible"
-    };
+    private static final Collection<String> ALL_OBJECT_FIELDS = Arrays.asList(
+        "name", "address", "properties"
+    );
+
+    private static final Collection<String> FILTERED_FLAT_FIELDS = Arrays.asList(
+        "name.last_visible", "age_visible", "address.area_visible", "properties.key_visible", "properties.value.keyword_visible"
+    );
 
     private static final String TEST_ITEM = "{\n" +
             "  \"_doc\": {\n" +

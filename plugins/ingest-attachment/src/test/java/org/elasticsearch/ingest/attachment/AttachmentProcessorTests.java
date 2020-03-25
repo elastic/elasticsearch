@@ -21,7 +21,6 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -217,8 +216,8 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     // See (https://issues.apache.org/jira/browse/COMPRESS-432) for information
     // about the issue that causes a zip file to hang in Tika versions prior to 1.18.
-    public void testZipFileDoesNotHang() {
-        expectThrows(Exception.class, () -> parseDocument("bad_tika.zip", processor));
+    public void testZipFileDoesNotHang() throws Exception {
+        parseDocument("bad_tika.zip", processor);
     }
 
     public void testParseAsBytesArray() throws Exception {
@@ -285,7 +284,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     private Map<String, Object> parseDocument(String file, AttachmentProcessor processor, Map<String, Object> optionalFields)
         throws Exception {
         Map<String, Object> document = new HashMap<>();
-        document.put("source_field", getAsBase64(file));
+        document.put("source_field", getAsBinaryOrBase64(file));
         document.putAll(optionalFields);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -297,7 +296,6 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testIndexedChars() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/31305", JavaVersion.current().equals(JavaVersion.parse("11")));
         processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, null);
 
@@ -337,11 +335,16 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("content_length"), is(56L));
     }
 
-    private String getAsBase64(String filename) throws Exception {
+    private Object getAsBinaryOrBase64(String filename) throws Exception {
         String path = "/org/elasticsearch/ingest/attachment/test/sample-files/" + filename;
         try (InputStream is = AttachmentProcessorTests.class.getResourceAsStream(path)) {
             byte bytes[] = IOUtils.toByteArray(is);
-            return Base64.getEncoder().encodeToString(bytes);
+            // behave like CBOR from time to time
+            if (rarely()) {
+                return bytes;
+            } else {
+                return Base64.getEncoder().encodeToString(bytes);
+            }
         }
     }
 }

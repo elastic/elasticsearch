@@ -9,7 +9,7 @@ setup:
 
   # Create some privileges
   - do:
-      xpack.security.put_privileges:
+      security.put_privileges:
         body: >
           {
             "app01": {
@@ -50,7 +50,7 @@ setup:
 
   # And a superuser
   - do:
-        xpack.security.put_user:
+      security.put_user:
           username: "my_admin"
           body:  >
               {
@@ -58,7 +58,7 @@ setup:
                 "roles" : [ "superuser" ]
               }
   - do:
-        xpack.security.put_user:
+      security.put_user:
           username: "eng_write"
           body:  >
               {
@@ -69,18 +69,18 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: app01
         name: "user,read,write"
         ignore: 404
   - do:
-      xpack.security.delete_privileges:
+      security.delete_privileges:
         application: app02
         name: "user,read,write"
         ignore: 404
 
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "my_admin"
         ignore: 404
 
@@ -88,7 +88,7 @@ teardown:
 "Test superuser has all application-privileges":
   - do:
       headers: { Authorization: "Basic bXlfYWRtaW46YWRtaW4wMQ==" } # my_admin
-      xpack.security.has_privileges:
+      security.has_privileges:
         user: null
         body: >
           {
@@ -109,6 +109,16 @@ teardown:
                 "application" : "app02",
                 "resources" : [ "thing/1" ],
                 "privileges" : [ "data:write/thing" ]
+              },
+              {
+                "application" : "app01",
+                "resources" : [ "foo" ],
+                "privileges" : [ "dne", "data:dne" ]
+              },
+              {
+                "application" : "app-dne",
+                "resources" : [ "bar" ],
+                "privileges" : [ "anything", "action:anything" ]
               }
             ]
           }
@@ -120,12 +130,22 @@ teardown:
         "*" : {
           "action:login" : true,
           "data:read/secrets" : true
+        },
+        "foo" : {
+          "dne" : true,
+          "data:dne" : true
         }
       },
       "app02" : {
         "thing/1" : {
           "data:write/thing" : true
         }
+      },
+      "app-dne" : {
+        "bar" : {
+          "anything" : true,
+          "action:anything" : true
+        }
       }
-    } }
-
+    }
+  }

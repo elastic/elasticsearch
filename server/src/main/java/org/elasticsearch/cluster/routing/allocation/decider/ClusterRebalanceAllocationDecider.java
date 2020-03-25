@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import java.util.Locale;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -46,6 +48,8 @@ import org.elasticsearch.common.settings.Settings;
  * </ul>
  */
 public class ClusterRebalanceAllocationDecider extends AllocationDecider {
+
+    private static final Logger logger = LogManager.getLogger(ClusterRebalanceAllocationDecider.class);
 
     public static final String NAME = "cluster_rebalance";
     private static final String CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE = "cluster.routing.allocation.allow_rebalance";
@@ -91,17 +95,8 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     private volatile ClusterRebalanceType type;
 
     public ClusterRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
-        try {
-            type = CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.get(settings);
-        } catch (IllegalStateException e) {
-            logger.warn("[{}] has a wrong value {}, defaulting to 'indices_all_active'",
-                    CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getRaw(settings));
-            type = ClusterRebalanceType.INDICES_ALL_ACTIVE;
-        }
+        type = CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.get(settings);
         logger.debug("using [{}] with [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type);
-
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING, this::setType);
     }
 

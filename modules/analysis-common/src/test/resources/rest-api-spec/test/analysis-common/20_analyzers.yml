@@ -68,17 +68,6 @@
     - match:  { tokens.0.token: a1 b2 c3 d4 }
 
 ---
-"standard_html_strip":
-    - do:
-        indices.analyze:
-          body:
-            text:     <bold/> <italic/>
-            analyzer: standard_html_strip
-    - length: { tokens: 2 }
-    - match:  { tokens.0.token: bold }
-    - match:  { tokens.1.token: italic }
-
----
 "pattern":
     - do:
         indices.analyze:
@@ -476,6 +465,35 @@
             analyzer: my_analyzer
     - length: { tokens: 1 }
     - match:  { tokens.0.token: book }
+
+---
+"estonian":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                analyzer:
+                  my_analyzer:
+                    type: estonian
+
+    - do:
+        indices.analyze:
+          body:
+            text:     teadaolevalt
+            analyzer: estonian
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: teadaole }
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:     teadaolevalt
+            analyzer: my_analyzer
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: teadaole }
 
 ---
 "finnish":

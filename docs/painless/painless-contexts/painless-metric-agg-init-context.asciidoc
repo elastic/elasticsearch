@@ -12,13 +12,13 @@ full metric aggregation.
 `params` (`Map`, read-only)::
         User-defined parameters passed in as part of the query.
 
-`params['_agg']` (`Map`)::
+`state` (`Map`)::
         Empty `Map` used to add values for use in a
         <<painless-metric-agg-map-context, map script>>.
 
 *Side Effects*
 
-`params['_agg']` (`Map`)::
+`state` (`Map`)::
         Add values to this `Map` to for use in a map.  Additional values must
         be of the type `Map`, `List`, `String` or primitive.
 
@@ -29,4 +29,4 @@ full metric aggregation.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+The standard <<painless-api-reference-shared, Painless API>> is available.

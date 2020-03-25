@@ -24,6 +24,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -92,10 +94,6 @@ public abstract class Decision implements ToXContent, Writeable {
             this.id = id;
         }
 
-        public static Type resolve(String s) {
-            return Type.valueOf(s.toUpperCase(Locale.ROOT));
-        }
-
         public static Type readFrom(StreamInput in) throws IOException {
             int i = in.readVInt();
             switch (i) {
@@ -154,7 +152,7 @@ public abstract class Decision implements ToXContent, Writeable {
     /**
      * Simple class representing a single decision
      */
-    public static class Single extends Decision {
+    public static class Single extends Decision implements ToXContentObject {
         private Type type;
         private String label;
         private String explanation;
@@ -273,7 +271,7 @@ public abstract class Decision implements ToXContent, Writeable {
     /**
      * Simple class representing a list of decisions
      */
-    public static class Multi extends Decision {
+    public static class Multi extends Decision implements ToXContentFragment {
 
         private final List<Decision> decisions = new ArrayList<>();
 

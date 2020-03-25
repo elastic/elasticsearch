@@ -5,19 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
  * Returns the ASCII code of the leftmost character of the given (char) expression.
  */
 public class Ascii extends UnaryStringFunction {
 
-    public Ascii(Location location, Expression field) {
-        super(location, field);
+    public Ascii(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -27,7 +28,7 @@ public class Ascii extends UnaryStringFunction {
 
     @Override
     protected Ascii replaceChild(Expression newChild) {
-        return new Ascii(location(), newChild);
+        return new Ascii(source(), newChild);
     }
 
     @Override
@@ -37,6 +38,6 @@ public class Ascii extends UnaryStringFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataTypes.INTEGER;
     }
 }

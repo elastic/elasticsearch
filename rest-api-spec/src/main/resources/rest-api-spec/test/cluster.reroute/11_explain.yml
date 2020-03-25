@@ -25,12 +25,14 @@ setup:
 
 ---
 "Explain API for non-existent node & shard":
+  - skip:
+      features: [arbitrary_key]
 
   - do:
-      cluster.state:
-        metric: [ master_node ]
-
-  - set: {master_node: node_id}
+      nodes.info:
+        node_id: data:true
+  - set:
+      nodes._arbitrary_key_: node_id
 
   - do:
       cluster.reroute:

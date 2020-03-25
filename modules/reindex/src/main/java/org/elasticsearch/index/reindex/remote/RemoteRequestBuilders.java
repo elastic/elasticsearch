@@ -38,6 +38,10 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -54,14 +58,14 @@ final class RemoteRequestBuilders {
     static Request initialSearch(SearchRequest searchRequest, BytesReference query, Version remoteVersion) {
         // It is nasty to build paths with StringBuilder but we'll be careful....
         StringBuilder path = new StringBuilder("/");
-        addIndexesOrTypes(path, "Index", searchRequest.indices());
-        addIndexesOrTypes(path, "Type", searchRequest.types());
+        addIndices(path, searchRequest.indices());
         path.append("_search");
         Request request = new Request("POST", path.toString());
 
         if (searchRequest.scroll() != null) {
             TimeValue keepAlive = searchRequest.scroll().keepAlive();
-            if (remoteVersion.before(Version.V_5_0_0)) {
+            // V_5_0_0
+            if (remoteVersion.before(Version.fromId(5000099))) {
                 /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
                  * so we toss out that resolution, rounding up because more scroll
                  * timeout seems safer than less. */
@@ -70,14 +74,13 @@ final class RemoteRequestBuilders {
             request.addParameter("scroll", keepAlive.getStringRep());
         }
         request.addParameter("size", Integer.toString(searchRequest.source().size()));
-        if (searchRequest.source().version() == null || searchRequest.source().version() == true) {
-            /*
-             * Passing `null` here just add the `version` request parameter
-             * without any value. This way of requesting the version works
-             * for all supported versions of Elasticsearch.
-             */
-            request.addParameter("version", null);
+
+        if (searchRequest.source().version() == null || searchRequest.source().version() == false) {
+            request.addParameter("version", Boolean.FALSE.toString());
+        } else {
+            request.addParameter("version", Boolean.TRUE.toString());
         }
+
         if (searchRequest.source().sorts() != null) {
             boolean useScan = false;
             // Detect if we should use search_type=scan rather than a sort
@@ -117,8 +120,14 @@ final class RemoteRequestBuilders {
             for (int i = 1; i < searchRequest.source().storedFields().fieldNames().size(); i++) {
                 fields.append(',').append(searchRequest.source().storedFields().fieldNames().get(i));
             }
-            String storedFieldsParamName = remoteVersion.before(Version.V_5_0_0_alpha4) ? "fields" : "stored_fields";
+            // V_5_0_0
+            String storedFieldsParamName = remoteVersion.before(Version.fromId(5000099)) ? "fields" : "stored_fields";
             request.addParameter(storedFieldsParamName, fields.toString());
+        }
+
+        if (remoteVersion.onOrAfter(Version.fromId(6030099))) {
+            // allow_partial_results introduced in 6.3, running remote reindex against earlier versions still silently discards RED shards.
+            request.addParameter("allow_partial_search_results", "false");
         }
 
         // EMPTY is safe here because we're not calling namedObject
@@ -156,22 +165,19 @@ final class RemoteRequestBuilders {
         return request;
     }
 
-    private static void addIndexesOrTypes(StringBuilder path, String name, String[] indicesOrTypes) {
-        if (indicesOrTypes == null || indicesOrTypes.length == 0) {
+    private static void addIndices(StringBuilder path, String[] indices) {
+        if (indices == null || indices.length == 0) {
             return;
         }
-        for (String indexOrType : indicesOrTypes) {
-            checkIndexOrType(name, indexOrType);
-        }
-        path.append(Strings.arrayToCommaDelimitedString(indicesOrTypes)).append('/');
+
+        path.append(Arrays.stream(indices).map(RemoteRequestBuilders::encodeIndex).collect(Collectors.joining(","))).append('/');
     }
 
-    private static void checkIndexOrType(String name, String indexOrType) {
-        if (indexOrType.indexOf(',') >= 0) {
-            throw new IllegalArgumentException(name + " containing [,] not supported but got [" + indexOrType + "]");
-        }
-        if (indexOrType.indexOf('/') >= 0) {
-            throw new IllegalArgumentException(name + " containing [/] not supported but got [" + indexOrType + "]");
+    private static String encodeIndex(String s) {
+        try {
+            return URLEncoder.encode(s, "utf-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -186,7 +192,8 @@ final class RemoteRequestBuilders {
     static Request scroll(String scroll, TimeValue keepAlive, Version remoteVersion) {
         Request request = new Request("POST", "/_search/scroll");
 
-        if (remoteVersion.before(Version.V_5_0_0)) {
+        // V_5_0_0
+        if (remoteVersion.before(Version.fromId(5000099))) {
             /* Versions of Elasticsearch before 5.0 couldn't parse nanos or micros
              * so we toss out that resolution, rounding up so we shouldn't end up
              * with 0s. */

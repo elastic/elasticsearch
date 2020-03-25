@@ -19,9 +19,16 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 import org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin;
+import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,4 +45,21 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
         filters.put("phonetic", PhoneticTokenFilterFactory.class);
         return filters;
     }
+
+    public void testDisallowedWithSynonyms() throws IOException {
+
+        AnalysisPhoneticPlugin plugin = new AnalysisPhoneticPlugin();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
+            .put("path.home", createTempDir().toString())
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+
+        TokenFilterFactory tff
+            = plugin.getTokenFilters().get("phonetic").get(idxSettings, null, "phonetic", settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, tff::getSynonymFilter);
+        assertEquals("Token filter [phonetic] cannot be used to parse synonyms", e.getMessage());
+    }
+
 }

@@ -1,2 +1,0 @@
-// Simple script to load a field. Not really a good example, but a simple one.
-doc[params.field].value

@@ -11,10 +11,6 @@
 
 ---
 "clear_cache with fielddata set to true":
-  - skip:
-      version: " - 6.2.99"
-      reason: fielddata was deprecated before 6.3.0
-
   - do:
       indices.clear_cache:
         fielddata: true

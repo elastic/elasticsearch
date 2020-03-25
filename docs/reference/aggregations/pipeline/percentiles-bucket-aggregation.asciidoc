@@ -18,7 +18,9 @@ A `percentiles_bucket` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[percentiles-bucket-params]]
 .`percentiles_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the percentiles for (see <<buckets-path-syntax>> for more
@@ -27,11 +29,12 @@ A `percentiles_bucket` aggregation looks like this in isolation:
  details)|Optional | `skip`
 |`format` |format to apply to the output value of this aggregation |Optional | `null`
 |`percents` |The list of percentiles to calculate |Optional | `[ 1, 5, 25, 50, 75, 95, 99 ]`
+|`keyed` |Flag which returns the range as an hash instead of an array of key-value pairs |Optional | `true`
 |===
 
 The following snippet calculates the percentiles for the total monthly `sales` buckets:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -40,7 +43,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "sales": {
@@ -59,7 +62,6 @@ POST /sales/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> `buckets_path` instructs this percentiles_bucket aggregation that we want to calculate percentiles for
@@ -68,7 +70,7 @@ the `sales` aggregation in the `sales_per_month` date histogram.
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

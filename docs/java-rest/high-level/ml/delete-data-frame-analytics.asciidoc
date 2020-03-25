@@ -1,0 +1,40 @@
+--
+:api: delete-data-frame-analytics
+:request: DeleteDataFrameAnalyticsRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Delete {dfanalytics-jobs} API
+
+Delete an existing {dfanalytics-job}.
+The API accepts a +{request}+ object as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Delete {dfanalytics-jobs} request
+
+A +{request}+ object requires a {dfanalytics-job} ID.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new request referencing an existing {dfanalytics-job}.
+
+==== Optional arguments
+
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-force]
+---------------------------------------------------
+<1> Use to forcefully delete a job that is not stopped. This method is quicker than stopping
+and deleting the job. Defaults to `false`.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ object acknowledges the {dfanalytics-job} deletion.

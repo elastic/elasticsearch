@@ -11,9 +11,11 @@ import com.unboundid.ldap.sdk.RoundRobinDNSServerSet;
 import com.unboundid.ldap.sdk.RoundRobinServerSet;
 import com.unboundid.ldap.sdk.ServerSet;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapLoadBalancingSettings;
 
 import javax.net.SocketFactory;
@@ -26,7 +28,7 @@ public enum LdapLoadBalancing {
 
     FAILOVER() {
         @Override
-        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+        ServerSet buildServerSet(String[] addresses, int[] ports, RealmConfig realmConfig, @Nullable SocketFactory socketFactory,
                                  @Nullable LDAPConnectionOptions options) {
             FailoverServerSet serverSet = new FailoverServerSet(addresses, ports, socketFactory, options);
             serverSet.setReOrderOnFailover(true);
@@ -36,7 +38,7 @@ public enum LdapLoadBalancing {
 
     ROUND_ROBIN() {
         @Override
-        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+        ServerSet buildServerSet(String[] addresses, int[] ports, RealmConfig realmConfig, @Nullable SocketFactory socketFactory,
                                  @Nullable LDAPConnectionOptions options) {
             return new RoundRobinServerSet(addresses, ports, socketFactory, options);
         }
@@ -44,7 +46,7 @@ public enum LdapLoadBalancing {
 
     DNS_ROUND_ROBIN() {
         @Override
-        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+        ServerSet buildServerSet(String[] addresses, int[] ports, RealmConfig realmConfig, @Nullable SocketFactory socketFactory,
                                  @Nullable LDAPConnectionOptions options) {
             if (addresses.length != 1) {
                 throw new IllegalArgumentException(toString() + " can only be used with a single url");
@@ -52,7 +54,7 @@ public enum LdapLoadBalancing {
             if (InetAddresses.isInetAddress(addresses[0])) {
                 throw new IllegalArgumentException(toString() + " can only be used with a DNS name");
             }
-            TimeValue dnsTtl = settings.getAsTime(LdapLoadBalancingSettings.CACHE_TTL_SETTING, CACHE_TTL_DEFAULT);
+            TimeValue dnsTtl = realmConfig.getSetting(LdapLoadBalancingSettings.CACHE_TTL_SETTING);
             return new RoundRobinDNSServerSet(addresses[0], ports[0],
                     RoundRobinDNSServerSet.AddressSelectionMode.ROUND_ROBIN, dnsTtl.millis(), null, socketFactory, options);
         }
@@ -60,7 +62,7 @@ public enum LdapLoadBalancing {
 
     DNS_FAILOVER() {
         @Override
-        ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+        ServerSet buildServerSet(String[] addresses, int[] ports, RealmConfig realmConfig, @Nullable SocketFactory socketFactory,
                                  @Nullable LDAPConnectionOptions options) {
             if (addresses.length != 1) {
                 throw new IllegalArgumentException(toString() + " can only be used with a single url");
@@ -68,16 +70,15 @@ public enum LdapLoadBalancing {
             if (InetAddresses.isInetAddress(addresses[0])) {
                 throw new IllegalArgumentException(toString() + " can only be used with a DNS name");
             }
-            TimeValue dnsTtl = settings.getAsTime(LdapLoadBalancingSettings.CACHE_TTL_SETTING, CACHE_TTL_DEFAULT);
+            TimeValue dnsTtl = realmConfig.getSetting(LdapLoadBalancingSettings.CACHE_TTL_SETTING);
             return new RoundRobinDNSServerSet(addresses[0], ports[0],
                     RoundRobinDNSServerSet.AddressSelectionMode.FAILOVER, dnsTtl.millis(), null, socketFactory, options);
         }
     };
 
-    public static final String LOAD_BALANCE_TYPE_DEFAULT = LdapLoadBalancing.FAILOVER.toString();
-    public static final TimeValue CACHE_TTL_DEFAULT = TimeValue.timeValueHours(1L);
+    public static final LdapLoadBalancing LOAD_BALANCE_TYPE_DEFAULT = LdapLoadBalancing.FAILOVER;
 
-    abstract ServerSet buildServerSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+    abstract ServerSet buildServerSet(String[] addresses, int[] ports, RealmConfig realmConfig, @Nullable SocketFactory socketFactory,
                                       @Nullable LDAPConnectionOptions options);
 
     @Override
@@ -85,21 +86,24 @@ public enum LdapLoadBalancing {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    public static LdapLoadBalancing resolve(Settings settings) {
-        Settings loadBalanceSettings = settings.getAsSettings(LdapLoadBalancingSettings.LOAD_BALANCE_SETTINGS);
-        String type = loadBalanceSettings.get(LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING, LOAD_BALANCE_TYPE_DEFAULT);
+    public static LdapLoadBalancing resolve(RealmConfig realmConfig) {
+        String type = realmConfig.getSetting(LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING);
+        if (Strings.isNullOrEmpty(type)) {
+            return LOAD_BALANCE_TYPE_DEFAULT;
+        }
         try {
             return valueOf(type.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ilae) {
-            throw new IllegalArgumentException("unknown load balance type [" + type + "]", ilae);
+            throw new IllegalArgumentException("unknown load balance type [" + type + "] in setting [" +
+                    RealmSettings.getFullSettingKey(realmConfig, LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING) +
+                    "]", ilae);
         }
     }
 
-    public static ServerSet serverSet(String[] addresses, int[] ports, Settings settings, @Nullable SocketFactory socketFactory,
+    public static ServerSet serverSet(String[] addresses, int[] ports, RealmConfig realmConfig, @Nullable SocketFactory socketFactory,
                                       @Nullable LDAPConnectionOptions options) {
-        LdapLoadBalancing loadBalancing = resolve(settings);
-        Settings loadBalanceSettings = settings.getAsSettings(LdapLoadBalancingSettings.LOAD_BALANCE_SETTINGS);
-        return loadBalancing.buildServerSet(addresses, ports, loadBalanceSettings, socketFactory, options);
+        LdapLoadBalancing loadBalancing = resolve(realmConfig);
+        return loadBalancing.buildServerSet(addresses, ports, realmConfig, socketFactory, options);
     }
 
 }

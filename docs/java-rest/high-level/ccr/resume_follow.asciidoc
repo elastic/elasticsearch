@@ -1,0 +1,35 @@
+--
+:api: ccr-resume-follow
+:request: ResumeFollowRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Resume Follow API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Resume Follow API allows you to resume following a follower index that has been paused.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of follower index.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the resume follow request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the resume follow was acknowledged.
+
+include::../execution.asciidoc[]
+
+

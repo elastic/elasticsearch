@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.categorization;
 
-import org.elasticsearch.common.logging.Loggers;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.grok.Grok;
 
 import java.util.ArrayList;
@@ -25,14 +26,18 @@ import java.util.regex.Pattern;
  */
 public final class GrokPatternCreator {
 
-    private static String PREFACE = "preface";
-    private static String EPILOGUE = "epilogue";
+    private static final Logger logger = LogManager.getLogger(GrokPatternCreator.class);
+
+    private static final String PREFACE = "preface";
+    private static final String EPILOGUE = "epilogue";
+    private static final int MAX_RECURSE_DEPTH = 10;
 
     /**
      * The first match in this list will be chosen, so it needs to be ordered
      * such that more generic patterns come after more specific patterns.
      */
     private static final List<GrokPatternCandidate> ORDERED_CANDIDATE_GROK_PATTERNS = Arrays.asList(
+            new GrokPatternCandidate("TOMCAT_DATESTAMP", "timestamp"),
             new GrokPatternCandidate("TIMESTAMP_ISO8601", "timestamp"),
             new GrokPatternCandidate("DATESTAMP_RFC822", "timestamp"),
             new GrokPatternCandidate("DATESTAMP_RFC2822", "timestamp"),
@@ -41,7 +46,6 @@ public final class GrokPatternCreator {
             new GrokPatternCandidate("SYSLOGTIMESTAMP", "timestamp"),
             new GrokPatternCandidate("HTTPDATE", "timestamp"),
             new GrokPatternCandidate("CATALINA_DATESTAMP", "timestamp"),
-            new GrokPatternCandidate("TOMCAT_DATESTAMP", "timestamp"),
             new GrokPatternCandidate("CISCOTIMESTAMP", "timestamp"),
             new GrokPatternCandidate("DATE", "date"),
             new GrokPatternCandidate("TIME", "time"),
@@ -56,12 +60,10 @@ public final class GrokPatternCreator {
             new GrokPatternCandidate("IP", "ipaddress"),
             // This already includes pre/post break conditions
             new GrokPatternCandidate("QUOTEDSTRING", "field", "", ""),
-            // Can't use \b as the break before, because it doesn't work for negative numbers (the
-            // minus sign is not a "word" character)
-            new GrokPatternCandidate("NUMBER", "field", "(?<!\\w)"),
-            // Disallow +, - and . before hex numbers, otherwise this pattern will pick up base 10
-            // numbers that NUMBER rejected due to preceeding characters
-            new GrokPatternCandidate("BASE16NUM", "field", "(?<![\\w.+-])")
+            // Disallow +, - and . before numbers, as well as "word" characters, otherwise we'll pick
+            // up numeric suffices too eagerly
+            new GrokPatternCandidate("NUMBER", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\d)"),
+            new GrokPatternCandidate("BASE16NUM", "field", "(?<![\\w.+-])", "(?![\\w+-]|\\.\\w)")
             // TODO: also unfortunately can't have USERNAME in the list as it matches too broadly
             // Fixing these problems with overly broad matches would require some extra intelligence
             // to be added to remove inappropriate matches.  One idea would be to use a dictionary,
@@ -91,6 +93,11 @@ public final class GrokPatternCreator {
         // E.g., ".*?cat.+?sat.+?mat.*" -> [ "", "cat", "sat", "mat" ]
         String[] fixedRegexBits = regex.split("\\.[*+]\\??");
 
+        // If there are no fixed regex bits, that implies there would only be a single capture group
+        // And that would mean a pretty uninteresting grok pattern
+        if (fixedRegexBits.length == 0) {
+            return regex;
+        }
         // Create a pattern that will capture the bits in between the fixed parts of the regex
         //
         // E.g., ".*?cat.+?sat.+?mat.*" -> Pattern (.*?)cat(.+?)sat(.+?)mat(.*)
@@ -114,8 +121,7 @@ public final class GrokPatternCreator {
                 // We should never get here.  If we do it implies a bug in the original categorization,
                 // as it's produced a regex that doesn't match the examples.
                 assert matcher.matches() : exampleProcessor.pattern() + " did not match " + example;
-                Loggers.getLogger(GrokPatternCreator.class).error("[{}] Pattern [{}] did not match example [{}]", jobId,
-                        exampleProcessor.pattern(), example);
+                logger.error("[{}] Pattern [{}] did not match example [{}]", jobId, exampleProcessor.pattern(), example);
             }
         }
 
@@ -127,19 +133,19 @@ public final class GrokPatternCreator {
             // Remember (from the first comment in this method) that the first element in this array is
             // always the empty string
             overallGrokPatternBuilder.append(fixedRegexBits[inBetweenBitNum]);
-            appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, inBetweenBitNum == 0,
+            appendBestGrokMatchForStrings(jobId, fieldNameCountStore, overallGrokPatternBuilder, inBetweenBitNum == 0,
                     inBetweenBitNum == fixedRegexBits.length - 1, groupsMatchesFromExamples.get(inBetweenBitNum));
         }
         return overallGrokPatternBuilder.toString();
     }
 
-    /**
-     * Given a collection of strings, work out which (if any) of the grok patterns we're allowed
-     * to use matches it best.  Then append the appropriate grok language to represent that finding
-     * onto the supplied string builder.
-     */
-    static void appendBestGrokMatchForStrings(Map<String, Integer> fieldNameCountStore, StringBuilder overallGrokPatternBuilder,
-                                              boolean isFirst, boolean isLast, Collection<String> mustMatchStrings) {
+    private static void appendBestGrokMatchForStrings(String jobId,
+                                                      Map<String, Integer> fieldNameCountStore,
+                                                      StringBuilder overallGrokPatternBuilder,
+                                                      boolean isFirst,
+                                                      boolean isLast,
+                                                      Collection<String> mustMatchStrings,
+                                                      int numRecurse) {
 
         GrokPatternCandidate bestCandidate = null;
         if (mustMatchStrings.isEmpty() == false) {
@@ -151,7 +157,10 @@ public final class GrokPatternCreator {
             }
         }
 
-        if (bestCandidate == null) {
+        if (bestCandidate == null || numRecurse >= MAX_RECURSE_DEPTH) {
+            if (bestCandidate != null) {
+                logger.warn("[{}] exited grok discovery early, reached max depth [{}]", jobId, MAX_RECURSE_DEPTH);
+            }
             if (isLast) {
                 overallGrokPatternBuilder.append(".*");
             } else if (isFirst || mustMatchStrings.stream().anyMatch(String::isEmpty)) {
@@ -163,11 +172,37 @@ public final class GrokPatternCreator {
             Collection<String> prefaces = new ArrayList<>();
             Collection<String> epilogues = new ArrayList<>();
             populatePrefacesAndEpilogues(mustMatchStrings, bestCandidate.grok, prefaces, epilogues);
-            appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, isFirst, false, prefaces);
+            appendBestGrokMatchForStrings(jobId,
+                fieldNameCountStore,
+                overallGrokPatternBuilder,
+                isFirst,
+                false,
+                prefaces,
+                numRecurse + 1);
             overallGrokPatternBuilder.append("%{").append(bestCandidate.grokPatternName).append(':')
-                    .append(buildFieldName(fieldNameCountStore, bestCandidate.fieldName)).append('}');
-            appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, false, isLast, epilogues);
+                .append(buildFieldName(fieldNameCountStore, bestCandidate.fieldName)).append('}');
+            appendBestGrokMatchForStrings(jobId,
+                fieldNameCountStore,
+                overallGrokPatternBuilder,
+                false, isLast,
+                epilogues,
+                numRecurse + 1);
         }
+    }
+
+
+    /**
+     * Given a collection of strings, work out which (if any) of the grok patterns we're allowed
+     * to use matches it best.  Then append the appropriate grok language to represent that finding
+     * onto the supplied string builder.
+     */
+    static void appendBestGrokMatchForStrings(String jobId,
+                                              Map<String, Integer> fieldNameCountStore,
+                                              StringBuilder overallGrokPatternBuilder,
+                                              boolean isFirst,
+                                              boolean isLast,
+                                              Collection<String> mustMatchStrings) {
+        appendBestGrokMatchForStrings(jobId, fieldNameCountStore, overallGrokPatternBuilder, isFirst, isLast, mustMatchStrings, 0);
     }
 
     /**

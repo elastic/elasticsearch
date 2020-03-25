@@ -6,7 +6,6 @@
           index: test_index
           body:
               mappings:
-                test_type:
                   properties:
                     text:
                       type:     text
@@ -21,6 +20,5 @@
       indices.get_mapping:
         index: test_alias
 
-  - match: {test_index.mappings.test_type.properties.text.type:     text}
-  - match: {test_index.mappings.test_type.properties.text.analyzer: whitespace}
-
+  - match: {test_index.mappings.properties.text.type:     text}
+  - match: {test_index.mappings.properties.text.analyzer: whitespace}

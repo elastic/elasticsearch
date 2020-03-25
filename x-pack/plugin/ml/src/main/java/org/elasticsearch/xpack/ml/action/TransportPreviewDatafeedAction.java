@@ -9,22 +9,22 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -32,58 +32,74 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class TransportPreviewDatafeedAction extends HandledTransportAction<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
 
     private final ThreadPool threadPool;
     private final Client client;
-    private final ClusterService clusterService;
+    private final JobConfigProvider jobConfigProvider;
+    private final DatafeedConfigProvider datafeedConfigProvider;
+    private final JobResultsProvider jobResultsProvider;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public TransportPreviewDatafeedAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                          ActionFilters actionFilters, Client client, ClusterService clusterService) {
-        super(settings, PreviewDatafeedAction.NAME, transportService, actionFilters,
-            (Supplier<PreviewDatafeedAction.Request>) PreviewDatafeedAction.Request::new);
+    public TransportPreviewDatafeedAction(ThreadPool threadPool, TransportService transportService,
+                                          ActionFilters actionFilters, Client client, JobConfigProvider jobConfigProvider,
+                                          DatafeedConfigProvider datafeedConfigProvider, JobResultsProvider jobResultsProvider,
+                                          NamedXContentRegistry xContentRegistry) {
+        super(PreviewDatafeedAction.NAME, transportService, actionFilters, PreviewDatafeedAction.Request::new);
         this.threadPool = threadPool;
         this.client = client;
-        this.clusterService = clusterService;
+        this.jobConfigProvider = jobConfigProvider;
+        this.datafeedConfigProvider = datafeedConfigProvider;
+        this.jobResultsProvider = jobResultsProvider;
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
     protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
-        DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
-        if (datafeed == null) {
-            throw ExceptionsHelper.missingDatafeedException(request.getDatafeedId());
-        }
-        Job job = mlMetadata.getJobs().get(datafeed.getJobId());
-        if (job == null) {
-            throw ExceptionsHelper.missingJobException(datafeed.getJobId());
-        }
+        datafeedConfigProvider.getDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(
+            datafeedConfigBuilder -> {
+                DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+                jobConfigProvider.getJob(datafeedConfig.getJobId(), ActionListener.wrap(
+                    jobBuilder -> {
+                        DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeedConfig);
+                        Map<String, String> headers = threadPool.getThreadContext().getHeaders().entrySet().stream()
+                            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                        previewDatafeed.setHeaders(headers);
+                        jobResultsProvider.datafeedTimingStats(
+                            jobBuilder.getId(),
+                            timingStats -> {
+                                // NB: this is using the client from the transport layer, NOT the internal client.
+                                // This is important because it means the datafeed search will fail if the user
+                                // requesting the preview doesn't have permission to search the relevant indices.
+                                DataExtractorFactory.create(
+                                    client,
+                                    previewDatafeed.build(),
+                                    jobBuilder.build(),
+                                    xContentRegistry,
+                                    // Fake DatafeedTimingStatsReporter that does not have access to results index
+                                    new DatafeedTimingStatsReporter(timingStats, (ts, refreshPolicy) -> {}),
+                                    new ActionListener<>() {
+                                        @Override
+                                        public void onResponse(DataExtractorFactory dataExtractorFactory) {
+                                            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
+                                            threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
+                                        }
 
-        DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeed);
-        Map<String, String> headers = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        previewDatafeed.setHeaders(headers);
-        // NB: this is using the client from the transport layer, NOT the internal client.
-        // This is important because it means the datafeed search will fail if the user
-        // requesting the preview doesn't have permission to search the relevant indices.
-        DataExtractorFactory.create(client, previewDatafeed.build(), job, new ActionListener<DataExtractorFactory>() {
-            @Override
-            public void onResponse(DataExtractorFactory dataExtractorFactory) {
-                DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
-                threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
-
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            listener.onFailure(e);
+                                        }
+                                    });
+                            },
+                            listener::onFailure);
+                    },
+                    listener::onFailure));
+            },
+            listener::onFailure));
     }
 
     /** Visible for testing */

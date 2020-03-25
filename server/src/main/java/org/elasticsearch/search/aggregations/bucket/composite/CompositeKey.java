@@ -30,16 +30,16 @@ import java.util.Arrays;
  * A key that is composed of multiple {@link Comparable} values.
  */
 class CompositeKey implements Writeable {
-    private final Comparable<?>[] values;
+    private final Comparable[] values;
 
-    CompositeKey(Comparable<?>... values) {
+    CompositeKey(Comparable... values) {
         this.values = values;
     }
 
     CompositeKey(StreamInput in) throws IOException {
-        values = new Comparable<?>[in.readVInt()];
+        values = new Comparable[in.readVInt()];
         for (int i = 0; i < values.length; i++) {
-            values[i] = (Comparable<?>) in.readGenericValue();
+            values[i] = (Comparable) in.readGenericValue();
         }
     }
 
@@ -51,7 +51,7 @@ class CompositeKey implements Writeable {
         }
     }
 
-    Comparable<?>[] values() {
+    Comparable[] values() {
         return values;
     }
 
@@ -59,7 +59,7 @@ class CompositeKey implements Writeable {
         return values.length;
     }
 
-    Comparable<?> get(int pos) {
+    Comparable get(int pos) {
         assert pos < values.length;
         return values[pos];
     }
@@ -76,5 +76,12 @@ class CompositeKey implements Writeable {
     @Override
     public int hashCode() {
         return Arrays.hashCode(values);
+    }
+
+    @Override
+    public String toString() {
+        return "CompositeKey{" +
+            "values=" + Arrays.toString(values) +
+            '}';
     }
 }

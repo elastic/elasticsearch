@@ -1,8 +1,8 @@
 ---
 "Create without ID":
+
  - do:
       catch: param
       create:
           index:  test_1
-          type:   test
           body:   { foo: bar }

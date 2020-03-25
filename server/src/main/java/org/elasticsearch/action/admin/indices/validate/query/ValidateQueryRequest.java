@@ -48,12 +48,26 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     private boolean rewrite;
     private boolean allShards;
 
-    private String[] types = Strings.EMPTY_ARRAY;
-
     long nowInMillis;
 
     public ValidateQueryRequest() {
         this(Strings.EMPTY_ARRAY);
+    }
+
+    public ValidateQueryRequest(StreamInput in) throws IOException {
+        super(in);
+        query = in.readNamedWriteable(QueryBuilder.class);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            int typesSize = in.readVInt();
+            if (typesSize > 0) {
+                for (int i = 0; i < typesSize; i++) {
+                    in.readString();
+                }
+            }
+        }
+        explain = in.readBoolean();
+        rewrite = in.readBoolean();
+        allShards = in.readBoolean();
     }
 
     /**
@@ -83,21 +97,6 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     public ValidateQueryRequest query(QueryBuilder query) {
         this.query = query;
-        return this;
-    }
-
-    /**
-     * The types of documents the query will run against. Defaults to all types.
-     */
-    public String[] types() {
-        return this.types;
-    }
-
-    /**
-     * The types of documents the query will run against. Defaults to all types.
-     */
-    public ValidateQueryRequest types(String... types) {
-        this.types = types;
         return this;
     }
 
@@ -144,41 +143,20 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        query = in.readNamedWriteable(QueryBuilder.class);
-        int typesSize = in.readVInt();
-        if (typesSize > 0) {
-            types = new String[typesSize];
-            for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readString();
-            }
-        }
-        explain = in.readBoolean();
-        rewrite = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
-            allShards = in.readBoolean();
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeNamedWriteable(query);
-        out.writeVInt(types.length);
-        for (String type : types) {
-            out.writeString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeVInt(0);   // no types to filter
         }
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
-            out.writeBoolean(allShards);
-        }
+        out.writeBoolean(allShards);
     }
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", query[" + query + "], explain:" + explain +
+        return "[" + Arrays.toString(indices) + "] query[" + query + "], explain:" + explain +
                 ", rewrite:" + rewrite + ", all_shards:" + allShards;
     }
 

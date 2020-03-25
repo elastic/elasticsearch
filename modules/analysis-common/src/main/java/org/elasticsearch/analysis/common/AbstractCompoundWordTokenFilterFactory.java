@@ -26,6 +26,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 /**
  * Contains the common configuration settings between subclasses of this class.
@@ -49,5 +50,10 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
         if (wordList == null) {
             throw new IllegalArgumentException("word_list must be provided for [" + name + "], either as a path to a file, or directly");
         }
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        return IDENTITY_FILTER;     // don't decompound synonym file
     }
 }

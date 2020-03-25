@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -154,7 +154,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                     discoNode + ", shard is primary and " + shardRouting.state().name().toLowerCase(Locale.ROOT));
             }
         }
-        routingNodes.failShard(Loggers.getLogger(CancelAllocationCommand.class), shardRouting,
+        routingNodes.failShard(LogManager.getLogger(CancelAllocationCommand.class), shardRouting,
             new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null), indexMetaData, allocation.changes());
         // TODO: We don't have to remove a cancelled shard from in-sync set once we have a strict resync implementation.
         allocation.removeAllocationId(shardRouting);

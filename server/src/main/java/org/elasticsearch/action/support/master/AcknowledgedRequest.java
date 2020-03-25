@@ -41,6 +41,11 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     protected AcknowledgedRequest() {
     }
 
+    protected AcknowledgedRequest(StreamInput in) throws IOException {
+        super(in);
+        this.timeout = in.readTimeValue();
+    }
+
     /**
      * Allows to set the timeout
      * @param timeout timeout as a string (e.g. 1s)
@@ -74,12 +79,6 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     @Override
     public TimeValue ackTimeout() {
         return timeout;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        timeout = in.readTimeValue();
     }
 
     @Override

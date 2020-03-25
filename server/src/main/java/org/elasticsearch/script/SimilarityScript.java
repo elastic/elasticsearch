@@ -21,10 +21,8 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.index.similarity.ScriptedSimilarity;
 
-import java.io.IOException;
-
 /** A script that is used to build {@link ScriptedSimilarity} instances. */
-public abstract class SimilarityScript  {
+public abstract class SimilarityScript {
 
     /** Compute the score.
      * @param weight weight computed by the {@link SimilarityWeightScript} if any, or 1.
@@ -34,9 +32,9 @@ public abstract class SimilarityScript  {
      * @param doc    per-document statistics
      */
     public abstract double execute(double weight, ScriptedSimilarity.Query query,
-            ScriptedSimilarity.Field field, ScriptedSimilarity.Term term, ScriptedSimilarity.Doc doc) throws IOException;
+            ScriptedSimilarity.Field field, ScriptedSimilarity.Term term, ScriptedSimilarity.Doc doc);
 
-    public interface Factory {
+    public interface Factory extends ScriptFactory {
         SimilarityScript newInstance();
     }
 

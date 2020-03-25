@@ -26,6 +26,7 @@ public class NormalizerResult implements ToXContentObject, Writeable {
     static final ParseField PARTITION_FIELD_NAME_FIELD = new ParseField("partition_field_name");
     static final ParseField PARTITION_FIELD_VALUE_FIELD = new ParseField("partition_field_value");
     static final ParseField PERSON_FIELD_NAME_FIELD = new ParseField("person_field_name");
+    static final ParseField PERSON_FIELD_VALUE_FIELD = new ParseField("person_field_value");
     static final ParseField FUNCTION_NAME_FIELD = new ParseField("function_name");
     static final ParseField VALUE_FIELD_NAME_FIELD = new ParseField("value_field_name");
     static final ParseField PROBABILITY_FIELD = new ParseField("probability");
@@ -39,6 +40,7 @@ public class NormalizerResult implements ToXContentObject, Writeable {
         PARSER.declareString(NormalizerResult::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
         PARSER.declareString(NormalizerResult::setPartitionFieldValue, PARTITION_FIELD_VALUE_FIELD);
         PARSER.declareString(NormalizerResult::setPersonFieldName, PERSON_FIELD_NAME_FIELD);
+        PARSER.declareString(NormalizerResult::setPersonFieldValue, PERSON_FIELD_VALUE_FIELD);
         PARSER.declareString(NormalizerResult::setFunctionName, FUNCTION_NAME_FIELD);
         PARSER.declareString(NormalizerResult::setValueFieldName, VALUE_FIELD_NAME_FIELD);
         PARSER.declareDouble(NormalizerResult::setProbability, PROBABILITY_FIELD);
@@ -49,6 +51,7 @@ public class NormalizerResult implements ToXContentObject, Writeable {
     private String partitionFieldName;
     private String partitionFieldValue;
     private String personFieldName;
+    private String personFieldValue;
     private String functionName;
     private String valueFieldName;
     private double probability;
@@ -62,6 +65,7 @@ public class NormalizerResult implements ToXContentObject, Writeable {
         partitionFieldName = in.readOptionalString();
         partitionFieldValue = in.readOptionalString();
         personFieldName = in.readOptionalString();
+        personFieldValue = in.readOptionalString();
         functionName = in.readOptionalString();
         valueFieldName = in.readOptionalString();
         probability = in.readDouble();
@@ -74,6 +78,7 @@ public class NormalizerResult implements ToXContentObject, Writeable {
         out.writeOptionalString(partitionFieldName);
         out.writeOptionalString(partitionFieldValue);
         out.writeOptionalString(personFieldName);
+        out.writeOptionalString(personFieldValue);
         out.writeOptionalString(functionName);
         out.writeOptionalString(valueFieldName);
         out.writeDouble(probability);
@@ -87,6 +92,7 @@ public class NormalizerResult implements ToXContentObject, Writeable {
         builder.field(PARTITION_FIELD_NAME_FIELD.getPreferredName(), partitionFieldName);
         builder.field(PARTITION_FIELD_VALUE_FIELD.getPreferredName(), partitionFieldValue);
         builder.field(PERSON_FIELD_NAME_FIELD.getPreferredName(), personFieldName);
+        builder.field(PERSON_FIELD_VALUE_FIELD.getPreferredName(), personFieldValue);
         builder.field(FUNCTION_NAME_FIELD.getPreferredName(), functionName);
         builder.field(VALUE_FIELD_NAME_FIELD.getPreferredName(), valueFieldName);
         builder.field(PROBABILITY_FIELD.getPreferredName(), probability);
@@ -127,6 +133,14 @@ public class NormalizerResult implements ToXContentObject, Writeable {
         this.personFieldName = personFieldName;
     }
 
+    public String getPersonFieldValue() {
+        return personFieldValue;
+    }
+
+    public void setPersonFieldValue(String personFieldValue) {
+        this.personFieldValue = personFieldValue;
+    }
+
     public String getFunctionName() {
         return functionName;
     }
@@ -161,7 +175,7 @@ public class NormalizerResult implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(level, partitionFieldName, partitionFieldValue, personFieldName,
+        return Objects.hash(level, partitionFieldName, partitionFieldValue, personFieldName, personFieldValue,
                 functionName, valueFieldName, probability, normalizedScore);
     }
 
@@ -184,6 +198,7 @@ public class NormalizerResult implements ToXContentObject, Writeable {
                 && Objects.equals(this.partitionFieldName, that.partitionFieldName)
                 && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
                 && Objects.equals(this.personFieldName, that.personFieldName)
+                && Objects.equals(this.personFieldValue, that.personFieldValue)
                 && Objects.equals(this.functionName, that.functionName)
                 && Objects.equals(this.valueFieldName, that.valueFieldName)
                 && this.probability == that.probability

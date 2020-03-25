@@ -1,0 +1,54 @@
+[role="xpack"]
+[[java-rest-high-x-pack-watcher-delete-watch]]
+=== Delete watch API
+
+[[java-rest-high-x-pack-watcher-delete-watch-execution]]
+==== Execution
+
+A watch can be deleted as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-delete-watch-execute]
+--------------------------------------------------
+
+[[java-rest-high-x-pack-watcher-delete-watch-response]]
+==== Response
+
+The returned `DeleteWatchResponse` contains `found`, `id`,
+and `version` information.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-put-watch-response]
+--------------------------------------------------
+<1> `_id` contains id of the watch
+<2> `found` is a boolean indicating whether the watch was found
+<3> `_version` returns the version of the deleted watch
+
+[[java-rest-high-x-pack-watcher-delete-watch-async]]
+==== Asynchronous execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-delete-watch-execute-async]
+--------------------------------------------------
+<1> The `DeleteWatchRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `DeleteWatchResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/WatcherDocumentationIT.java[x-pack-delete-watch-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

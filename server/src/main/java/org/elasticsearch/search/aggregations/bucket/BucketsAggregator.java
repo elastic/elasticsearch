@@ -28,10 +28,13 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
@@ -90,7 +93,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
             docCounts.fill(0, newNumBuckets, 0);
             for (int i = 0; i < oldDocCounts.size(); i++) {
                 int docCount = oldDocCounts.get(i);
-                if (docCount != 0) {
+
+                // Skip any in the map which have been "removed", signified with -1
+                if (docCount != 0 && mergeMap[i] != -1) {
                     docCounts.increment(mergeMap[i], docCount);
                 }
             }
@@ -116,8 +121,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
         if (bucketOrd >= docCounts.size()) {
             // This may happen eg. if no document in the highest buckets is accepted by a sub aggregator.
             // For example, if there is a long terms agg on 3 terms 1,2,3 with a sub filter aggregator and if no document with 3 as a value
-            // matches the filter, then the filter will never collect bucket ord 3. However, the long terms agg will call bucketAggregations(3)
-            // on the filter aggregator anyway to build sub-aggregations.
+            // matches the filter, then the filter will never collect bucket ord 3. However, the long terms agg will call
+            // bucketAggregations(3) on the filter aggregator anyway to build sub-aggregations.
             return 0;
         } else {
             return docCounts.get(bucketOrd);
@@ -161,4 +166,21 @@ public abstract class BucketsAggregator extends AggregatorBase {
         }
     }
 
+    @Override
+    public Aggregator resolveSortPath(AggregationPath.PathElement next, Iterator<AggregationPath.PathElement> path) {
+        if (this instanceof SingleBucketAggregator) {
+            return resolveSortPathOnValidAgg(next, path);
+        }
+        return super.resolveSortPath(next, path);
+    }
+
+    @Override
+    public BucketComparator bucketComparator(String key, SortOrder order) {
+        if (key == null || "doc_count".equals(key)) {
+            return (lhs, rhs) -> order.reverseMul() * Integer.compare(bucketDocCount(lhs), bucketDocCount(rhs));
+        }
+        throw new IllegalArgumentException("Ordering on a single-bucket aggregation can only be done on its doc_count. " +
+                "Either drop the key (a la \"" + name() + "\") or change it to \"doc_count\" (a la \"" + name() +
+                ".doc_count\") or \"key\".");
+    }
 }

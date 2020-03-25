@@ -1,14 +1,17 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-basic]]
-=== Start Basic API
+=== Start basic API
+++++
+<titleabbrev>Start basic</titleabbrev>
+++++
 
 This API starts an indefinite basic license.
 
 [float]
 ==== Request
 
-`POST _xpack/license/start_basic`
+`POST /_license/start_basic`
 
 [float]
 ==== Description
@@ -29,18 +32,17 @@ https://www.elastic.co/subscriptions.
 
 You must have `manage` cluster privileges to use this API.
 For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+<<security-privileges>>.
 
 [float]
 ==== Examples
 
 The following example starts a basic license if you do not currently have a license:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
-POST _xpack/license/start_basic
+POST /_license/start_basic
 ------------------------------------------------------------
-// CONSOLE
 // TEST[skip:license testing issues]
 
 Example response:
@@ -57,11 +59,10 @@ The following example starts a basic license if you currently have a license wit
 features than a basic license. As you are losing features, you must pass the acknowledge
 parameter:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
-POST _xpack/license/start_basic?acknowledge=true
+POST /_license/start_basic?acknowledge=true
 ------------------------------------------------------------
-// CONSOLE
 // TEST[skip:license testing issues]
 
 Example response:

@@ -1,0 +1,116 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-put-follow]]
+=== Create follower API
+++++
+<titleabbrev>Create follower</titleabbrev>
+++++
+
+Creates a follower index.
+
+[[ccr-put-follow-request]]
+==== {api-request-title}
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+POST /follower_index/_ccr/pause_follow
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT /<follower_index>/_ccr/follow?wait_for_active_shards=1
+{
+  "remote_cluster" : "<remote_cluster>",
+  "leader_index" : "<leader_index>"
+}
+--------------------------------------------------
+// TEST[setup:remote_cluster_and_leader_index]
+// TEST[s/<follower_index>/follower_index/]
+// TEST[s/<remote_cluster>/remote_cluster/]
+// TEST[s/<leader_index>/leader_index/]
+
+[[ccr-put-follow-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `write`, `monitor`,
+and `manage_follow_index` index privileges for the follower index. You must have
+`read` and `monitor` index privileges for the leader index. You must also have
+`manage_ccr` cluster privileges on the cluster that contains the follower index.
+For more information, see <<security-privileges>>.
+
+[[ccr-put-follow-desc]]
+==== {api-description-title}
+
+This API creates a new follower index that is configured to follow the
+referenced leader index. When this API returns, the follower index exists, and
+{ccr} starts replicating operations from the leader index to the follower index.
+
+[[ccr-put-follow-path-parms]]
+==== {api-path-parms-title}
+
+`<follower_index>`::
+  (Required, string) The name of the follower index.
+
+[[ccr-put-follow-query-params]]
+==== {api-query-parms-title}
+
+`wait_for_active_shards`::
+  (Optional, integer) Specifies the number of shards to wait on being active before
+  responding. This defaults to waiting on none of the shards to be active. A
+  shard must be restored from the leader index being active. Restoring a
+  follower shard requires transferring all the remote Lucene segment files to
+  the follower index.
+
+
+[[ccr-put-follow-request-body]]
+==== {api-request-body-title}
+
+`leader_index`::
+  (Required, string) The name of the index in the leader cluster to follow.
+
+`remote_cluster`::
+  (Required, string) The <<modules-remote-clusters,remote cluster>> containing
+  the leader index.
+
+include::../follow-request-body.asciidoc[]
+
+[[ccr-put-follow-examples]]
+==== {api-examples-title}
+
+This example creates a follower index named `follower_index`:
+
+[source,console]
+--------------------------------------------------
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : "leader_index",
+  "max_read_request_operation_count" : 1024,
+  "max_outstanding_read_requests" : 16,
+  "max_read_request_size" : "1024k",
+  "max_write_request_operation_count" : 32768,
+  "max_write_request_size" : "16k",
+  "max_outstanding_write_requests" : 8,
+  "max_write_buffer_count" : 512,
+  "max_write_buffer_size" : "512k",
+  "max_retry_delay" : "10s",
+  "read_poll_timeout" : "30s"
+}
+--------------------------------------------------
+// TEST[setup:remote_cluster_and_leader_index]
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "follow_index_created" : true,
+  "follow_index_shards_acked" : true,
+  "index_following_started" : true
+}
+--------------------------------------------------

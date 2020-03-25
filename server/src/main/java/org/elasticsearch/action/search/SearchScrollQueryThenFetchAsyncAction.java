@@ -35,7 +35,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.function.BiFunction;
 
 final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncAction<ScrollQuerySearchResult> {
@@ -68,16 +67,16 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
     protected SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup) {
         return new SearchPhase("fetch") {
             @Override
-            public void run() throws IOException {
-                final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(
-                    queryResults.asList(), true);
-                if (reducedQueryPhase.scoreDocs.length == 0) {
+            public void run() {
+                final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedScrollQueryPhase(
+                    queryResults.asList());
+                ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
+                if (scoreDocs.length == 0) {
                     sendResponse(reducedQueryPhase, fetchResults);
                     return;
                 }
 
-                final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(),
-                    reducedQueryPhase.scoreDocs);
+                final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), scoreDocs);
                 final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase,
                     queryResults.length());
                 final CountDown counter = new CountDown(docIdsToLoad.length);
@@ -87,7 +86,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     if (docIds != null) {
                         final QuerySearchResult querySearchResult = queryResults.get(index);
                         ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[index];
-                        ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.getRequestId(), docIds,
+                        ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.getContextId(), docIds,
                             lastEmittedDoc);
                         SearchShardTarget searchShardTarget = querySearchResult.getSearchShardTarget();
                         DiscoveryNode node = clusterNodeLookup.apply(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
@@ -105,7 +104,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
 
                                 @Override
                                 public void onFailure(Exception t) {
-                                    onShardFailure(getName(), counter, querySearchResult.getRequestId(),
+                                    onShardFailure(getName(), counter, querySearchResult.getContextId(),
                                         t, querySearchResult.getSearchShardTarget(),
                                         () -> sendResponsePhase(reducedQueryPhase, fetchResults));
                                 }

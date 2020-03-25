@@ -1,6 +1,8 @@
 ---
 "Delete check shard header":
 
+
+
  - do:
       indices.create:
         index: foobar
@@ -16,18 +18,15 @@
  - do:
       index:
           index:  foobar
-          type:   baz
           id:     1
           body:   { foo: bar }
 
  - do:
        delete:
            index:  foobar
-           type:   baz
            id:     1
 
  - match:   { _index:   foobar }
- - match:   { _type:    baz }
  - match:   { _id:      "1"}
  - match:   { _version: 2}
  - match:   { _shards.total: 1}

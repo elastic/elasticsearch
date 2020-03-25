@@ -6,51 +6,66 @@
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction.Request;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestGetModelSnapshotsAction extends BaseRestHandler {
 
-    private final String ALL = "_all";
-    private final String ALL_SNAPSHOT_IDS = null;
+    private static final String ALL = "_all";
+    private static final String ALL_SNAPSHOT_IDS = null;
 
     // Even though these are null, setting up the defaults in case
     // we want to change them later
-    private final String DEFAULT_SORT = null;
-    private final String DEFAULT_START = null;
-    private final String DEFAULT_END = null;
-    private final String DEFAULT_DESCRIPTION = null;
-    private final boolean DEFAULT_DESC_ORDER = true;
+    private static final String DEFAULT_SORT = null;
+    private static final String DEFAULT_START = null;
+    private static final String DEFAULT_END = null;
+    private static final boolean DEFAULT_DESC_ORDER = true;
 
-    public RestGetModelSnapshotsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}", this);
-        // endpoints that support body parameters must also accept POST
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}", this);
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
 
-        controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/model_snapshots", this);
-        // endpoints that support body parameters must also accept POST
-        controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/model_snapshots", this);
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        // TODO: remove deprecated endpoint in 8.0.0
+        return List.of(
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}",
+                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}"),
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}",
+                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}"),
+            new ReplacedRoute(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots",
+                GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots"),
+            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots",
+                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots")
+        );
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_get_model_snapshot_action";
+        return "ml_get_model_snapshot_action";
     }
 
     @Override

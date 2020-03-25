@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
@@ -30,7 +31,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.PROCESSORS_SETTING;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.elasticsearch.index.MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING;
 import static org.elasticsearch.index.MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING;
@@ -70,7 +71,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
     public void testUpdateAutoThrottleSettings() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         mockAppender.start();
-        final Logger settingsLogger = Loggers.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
+        final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
@@ -101,7 +102,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
     public void testUpdateMergeMaxThreadCount() throws Exception {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         mockAppender.start();
-        final Logger settingsLogger = Loggers.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
+        final Logger settingsLogger = LogManager.getLogger("org.elasticsearch.common.settings.IndexScopedSettings");
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
@@ -138,7 +139,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
             builder.put(MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
         }
         if (numProc != -1) {
-            builder.put(PROCESSORS_SETTING.getKey(), numProc);
+            builder.put(NODE_PROCESSORS_SETTING.getKey(), numProc);
         }
         return newIndexMeta("index", builder.build());
     }

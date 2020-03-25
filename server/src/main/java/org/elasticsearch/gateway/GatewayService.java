@@ -19,19 +19,18 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -41,34 +40,35 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
+    private static final Logger logger = LogManager.getLogger(GatewayService.class);
 
     public static final Setting<Integer> EXPECTED_NODES_SETTING =
-        Setting.intSetting("gateway.expected_nodes", -1, -1, Property.NodeScope);
+        Setting.intSetting("gateway.expected_nodes", -1, -1, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> EXPECTED_DATA_NODES_SETTING =
         Setting.intSetting("gateway.expected_data_nodes", -1, -1, Property.NodeScope);
     public static final Setting<Integer> EXPECTED_MASTER_NODES_SETTING =
-        Setting.intSetting("gateway.expected_master_nodes", -1, -1, Property.NodeScope);
+        Setting.intSetting("gateway.expected_master_nodes", -1, -1, Property.NodeScope, Property.Deprecated);
     public static final Setting<TimeValue> RECOVER_AFTER_TIME_SETTING =
         Setting.positiveTimeSetting("gateway.recover_after_time", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Integer> RECOVER_AFTER_NODES_SETTING =
-        Setting.intSetting("gateway.recover_after_nodes", -1, -1, Property.NodeScope);
+        Setting.intSetting("gateway.recover_after_nodes", -1, -1, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> RECOVER_AFTER_DATA_NODES_SETTING =
         Setting.intSetting("gateway.recover_after_data_nodes", -1, -1, Property.NodeScope);
     public static final Setting<Integer> RECOVER_AFTER_MASTER_NODES_SETTING =
-        Setting.intSetting("gateway.recover_after_master_nodes", 0, 0, Property.NodeScope);
+        Setting.intSetting("gateway.recover_after_master_nodes", 0, 0, Property.NodeScope, Property.Deprecated);
 
-    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+    public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(1, "state not recovered / initialized", true, true,
+        false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
 
-    public static final TimeValue DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET = TimeValue.timeValueMinutes(5);
-
-    private final Gateway gateway;
+    static final TimeValue DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET = TimeValue.timeValueMinutes(5);
 
     private final ThreadPool threadPool;
 
@@ -84,44 +84,46 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     private final int recoverAfterMasterNodes;
     private final int expectedMasterNodes;
 
+    private final Runnable recoveryRunnable;
 
-    private final AtomicBoolean recovered = new AtomicBoolean();
+    private final AtomicBoolean recoveryInProgress = new AtomicBoolean();
     private final AtomicBoolean scheduledRecovery = new AtomicBoolean();
 
     @Inject
-    public GatewayService(Settings settings, AllocationService allocationService, ClusterService clusterService,
-                          ThreadPool threadPool, GatewayMetaState metaState,
-                          TransportNodesListGatewayMetaState listGatewayMetaState,
-                          IndicesService indicesService) {
-        super(settings);
-        this.gateway = new Gateway(settings, clusterService, listGatewayMetaState,
-            indicesService);
+    public GatewayService(final Settings settings, final AllocationService allocationService, final ClusterService clusterService,
+                          final ThreadPool threadPool, final Discovery discovery, final NodeClient client) {
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         // allow to control a delay of when indices will get created
-        this.expectedNodes = EXPECTED_NODES_SETTING.get(this.settings);
-        this.expectedDataNodes = EXPECTED_DATA_NODES_SETTING.get(this.settings);
-        this.expectedMasterNodes = EXPECTED_MASTER_NODES_SETTING.get(this.settings);
+        this.expectedNodes = EXPECTED_NODES_SETTING.get(settings);
+        this.expectedDataNodes = EXPECTED_DATA_NODES_SETTING.get(settings);
+        this.expectedMasterNodes = EXPECTED_MASTER_NODES_SETTING.get(settings);
 
-        if (RECOVER_AFTER_TIME_SETTING.exists(this.settings)) {
-            recoverAfterTime = RECOVER_AFTER_TIME_SETTING.get(this.settings);
+        if (RECOVER_AFTER_TIME_SETTING.exists(settings)) {
+            recoverAfterTime = RECOVER_AFTER_TIME_SETTING.get(settings);
         } else if (expectedNodes >= 0 || expectedDataNodes >= 0 || expectedMasterNodes >= 0) {
             recoverAfterTime = DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET;
         } else {
             recoverAfterTime = null;
         }
-        this.recoverAfterNodes = RECOVER_AFTER_NODES_SETTING.get(this.settings);
-        this.recoverAfterDataNodes = RECOVER_AFTER_DATA_NODES_SETTING.get(this.settings);
+        this.recoverAfterNodes = RECOVER_AFTER_NODES_SETTING.get(settings);
+        this.recoverAfterDataNodes = RECOVER_AFTER_DATA_NODES_SETTING.get(settings);
         // default the recover after master nodes to the minimum master nodes in the discovery
-        if (RECOVER_AFTER_MASTER_NODES_SETTING.exists(this.settings)) {
-            recoverAfterMasterNodes = RECOVER_AFTER_MASTER_NODES_SETTING.get(this.settings);
+        if (RECOVER_AFTER_MASTER_NODES_SETTING.exists(settings)) {
+            recoverAfterMasterNodes = RECOVER_AFTER_MASTER_NODES_SETTING.get(settings);
         } else {
-            // TODO: change me once the minimum_master_nodes is changed too
-            recoverAfterMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", -1);
+            recoverAfterMasterNodes = -1;
         }
 
-        clusterService.addLowPriorityApplier(metaState);
+        if (discovery instanceof Coordinator) {
+            recoveryRunnable = () ->
+                    clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask());
+        } else {
+            final Gateway gateway = new Gateway(clusterService, client);
+            recoveryRunnable = () ->
+                    gateway.performStateRecovery(new GatewayRecoveryListener());
+        }
     }
 
     @Override
@@ -156,7 +158,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             return;
         }
 
-        DiscoveryNodes nodes = state.nodes();
+        final DiscoveryNodes nodes = state.nodes();
         if (state.nodes().getMasterNodeId() == null) {
             logger.debug("not recovering from gateway, no master elected yet");
         } else if (recoverAfterNodes != -1 && (nodes.getMasterAndDataNodes().size()) < recoverAfterNodes) {
@@ -185,7 +187,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 } else if (expectedDataNodes != -1 && (nodes.getDataNodes().size() < expectedDataNodes)) { // does not meet the expected...
                     enforceRecoverAfterTime = true;
                     reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.getDataNodes().size() + "]";
-                } else if (expectedMasterNodes != -1 && (nodes.getMasterNodes().size() < expectedMasterNodes)) { // does not meet the expected...
+                } else if (expectedMasterNodes != -1 && (nodes.getMasterNodes().size() < expectedMasterNodes)) {
+                    // does not meet the expected...
                     enforceRecoverAfterTime = true;
                     reason = "expecting [" + expectedMasterNodes + "] master nodes, but only have [" + nodes.getMasterNodes().size() + "]";
                 }
@@ -194,36 +197,79 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         }
     }
 
-    private void performStateRecovery(boolean enforceRecoverAfterTime, String reason) {
-        final Gateway.GatewayStateRecoveredListener recoveryListener = new GatewayRecoveryListener();
-
+    private void performStateRecovery(final boolean enforceRecoverAfterTime, final String reason) {
         if (enforceRecoverAfterTime && recoverAfterTime != null) {
             if (scheduledRecovery.compareAndSet(false, true)) {
                 logger.info("delaying initial state recovery for [{}]. {}", recoverAfterTime, reason);
-                threadPool.schedule(recoverAfterTime, ThreadPool.Names.GENERIC, () -> {
-                    if (recovered.compareAndSet(false, true)) {
-                        logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
-                        gateway.performStateRecovery(recoveryListener);
-                    }
-                });
-            }
-        } else {
-            if (recovered.compareAndSet(false, true)) {
-                threadPool.generic().execute(new AbstractRunnable() {
+                threadPool.schedule(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn("Recovery failed", e);
-                        // we reset `recovered` in the listener don't reset it here otherwise there might be a race
-                        // that resets it to false while a new recover is already running?
-                        recoveryListener.onFailure("state recovery failed: " + e.getMessage());
+                        logger.warn("delayed state recovery failed", e);
+                        resetRecoveredFlags();
                     }
 
                     @Override
-                    protected void doRun() throws Exception {
-                        gateway.performStateRecovery(recoveryListener);
+                    protected void doRun() {
+                        if (recoveryInProgress.compareAndSet(false, true)) {
+                            logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
+                            recoveryRunnable.run();
+                        }
+                    }
+                }, recoverAfterTime, ThreadPool.Names.GENERIC);
+            }
+        } else {
+            if (recoveryInProgress.compareAndSet(false, true)) {
+                threadPool.generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(final Exception e) {
+                        logger.warn("state recovery failed", e);
+                        resetRecoveredFlags();
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        recoveryRunnable.run();
                     }
                 });
             }
+        }
+    }
+
+    private void resetRecoveredFlags() {
+        recoveryInProgress.set(false);
+        scheduledRecovery.set(false);
+    }
+
+    class RecoverStateUpdateTask extends ClusterStateUpdateTask {
+
+        @Override
+        public ClusterState execute(final ClusterState currentState) {
+            final ClusterState newState = Function.<ClusterState>identity()
+                    .andThen(ClusterStateUpdaters::updateRoutingTable)
+                    .andThen(ClusterStateUpdaters::removeStateNotRecoveredBlock)
+                    .apply(currentState);
+
+            return allocationService.reroute(newState, "state recovered");
+        }
+
+        @Override
+        public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+            logger.info("recovered [{}] indices into cluster_state", newState.metaData().indices().size());
+            // reset flag even though state recovery completed, to ensure that if we subsequently become leader again based on a
+            // not-recovered state, that we again do another state recovery.
+            resetRecoveredFlags();
+        }
+
+        @Override
+        public void onNoLongerMaster(String source) {
+            logger.debug("stepped down as master before recovering state [{}]", source);
+            resetRecoveredFlags();
+        }
+
+        @Override
+        public void onFailure(final String source, final Exception e) {
+            logger.info(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+            resetRecoveredFlags();
         }
     }
 
@@ -232,79 +278,25 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         @Override
         public void onSuccess(final ClusterState recoveredState) {
             logger.trace("successful state recovery, importing cluster state...");
-            clusterService.submitStateUpdateTask("local-gateway-elected-state", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask() {
                 @Override
-                public ClusterState execute(ClusterState currentState) {
-                    assert currentState.metaData().indices().isEmpty();
-
-                    // remove the block, since we recovered from gateway
-                    ClusterBlocks.Builder blocks = ClusterBlocks.builder()
-                            .blocks(currentState.blocks())
-                            .blocks(recoveredState.blocks())
-                            .removeGlobalBlock(STATE_NOT_RECOVERED_BLOCK);
-
-                    MetaData.Builder metaDataBuilder = MetaData.builder(recoveredState.metaData());
-                    // automatically generate a UID for the metadata if we need to
-                    metaDataBuilder.generateClusterUuidIfNeeded();
-
-                    if (MetaData.SETTING_READ_ONLY_SETTING.get(recoveredState.metaData().settings())
-                        || MetaData.SETTING_READ_ONLY_SETTING.get(currentState.metaData().settings())) {
-                        blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
-                    }
-                    if (MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(recoveredState.metaData().settings())
-                        || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(currentState.metaData().settings())) {
-                        blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
-                    }
-
-                    for (IndexMetaData indexMetaData : recoveredState.metaData()) {
-                        metaDataBuilder.put(indexMetaData, false);
-                        blocks.addBlocks(indexMetaData);
-                    }
-
-                    // update the state to reflect the new metadata and routing
-                    ClusterState updatedState = ClusterState.builder(currentState)
-                            .blocks(blocks)
-                            .metaData(metaDataBuilder)
-                            .build();
-
-                    // initialize all index routing tables as empty
-                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable());
-                    for (ObjectCursor<IndexMetaData> cursor : updatedState.metaData().indices().values()) {
-                        routingTableBuilder.addAsRecovery(cursor.value);
-                    }
-                    // start with 0 based versions for routing table
-                    routingTableBuilder.version(0);
-
-                    // now, reroute
-                    updatedState = ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
-                    return allocationService.reroute(updatedState, "state recovered");
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-                    GatewayRecoveryListener.this.onFailure("failed to updated cluster state");
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    logger.info("recovered [{}] indices into cluster_state", newState.metaData().indices().size());
+                public ClusterState execute(final ClusterState currentState) {
+                    final ClusterState updatedState = ClusterStateUpdaters.mixCurrentStateAndRecoveredState(currentState, recoveredState);
+                    return super.execute(ClusterStateUpdaters.recoverClusterBlocks(updatedState));
                 }
             });
         }
 
         @Override
-        public void onFailure(String message) {
-            recovered.set(false);
-            scheduledRecovery.set(false);
-            // don't remove the block here, we don't want to allow anything in such a case
-            logger.info("metadata state not restored, reason: {}", message);
+        public void onFailure(final String msg) {
+            logger.info("state recovery failed: {}", msg);
+            resetRecoveredFlags();
         }
 
     }
 
     // used for testing
-    public TimeValue recoverAfterTime() {
+    TimeValue recoverAfterTime() {
         return recoverAfterTime;
     }
 

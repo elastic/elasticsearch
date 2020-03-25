@@ -85,7 +85,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
         static Double scoringScript(Map<String, Object> vars, Function<ScoreAccessor, Number> scoring) {
             Map<?, ?> doc = (Map) vars.get("doc");
-            Double index = ((Number) ((ScriptDocValues<?>) doc.get("index")).getValues().get(0)).doubleValue();
+            Double index = ((Number) ((ScriptDocValues<?>) doc.get("index")).get(0)).doubleValue();
             Double score = scoring.apply((ScoreAccessor) vars.get("_score")).doubleValue();
             Integer factor = (Integer) vars.get("factor");
             return Math.log(index + (factor * score));
@@ -97,7 +97,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         ensureGreen(); // make sure we are done otherwise preference could change?
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            index("test", "type", "" + i, jsonBuilder().startObject().field("foo", i).endObject());
+            index("test", "" + i, jsonBuilder().startObject().field("foo", i).endObject());
         }
         flush();
         refresh();
@@ -116,7 +116,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                         .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                         .setPreference(preference)
                         .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField("foo")))
-                        .execute().actionGet();
+                        .get();
                 assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()),
                         searchResponse.getShardFailures().length, CoreMatchers.equalTo(0));
                 final int hitCount = searchResponse.getHits().getHits().length;
@@ -142,7 +142,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 int numDocsToChange = randomIntBetween(20, 50);
                 while (numDocsToChange > 0) {
                     int doc = randomInt(docCount-1);// watch out this is inclusive the max values!
-                    index("test", "type", "" + doc, jsonBuilder().startObject().field("foo", doc).endObject());
+                    index("test", "" + doc, jsonBuilder().startObject().field("foo", doc).endObject());
                     --numDocsToChange;
                 }
                 flush();
@@ -152,12 +152,12 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
     }
 
     public void testScoreAccessWithinScript() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "body", "type=text", "index",
+        assertAcked(prepareCreate("test").setMapping("body", "type=text", "index",
                 "type=" + randomFrom("short", "float", "long", "integer", "double")));
 
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            client().prepareIndex("test", "type", "" + i)
+            client().prepareIndex("test").setId("" + i)
                     // we add 1 to the index field to make sure that the scripts below never compute log(0)
                     .setSource("body", randomFrom(Arrays.asList("foo", "bar", "baz")), "index", i + 1)
                     .get();
@@ -251,7 +251,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
     public void testSeedReportedInExplain() throws Exception {
         createIndex("test");
         ensureGreen();
-        index("test", "type", "1", jsonBuilder().startObject().endObject());
+        index("test", "1", jsonBuilder().startObject().endObject());
         flush();
         refresh();
 
@@ -262,7 +262,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 .setExplain(true)
                 .get();
         assertNoFailures(resp);
-        assertEquals(1, resp.getHits().getTotalHits());
+        assertEquals(1, resp.getHits().getTotalHits().value);
         SearchHit firstHit = resp.getHits().getAt(0);
         assertThat(firstHit.getExplanation().toString(), containsString("" + seed));
     }
@@ -275,13 +275,13 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(1234).setField(SeqNoFieldMapper.NAME)))
                 .get();
         assertNoFailures(resp);
-        assertEquals(0, resp.getHits().getTotalHits());
+        assertEquals(0, resp.getHits().getTotalHits().value);
 
         resp = client().prepareSearch("test")
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()))
                 .get();
         assertNoFailures(resp);
-        assertEquals(0, resp.getHits().getTotalHits());
+        assertEquals(0, resp.getHits().getTotalHits().value);
     }
 
     public void testScoreRange() throws Exception {
@@ -291,7 +291,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
             String id = randomRealisticUnicodeOfCodepointLengthBetween(1, 50);
-            index("test", "type", id, jsonBuilder().startObject().endObject());
+            index("test", id, jsonBuilder().startObject().endObject());
         }
         flush();
         refresh();
@@ -300,7 +300,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()))
                     .setSize(docCount)
-                    .execute().actionGet();
+                    .get();
 
             assertNoFailures(searchResponse);
             for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -314,25 +314,25 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         ensureGreen();
         final int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
-            index("test", "type", "" + i, jsonBuilder().startObject().endObject());
+            index("test", "" + i, jsonBuilder().startObject().endObject());
         }
         flushAndRefresh();
 
         assertNoFailures(client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomInt()).setField(SeqNoFieldMapper.NAME)))
-                .execute().actionGet());
+                .get());
 
         assertNoFailures(client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomLong()).setField(SeqNoFieldMapper.NAME)))
-                .execute().actionGet());
+                .get());
 
         assertNoFailures(client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction()
                         .seed(randomRealisticUnicodeOfLengthBetween(10, 20)).setField(SeqNoFieldMapper.NAME)))
-                .execute().actionGet());
+                .get());
     }
 
     public void checkDistribution() throws Exception {
@@ -342,7 +342,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < count; i++) {
-            index("test", "type", "" + i, jsonBuilder().startObject().endObject());
+            index("test", "" + i, jsonBuilder().startObject().endObject());
         }
 
         flush();
@@ -354,7 +354,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(functionScoreQuery(matchAllQuery(), new RandomScoreFunctionBuilder()))
-                    .execute().actionGet();
+                    .get();
 
             matrix[Integer.valueOf(searchResponse.getHits().getAt(0).getId())]++;
         }

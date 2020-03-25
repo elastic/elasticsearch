@@ -25,10 +25,12 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -63,7 +65,7 @@ public abstract class AggregationBuilder
     }
 
     /** Internal: build an {@link AggregatorFactory} based on the configuration of this builder. */
-    protected abstract AggregatorFactory<?> build(SearchContext context, AggregatorFactory<?> parent) throws IOException;
+    protected abstract AggregatorFactory build(QueryShardContext queryShardContext, AggregatorFactory parent) throws IOException;
 
     /** Associate metadata with this {@link AggregationBuilder}. */
     @Override
@@ -79,12 +81,12 @@ public abstract class AggregationBuilder
     public abstract AggregationBuilder subAggregation(PipelineAggregationBuilder aggregation);
 
     /** Return the configured set of subaggregations **/
-    public List<AggregationBuilder> getSubAggregations() {
+    public Collection<AggregationBuilder> getSubAggregations() {
         return factoriesBuilder.getAggregatorFactories();
     }
 
     /** Return the configured set of pipeline aggregations **/
-    public List<PipelineAggregationBuilder> getPipelineAggregations() {
+    public Collection<PipelineAggregationBuilder> getPipelineAggregations() {
         return factoriesBuilder.getPipelineAggregatorFactories();
     }
 
@@ -142,6 +144,14 @@ public abstract class AggregationBuilder
             builder = rewrittenBuilder;
         }
         return builder;
+    }
+
+    /**
+     * Build a tree of {@link PipelineAggregator}s to modify the tree of
+     * aggregation results after the final reduction.
+     */
+    public PipelineTree buildPipelineTree() {
+        return factoriesBuilder.buildPipelineTree();
     }
 
     /** Common xcontent fields shared among aggregator builders */

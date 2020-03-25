@@ -40,7 +40,7 @@ public class LoggerMessageFormat {
         if (messagePattern == null) {
             return null;
         }
-        if (argArray == null) {
+        if (argArray == null || argArray.length == 0) {
             if (prefix == null) {
                 return messagePattern;
             } else {

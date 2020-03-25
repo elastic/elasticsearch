@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.explain;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -28,11 +29,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Explain request encapsulating the explain query and document identifier to get an explanation for.
@@ -41,7 +45,6 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
-    private String type = "_all";
     private String id;
     private String routing;
     private String preference;
@@ -56,19 +59,25 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     public ExplainRequest() {
     }
 
-    public ExplainRequest(String index, String type, String id) {
+    public ExplainRequest(String index, String id) {
         this.index = index;
-        this.type = type;
         this.id = id;
     }
 
-    public String type() {
-        return type;
-    }
-
-    public ExplainRequest type(String type) {
-        this.type = type;
-        return this;
+    ExplainRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type);
+        }
+        id = in.readString();
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
+        query = in.readNamedWriteable(QueryBuilder.class);
+        filteringAlias = new AliasFilter(in);
+        storedFields = in.readOptionalStringArray();
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        nowInMillis = in.readVLong();
     }
 
     public String id() {
@@ -152,11 +161,8 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
-        if (type == null) {
-            validationException = ValidateActions.addValidationError("type is missing", validationException);
-        }
-        if (id == null) {
-            validationException = ValidateActions.addValidationError("id is missing", validationException);
+        if (Strings.isEmpty(id)) {
+            validationException = addValidationError("id is missing", validationException);
         }
         if (query == null) {
             validationException = ValidateActions.addValidationError("query is missing", validationException);
@@ -165,23 +171,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        type = in.readString();
-        id = in.readString();
-        routing = in.readOptionalString();
-        preference = in.readOptionalString();
-        query = in.readNamedWriteable(QueryBuilder.class);
-        filteringAlias = new AliasFilter(in);
-        storedFields = in.readOptionalStringArray();
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        nowInMillis = in.readVLong();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(type);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);

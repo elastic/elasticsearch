@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.joda.time.DateTime;
 
+import java.time.ZonedDateTime;
 import java.util.Date;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -21,9 +21,13 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
-                new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate(),
-                new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate(),
-                new DateTime(randomDateTimeZone()).toDate());
+            dateWithRandomTimeZone(), dateWithRandomTimeZone(),
+            dateWithRandomTimeZone(), dateWithRandomTimeZone(),
+            dateWithRandomTimeZone());
+    }
+
+    private static Date dateWithRandomTimeZone() {
+        return Date.from(ZonedDateTime.now(randomZone()).toInstant());
     }
 
     @Override

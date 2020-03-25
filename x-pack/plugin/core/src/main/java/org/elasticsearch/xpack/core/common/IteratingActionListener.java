@@ -6,12 +6,14 @@
 package org.elasticsearch.xpack.core.common;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -32,7 +34,8 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
     private final ActionListener<T> delegate;
     private final BiConsumer<U, ActionListener<T>> consumer;
     private final ThreadContext threadContext;
-    private final Supplier<T> consumablesFinishedResponse;
+    private final Function<T, T> finalResultFunction;
+    private final Predicate<T> iterationPredicate;
 
     private int position = 0;
 
@@ -46,7 +49,7 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
      */
     public IteratingActionListener(ActionListener<T> delegate, BiConsumer<U, ActionListener<T>> consumer, List<U> consumables,
                                    ThreadContext threadContext) {
-        this(delegate, consumer, consumables, threadContext, null);
+        this(delegate, consumer, consumables, threadContext, Function.identity());
     }
 
     /**
@@ -56,18 +59,36 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
      * @param consumer the consumer that is executed for each consumable instance
      * @param consumables the instances that can be consumed to produce a response which is ultimately sent on the delegate listener
      * @param threadContext the thread context for the thread pool that created the listener
-     * @param consumablesFinishedResponse a supplier that maps the last consumable's response to a response
-     *                                    to be sent on the delegate listener, in case the last consumable returns a
-     *                                    {@code null} value, but the delegate listener should respond with some other value
-     *                                    (perhaps a concatenation of the results of all the consumables).
+     * @param finalResultFunction a function that maps the response which terminated iteration to a response that will be sent to the
+     *                            delegate listener. This is useful if the delegate listener should receive some other value (perhaps
+     *                            a concatenation of the results of all the called consumables).
      */
     public IteratingActionListener(ActionListener<T> delegate, BiConsumer<U, ActionListener<T>> consumer, List<U> consumables,
-                                   ThreadContext threadContext, @Nullable Supplier<T> consumablesFinishedResponse) {
+                                   ThreadContext threadContext, Function<T, T> finalResultFunction) {
+        this(delegate, consumer, consumables, threadContext, finalResultFunction, Objects::isNull);
+    }
+
+    /**
+     * Constructs an {@link IteratingActionListener}.
+     *
+     * @param delegate the delegate listener to call when all consumables have finished executing
+     * @param consumer the consumer that is executed for each consumable instance
+     * @param consumables the instances that can be consumed to produce a response which is ultimately sent on the delegate listener
+     * @param threadContext the thread context for the thread pool that created the listener
+     * @param finalResultFunction a function that maps the response which terminated iteration to a response that will be sent to the
+     *                            delegate listener. This is useful if the delegate listener should receive some other value (perhaps
+     *                            a concatenation of the results of all the called consumables).
+     * @param iterationPredicate a {@link Predicate} that checks if iteration should continue based on the returned result
+     */
+    public IteratingActionListener(ActionListener<T> delegate, BiConsumer<U, ActionListener<T>> consumer, List<U> consumables,
+                                   ThreadContext threadContext, Function<T, T> finalResultFunction,
+                                   Predicate<T> iterationPredicate) {
         this.delegate = delegate;
         this.consumer = consumer;
         this.consumables = Collections.unmodifiableList(consumables);
         this.threadContext = threadContext;
-        this.consumablesFinishedResponse = consumablesFinishedResponse;
+        this.finalResultFunction = finalResultFunction;
+        this.iterationPredicate = iterationPredicate;
     }
 
     @Override
@@ -88,18 +109,15 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
         // we need to store the context here as there is a chance that this method is called from a thread outside of the ThreadPool
         // like a LDAP connection reader thread and we can pollute the context in certain cases
         try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
-            if (response == null) {
+            final boolean continueIteration = iterationPredicate.test(response);
+            if (continueIteration) {
                 if (position == consumables.size()) {
-                    if (consumablesFinishedResponse != null) {
-                        delegate.onResponse(consumablesFinishedResponse.get());
-                    } else {
-                        delegate.onResponse(null);
-                    }
+                    delegate.onResponse(finalResultFunction.apply(response));
                 } else {
                     consumer.accept(consumables.get(position++), this);
                 }
             } else {
-                delegate.onResponse(response);
+                delegate.onResponse(finalResultFunction.apply(response));
             }
         }
     }

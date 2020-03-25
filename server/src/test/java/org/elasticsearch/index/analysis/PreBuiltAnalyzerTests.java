@@ -30,6 +30,7 @@ import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -40,6 +41,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -56,21 +62,21 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
 
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
         assertThat(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT),
-                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.V_5_0_0)));
+                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT.minimumIndexCompatibilityVersion())));
     }
 
     public void testThatInstancesAreCachedAndReused() {
         assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT),
                 PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
         // same es version should be cached
-        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_5_2_1),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_5_2_1));
-        assertNotSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_5_0_0),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_5_0_1));
+        Version v = VersionUtils.randomVersion(random());
+        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(v), PreBuiltAnalyzers.STANDARD.getAnalyzer(v));
+        assertNotSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT),
+                PreBuiltAnalyzers.STANDARD.getAnalyzer(VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT)));
 
         // Same Lucene version should be cached:
-        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_5_2_1),
-            PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_5_2_2));
+        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(Version.fromString("5.0.0")),
+            PreBuiltAnalyzers.STOP.getAnalyzer(Version.fromString("5.0.1")));
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {
@@ -81,14 +87,15 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         Version randomVersion = randomVersion(random());
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build();
 
-        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX, randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
+        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX,
+            randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
 
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "text").field("analyzer", analyzerName).endObject().endObject()
-                .endObject().endObject();
-        MapperService mapperService = createIndex("test", indexSettings, "type", mapping).mapperService();
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "text")
+                .field("analyzer", analyzerName).endObject().endObject().endObject().endObject();
+        MapperService mapperService = createIndex("test", indexSettings, mapping).mapperService();
 
-        MappedFieldType fieldType = mapperService.fullName("field");
+        MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType.searchAnalyzer(), instanceOf(NamedAnalyzer.class));
         NamedAnalyzer fieldMapperNamedAnalyzer = fieldType.searchAnalyzer();
 

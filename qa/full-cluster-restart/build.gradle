@@ -19,96 +19,67 @@
 
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
+for (Version bwcVersion : bwcVersions.indexCompatible) {
+  String baseName = "v${bwcVersion}"
 
-for (Version version : bwcVersions.indexCompatible) {
-  String baseName = "v${version}"
-
-  Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
-    mustRunAfter(precommit)
-  }
-  tasks.getByName("${baseName}#oldClusterTestRunner").configure {
-    systemProperty 'tests.is_old_cluster', 'true'
-    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
-    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
-  }
-
-  Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
-  configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-    bwcVersion = version
-    numBwcNodes = 2
-    numNodes = 2
-    clusterName = 'full-cluster-restart'
-
-    // some tests rely on the translog not being flushed
-    setting 'indices.memory.shard_inactive_time', '20m'
-
-    // debug logging for testRecovery
-    setting 'logger.level', 'DEBUG'
-
-    if (version.onOrAfter('5.3.0')) {
+  testClusters {
+    "${baseName}" {
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 2
+      // some tests rely on the translog not being flushed
+      setting 'indices.memory.shard_inactive_time', '60m'
       setting 'http.content_type.required', 'true'
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     }
   }
 
+  tasks.register("${baseName}#oldClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${baseName}"
+    mustRunAfter(precommit)
+    doFirst {
+      project.delete("${buildDir}/cluster/shared/repo/${baseName}")
+    }
 
-  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask) {
-    dependsOn(oldClusterTest, "${baseName}#oldClusterTestCluster#node0.stop")
+    systemProperty 'tests.is_old_cluster', 'true'
   }
 
-  configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
-    dependsOn oldClusterTest,
-        "${baseName}#oldClusterTestCluster#node0.stop",
-        "${baseName}#oldClusterTestCluster#node1.stop"
-    clusterName = 'full-cluster-restart'
-
-    // some tests rely on the translog not being flushed
-    setting 'indices.memory.shard_inactive_time', '20m'
-
-    // debug logging for testRecovery
-    setting 'logger.level', 'DEBUG'
-
-    numNodes = 2
-    dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
-    cleanShared = false // We want to keep snapshots made by the old cluster!
-  }
-
-  tasks.getByName("${baseName}#upgradedClusterTestRunner").configure {
+  tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
+    useCluster testClusters."${baseName}"
+    dependsOn "${baseName}#oldClusterTest"
+    doFirst {
+      testClusters."${baseName}".goToNextVersion()
+    }
     systemProperty 'tests.is_old_cluster', 'false'
-    systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
-    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
-
   }
 
-  Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
-    dependsOn = [upgradedClusterTest]
+  tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
+    it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
+    it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn(versionBwcTest)
-  }
-}
-
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
-
-// basic integ tests includes testing bwc against the most recent version
-task integTest {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.snapshotsIndexCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn tasks.named("${baseName}#upgradedClusterTest")
   }
 }
 
-check.dependsOn(integTest)
+configurations {
+  testArtifacts.extendsFrom testRuntime
+}
 
+task testJar(type: Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}

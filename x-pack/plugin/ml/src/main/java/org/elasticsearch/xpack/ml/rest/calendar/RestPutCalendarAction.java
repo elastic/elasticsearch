@@ -6,30 +6,39 @@
 package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutCalendarAction extends BaseRestHandler {
 
-    public RestPutCalendarAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.PUT,
-                MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}", this);
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        // TODO: remove deprecated endpoint in 8.0.0
+        return Collections.singletonList(
+            new ReplacedRoute(PUT, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}",
+                PUT, MachineLearning.PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}")
+        );
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_put_calendar_action";
+        return "ml_put_calendar_action";
     }
 
     @Override

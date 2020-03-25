@@ -1,0 +1,150 @@
+.box {
+    width:600px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 50px;
+    background-color: white;
+   -webkit-box-shadow: 1px 1px 15px #999999;
+    -moz-box-shadow: 1px 1px 15px #999999;
+    box-shadow: 1px 1px 15px #999999;
+    -webkit-border-radius: 8px;
+    -moz-border-radius: 8px;
+    border-radius: 8px;
+    overflow: auto;
+    padding: 1.268em;
+}
+
+body {
+    font-family:Verdana, Geneva, sans-serif;
+    font-size: 12px;
+}
+
+h1 {
+    font-size: 13px;
+    padding-bottom: 12px;
+}
+
+a {
+    color: #00247D;
+    text-decoration: underline;
+}
+
+a:visited {
+    color: #00247D;
+    text-decoration: underline;
+}
+
+a:focus, a:hover, a:active {
+    color: #F39800;
+    text-decoration: underline;
+}
+
+#tou-content {
+    font-family:monospace;
+    width: 95%;
+    border: solid 1px #666;
+    margin: 4px;
+    padding: 10px;
+    overflow: hidden;
+}
+
+#tou-content li{
+    margin-bottom:10px;
+}
+
+#tou-acceptance {
+    width: 95%;
+    border: solid 1px #666;
+    background-color: #F0F0F0;
+    margin: 4px;
+    padding: 10px;
+    text-align: left;
+    overflow: hidden;
+}
+
+.service_name {
+    font-weight: bold;
+}
+
+.service_description {
+    font-style: italic;
+}
+
+.organization_name {
+}
+
+#attributeRelease-consent {
+    width: 95%;
+    border: solid 1px #666;
+    background-color: #F0F0F0;
+    margin: 4px;
+    overflow: hidden;
+}
+
+#attributeRelease {
+    width: 95%;
+    margin: 4px;
+    border: solid 1px black;
+    overflow: auto;
+}
+
+#attributeRelease table {
+    border-collapse: collapse;
+    border: none 0px white;
+    width: 100%;
+}
+
+#attributeRelease td {
+    padding: 3px 7px;
+    vertical-align: top;
+}
+
+#attributeRelease th  {
+    text-align: left;
+    font-size: 18px;
+    padding: 5px 7px;
+    background-color:#00247D;
+    color: white;
+}
+
+#attributeRelease tr:nth-of-type(even) {
+    background-color: #E4E5E3;
+}
+
+.federation_logo
+{
+	width: 50%;
+    float: left;
+    padding-top: 35px;
+    border: 0;
+}
+.organization_logo
+{
+	width: 50%;
+    float: right;
+    border: 0;
+}
+
+.form-error {
+  padding: 0;
+  color: #B61601;
+}
+
+/* Device specific styles */
+@media only screen and (max-device-width: 721px){
+  .box {
+      width: auto;
+      box-shadow: none;
+      border-radius: 0;
+      -webkit-box-shadow: none;
+      -webkit-border-radius: 0;
+      -moz-box-shadow: none;
+      -moz-border-radius: 0;
+      padding: 0;
+      margin-top:0;
+  }
+  #tou-content, #tou-acceptance{
+    /*width:87%;*/
+    width:auto;
+  }
+}

@@ -66,4 +66,8 @@ public final class ContentPath {
         sb.append(name);
         return sb.toString();
     }
+
+    public int length() {
+        return index;
+    }
 }

@@ -19,15 +19,12 @@
 
 package org.elasticsearch.painless;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-
 import java.lang.invoke.LambdaConversionException;
+import java.time.Instant;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.startsWith;
 
 public class FunctionRefTests extends ScriptTestCase {
 
@@ -49,26 +46,26 @@ public class FunctionRefTests extends ScriptTestCase {
 
     public void testQualifiedStaticMethodReference() {
         assertEquals(true,
-                exec("List l = [true]; l.stream().map(org.elasticsearch.painless.FeatureTest::overloadedStatic).findFirst().get()"));
+                exec("List l = [true]; l.stream().map(org.elasticsearch.painless.FeatureTestObject::overloadedStatic).findFirst().get()"));
     }
 
     public void testQualifiedStaticMethodReferenceDef() {
         assertEquals(true,
-                exec("def l = [true]; l.stream().map(org.elasticsearch.painless.FeatureTest::overloadedStatic).findFirst().get()"));
+                exec("def l = [true]; l.stream().map(org.elasticsearch.painless.FeatureTestObject::overloadedStatic).findFirst().get()"));
     }
 
     public void testQualifiedVirtualMethodReference() {
         long instant = randomLong();
         assertEquals(instant, exec(
-                "List l = [params.d]; return l.stream().mapToLong(org.joda.time.ReadableDateTime::getMillis).sum()",
-                singletonMap("d", new DateTime(instant, DateTimeZone.UTC)), true));
+                "List l = [params.d]; return l.stream().mapToLong(Instant::toEpochMilli).sum()",
+                singletonMap("d", Instant.ofEpochMilli(instant)), true));
     }
 
     public void testQualifiedVirtualMethodReferenceDef() {
         long instant = randomLong();
         assertEquals(instant, exec(
-                "def l = [params.d]; return l.stream().mapToLong(org.joda.time.ReadableDateTime::getMillis).sum()",
-                singletonMap("d", new DateTime(instant, DateTimeZone.UTC)), true));
+                "def l = [params.d]; return l.stream().mapToLong(Instant::toEpochMilli).sum()",
+                singletonMap("d", Instant.ofEpochMilli(instant)), true));
     }
 
     public void testCtorMethodReference() {
@@ -136,7 +133,7 @@ public class FunctionRefTests extends ScriptTestCase {
         assertEquals("testingcdefg", exec(
                 "String x = 'testing';" +
                 "String y = 'abcdefg';" +
-                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" +
+                "org.elasticsearch.painless.FeatureTestObject test = new org.elasticsearch.painless.FeatureTestObject(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
 
@@ -144,7 +141,7 @@ public class FunctionRefTests extends ScriptTestCase {
         assertEquals("testingcdefg", exec(
                 "def x = 'testing';" +
                 "def y = 'abcdefg';" +
-                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" +
+                "org.elasticsearch.painless.FeatureTestObject test = new org.elasticsearch.painless.FeatureTestObject(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
 
@@ -152,7 +149,7 @@ public class FunctionRefTests extends ScriptTestCase {
         assertEquals("testingcdefg", exec(
                 "String x = 'testing';" +
                 "String y = 'abcdefg';" +
-                "def test = new org.elasticsearch.painless.FeatureTest(2,3);" +
+                "def test = new org.elasticsearch.painless.FeatureTestObject(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
 
@@ -160,7 +157,7 @@ public class FunctionRefTests extends ScriptTestCase {
         assertEquals("testingcdefg", exec(
                 "def x = 'testing';" +
                 "def y = 'abcdefg';" +
-                "def test = new org.elasticsearch.painless.FeatureTest(2,3);" +
+                "def test = new org.elasticsearch.painless.FeatureTestObject(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
 
@@ -193,21 +190,22 @@ public class FunctionRefTests extends ScriptTestCase {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("List l = [2, 1]; l.sort(Integer::bogus); return l.get(0);");
         });
-        assertThat(e.getMessage(), startsWith("Unknown reference"));
+        assertThat(e.getMessage(), containsString("function reference [Integer::bogus/2] matching [java.util.Comparator"));
     }
 
     public void testQualifiedMethodMissing() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("List l = [2, 1]; l.sort(org.joda.time.ReadableDateTime::bogus); return l.get(0);", false);
+            exec("List l = [2, 1]; l.sort(java.time.Instant::bogus); return l.get(0);", false);
         });
-        assertThat(e.getMessage(), startsWith("Unknown reference"));
+        assertThat(e.getMessage(),
+                containsString("function reference [java.time.Instant::bogus/2] matching [java.util.Comparator, compare/2"));
     }
 
     public void testClassMissing() {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("List l = [2, 1]; l.sort(Bogus::bogus); return l.get(0);", false);
         });
-        assertThat(e.getMessage(), endsWith("Variable [Bogus] is not defined."));
+        assertThat(e.getMessage(), endsWith("variable [Bogus] is not defined"));
     }
 
     public void testQualifiedClassMissing() {
@@ -223,11 +221,12 @@ public class FunctionRefTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("List l = new ArrayList(); l.add(2); l.add(1); l.add(Integer::bogus); return l.get(0);");
         });
-        assertThat(expected.getMessage(), containsString("Cannot convert function reference"));
+        assertThat(expected.getMessage(),
+                containsString("cannot convert function reference [Integer::bogus] to a non-functional interface [def]"));
     }
 
     public void testIncompatible() {
-        expectScriptThrows(BootstrapMethodError.class, () -> {
+        expectScriptThrows(ClassCastException.class, () -> {
             exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(String::startsWith); return l.get(0);");
         });
     }
@@ -236,28 +235,32 @@ public class FunctionRefTests extends ScriptTestCase {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("Optional.empty().orElseGet(String::startsWith);");
         });
-        assertThat(expected.getMessage(), containsString("Unknown reference"));
+        assertThat(expected.getMessage(),
+                containsString("function reference [String::startsWith/0] matching [java.util.function.Supplier"));
     }
 
     public void testWrongArityNotEnough() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(String::isEmpty);");
         });
-        assertTrue(expected.getMessage().contains("Unknown reference"));
+        assertThat(expected.getMessage(), containsString(
+                "function reference [String::isEmpty/2] matching [java.util.Comparator"));
     }
 
     public void testWrongArityDef() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("def y = Optional.empty(); return y.orElseGet(String::startsWith);");
         });
-        assertThat(expected.getMessage(), containsString("Unknown reference"));
+        assertThat(expected.getMessage(),
+                containsString("function reference [String::startsWith/0] matching [java.util.function.Supplier"));
     }
 
     public void testWrongArityNotEnoughDef() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("def l = new ArrayList(); l.add(2); l.add(1); l.sort(String::isEmpty);");
         });
-        assertThat(expected.getMessage(), containsString("Unknown reference"));
+        assertThat(expected.getMessage(),
+                containsString("function reference [String::isEmpty/2] matching [java.util.Comparator"));
     }
 
     public void testReturnVoid() {

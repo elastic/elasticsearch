@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.discovery.Discovery;
@@ -37,7 +36,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
-import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,9 +43,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
-public class NodeService extends AbstractComponent implements Closeable {
-
+public class NodeService implements Closeable {
+    private final Settings settings;
     private final ThreadPool threadPool;
     private final MonitorService monitorService;
     private final TransportService transportService;
@@ -69,7 +68,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
                 SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
                 SearchTransportService searchTransportService) {
-        super(settings);
+        this.settings = settings;
         this.threadPool = threadPool;
         this.monitorService = monitorService;
         this.transportService = transportService;
@@ -83,8 +82,7 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.searchTransportService = searchTransportService;
-        clusterService.addStateApplier(ingestService.getPipelineStore());
-        clusterService.addStateApplier(ingestService.getPipelineExecutionService());
+        clusterService.addStateApplier(ingestService);
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
@@ -109,7 +107,7 @@ public class NodeService extends AbstractComponent implements Closeable {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(transportService.getLocalNode(), System.currentTimeMillis(),
-                indices.anySet() ? indicesService.stats(true, indices) : null,
+                indices.anySet() ? indicesService.stats(indices) : null,
                 os ? monitorService.osService().stats() : null,
                 process ? monitorService.processService().stats() : null,
                 jvm ? monitorService.jvmService().stats() : null,
@@ -120,7 +118,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 circuitBreaker ? circuitBreakerService.stats() : null,
                 script ? scriptService.stats() : null,
                 discoveryStats ? discovery.stats() : null,
-                ingest ? ingestService.getPipelineExecutionService().stats() : null,
+                ingest ? ingestService.stats() : null,
                 adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null
         );
     }
@@ -136,6 +134,14 @@ public class NodeService extends AbstractComponent implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.close(indicesService);
+    }
+
+    /**
+     * Wait for the node to be effectively closed.
+     * @see IndicesService#awaitClose(long, TimeUnit)
+     */
+    public boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        return indicesService.awaitClose(timeout, timeUnit);
     }
 
 }

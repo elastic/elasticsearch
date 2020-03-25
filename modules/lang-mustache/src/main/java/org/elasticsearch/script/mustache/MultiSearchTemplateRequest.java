@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -46,7 +45,15 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     private int maxConcurrentSearchRequests = 0;
     private List<SearchTemplateRequest> requests = new ArrayList<>();
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+
+    public MultiSearchTemplateRequest() {}
+
+    MultiSearchTemplateRequest(StreamInput in) throws IOException {
+        super(in);
+        maxConcurrentSearchRequests = in.readVInt();
+        requests = in.readList(SearchTemplateRequest::new);
+    }
 
     /**
      * Add a search template request to execute. Note, the order is important, the search response will be returned in the
@@ -65,7 +72,6 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         requests.add(request);
         return this;
     }
-
 
     /**
      * Returns the amount of search requests specified in this multi search requests are allowed to be ran concurrently.
@@ -118,23 +124,12 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-            maxConcurrentSearchRequests = in.readVInt();
-        }
-        requests = in.readStreamableList(SearchTemplateRequest::new);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-            out.writeVInt(maxConcurrentSearchRequests);
-        }
-        out.writeStreamableList(requests);
+        out.writeVInt(maxConcurrentSearchRequests);
+        out.writeList(requests);
     }
-        
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -148,9 +143,9 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     @Override
     public int hashCode() {
         return Objects.hash(maxConcurrentSearchRequests, requests, indicesOptions);
-    }      
-    
-    public static byte[] writeMultiLineFormat(MultiSearchTemplateRequest multiSearchTemplateRequest, 
+    }
+
+    public static byte[] writeMultiLineFormat(MultiSearchTemplateRequest multiSearchTemplateRequest,
             XContent xContent) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         for (SearchTemplateRequest templateRequest : multiSearchTemplateRequest.requests()) {
@@ -168,5 +163,5 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         }
         return output.toByteArray();
     }
-    
+
 }

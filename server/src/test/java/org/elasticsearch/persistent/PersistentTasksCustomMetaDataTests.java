@@ -20,11 +20,14 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,9 +36,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -51,20 +56,18 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.NoSuchElementException;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
-import static org.elasticsearch.test.VersionUtils.allReleasedVersions;
 import static org.elasticsearch.test.VersionUtils.compatibleFutureVersion;
 import static org.elasticsearch.test.VersionUtils.getFirstVersion;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializationTestCase<Custom> {
 
@@ -251,7 +254,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
     public void testMinVersionSerialization() throws IOException {
         PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
 
-        Version minVersion = allReleasedVersions().stream().filter(Version::isRelease).findFirst().orElseThrow(NoSuchElementException::new);
+        Version minVersion = getFirstVersion();
         final Version streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(Version.CURRENT));
         tasks.addTask("test_compatible_version", TestPersistentTasksExecutor.NAME,
             new TestParams(null, randomVersionBetween(random(), minVersion, streamVersion),
@@ -262,17 +265,8 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                 randomBoolean() ? Optional.empty() : Optional.of("test")),
             randomAssignment());
         final BytesStreamOutput out = new BytesStreamOutput();
+
         out.setVersion(streamVersion);
-        Set<String> features = new HashSet<>();
-        final boolean transportClient = randomBoolean();
-        if (transportClient) {
-            features.add(TransportClient.TRANSPORT_CLIENT_FEATURE);
-        }
-        // if a transport client, then it must have the feature otherwise we add the feature randomly
-        if (transportClient || randomBoolean()) {
-            features.add("test");
-        }
-        out.setFeatures(features);
         tasks.build().writeTo(out);
 
         final StreamInput input = out.bytes().streamInput();
@@ -283,28 +277,89 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible_version")));
     }
 
-    public void testFeatureSerialization() throws IOException {
-        PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
+    public void testDisassociateDeadNodes_givenNoPersistentTasks() {
+        ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests")).build();
+        ClusterState returnedState = PersistentTasksCustomMetaData.disassociateDeadNodes(originalState);
+        assertThat(originalState, sameInstance(returnedState));
+    }
 
-        Version minVersion = getFirstVersion();
-        tasks.addTask("test_compatible", TestPersistentTasksExecutor.NAME,
-            new TestParams(null, randomVersionBetween(random(), minVersion, Version.CURRENT),
-                randomBoolean() ? Optional.empty() : Optional.of("existing")),
-            randomAssignment());
-        tasks.addTask("test_incompatible", TestPersistentTasksExecutor.NAME,
-            new TestParams(null, randomVersionBetween(random(), minVersion, Version.CURRENT), Optional.of("non_existing")),
-            randomAssignment());
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.CURRENT);
-        Set<String> features = new HashSet<>();
-        features.add("existing");
-        features.add(TransportClient.TRANSPORT_CLIENT_FEATURE);
-        out.setFeatures(features);
-        tasks.build().writeTo(out);
+    public void testDisassociateDeadNodes_givenAssignedPersistentTask() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+                .localNodeId("node1")
+                .masterNodeId("node1")
+                .build();
 
-        PersistentTasksCustomMetaData read = new PersistentTasksCustomMetaData(
-            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry()));
-        assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible")));
+        String taskName = "test/task";
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder()
+                .addTask("task-id", taskName, emptyTaskParams(taskName),
+                        new PersistentTasksCustomMetaData.Assignment("node1", "test assignment"));
+
+        ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
+                .nodes(nodes)
+                .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()))
+                .build();
+        ClusterState returnedState = PersistentTasksCustomMetaData.disassociateDeadNodes(originalState);
+        assertThat(originalState, sameInstance(returnedState));
+
+        PersistentTasksCustomMetaData originalTasks = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(originalState);
+        PersistentTasksCustomMetaData returnedTasks = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(returnedState);
+        assertEquals(originalTasks, returnedTasks);
+    }
+
+    public void testDisassociateDeadNodes() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+                .localNodeId("node1")
+                .masterNodeId("node1")
+                .build();
+
+        String taskName = "test/task";
+        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder()
+                .addTask("assigned-task", taskName, emptyTaskParams(taskName),
+                        new PersistentTasksCustomMetaData.Assignment("node1", "test assignment"))
+                .addTask("task-on-deceased-node", taskName, emptyTaskParams(taskName),
+                new PersistentTasksCustomMetaData.Assignment("left-the-cluster", "test assignment"));
+
+        ClusterState originalState = ClusterState.builder(new ClusterName("persistent-tasks-tests"))
+                .nodes(nodes)
+                .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()))
+                .build();
+        ClusterState returnedState = PersistentTasksCustomMetaData.disassociateDeadNodes(originalState);
+        assertThat(originalState, not(sameInstance(returnedState)));
+
+        PersistentTasksCustomMetaData originalTasks = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(originalState);
+        PersistentTasksCustomMetaData returnedTasks = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(returnedState);
+        assertNotEquals(originalTasks, returnedTasks);
+
+        assertEquals(originalTasks.getTask("assigned-task"), returnedTasks.getTask("assigned-task"));
+        assertNotEquals(originalTasks.getTask("task-on-deceased-node"), returnedTasks.getTask("task-on-deceased-node"));
+        assertEquals(PersistentTasksCustomMetaData.LOST_NODE_ASSIGNMENT, returnedTasks.getTask("task-on-deceased-node").getAssignment());
+    }
+
+    private PersistentTaskParams emptyTaskParams(String taskName) {
+        return new PersistentTaskParams() {
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                return builder;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {
+
+            }
+
+            @Override
+            public String getWriteableName() {
+                return taskName;
+            }
+
+            @Override
+            public Version getMinimalSupportedVersion() {
+                return Version.CURRENT;
+            }
+        };
     }
 
     private Assignment randomAssignment() {

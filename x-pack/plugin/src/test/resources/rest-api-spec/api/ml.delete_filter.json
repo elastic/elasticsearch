@@ -1,0 +1,24 @@
+{
+  "ml.delete_filter":{
+    "documentation":{
+      "url":null
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/filters/{filter_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "filter_id":{
+              "type":"string",
+              "description":"The ID of the filter to delete"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

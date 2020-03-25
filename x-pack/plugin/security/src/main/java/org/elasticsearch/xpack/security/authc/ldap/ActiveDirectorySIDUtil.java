@@ -18,7 +18,8 @@
  */
 
 /*
- * This code sourced from:http://svn.apache.org/repos/asf/directory/studio/tags/2.0.0.v20170904-M13/plugins/valueeditors/src/main/java/org/apache/directory/studio/valueeditors/msad/InPlaceMsAdObjectSidValueEditor.java
+ * This code sourced from:
+ * http://svn.apache.org/repos/asf/directory/studio/tags/2.0.0.v20170904-M13/plugins/valueeditors/src/main/java/org/apache/directory/studio/valueeditors/msad/InPlaceMsAdObjectSidValueEditor.java
  */
 
 package org.elasticsearch.xpack.security.authc.ldap;

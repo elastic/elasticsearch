@@ -1,0 +1,28 @@
+{
+  "ml.post_calendar_events":{
+    "documentation":{
+      "url":null
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}/events",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to modify"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"A list of events",
+      "required":true
+    }
+  }
+}

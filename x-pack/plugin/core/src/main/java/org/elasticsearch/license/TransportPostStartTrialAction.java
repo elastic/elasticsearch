@@ -14,20 +14,23 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 public class TransportPostStartTrialAction extends TransportMasterNodeAction<PostStartTrialRequest, PostStartTrialResponse> {
 
     private final LicenseService licenseService;
 
     @Inject
-    public TransportPostStartTrialAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportPostStartTrialAction(TransportService transportService, ClusterService clusterService,
                                          LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PostStartTrialAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PostStartTrialRequest::new);
+        super(PostStartTrialAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                PostStartTrialRequest::new, indexNameExpressionResolver);
         this.licenseService = licenseService;
     }
 
@@ -37,12 +40,12 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
     }
 
     @Override
-    protected PostStartTrialResponse newResponse() {
-        return new PostStartTrialResponse();
+    protected PostStartTrialResponse read(StreamInput in) throws IOException {
+        return new PostStartTrialResponse(in);
     }
 
     @Override
-    protected void masterOperation(PostStartTrialRequest request, ClusterState state,
+    protected void masterOperation(Task task, PostStartTrialRequest request, ClusterState state,
                                    ActionListener<PostStartTrialResponse> listener) throws Exception {
         licenseService.startTrialLicense(request, listener);
     }

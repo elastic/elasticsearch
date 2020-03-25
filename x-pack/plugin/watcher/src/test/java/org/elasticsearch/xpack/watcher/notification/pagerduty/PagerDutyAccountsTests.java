@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +25,7 @@ import java.util.HashSet;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -48,7 +50,7 @@ public class PagerDutyAccountsTests extends ESTestCase {
 
         HttpProxy proxy = new HttpProxy("localhost", 8080);
         IncidentEvent event = new IncidentEvent("foo", null, null, null, null, account.getName(), true, null, proxy);
-        account.send(event, Payload.EMPTY);
+        account.send(event, Payload.EMPTY, null);
 
         HttpRequest request = argumentCaptor.getValue();
         assertThat(request.proxy(), is(proxy));
@@ -72,15 +74,21 @@ public class PagerDutyAccountsTests extends ESTestCase {
                         "https://www.elastic.co/products/x-pack/alerting", "X-Pack-Alerting website link with log")
         };
         IncidentEvent event = new IncidentEvent("foo", null, null, null, null, account.getName(), true, contexts, HttpProxy.NO_PROXY);
-        account.send(event, Payload.EMPTY);
+        account.send(event, Payload.EMPTY, null);
 
         HttpRequest request = argumentCaptor.getValue();
         ObjectPath source = ObjectPath.createFromXContent(JsonXContent.jsonXContent, new BytesArray(request.body()));
-        assertThat(source.evaluate("contexts"), notNullValue());
+        assertThat(source.evaluate("contexts"), nullValue());
+        assertThat(source.evaluate("links"), notNullValue());
+        assertThat(source.evaluate("images"), notNullValue());
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {
-        builder.put("xpack.notification.pagerduty.account." + name + ".service_api_key", randomAlphaOfLength(50));
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(
+                "xpack.notification.pagerduty.account." + name + "." + PagerDutyAccount.SECURE_SERVICE_API_KEY_SETTING.getKey(),
+                randomAlphaOfLength(50));
+        builder.setSecureSettings(secureSettings);
         Settings defaults = SlackMessageDefaultsTests.randomSettings();
         for (String setting : defaults.keySet()) {
             builder.copy("xpack.notification.pagerduty.message_defaults." + setting, setting, defaults);

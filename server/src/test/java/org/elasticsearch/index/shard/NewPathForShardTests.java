@@ -90,7 +90,7 @@ public class NewPathForShardTests extends ESTestCase {
 
         @Override
         public FileStore getFileStore(Path path) throws IOException {
-            if (path.toString().contains(aPathPart)) {
+            if (path.toString().contains(aPathPart) || (path.toString() + path.getFileSystem().getSeparator()).contains(aPathPart)) {
                 return aFileStore;
             } else {
                 return bFileStore;

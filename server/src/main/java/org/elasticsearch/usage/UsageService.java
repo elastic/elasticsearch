@@ -40,9 +40,6 @@ package org.elasticsearch.usage;
 
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 
 import java.util.ArrayList;
@@ -53,14 +50,12 @@ import java.util.Map;
 /**
  * A service to monitor usage of Elasticsearch features.
  */
-public class UsageService extends AbstractComponent {
+public class UsageService {
 
     private final List<BaseRestHandler> handlers;
     private final long sinceTime;
 
-    @Inject
-    public UsageService(Settings settings) {
-        super(settings);
+    public UsageService() {
         this.handlers = new ArrayList<>();
         this.sinceTime = System.currentTimeMillis();
     }

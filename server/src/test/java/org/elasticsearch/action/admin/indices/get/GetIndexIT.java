@@ -22,11 +22,11 @@ package org.elasticsearch.action.admin.indices.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GetIndexIT extends ESIntegTestCase {
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addAlias(new Alias("alias_idx")).addMapping("type1", "{\"type1\":{}}", XContentType.JSON)
+        assertAcked(prepareCreate("idx").addAlias(new Alias("alias_idx"))
                 .setSettings(Settings.builder().put("number_of_shards", 1)).get());
         ensureSearchable("idx");
         createIndex("empty_idx");
@@ -73,8 +73,17 @@ public class GetIndexIT extends ESIntegTestCase {
             client().admin().indices().prepareGetIndex().addIndices("missing_idx").get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
+            assertThat(e.getMessage(), is("no such index [missing_idx]"));
         }
+    }
+
+    public void testUnknownIndexWithAllowNoIndices() {
+        GetIndexResponse response = client().admin().indices().prepareGetIndex()
+            .addIndices("missing_idx").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN).get();
+        assertThat(response.indices(), notNullValue());
+        assertThat(response.indices().length, equalTo(0));
+        assertThat(response.mappings(), notNullValue());
+        assertThat(response.mappings().size(), equalTo(0));
     }
 
     public void testEmpty() {
@@ -197,7 +206,8 @@ public class GetIndexIT extends ESIntegTestCase {
 
         try {
             enableIndexBlock("idx", SETTING_BLOCKS_METADATA);
-            assertBlocked(client().admin().indices().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES), INDEX_METADATA_BLOCK);
+            assertBlocked(client().admin().indices().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES),
+                INDEX_METADATA_BLOCK);
         } finally {
             disableIndexBlock("idx", SETTING_BLOCKS_METADATA);
         }
@@ -229,24 +239,19 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     private void assertMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = response.mappings();
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.get(indexName);
+        MappingMetaData indexMappings = mappings.get(indexName);
         assertThat(indexMappings, notNullValue());
-        assertThat(indexMappings.size(), equalTo(1));
-        MappingMetaData mapping = indexMappings.get("type1");
-        assertThat(mapping, notNullValue());
-        assertThat(mapping.type(), equalTo("type1"));
     }
 
     private void assertEmptyOrOnlyDefaultMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = response.mappings();
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.get(indexName);
-        assertThat(indexMappings, notNullValue());
-        assertThat(indexMappings.size(), equalTo(0));
+        MappingMetaData indexMappings = mappings.get(indexName);
+        assertEquals(indexMappings, MappingMetaData.EMPTY_MAPPINGS);
     }
 
     private void assertAliases(GetIndexResponse response, String indexName) {

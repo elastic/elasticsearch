@@ -25,12 +25,12 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -43,11 +43,12 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
-    public RestGetIndexTemplateAction(final Settings settings, final RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_template", this);
-        controller.registerHandler(GET, "/_template/{name}", this);
-        controller.registerHandler(HEAD, "/_template/{name}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_template"),
+            new Route(GET, "/_template/{name}"),
+            new Route(HEAD, "/_template/{name}"));
     }
 
     @Override
@@ -60,6 +61,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
         final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
+
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
 
@@ -68,7 +70,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         return channel ->
                 client.admin()
                         .indices()
-                        .getTemplates(getIndexTemplatesRequest, new RestToXContentListener<GetIndexTemplatesResponse>(channel) {
+                        .getTemplates(getIndexTemplatesRequest, new RestToXContentListener<>(channel) {
                             @Override
                             protected RestStatus getStatus(final GetIndexTemplatesResponse response) {
                                 final boolean templateExists = response.getIndexTemplates().isEmpty() == false;

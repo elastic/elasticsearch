@@ -37,8 +37,17 @@ public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVe
     IntArrayList locations;
     List<TermVectorsRequest> requests;
 
-    public MultiTermVectorsShardRequest() {
+    MultiTermVectorsShardRequest(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        locations = new IntArrayList(size);
+        requests = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            locations.add(in.readVInt());
+            requests.add(new TermVectorsRequest(in));
+        }
 
+        preference = in.readOptionalString();
     }
 
     MultiTermVectorsShardRequest(String index, int shardId) {
@@ -84,20 +93,6 @@ public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVe
             indices[i] = requests.get(i).index();
         }
         return indices;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        locations = new IntArrayList(size);
-        requests = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            locations.add(in.readVInt());
-            requests.add(TermVectorsRequest.readTermVectorsRequest(in));
-        }
-
-        preference = in.readOptionalString();
     }
 
     @Override

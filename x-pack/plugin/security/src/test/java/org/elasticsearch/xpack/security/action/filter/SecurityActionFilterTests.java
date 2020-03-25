@@ -27,11 +27,11 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -39,8 +39,8 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.HashSet;
 
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
@@ -67,7 +67,6 @@ public class SecurityActionFilterTests extends ESTestCase {
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isStatsAndHealthAllowed()).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -79,13 +78,12 @@ public class SecurityActionFilterTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                .add(new DiscoveryNode("id2", buildNewFakeTransportAddress(), Version.V_5_4_0))
+                .add(new DiscoveryNode("id2", buildNewFakeTransportAddress(), Version.CURRENT.minimumCompatibilityVersion()))
                 .build();
         when(state.nodes()).thenReturn(nodes);
 
         SecurityContext securityContext = new SecurityContext(settings, threadContext);
-        filter = new SecurityActionFilter(Settings.EMPTY, authcService, authzService,
-                        licenseState, new HashSet<>(), threadPool, securityContext, destructiveOperations);
+        filter = new SecurityActionFilter(authcService, authzService, licenseState, threadPool, securityContext, destructiveOperations);
     }
 
     public void testApply() throws Exception {
@@ -95,21 +93,23 @@ public class SecurityActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
-        final Role empty = Role.EMPTY;
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[1];
-            callback.onResponse(empty);
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
+            callback.onResponse(null);
             return Void.TYPE;
-        }).when(authzService).roles(any(User.class), any(ActionListener.class));
+        }).when(authzService)
+            .authorize(any(Authentication.class), any(String.class), any(TransportRequest.class), any(ActionListener.class));
         filter.apply(task, "_action", request, listener, chain);
-        verify(authzService).authorize(authentication, "_action", request, empty, null);
+        verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
         verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(ContextPreservingActionListener.class));
     }
 
@@ -120,28 +120,29 @@ public class SecurityActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
-        final Role empty = Role.EMPTY;
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[1];
-            assertEquals(authentication, threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
-            callback.onResponse(empty);
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
+            callback.onResponse(null);
             return Void.TYPE;
-        }).when(authzService).roles(any(User.class), any(ActionListener.class));
+        }).when(authzService)
+            .authorize(any(Authentication.class), any(String.class), any(TransportRequest.class), any(ActionListener.class));
         assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
 
         filter.apply(task, "_action", request, listener, chain);
 
         assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
-        verify(authzService).authorize(authentication, "_action", request, empty, null);
+        verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
         verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(ContextPreservingActionListener.class));
     }
 
@@ -164,12 +165,19 @@ public class SecurityActionFilterTests extends ESTestCase {
         } else {
             assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
         }
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             return Void.TYPE;
         }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
+        doAnswer((i) -> {
+            ActionListener<Void> callback = (ActionListener<Void>) i.getArguments()[3];
+            callback.onResponse(null);
+            return Void.TYPE;
+        }).when(authzService)
+            .authorize(any(Authentication.class), any(String.class), any(TransportRequest.class), any(ActionListener.class));
 
         filter.apply(task, action, request, listener, chain);
 
@@ -193,25 +201,25 @@ public class SecurityActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
-        final Role empty = Role.EMPTY;
         doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[1];
-            callback.onResponse(empty);
+            ActionListener<Void> callback = (ActionListener<Void>) i.getArguments()[3];
+            callback.onResponse(null);
             return Void.TYPE;
-        }).when(authzService).roles(any(User.class), any(ActionListener.class));
+        }).when(authzService)
+            .authorize(any(Authentication.class), any(String.class), any(TransportRequest.class), any(ActionListener.class));
         filter.apply(task, action, request, listener, chain);
         if (failDestructiveOperations) {
             verify(listener).onFailure(isA(IllegalArgumentException.class));
             verifyNoMoreInteractions(authzService, chain);
         } else {
-            verify(authzService).authorize(authentication, action, request, empty, null);
+            verify(authzService).authorize(eq(authentication), eq(action), eq(request), any(ActionListener.class));
             verify(chain).proceed(eq(task), eq(action), eq(request), isA(ContextPreservingActionListener.class));
         }
     }
@@ -224,20 +232,14 @@ public class SecurityActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");
         Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), null);
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[3];
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
-        doAnswer((i) -> {
-            ActionListener callback =
-                    (ActionListener) i.getArguments()[1];
-            callback.onResponse(Role.EMPTY);
-            return Void.TYPE;
-        }).when(authzService).roles(any(User.class), any(ActionListener.class));
-        doThrow(exception).when(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(Role.class),
-                any(Role.class));
+        doThrow(exception).when(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(ActionListener.class));
         filter.apply(task, "_action", request, listener, chain);
         verify(listener).onFailure(exception);
         verifyNoMoreInteractions(chain);

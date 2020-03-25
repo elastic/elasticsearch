@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Trigonometric_functions#sine">Tangent</a>
  * function.
  */
 public class Tan extends MathFunction {
-    public Tan(Location location, Expression field) {
-        super(location, field);
+    public Tan(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -26,7 +26,7 @@ public class Tan extends MathFunction {
 
     @Override
     protected Tan replaceChild(Expression newChild) {
-        return new Tan(location(), newChild);
+        return new Tan(source(), newChild);
     }
 
     @Override

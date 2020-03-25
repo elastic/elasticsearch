@@ -44,7 +44,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -91,14 +90,14 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             for (int j = 0; j < numChildren; ++j) {
                 Document doc = new Document();
                 doc.add(new StringField("f", TestUtil.randomSimpleString(random(), 2), Field.Store.NO));
-                doc.add(new StringField("__type", "child", Field.Store.NO));
+                doc.add(new StringField("_nested_path", "child", Field.Store.NO));
                 docs.add(doc);
             }
             if (randomBoolean()) {
                 docs.add(new Document());
             }
             Document parent = new Document();
-            parent.add(new StringField("__type", "parent", Field.Store.NO));
+            parent.add(new StringField("_nested_path", "parent", Field.Store.NO));
             docs.add(parent);
             writer.addDocuments(docs);
             if (rarely()) { // we need to have a bit more segments than what RandomIndexWriter would do by default
@@ -129,9 +128,10 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         searcher.getIndexReader().close();
     }
 
-    private TopDocs getTopDocs(IndexSearcher searcher, IndexFieldData<?> indexFieldData, String missingValue, MultiValueMode sortMode, int n, boolean reverse) throws IOException {
-        Query parentFilter = new TermQuery(new Term("__type", "parent"));
-        Query childFilter = new TermQuery(new Term("__type", "child"));
+    private TopDocs getTopDocs(IndexSearcher searcher, IndexFieldData<?> indexFieldData, String missingValue,
+                                    MultiValueMode sortMode, int n, boolean reverse) throws IOException {
+        Query parentFilter = new TermQuery(new Term("_nested_path", "parent"));
+        Query childFilter = new TermQuery(new Term("_nested_path", "child"));
         SortField sortField = indexFieldData.sortField(missingValue, sortMode, createNested(searcher, parentFilter, childFilter), reverse);
         Query query = new ConstantScoreQuery(parentFilter);
         Sort sort = new Sort(sortField);
@@ -153,7 +153,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         document.add(new StringField("filter_1", "T", Field.Store.NO));
         docs.add(document);
         document = new Document();
-        document.add(new StringField("__type", "parent", Field.Store.NO));
+        document.add(new StringField("_nested_path", "parent", Field.Store.NO));
         document.add(new StringField("field1", "a", Field.Store.NO));
         docs.add(document);
         writer.addDocuments(docs);
@@ -173,7 +173,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         document.add(new StringField("filter_1", "T", Field.Store.NO));
         docs.add(document);
         document = new Document();
-        document.add(new StringField("__type", "parent", Field.Store.NO));
+        document.add(new StringField("_nested_path", "parent", Field.Store.NO));
         document.add(new StringField("field1", "b", Field.Store.NO));
         docs.add(document);
         writer.addDocuments(docs);
@@ -192,7 +192,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         document.add(new StringField("filter_1", "T", Field.Store.NO));
         docs.add(document);
         document = new Document();
-        document.add(new StringField("__type", "parent", Field.Store.NO));
+        document.add(new StringField("_nested_path", "parent", Field.Store.NO));
         document.add(new StringField("field1", "c", Field.Store.NO));
         docs.add(document);
         writer.addDocuments(docs);
@@ -211,7 +211,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         document.add(new StringField("filter_1", "F", Field.Store.NO));
         docs.add(document);
         document = new Document();
-        document.add(new StringField("__type", "parent", Field.Store.NO));
+        document.add(new StringField("_nested_path", "parent", Field.Store.NO));
         document.add(new StringField("field1", "d", Field.Store.NO));
         docs.add(document);
         writer.addDocuments(docs);
@@ -231,7 +231,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         document.add(new StringField("filter_1", "F", Field.Store.NO));
         docs.add(document);
         document = new Document();
-        document.add(new StringField("__type", "parent", Field.Store.NO));
+        document.add(new StringField("_nested_path", "parent", Field.Store.NO));
         document.add(new StringField("field1", "f", Field.Store.NO));
         docs.add(document);
         writer.addDocuments(docs);
@@ -250,14 +250,14 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         document.add(new StringField("filter_1", "T", Field.Store.NO));
         docs.add(document);
         document = new Document();
-        document.add(new StringField("__type", "parent", Field.Store.NO));
+        document.add(new StringField("_nested_path", "parent", Field.Store.NO));
         document.add(new StringField("field1", "g", Field.Store.NO));
         docs.add(document);
         writer.addDocuments(docs);
 
         // This doc will not be included, because it doesn't have nested docs
         document = new Document();
-        document.add(new StringField("__type", "parent", Field.Store.NO));
+        document.add(new StringField("_nested_path", "parent", Field.Store.NO));
         document.add(new StringField("field1", "h", Field.Store.NO));
         writer.addDocument(document);
 
@@ -275,7 +275,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         document.add(new StringField("filter_1", "F", Field.Store.NO));
         docs.add(document);
         document = new Document();
-        document.add(new StringField("__type", "parent", Field.Store.NO));
+        document.add(new StringField("_nested_path", "parent", Field.Store.NO));
         document.add(new StringField("field1", "i", Field.Store.NO));
         docs.add(document);
         writer.addDocuments(docs);
@@ -297,14 +297,16 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(reader);
         PagedBytesIndexFieldData indexFieldData = getForField("field2");
-        Query parentFilter = new TermQuery(new Term("__type", "parent"));
+        Query parentFilter = new TermQuery(new Term("_nested_path", "parent"));
         Query childFilter = Queries.not(parentFilter);
-        BytesRefFieldComparatorSource nestedComparatorSource = new BytesRefFieldComparatorSource(indexFieldData, null, sortMode, createNested(searcher, parentFilter, childFilter));
-        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter), new QueryBitSetProducer(parentFilter), ScoreMode.None);
+        BytesRefFieldComparatorSource nestedComparatorSource =
+            new BytesRefFieldComparatorSource(indexFieldData, null, sortMode, createNested(searcher, parentFilter, childFilter));
+        ToParentBlockJoinQuery query =
+            new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter), new QueryBitSetProducer(parentFilter), ScoreMode.None);
 
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopFieldDocs topDocs = searcher.search(query, 5, sort);
-        assertThat(topDocs.totalHits, equalTo(7L));
+        assertThat(topDocs.totalHits.value, equalTo(7L));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(3));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("a"));
@@ -318,10 +320,11 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).utf8ToString(), equalTo("i"));
 
         sortMode = MultiValueMode.MAX;
-        nestedComparatorSource = new BytesRefFieldComparatorSource(indexFieldData, null, sortMode, createNested(searcher, parentFilter, childFilter));
+        nestedComparatorSource =
+            new BytesRefFieldComparatorSource(indexFieldData, null, sortMode, createNested(searcher, parentFilter, childFilter));
         sort = new Sort(new SortField("field2", nestedComparatorSource, true));
         topDocs = searcher.search(query, 5, sort);
-        assertThat(topDocs.totalHits, equalTo(7L));
+        assertThat(topDocs.totalHits.value, equalTo(7L));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(28));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("o"));
@@ -339,7 +342,8 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         bq.add(parentFilter, Occur.MUST_NOT);
         bq.add(new TermQuery(new Term("filter_1", "T")), Occur.MUST);
         childFilter = bq.build();
-        nestedComparatorSource = new BytesRefFieldComparatorSource(indexFieldData, null, sortMode, createNested(searcher, parentFilter, childFilter));
+        nestedComparatorSource =
+            new BytesRefFieldComparatorSource(indexFieldData, null, sortMode, createNested(searcher, parentFilter, childFilter));
         query = new ToParentBlockJoinQuery(
                 new ConstantScoreQuery(childFilter),
                 new QueryBitSetProducer(parentFilter),
@@ -347,7 +351,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         );
         sort = new Sort(new SortField("field2", nestedComparatorSource, true));
         topDocs = searcher.search(query, 5, sort);
-        assertThat(topDocs.totalHits, equalTo(6L));
+        assertThat(topDocs.totalHits.value, equalTo(6L));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(23));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("m"));
@@ -432,60 +436,59 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        IndexService indexService = createIndex("nested_sorting", Settings.EMPTY, "_doc", mapping);
+        IndexService indexService = createIndex("nested_sorting", Settings.EMPTY, mapping);
 
         List<List<Document>> books = new ArrayList<>();
         {
             List<Document> book = new ArrayList<>();
             Document document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "Paragraph 1", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 743));
             document.add(new IntPoint("chapters.paragraphs.word_count", 743));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "chapter 3", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters", Field.Store.NO));
             document.add(new IntPoint("chapters.read_time_seconds", 400));
             document.add(new NumericDocValuesField("chapters.read_time_seconds", 400));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "Paragraph 1", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 234));
             document.add(new IntPoint("chapters.paragraphs.word_count", 234));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "chapter 2", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters", Field.Store.NO));
             document.add(new IntPoint("chapters.read_time_seconds", 200));
             document.add(new NumericDocValuesField("chapters.read_time_seconds", 200));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "Paragraph 2", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 478));
             document.add(new IntPoint("chapters.paragraphs.word_count", 478));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "Paragraph 1", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 849));
             document.add(new IntPoint("chapters.paragraphs.word_count", 849));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "chapter 1", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters", Field.Store.NO));
             document.add(new IntPoint("chapters.read_time_seconds", 1400));
             document.add(new NumericDocValuesField("chapters.read_time_seconds", 1400));
             book.add(document);
             document = new Document();
             document.add(new StringField("genre", "science fiction", Field.Store.NO));
-            document.add(new StringField("_type", "_doc", Field.Store.NO));
             document.add(new StringField("_id", "1", Field.Store.YES));
             document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
             book.add(document);
@@ -495,20 +498,19 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             List<Document> book = new ArrayList<>();
             Document document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "Introduction", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 76));
             document.add(new IntPoint("chapters.paragraphs.word_count", 76));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "chapter 1", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters", Field.Store.NO));
             document.add(new IntPoint("chapters.read_time_seconds", 20));
             document.add(new NumericDocValuesField("chapters.read_time_seconds", 20));
             book.add(document);
             document = new Document();
             document.add(new StringField("genre", "romance", Field.Store.NO));
-            document.add(new StringField("_type", "_doc", Field.Store.NO));
             document.add(new StringField("_id", "2", Field.Store.YES));
             document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
             book.add(document);
@@ -518,20 +520,19 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             List<Document> book = new ArrayList<>();
             Document document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "A bad dream", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 976));
             document.add(new IntPoint("chapters.paragraphs.word_count", 976));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "The beginning of the end", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters", Field.Store.NO));
             document.add(new IntPoint("chapters.read_time_seconds", 1200));
             document.add(new NumericDocValuesField("chapters.read_time_seconds", 1200));
             book.add(document);
             document = new Document();
             document.add(new StringField("genre", "horror", Field.Store.NO));
-            document.add(new StringField("_type", "_doc", Field.Store.NO));
             document.add(new StringField("_id", "3", Field.Store.YES));
             document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
             book.add(document);
@@ -541,47 +542,46 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             List<Document> book = new ArrayList<>();
             Document document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "macaroni", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 180));
             document.add(new IntPoint("chapters.paragraphs.word_count", 180));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "hamburger", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 150));
             document.add(new IntPoint("chapters.paragraphs.word_count", 150));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "tosti", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 120));
             document.add(new IntPoint("chapters.paragraphs.word_count", 120));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "easy meals", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters", Field.Store.NO));
             document.add(new IntPoint("chapters.read_time_seconds", 800));
             document.add(new NumericDocValuesField("chapters.read_time_seconds", 800));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.paragraphs.header", "introduction", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters.paragraphs", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters.paragraphs", Field.Store.NO));
             document.add(new TextField("chapters.paragraphs.text", "some text...", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("chapters.paragraphs.word_count", 87));
             document.add(new IntPoint("chapters.paragraphs.word_count", 87));
             book.add(document);
             document = new Document();
             document.add(new TextField("chapters.title", "introduction", Field.Store.NO));
-            document.add(new StringField("_type", "__chapters", Field.Store.NO));
+            document.add(new StringField("_nested_path", "chapters", Field.Store.NO));
             document.add(new IntPoint("chapters.read_time_seconds", 10));
             document.add(new NumericDocValuesField("chapters.read_time_seconds", 10));
             book.add(document);
             document = new Document();
             document.add(new StringField("genre", "cooking", Field.Store.NO));
-            document.add(new StringField("_type", "_doc", Field.Store.NO));
             document.add(new StringField("_id", "4", Field.Store.YES));
             document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
             book.add(document);
@@ -591,7 +591,6 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             List<Document> book = new ArrayList<>();
             Document document = new Document();
             document.add(new StringField("genre", "unknown", Field.Store.NO));
-            document.add(new StringField("_type", "_doc", Field.Store.NO));
             document.add(new StringField("_id", "5", Field.Store.YES));
             document.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
             book.add(document);
@@ -608,13 +607,13 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(reader);
-        QueryShardContext queryShardContext = indexService.newQueryShardContext(0, reader, () -> 0L, null);
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(0, searcher, () -> 0L, null);
 
         FieldSortBuilder sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");
         sortBuilder.setNestedSort(new NestedSortBuilder("chapters").setNestedSort(new NestedSortBuilder("chapters.paragraphs")));
         QueryBuilder queryBuilder = new MatchAllQueryBuilder();
         TopFieldDocs topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-        assertThat(topFields.totalHits, equalTo(5L));
+        assertThat(topFields.totalHits.value, equalTo(5L));
         assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
         assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
         assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("4"));
@@ -630,25 +629,25 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         {
             queryBuilder = new TermQueryBuilder("genre", "romance");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
 
             queryBuilder = new TermQueryBuilder("genre", "science fiction");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("1"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(234L));
 
             queryBuilder = new TermQueryBuilder("genre", "horror");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976L));
 
             queryBuilder = new TermQueryBuilder("genre", "cooking");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
         }
@@ -658,7 +657,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             sortBuilder.order(SortOrder.DESC);
             queryBuilder = new MatchAllQueryBuilder();
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(5L));
+            assertThat(topFields.totalHits.value, equalTo(5L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976L));
             assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("1"));
@@ -675,25 +674,25 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         {
             queryBuilder = new TermQueryBuilder("genre", "romance");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
 
             queryBuilder = new TermQueryBuilder("genre", "science fiction");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("1"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(849L));
 
             queryBuilder = new TermQueryBuilder("genre", "horror");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976L));
 
             queryBuilder = new TermQueryBuilder("genre", "cooking");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(180L));
         }
@@ -707,16 +706,18 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
                     .setFilter(queryBuilder)
                     .setNestedSort(new NestedSortBuilder("chapters.paragraphs"))
             );
-            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None), sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(2L));
+            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None),
+                sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits.value, equalTo(2L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
             assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("4"));
             assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(87L));
 
             sortBuilder.order(SortOrder.DESC);
-            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None), sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(2L));
+            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None),
+                sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits.value, equalTo(2L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
             assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
@@ -735,16 +736,18 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
                             .setFilter(new RangeQueryBuilder("chapters.paragraphs.word_count").from(80L))
                     )
             );
-            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None), sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(2L));
+            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None),
+                sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits.value, equalTo(2L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
             assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
             assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(Long.MAX_VALUE));
 
             sortBuilder.order(SortOrder.DESC);
-            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None), sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(2L));
+            topFields = search(new NestedQueryBuilder("chapters", queryBuilder, ScoreMode.None),
+                sortBuilder, queryShardContext, searcher);
+            assertThat(topFields.totalHits.value, equalTo(2L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
             assertThat(searcher.doc(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
@@ -762,35 +765,37 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
 
             queryBuilder = new TermQueryBuilder("genre", "romance");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
 
             queryBuilder = new TermQueryBuilder("genre", "science fiction");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("1"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(Long.MAX_VALUE));
 
             queryBuilder = new TermQueryBuilder("genre", "horror");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(Long.MAX_VALUE));
 
             queryBuilder = new TermQueryBuilder("genre", "cooking");
             topFields = search(queryBuilder, sortBuilder, queryShardContext, searcher);
-            assertThat(topFields.totalHits, equalTo(1L));
+            assertThat(topFields.totalHits.value, equalTo(1L));
             assertThat(searcher.doc(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
             assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
         }
+
+        searcher.getIndexReader().close();
     }
 
     private static TopFieldDocs search(QueryBuilder queryBuilder, FieldSortBuilder sortBuilder, QueryShardContext queryShardContext,
                                        IndexSearcher searcher) throws IOException {
         Query query = new BooleanQuery.Builder()
             .add(queryBuilder.toQuery(queryShardContext), Occur.MUST)
-            .add(Queries.newNonNestedFilter(Version.CURRENT), Occur.FILTER)
+            .add(Queries.newNonNestedFilter(), Occur.FILTER)
             .build();
         Sort sort = new Sort(sortBuilder.build(queryShardContext).field);
         return searcher.search(query, 10, sort);

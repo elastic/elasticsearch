@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
@@ -23,18 +22,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Response> {
+public class DeleteDatafeedAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteDatafeedAction INSTANCE = new DeleteDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/delete";
 
     private DeleteDatafeedAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentFragment {
@@ -49,6 +43,12 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Response> 
         }
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            datafeedId = in.readString();
+            force = in.readBoolean();
         }
 
         public String getDatafeedId() {
@@ -69,21 +69,10 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Response> 
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-                force = in.readBoolean();
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
-            if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-                out.writeBoolean(force);
-            }
+            out.writeBoolean(force);
         }
 
         @Override
@@ -106,21 +95,10 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Response> 
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, DeleteDatafeedAction action) {
             super(client, action, new Request());
         }
     }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response() {
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-    }
-
 }

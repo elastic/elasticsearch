@@ -1,0 +1,23 @@
+{
+  "ml.validate_detector":{
+    "documentation":{
+      "url":null
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/_validate/detector",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The detector",
+      "required":true
+    }
+  }
+}

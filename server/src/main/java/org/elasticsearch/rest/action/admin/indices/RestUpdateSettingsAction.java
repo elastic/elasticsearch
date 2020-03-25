@@ -25,21 +25,23 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.client.Requests.updateSettingsRequest;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestUpdateSettingsAction extends BaseRestHandler {
 
-    public RestUpdateSettingsAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/{index}/_settings", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_settings", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(PUT, "/{index}/_settings"),
+            new Route(PUT, "/_settings"));
     }
 
     @Override

@@ -1,0 +1,84 @@
+[[set-processor]]
+=== Set Processor
+Sets one field and associates it with the specified value. If the field already exists,
+its value will be replaced with the provided one.
+
+[[set-options]]
+.Set Options
+[options="header"]
+|======
+| Name       | Required  | Default  | Description
+| `field` | yes       | -        | The field to insert, upsert, or update. Supports <<accessing-template-fields,template snippets>>.
+| `value` | yes       | -        | The value to be set for the field. Supports <<accessing-template-fields,template snippets>>.
+| `override` | no        | true     | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
+include::common-options.asciidoc[]
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "sets the value of count to 1",
+  "set": {
+    "field": "count",
+    "value": 1
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+This processor can also be used to copy data from one field to another. For example:
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/set_os
+{
+  "description": "sets the value of host.os.name from the field os",
+  "processors": [
+    {
+      "set": {
+        "field": "host.os.name",
+        "value": "{{os}}"
+      }
+    }
+  ]
+}
+
+POST _ingest/pipeline/set_os/_simulate
+{
+  "docs": [
+    {
+      "_source": {
+        "os": "Ubuntu"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+Result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "docs" : [
+    {
+      "doc" : {
+        "_index" : "_index",
+        "_id" : "_id",
+        "_source" : {
+          "host" : {
+            "os" : {
+              "name" : "Ubuntu"
+            }
+          },
+          "os" : "Ubuntu"
+        },
+        "_ingest" : {
+          "timestamp" : "2019-03-11T21:54:37.909224Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2019-03-11T21:54:37.909224Z/$body.docs.0.doc._ingest.timestamp/]

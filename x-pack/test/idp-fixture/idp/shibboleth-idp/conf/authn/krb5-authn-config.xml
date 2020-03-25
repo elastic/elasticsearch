@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:c="http://www.springframework.org/schema/c"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                           http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+                           
+       default-init-method="initialize"
+       default-destroy-method="destroy">
+    
+    <util:constant id="shibboleth.authn.Krb5.RefreshConfig" static-field="java.lang.Boolean.FALSE" />
+
+    <util:constant id="shibboleth.authn.Krb5.PreserveTicket" static-field="java.lang.Boolean.FALSE" />
+
+    <!--
+    Uncomment these beans to perform KDC verification using a service principal and keytab.
+    The keytab bean must be an absolute file pathname and not a reference to a classpath resource,
+    so if idp.home is not a path, don't use it in the value.
+    -->
+    <!--
+    <bean id="shibboleth.authn.Krb5.ServicePrincipal" class="java.lang.String" c:_0="SERVICE/principal" />
+    <bean id="shibboleth.authn.Krb5.Keytab" class="java.lang.String" c:_0="%{idp.home}/credentials/keytab" />
+    -->
+    
+    <alias name="ValidateUsernamePasswordAgainstKerberos" alias="ValidateUsernamePassword"/>
+
+</beans>

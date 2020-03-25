@@ -26,11 +26,11 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -41,13 +41,11 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestGetIndicesAction extends BaseRestHandler {
 
-
-    public RestGetIndicesAction(
-            final Settings settings,
-            final RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/{index}", this);
-        controller.registerHandler(HEAD, "/{index}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/{index}"),
+            new Route(HEAD, "/{index}"));
     }
 
     @Override
@@ -68,9 +66,12 @@ public class RestGetIndicesAction extends BaseRestHandler {
         return channel -> client.admin().indices().getIndex(getIndexRequest, new RestToXContentListener<>(channel));
     }
 
+    /**
+     * Parameters used for controlling the response and thus might not be consumed during
+     * preparation of the request execution in {@link BaseRestHandler#prepareRequest(RestRequest, NodeClient)}.
+     */
     @Override
     protected Set<String> responseParams() {
         return Settings.FORMAT_PARAMS;
     }
-
 }

@@ -28,8 +28,6 @@ import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
@@ -40,16 +38,17 @@ import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
 import org.junit.Before;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Map;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.watcher.common.http.HttpClientTests.mockClusterService;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsString;
@@ -58,7 +57,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.Is.is;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -73,7 +71,6 @@ public class WebhookActionTests extends ESTestCase {
     private static final String TEST_PATH_STRING = "/testPath";
 
     private TextTemplateEngine templateEngine;
-    private HttpAuthRegistry authRegistry;
     private TextTemplate testBody;
     private TextTemplate testPath;
 
@@ -82,7 +79,6 @@ public class WebhookActionTests extends ESTestCase {
         templateEngine = new MockTextTemplateEngine();
         testBody = new TextTemplate(TEST_BODY_STRING);
         testPath = new TextTemplate(TEST_PATH_STRING);
-        authRegistry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(null)));
     }
 
     public void testExecute() throws Exception {
@@ -213,14 +209,15 @@ public class WebhookActionTests extends ESTestCase {
     }
 
     private WebhookActionFactory webhookFactory(HttpClient client) {
-        return new WebhookActionFactory(Settings.EMPTY, client, new HttpRequestTemplate.Parser(authRegistry), templateEngine);
+        return new WebhookActionFactory(client, templateEngine);
     }
 
     public void testThatSelectingProxyWorks() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
-        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry,
-            new SSLService(environment.settings(), environment)); MockWebServer proxyServer = new MockWebServer()) {
+        try (HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment), null,
+            mockClusterService());
+             MockWebServer proxyServer = new MockWebServer()) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
 
@@ -230,8 +227,10 @@ public class WebhookActionTests extends ESTestCase {
 
             ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
             String watchId = "test_url_encode" + randomAlphaOfLength(10);
-            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, new DateTime(UTC),
-                    new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
+            ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(watchId, ZonedDateTime.now(ZoneOffset.UTC),
+                ZonedDateTime.now(ZoneOffset.UTC));
+            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, ZonedDateTime.now(ZoneOffset.UTC),
+                triggerEvent, timeValueSeconds(5));
             Watch watch = createWatch(watchId);
             ctx.ensureWatchExists(() -> watch);
             executable.execute("_id", ctx, new Payload.Simple());
@@ -255,8 +254,10 @@ public class WebhookActionTests extends ESTestCase {
 
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, client, templateEngine);
 
-        TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, new DateTime(UTC),
-                new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
+        ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(watchId, ZonedDateTime.now(ZoneOffset.UTC),
+            ZonedDateTime.now(ZoneOffset.UTC));
+        TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, ZonedDateTime.now(ZoneOffset.UTC),
+            triggerEvent, timeValueSeconds(5));
         Watch watch = createWatch(watchId);
         ctx.ensureWatchExists(() -> watch);
         Action.Result result = executable.execute("_id", ctx, new Payload.Simple());

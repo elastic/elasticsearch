@@ -1,0 +1,34 @@
+--
+:api: start-watch-service
+:request: StartWatchServiceRequest
+:response: StartWatchServiceResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Start watch service API
+
+[id="{upid}-{api}-request"]
+==== Execution
+
+{ref}/watcher-api-start.html[Start watcher] enables you
+to manually start the watch service. Submit the following request
+to start the watch service:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned `AcknowledgeResponse` contains a value on whether or not the request
+was received:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> A boolean value of `true` if successfully received, `false` otherwise.
+
+include::../execution.asciidoc[]

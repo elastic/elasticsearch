@@ -10,7 +10,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 class GetBasicStatusRequestBuilder extends ActionRequestBuilder<GetBasicStatusRequest, GetBasicStatusResponse> {
 
-    GetBasicStatusRequestBuilder(ElasticsearchClient client, GetBasicStatusAction action) {
-        super(client, action, new GetBasicStatusRequest());
+    GetBasicStatusRequestBuilder(ElasticsearchClient client) {
+        super(client, GetBasicStatusAction.INSTANCE, new GetBasicStatusRequest());
     }
 }

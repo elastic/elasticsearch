@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
@@ -31,11 +32,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -58,9 +59,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, SignificantTermsAggregatorFactory>
+public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource>
         implements Releasable {
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(SignificantTermsAggregatorFactory.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(SignificantTermsAggregatorFactory.class));
 
     private final IncludeExclude includeExclude;
     private final String executionHint;
@@ -80,13 +82,18 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                              QueryBuilder filterBuilder,
                                              TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                              SignificanceHeuristic significanceHeuristic,
-                                             SearchContext context,
-                                             AggregatorFactory<?> parent,
+                                             QueryShardContext queryShardContext,
+                                             AggregatorFactory parent,
                                              AggregatorFactories.Builder subFactoriesBuilder,
                                              Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
 
-        if (!config.unmapped()) {
+        if (config.unmapped() == false) {
+            if (config.fieldContext().fieldType().isSearchable() == false) {
+                throw new IllegalArgumentException("SignificantText aggregation requires fields to be searchable, but ["
+                    + config.fieldContext().fieldType().name() + "] is not");
+            }
+
             this.fieldType = config.fieldContext().fieldType();
             this.indexedFieldName = fieldType.name();
         }
@@ -95,8 +102,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         this.executionHint = executionHint;
         this.filter = filterBuilder == null
                 ? null
-                : filterBuilder.toFilter(context.getQueryShardContext());
-        IndexSearcher searcher = context.searcher();
+                : filterBuilder.toQuery(queryShardContext);
+        IndexSearcher searcher = queryShardContext.searcher();
         this.supersetNumDocs = filter == null
                 // Important - need to use the doc count that includes deleted docs
                 // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
@@ -117,9 +124,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         if (termsEnum != null) {
             return termsEnum;
         }
-        IndexReader reader = context.searcher().getIndexReader();
+        IndexReader reader = queryShardContext.getIndexReader();
         if (numberOfAggregatorsCreated > 1) {
-            termsEnum = new FreqTermsEnum(reader, field, true, false, filter, context.bigArrays());
+            termsEnum = new FreqTermsEnum(reader, field, true, false, filter, queryShardContext.bigArrays());
         } else {
             termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);
         }
@@ -127,7 +134,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     private long getBackgroundFrequency(String value) throws IOException {
-        Query query = fieldType.termQuery(value, context.getQueryShardContext());
+        // fieldType can be null if the field is unmapped, but theoretically this method should only be called
+        // when constructing buckets.  Assert to ensure this is the case
+        // TODO this is a bad setup and it should be refactored
+        assert fieldType != null;
+        Query query = fieldType.termQuery(value, queryShardContext);
         if (query instanceof TermQuery) {
             // for types that use the inverted index, we prefer using a caching terms
             // enum that will do a better job at reusing index inputs
@@ -146,7 +157,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     .add(filter, Occur.FILTER)
                     .build();
         }
-        return context.searcher().count(query);
+        return queryShardContext.searcher().count(query);
     }
 
     public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
@@ -160,11 +171,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), pipelineAggregators, metaData);
-        return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
+        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -173,10 +186,14 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
+            return asMultiBucketAggregator(this, searchContext, parent);
         }
 
         numberOfAggregatorsCreated++;
@@ -194,14 +211,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             // each shard and as
             // such are impossible to differentiate from non-significant terms
             // at that early stage.
-            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards()));
+            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint, DEPRECATION_LOGGER);
+                execution = ExecutionMode.fromString(executionHint, deprecationLogger);
             }
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
                 execution = ExecutionMode.MAP;
@@ -213,17 +229,19 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
             DocValueFormat format = config.format();
             if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
-                throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
-                        + "settings as they can only be applied to string fields. Use an array of values for include/exclude clauses");
+                throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style "
+                        + "include/exclude settings as they can only be applied to string fields. Use an array of values for "
+                        + "include/exclude clauses");
             }
 
-            return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent,
+            return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, searchContext, parent,
                     significanceHeuristic, this, pipelineAggregators, metaData);
         }
 
         if ((includeExclude != null) && (includeExclude.isRegexBased())) {
             throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
-                    + "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses used to filter numeric fields");
+                    + "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses "
+                    + "used to filter numeric fields");
         }
 
         if (valuesSource instanceof ValuesSource.Numeric) {
@@ -236,7 +254,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 longFilter = includeExclude.convertToLongFilter(config.format());
             }
             return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
-                    bucketCountThresholds, context, parent, significanceHeuristic, this, longFilter, pipelineAggregators,
+                    bucketCountThresholds, searchContext, parent, significanceHeuristic, this, longFilter, pipelineAggregators,
                     metaData);
         }
 
@@ -300,7 +318,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
-                        aggregationContext, parent, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
+                        aggregationContext, parent, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, pipelineAggregators,
+                        metaData);
 
             }
         };

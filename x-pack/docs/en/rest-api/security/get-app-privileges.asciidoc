@@ -1,0 +1,97 @@
+[role="xpack"]
+[[security-api-get-privileges]]
+=== Get application privileges API
+++++
+<titleabbrev>Get application privileges</titleabbrev>
+++++
+
+Retrieves <<application-privileges,application privileges>>.
+
+[[security-api-get-privileges-request]]
+==== {api-request-title}
+
+`GET /_security/privilege` +
+
+`GET /_security/privilege/<application>` +
+
+`GET /_security/privilege/<application>/<privilege>` 
+
+
+[[security-api-get-privileges-prereqs]]
+==== {api-prereq-title}
+
+To use this API, you must have either:
+
+- the `manage_security` cluster privilege (or a greater privilege such as `all`); _or_
+- the _"Manage Application Privileges"_ global privilege for the application being referenced
+  in the request
+
+[[security-api-get-privileges-desc]]
+==== {api-description-title}
+
+To check a user's application privileges, use the
+<<security-api-has-privileges,has privileges API>>.
+
+
+[[security-api-get-privileges-path-params]]
+==== {api-path-parms-title}
+
+`application`::
+  (Optional, string) The name of the application. Application privileges are
+  always associated with exactly one application. If you do not specify this
+  parameter, the API returns information about all privileges for all
+  applications.
+
+`privilege`::
+  (Optional, string) The name of the privilege. If you do not specify this
+  parameter, the API returns information about all privileges for the requested
+  application.
+
+
+[[security-api-get-privileges-example]]
+==== {api-examples-title}
+
+The following example retrieves information about the `read` privilege for the 
+`app01` application:
+
+[source,console]
+--------------------------------------------------
+GET /_security/privilege/myapp/read
+--------------------------------------------------
+// TEST[setup:app0102_privileges]
+
+A successful call returns an object keyed by application name and privilege
+name. If the privilege is not defined, the request responds with a 404 status.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "myapp": {
+    "read": {
+      "application": "myapp",
+      "name": "read",
+      "actions": [
+        "data:read/*",
+        "action:login"
+      ],
+      "metadata": {
+        "description": "Read access to myapp"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+To retrieve all privileges for an application, omit the privilege name:
+
+[source,console]
+--------------------------------------------------
+GET /_security/privilege/myapp/
+--------------------------------------------------
+
+To retrieve every privilege, omit both the application and privilege names:
+
+[source,console]
+--------------------------------------------------
+GET /_security/privilege/
+--------------------------------------------------

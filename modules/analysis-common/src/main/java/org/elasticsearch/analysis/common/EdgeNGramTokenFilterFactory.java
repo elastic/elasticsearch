@@ -21,12 +21,12 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 
 public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
@@ -41,8 +41,8 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     EdgeNGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.minGram = settings.getAsInt("min_gram", NGramTokenFilter.DEFAULT_MIN_NGRAM_SIZE);
-        this.maxGram = settings.getAsInt("max_gram", NGramTokenFilter.DEFAULT_MAX_NGRAM_SIZE);
+        this.minGram = settings.getAsInt("min_gram", 1);
+        this.maxGram = settings.getAsInt("max_gram", 2);
         this.side = parseSide(settings.get("side", "front"));
     }
 
@@ -63,7 +63,8 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
             result = new ReverseStringFilter(result);
         }
 
-        result = new EdgeNGramTokenFilter(result, minGram, maxGram);
+        // TODO: Expose preserveOriginal
+        result = new EdgeNGramTokenFilter(result, minGram, maxGram, false);
 
         // side=BACK is not supported anymore but applying ReverseStringFilter up-front and after the token filter has the same effect
         if (side == SIDE_BACK) {
@@ -76,5 +77,10 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public boolean breaksFastVectorHighlighter() {
         return true;
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 }

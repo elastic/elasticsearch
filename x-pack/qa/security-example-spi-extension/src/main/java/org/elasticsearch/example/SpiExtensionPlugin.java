@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.example;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.example.realm.CustomRealm;
+import org.elasticsearch.example.realm.CustomRoleMappingRealm;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -20,12 +24,17 @@ import java.util.List;
 public class SpiExtensionPlugin extends Plugin implements ActionPlugin {
 
     @Override
-    public Collection<String> getRestHeaders() {
-        return Arrays.asList(CustomRealm.USER_HEADER, CustomRealm.PW_HEADER);
+    public Collection<RestHeaderDefinition> getRestHeaders() {
+        return Arrays.asList(
+            new RestHeaderDefinition(CustomRealm.USER_HEADER, false),
+            new RestHeaderDefinition(CustomRealm.PW_HEADER, false));
     }
 
     @Override
-    public List<String> getSettingsFilter() {
-        return Collections.singletonList("xpack.security.authc.realms.*.filtered_setting");
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> list = new ArrayList<>(RealmSettings.getStandardSettings(CustomRealm.TYPE));
+        list.add(RealmSettings.simpleString(CustomRealm.TYPE, "filtered_setting", Setting.Property.NodeScope, Setting.Property.Filtered));
+        list.addAll(RealmSettings.getStandardSettings(CustomRoleMappingRealm.TYPE));
+        return list;
     }
 }

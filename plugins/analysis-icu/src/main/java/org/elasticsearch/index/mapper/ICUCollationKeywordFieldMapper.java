@@ -23,9 +23,7 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
-
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -35,7 +33,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -48,16 +46,16 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
-import java.util.function.LongSupplier;
 
 public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
@@ -74,6 +72,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         public static final String NULL_VALUE = null;
+        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
     public static final class CollationFieldType extends StringFieldType {
@@ -89,6 +88,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             this.collator = ref.collator;
         }
 
+        @Override
         public CollationFieldType clone() {
             return new CollationFieldType(this);
         }
@@ -142,6 +142,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
+        }
+
+        @Override
         protected BytesRef indexedValueForSearch(Object value) {
             if (value == null) {
                 return null;
@@ -160,19 +165,26 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions) {
-            throw new UnsupportedOperationException();
+                                boolean transpositions, QueryShardContext context) {
+            throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
+        }
+
+        @Override
+        public Query wildcardQuery(String value,
+                                   @Nullable MultiTermQuery.RewriteMethod method,
+                                   QueryShardContext context) {
+            throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
                                  MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         public static DocValueFormat COLLATE_FORMAT = new DocValueFormat() {
@@ -182,17 +194,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void writeTo(StreamOutput out) throws IOException {
-            }
-
-            @Override
-            public String format(long value) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String format(double value) {
-                throw new UnsupportedOperationException();
+            public void writeTo(StreamOutput out) {
             }
 
             @Override
@@ -201,16 +203,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 char[] encoded = new char[encodedLength];
                 IndexableBinaryStringTools.encode(value.bytes, value.offset, value.length, encoded, 0, encodedLength);
                 return new String(encoded, 0, encodedLength);
-            }
-
-            @Override
-            public long parseLong(String value, boolean roundUp, LongSupplier now) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -224,7 +216,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         };
 
         @Override
-        public DocValueFormat docValueFormat(final String format, final DateTimeZone timeZone) {
+        public DocValueFormat docValueFormat(final String format, final ZoneId timeZone) {
             return COLLATE_FORMAT;
         }
     }
@@ -242,7 +234,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         private boolean numeric = false;
         private String variableTop = null;
         private boolean hiraganaQuaternaryMode = false;
-        private String nullValue = Defaults.NULL_VALUE;
+        protected int ignoreAbove = Defaults.IGNORE_ABOVE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -262,6 +254,14 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             }
 
             return super.indexOptions(indexOptions);
+        }
+
+        public Builder ignoreAbove(int ignoreAbove) {
+            if (ignoreAbove < 0) {
+                throw new IllegalArgumentException("[ignore_above] must be positive, got " + ignoreAbove);
+            }
+            this.ignoreAbove = ignoreAbove;
+            return this;
         }
 
         public String rules() {
@@ -475,7 +475,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             setupFieldType(context);
             return new ICUCollationKeywordFieldMapper(name, fieldType, defaultFieldType, context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo, rules, language, country, variant, strength, decomposition,
-                alternate, caseLevel, caseFirst, numeric, variableTop, hiraganaQuaternaryMode, collator);
+                alternate, caseLevel, caseFirst, numeric, variableTop, hiraganaQuaternaryMode, ignoreAbove, collator);
         }
     }
 
@@ -495,6 +495,10 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                             throw new MapperParsingException("Property [null_value] cannot be null.");
                         }
                         builder.nullValue(fieldNode.toString());
+                        iterator.remove();
+                        break;
+                    case "ignore_above":
+                        builder.ignoreAbove(XContentMapValues.nodeIntegerValue(fieldNode, -1));
                         iterator.remove();
                         break;
                     case "norms":
@@ -570,14 +574,15 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final boolean numeric;
     private final String variableTop;
     private final boolean hiraganaQuaternaryMode;
+    private int ignoreAbove;
     private final Collator collator;
-    private final BiFunction<String, BytesRef, Field> getDVField;
 
     protected ICUCollationKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                              Settings indexSettings, MultiFields multiFields, CopyTo copyTo, String rules, String language,
                                              String country, String variant,
                                              String strength, String decomposition, String alternate, boolean caseLevel, String caseFirst,
-                                             boolean numeric, String variableTop, boolean hiraganaQuaternaryMode, Collator collator) {
+                                             boolean numeric, String variableTop, boolean hiraganaQuaternaryMode,
+                                             int ignoreAbove, Collator collator) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert collator.isFrozen();
         this.rules = rules;
@@ -592,12 +597,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         this.numeric = numeric;
         this.variableTop = variableTop;
         this.hiraganaQuaternaryMode = hiraganaQuaternaryMode;
+        this.ignoreAbove = ignoreAbove;
         this.collator = collator;
-        if (indexCreatedVersion.onOrAfter(Version.V_5_6_0)) {
-            getDVField = SortedSetDocValuesField::new;
-        } else {
-            getDVField = SortedDocValuesField::new;
-        }
     }
 
     @Override
@@ -665,6 +666,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             conflicts.add("Cannot update hiragana_quaternary_mode setting for [" + CONTENT_TYPE + "]");
         }
 
+        this.ignoreAbove = icuMergeWith.ignoreAbove;
+
         if (!conflicts.isEmpty()) {
             throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);
         }
@@ -725,6 +728,10 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         if (includeDefaults || hiraganaQuaternaryMode) {
             builder.field("hiragana_quaternary_mode", hiraganaQuaternaryMode);
         }
+
+        if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
+            builder.field("ignore_above", ignoreAbove);
+        }
     }
 
     @Override
@@ -741,7 +748,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             }
         }
 
-        if (value == null) {
+        if (value == null || value.length() > ignoreAbove) {
             return;
         }
 
@@ -754,7 +761,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().hasDocValues()) {
-            fields.add(getDVField.apply(fieldType().name(), binaryValue));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         } else if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             createFieldNamesField(context, fields);
         }

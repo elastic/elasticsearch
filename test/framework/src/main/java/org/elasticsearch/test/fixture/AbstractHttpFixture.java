@@ -20,6 +20,8 @@
 package org.elasticsearch.test.fixture;
 
 import com.sun.net.httpserver.HttpServer;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -32,7 +34,6 @@ import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.List;
@@ -48,6 +49,7 @@ import static java.util.Collections.singletonMap;
 /**
  * Base class for test fixtures that requires a {@link HttpServer} to work.
  */
+@SuppressForbidden(reason = "uses httpserver by design")
 public abstract class AbstractHttpFixture {
 
     protected static final Map<String, String> TEXT_PLAIN_CONTENT_TYPE = contentType("text/plain; charset=utf-8");
@@ -62,7 +64,7 @@ public abstract class AbstractHttpFixture {
     private final Path workingDirectory;
 
     protected AbstractHttpFixture(final String workingDir) {
-        this.workingDirectory = Paths.get(Objects.requireNonNull(workingDir));
+        this.workingDirectory = PathUtils.get(Objects.requireNonNull(workingDir));
     }
 
     /**
@@ -155,7 +157,7 @@ public abstract class AbstractHttpFixture {
     }
 
     /**
-     * Represents a HTTP Response.
+     * Represents an HTTP Response.
      */
     protected static class Response {
 
@@ -201,7 +203,7 @@ public abstract class AbstractHttpFixture {
     }
 
     /**
-     * Represents a HTTP Request.
+     * Represents an HTTP Request.
      */
     protected static class Request {
 

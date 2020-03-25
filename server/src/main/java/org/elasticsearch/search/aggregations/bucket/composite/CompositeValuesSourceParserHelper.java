@@ -19,13 +19,16 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
@@ -33,7 +36,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-class CompositeValuesSourceParserHelper {
+public class CompositeValuesSourceParserHelper {
     static <VB extends CompositeValuesSourceBuilder<VB>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> objectParser,
                                                                                            ValueType targetValueType) {
         objectParser.declareField(VB::field, XContentParser::text,
@@ -57,7 +60,7 @@ class CompositeValuesSourceParserHelper {
         objectParser.declareField(VB::order,  XContentParser::text, new ParseField("order"), ObjectParser.ValueType.STRING);
     }
 
-    static void writeTo(CompositeValuesSourceBuilder<?> builder, StreamOutput out) throws IOException {
+    public static void writeTo(CompositeValuesSourceBuilder<?> builder, StreamOutput out) throws IOException {
         final byte code;
         if (builder.getClass() == TermsValuesSourceBuilder.class) {
             code = 0;
@@ -65,6 +68,12 @@ class CompositeValuesSourceParserHelper {
             code = 1;
         } else if (builder.getClass() == HistogramValuesSourceBuilder.class) {
             code = 2;
+        } else if (builder.getClass() == GeoTileGridValuesSourceBuilder.class) {
+            if (out.getVersion().before(Version.V_7_5_0)) {
+                throw new IOException("Attempting to serialize [" + builder.getClass().getSimpleName()
+                    + "] to a node with unsupported version [" + out.getVersion() + "]");
+            }
+            code = 3;
         } else {
             throw new IOException("invalid builder type: " + builder.getClass().getSimpleName());
         }
@@ -72,7 +81,7 @@ class CompositeValuesSourceParserHelper {
         builder.writeTo(out);
     }
 
-    static CompositeValuesSourceBuilder<?> readFrom(StreamInput in) throws IOException {
+    public static CompositeValuesSourceBuilder<?> readFrom(StreamInput in) throws IOException {
         int code = in.readByte();
         switch(code) {
             case 0:
@@ -81,12 +90,14 @@ class CompositeValuesSourceParserHelper {
                 return new DateHistogramValuesSourceBuilder(in);
             case 2:
                 return new HistogramValuesSourceBuilder(in);
+            case 3:
+                return new GeoTileGridValuesSourceBuilder(in);
             default:
                 throw new IOException("Invalid code " + code);
         }
     }
 
-    static CompositeValuesSourceBuilder<?> fromXContent(XContentParser parser) throws IOException {
+    public static CompositeValuesSourceBuilder<?> fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
         token = parser.nextToken();
@@ -105,16 +116,29 @@ class CompositeValuesSourceParserHelper {
                 builder = TermsValuesSourceBuilder.parse(name, parser);
                 break;
             case DateHistogramValuesSourceBuilder.TYPE:
-                builder = DateHistogramValuesSourceBuilder.parse(name, parser);
+                builder = DateHistogramValuesSourceBuilder.PARSER.parse(parser, name);
                 break;
             case HistogramValuesSourceBuilder.TYPE:
                 builder = HistogramValuesSourceBuilder.parse(name, parser);
+                break;
+            case GeoTileGridValuesSourceBuilder.TYPE:
+                builder = GeoTileGridValuesSourceBuilder.parse(name, parser);
                 break;
             default:
                 throw new ParsingException(parser.getTokenLocation(), "invalid source type: " + type);
         }
         parser.nextToken();
         parser.nextToken();
+        return builder;
+    }
+
+    public static XContentBuilder toXContent(CompositeValuesSourceBuilder<?> source, XContentBuilder builder, Params params)
+            throws IOException {
+        builder.startObject();
+        builder.startObject(source.name());
+        source.toXContent(builder, params);
+        builder.endObject();
+        builder.endObject();
         return builder;
     }
 }

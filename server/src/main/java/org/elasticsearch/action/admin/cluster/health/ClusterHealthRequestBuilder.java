@@ -20,13 +20,15 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
-public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder> {
+public class ClusterHealthRequestBuilder
+        extends MasterNodeReadOperationRequestBuilder<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder> {
 
     public ClusterHealthRequestBuilder(ElasticsearchClient client, ClusterHealthAction action) {
         super(client, action, new ClusterHealthRequest());
@@ -34,6 +36,11 @@ public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestB
 
     public ClusterHealthRequestBuilder setIndices(String... indices) {
         request.indices(indices);
+        return this;
+    }
+
+    public ClusterHealthRequestBuilder setIndicesOptions(final IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
         return this;
     }
 

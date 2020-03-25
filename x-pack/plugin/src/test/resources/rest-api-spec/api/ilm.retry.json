@@ -1,0 +1,25 @@
+{
+  "ilm.retry":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-retry-policy.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_ilm/retry",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The name of the indices (comma-separated) whose failed lifecycle step is to be retry"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

@@ -22,8 +22,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Counter;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -38,7 +37,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -46,11 +44,12 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
@@ -82,6 +81,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class SearchContext extends AbstractRefCounted implements Releasable {
 
     public static final int DEFAULT_TERMINATE_AFTER = 0;
+    public static final int TRACK_TOTAL_HITS_ACCURATE = Integer.MAX_VALUE;
+    public static final int TRACK_TOTAL_HITS_DISABLED = -1;
+    public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
+
     private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
@@ -90,9 +93,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
         super("search_context");
     }
 
-    public abstract void setTask(SearchTask task);
+    public abstract void setTask(SearchShardTask task);
 
-    public abstract SearchTask getTask();
+    public abstract SearchShardTask getTask();
 
     public abstract boolean isCancelled();
 
@@ -129,7 +132,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
      *  alias filters, types filters, etc. */
     public abstract Query buildFilteredQuery(Query query);
 
-    public abstract long id();
+    public abstract SearchContextId id();
 
     public abstract String source();
 
@@ -194,9 +197,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext);
 
-    public abstract DocValueFieldsContext docValueFieldsContext();
+    public abstract FetchDocValuesContext docValuesContext();
 
-    public abstract SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext);
+    public abstract SearchContext docValuesContext(FetchDocValuesContext docValuesContext);
 
     public abstract ContextIndexSearcher searcher();
 
@@ -240,12 +243,13 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract boolean trackScores();
 
-    public abstract SearchContext trackTotalHits(boolean trackTotalHits);
+    public abstract SearchContext trackTotalHitsUpTo(int trackTotalHits);
 
     /**
-     * Indicates if the total hit count for the query should be tracked. Defaults to {@code true}
+     * Indicates the total number of hits to count accurately.
+     * Defaults to {@link #DEFAULT_TRACK_TOTAL_HITS_UP_TO}.
      */
-    public abstract boolean trackTotalHits();
+    public abstract int trackTotalHitsUpTo();
 
     public abstract SearchContext searchAfter(FieldDoc searchAfter);
 
@@ -303,6 +307,12 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract boolean version();
 
     public abstract void version(boolean version);
+
+    /** indicates whether the sequence number and primary term of the last modification to each hit should be returned */
+    public abstract boolean seqNoAndPrimaryTerm();
+
+    /** controls whether the sequence number and primary term of the last modification to each hit should be returned */
+    public abstract void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm);
 
     public abstract int[] docIdsToLoad();
 
@@ -384,7 +394,11 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract ObjectMapper getObjectMapper(String name);
 
-    public abstract Counter timeEstimateCounter();
+    /**
+     * Returns time in milliseconds that can be used for relative time calculations.
+     * WARN: This is not the epoch time.
+     */
+    public abstract long getRelativeTimeInMillis();
 
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();

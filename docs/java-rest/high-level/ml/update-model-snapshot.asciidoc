@@ -1,0 +1,54 @@
+--
+:api: update-model-snapshot
+:request: UpdateModelSnapshotRequest
+:response: UpdateModelSnapshotResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Update model snapshot API
+
+Provides the ability to update a {ml} model snapshot.
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Update model snapshot request
+
+A +{request}+ requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing existing `jobId` and `snapshotId`
+values.
+
+==== Optional arguments
+
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-description]
+--------------------------------------------------
+<1> The updated description of the {ml} model snapshot.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-retain]
+--------------------------------------------------
+<1> The updated `retain` property of the {ml} model snapshot.
+
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Update model snapshot response
+
+A +{response}+ contains an acknowledgement of the update request and the full representation of the updated `ModelSnapshot` object
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> An acknowledgement of the request.
+<2> The updated `ModelSnapshot`.

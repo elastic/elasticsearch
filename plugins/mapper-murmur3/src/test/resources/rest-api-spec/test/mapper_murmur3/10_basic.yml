@@ -9,12 +9,11 @@
             index: test
             body:
                 mappings:
-                    type1: { "properties": { "foo": { "type": "text", "fields": { "hash": { "type": "murmur3" } } } } }
+                    properties: { "foo": { "type": "text", "fields": { "hash": { "type": "murmur3" } } } }
 
     - do:
         index:
             index: test
-            type: type1
             id: 0
             body: { "foo": null }
 
@@ -23,6 +22,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body: { "aggs": { "foo_count": { "cardinality": { "field": "foo.hash" } } } }
 
     - match: { aggregations.foo_count.value: 0 }
@@ -30,28 +30,24 @@
     - do:
         index:
             index: test
-            type: type1
             id: 1
             body: { "foo": "bar" }
 
     - do:
         index:
             index: test
-            type: type1
             id: 2
             body: { "foo": "baz" }
 
     - do:
         index:
             index: test
-            type: type1
             id: 3
             body: { "foo": "quux" }
 
     - do:
         index:
             index: test
-            type: type1
             id: 4
             body: { "foo": "bar" }
 
@@ -60,6 +56,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body: { "aggs": { "foo_count": { "cardinality": { "field": "foo.hash" } } } }
 
     - match: { aggregations.foo_count.value: 3 }

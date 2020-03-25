@@ -22,13 +22,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -76,17 +73,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         return type;
     }
 
-    /**
-     * Validates the state of this factory (makes sure the factory is properly
-     * configured)
-     */
-    @Override
-    public final void validate(AggregatorFactory<?> parent, List<AggregationBuilder> factories,
-            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
-        doValidate(parent, factories, pipelineAggregatorFactories);
-    }
-
-    protected abstract PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException;
+    protected abstract PipelineAggregator createInternal(Map<String, Object> metaData);
 
     /**
      * Creates the pipeline aggregator
@@ -94,13 +81,9 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      * @return The created aggregator
      */
     @Override
-    public final PipelineAggregator create() throws IOException {
+    public final PipelineAggregator create() {
         PipelineAggregator aggregator = createInternal(this.metaData);
         return aggregator;
-    }
-
-    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> factories,
-            List<PipelineAggregationBuilder> pipelineAggregatorFactories) {
     }
 
     @SuppressWarnings("unchecked")
@@ -146,31 +129,20 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(bucketsPaths), metaData, name, type, doHashCode());
+        return Objects.hash(Arrays.hashCode(bucketsPaths), metaData, name, type);
     }
-
-    protected abstract int doHashCode();
 
     @Override
+    @SuppressWarnings("unchecked")
     public boolean equals(Object obj) {
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        @SuppressWarnings("unchecked")
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
         AbstractPipelineAggregationBuilder<PAB> other = (AbstractPipelineAggregationBuilder<PAB>) obj;
-        if (!Objects.equals(name, other.name))
-            return false;
-        if (!Objects.equals(type, other.type))
-            return false;
-        if (!Objects.deepEquals(bucketsPaths, other.bucketsPaths))
-            return false;
-        if (!Objects.equals(metaData, other.metaData))
-            return false;
-        return doEquals(obj);
+        return Objects.equals(type, other.type)
+            && Objects.equals(name, other.name)
+            && Objects.equals(metaData, other.metaData)
+            && Objects.deepEquals(bucketsPaths, other.bucketsPaths);
     }
-
-    protected abstract boolean doEquals(Object obj);
 
     @Override
     public String getType() {

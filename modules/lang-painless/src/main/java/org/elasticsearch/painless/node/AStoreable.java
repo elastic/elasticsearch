@@ -19,25 +19,26 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * The super class for an expression that can store a value in local memory.
  */
 abstract class AStoreable extends AExpression {
 
-    /**
-     * Set to true when this node is an lhs-expression and will be storing
-     * a value from an rhs-expression.
-     */
-    boolean write = false;
+    public static class Input extends AExpression.Input {
+
+        /**
+         * Set to true when this node is an lhs-expression and will be storing
+         * a value from an rhs-expression.
+         */
+        boolean write = false;
+    }
 
     /**
      * Standard constructor with location used for error tracking.
@@ -57,66 +58,13 @@ abstract class AStoreable extends AExpression {
         this.prefix = Objects.requireNonNull(prefix);
     }
 
-    /**
-     * Returns a value based on the number of elements previously placed on the
-     * stack to load/store a certain piece of a variable/method chain.  This is
-     * used during the writing phase to dup stack values from this storeable as
-     * necessary during certain store operations.
-     * <p>
-     * Examples:
-     * {@link EVariable} returns 0 because it requires nothing extra to perform
-     *                   a load/store
-     * {@link PSubField} returns 1 because it requires the name of the field as
-     *                   an index on the stack to perform a load/store
-     * {@link PSubBrace} returns 2 because it requires both the variable slot and
-     *                   an index into the array on the stack to perform a
-     *                   load/store
-     */
-    abstract int accessElementCount();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Returns true if this node or a sub-node of this node can be optimized with
      * rhs actual type to avoid an unnecessary cast.
      */
     abstract boolean isDefOptimized();
-
-    /**
-     * If this node or a sub-node of this node uses dynamic calls then
-     * actual will be set to this value. This is used for an optimization
-     * during assignment to def type targets.
-     */
-    abstract void updateActual(Class<?> actual);
-
-    /**
-     * Called before a storeable node is loaded or stored.  Used to load prefixes and
-     * push load/store constants onto the stack if necessary.
-     */
-    abstract void setup(MethodWriter writer, Globals globals);
-
-    /**
-     * Called to load a storable used for compound assignments.
-     */
-    abstract void load(MethodWriter writer, Globals globals);
-
-    /**
-     * Called to store a storabable to local memory.
-     */
-    abstract void store(MethodWriter writer, Globals globals);
-
-    /**
-     * Writes the opcodes to flip a negative array index (meaning slots from the end of the array) into a 0-based one (meaning slots from
-     * the start of the array).
-     */
-    static void writeIndexFlip(MethodWriter writer, Consumer<MethodWriter> writeGetLength) {
-        Label noFlip = new Label();
-        // Everywhere when it says 'array' below that could also be a list
-        // The stack after each instruction:       array, unnormalized_index
-        writer.dup();                           // array, unnormalized_index, unnormalized_index
-        writer.ifZCmp(Opcodes.IFGE, noFlip);    // array, unnormalized_index
-        writer.swap();                          // negative_index, array
-        writer.dupX1();                         // array, negative_index, array
-        writeGetLength.accept(writer);          // array, negative_index, length
-        writer.visitInsn(Opcodes.IADD);         // array, noralized_index
-        writer.mark(noFlip);                    // array, noralized_index
-    }
 }

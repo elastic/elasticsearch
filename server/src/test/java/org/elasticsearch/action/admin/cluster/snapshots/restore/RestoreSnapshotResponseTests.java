@@ -40,7 +40,7 @@ public class RestoreSnapshotResponseTests extends AbstractXContentTestCase<Resto
             int successfulShards = randomIntBetween(0, totalShards);
             return new RestoreSnapshotResponse(new RestoreInfo(name, indices, totalShards, successfulShards));
         } else {
-            return new RestoreSnapshotResponse(null);
+            return new RestoreSnapshotResponse((RestoreInfo) null);
         }
     }
 

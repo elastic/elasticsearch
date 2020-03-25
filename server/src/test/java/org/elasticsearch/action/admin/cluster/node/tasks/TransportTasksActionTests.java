@@ -80,19 +80,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     public static class NodeRequest extends BaseNodeRequest {
         protected String requestName;
 
-        public NodeRequest() {
-            super();
-        }
-
-        public NodeRequest(NodesRequest request, String nodeId) {
-            super(nodeId);
-            requestName = request.requestName;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
             requestName = in.readString();
+        }
+
+        public NodeRequest(NodesRequest request) {
+            requestName = request.requestName;
         }
 
         @Override
@@ -115,19 +109,14 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private String requestName;
 
-        NodesRequest() {
-            super();
+        NodesRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
         }
 
         public NodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
         }
 
         @Override
@@ -152,19 +141,18 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
      */
     abstract class TestNodesAction extends AbstractTestNodesAction<NodesRequest, NodeRequest> {
 
-        TestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
-                        ClusterService clusterService, TransportService transportService) {
-            super(settings, actionName, threadPool, clusterService, transportService, NodesRequest::new, NodeRequest::new);
+        TestNodesAction(String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+            super(actionName, threadPool, clusterService, transportService, NodesRequest::new, NodeRequest::new);
         }
 
         @Override
-        protected NodeRequest newNodeRequest(String nodeId, NodesRequest request) {
-            return new NodeRequest(request, nodeId);
+        protected NodeRequest newNodeRequest(NodesRequest request) {
+            return new NodeRequest(request);
         }
 
         @Override
-        protected NodeResponse newNodeResponse() {
-            return new NodeResponse();
+        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+            return new NodeResponse(in);
         }
     }
 
@@ -192,25 +180,25 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     static class TestTasksRequest extends BaseTasksRequest<TestTasksRequest> {
 
+        TestTasksRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        TestTasksRequest() {}
     }
 
     static class TestTasksResponse extends BaseTasksResponse {
 
         private List<TestTaskResponse> tasks;
 
-        TestTasksResponse() {
-            super(null, null);
-        }
-
         TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+            this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        TestTasksResponse(StreamInput in) throws IOException {
+            super(in);
             int taskCount = in.readVInt();
             List<TestTaskResponse> builder = new ArrayList<>();
             for (int i = 0; i < taskCount; i++) {
@@ -234,22 +222,16 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
      */
     abstract static class TestTasksAction extends TransportTasksAction<Task, TestTasksRequest, TestTasksResponse, TestTaskResponse> {
 
-        protected TestTasksAction(Settings settings, String actionName,
+        protected TestTasksAction(String actionName,
                 ClusterService clusterService, TransportService transportService) {
-            super(settings, actionName, clusterService, transportService, new ActionFilters(new HashSet<>()),
-                TestTasksRequest::new, TestTasksResponse::new,
-                    ThreadPool.Names.MANAGEMENT);
+            super(actionName, clusterService, transportService, new ActionFilters(new HashSet<>()),
+                TestTasksRequest::new, TestTasksResponse::new, TestTaskResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 
         @Override
         protected TestTasksResponse newResponse(TestTasksRequest request, List<TestTaskResponse> tasks,
                 List<TaskOperationFailure> taskOperationFailures, List<FailedNodeException> failedNodeExceptions) {
             return new TestTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
-        }
-
-        @Override
-        protected TestTaskResponse readTaskResponse(StreamInput in) throws IOException {
-            return new TestTaskResponse(in);
         }
 
     }
@@ -276,10 +258,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
-            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "internal:testAction", threadPool, testNodes[i].clusterService,
+            actions[i] = new TestNodesAction("internal:testAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
-                protected NodeResponse nodeOperation(NodeRequest request) {
+                protected NodeResponse nodeOperation(NodeRequest request, Task task) {
                     logger.info("Action on node {}", node);
                     actionLatch.countDown();
                     try {
@@ -296,7 +278,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (TestNode node : testNodes) {
             assertEquals(0, node.transportService.getTaskManager().getTasks().size());
         }
-        Task task = actions[0].execute(request, listener);
+        Task task = testNodes[0].transportService.getTaskManager().registerAndExecute("transport", actions[0], request,
+            (t, r) -> listener.onResponse(r), (t, e) -> listener.onFailure(e));
         logger.info("Awaiting for all actions to start");
         assertTrue(actionLatch.await(10, TimeUnit.SECONDS));
         logger.info("Done waiting for all actions to start");
@@ -477,17 +460,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         CountDownLatch responseLatch = new CountDownLatch(1);
-        Task task = startBlockingTestNodesAction(checkLatch, new ActionListener<NodesResponse>() {
-            @Override
-            public void onResponse(NodesResponse nodeResponses) {
-                responseLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                responseLatch.countDown();
-            }
-        });
+        Task task = startBlockingTestNodesAction(checkLatch, ActionListener.wrap(responseLatch::countDown));
         String actionName = "internal:testAction"; // only pick the main action
 
         // Try to cancel main task using action name
@@ -541,10 +514,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         RecordingTaskManagerListener[] listeners = setupListeners(testNodes, "internal:testAction*");
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
-            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "internal:testAction", threadPool, testNodes[i].clusterService,
+            actions[i] = new TestNodesAction("internal:testAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
-                protected NodeResponse nodeOperation(NodeRequest request) {
+                protected NodeResponse nodeOperation(NodeRequest request, Task task) {
                     logger.info("Action on node {}", node);
                     throw new RuntimeException("Test exception");
                 }
@@ -555,7 +528,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             assertEquals(0, testNode.transportService.getTaskManager().getTasks().size());
         }
         NodesRequest request = new NodesRequest("Test Request");
-        NodesResponse responses = ActionTestUtils.executeBlocking(actions[0], request);
+        NodesResponse responses = ActionTestUtils.executeBlockingWithTask(
+            testNodes[0].transportService.getTaskManager(), actions[0], request);
         assertEquals(nodesCount, responses.failureCount());
 
         // Make sure that actions are still registered in the task manager on all nodes
@@ -581,7 +555,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
             // Simulate task action that fails on one of the tasks on one of the nodes
-            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "internal:testTasksAction", testNodes[i].clusterService,
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
                 protected void taskOperation(TestTasksRequest request, Task task, ActionListener<TestTaskResponse> listener) {
@@ -622,7 +596,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         testTasksRequest.setActions("internal:testAction[n]"); // pick all test actions
         TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[0], testTasksRequest);
         assertThat(response.getTaskFailures(), hasSize(1)); // one task failed
-        assertThat(response.getTaskFailures().get(0).getReason(), containsString("Task level failure"));
+        assertThat(response.getTaskFailures().get(0).getCause().getMessage(), containsString("Task level failure"));
         // Get successful responses from all nodes except one
         assertEquals(testNodes.length - 1, response.tasks.size());
         assertEquals(0, response.getNodeFailures().size()); // no nodes failed
@@ -660,7 +634,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             final int node = i;
             // Simulate a task action that works on all nodes except nodes listed in filterNodes.
             // We are testing that it works.
-            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "internal:testTasksAction",
+            tasksActions[i] = new TestTasksAction("internal:testTasksAction",
                 testNodes[i].clusterService, testNodes[i].transportService) {
 
                 @Override
@@ -717,7 +691,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Get the parent task
         ListTasksRequest listTasksRequest = new ListTasksRequest();
         listTasksRequest.setActions(ListTasksAction.NAME + "*");
-        ListTasksResponse response = ActionTestUtils.executeBlocking(testNodes[0].transportListTasksAction, listTasksRequest);
+        ListTasksResponse response = ActionTestUtils.executeBlockingWithTask(
+            testNodes[0].transportService.getTaskManager(), testNodes[0].transportListTasksAction, listTasksRequest);
         assertEquals(testNodes.length + 1, response.getTasks().size());
 
         Map<String, Object> byNodes = serialize(response, true);

@@ -26,7 +26,7 @@ import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
 import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -53,7 +53,7 @@ public final class FragmentBuilderHelper {
         if (!fragInfo.getSubInfos().isEmpty() && containsBrokenAnalysis(fieldType.indexAnalyzer())) {
             /* This is a special case where broken analysis like WDF is used for term-vector creation at index-time
              * which can potentially mess up the offsets. To prevent a SAIIOBException we need to resort
-             * the fragments based on their offsets rather than using soley the positions as it is done in
+             * the fragments based on their offsets rather than using solely the positions as it is done in
              * the FastVectorHighlighter. Yet, this is really a lucene problem and should be fixed in lucene rather
              * than in this hack... aka. "we are are working on in!" */
             final List<SubInfo> subInfos = fragInfo.getSubInfos();
@@ -81,9 +81,8 @@ public final class FragmentBuilderHelper {
         if (analyzer instanceof NamedAnalyzer) {
             analyzer = ((NamedAnalyzer) analyzer).analyzer();
         }
-        if (analyzer instanceof CustomAnalyzer) {
-            final CustomAnalyzer a = (CustomAnalyzer) analyzer;
-            TokenFilterFactory[] tokenFilters = a.tokenFilters();
+        if (analyzer instanceof AnalyzerComponentsProvider) {
+            final TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
                 if (tokenFilterFactory.breaksFastVectorHighlighter()) {
                     return true;

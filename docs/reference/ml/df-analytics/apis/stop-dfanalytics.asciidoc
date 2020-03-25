@@ -1,0 +1,88 @@
+[role="xpack"]
+[testenv="platinum"]
+[[stop-dfanalytics]]
+=== Stop {dfanalytics-jobs} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Stop {dfanalytics-jobs}</titleabbrev>
+++++
+
+Stops one or more {dfanalytics-jobs}.
+
+experimental[]
+
+[[ml-stop-dfanalytics-request]]
+==== {api-request-title}
+
+`POST _ml/data_frame/analytics/<data_frame_analytics_id>/_stop` +
+
+`POST _ml/data_frame/analytics/<data_frame_analytics_id>,<data_frame_analytics_id>/_stop` +
+
+`POST _ml/data_frame/analytics/_all/_stop`
+
+[[ml-stop-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles or equivalent privileges:
+
+* `machine_learning_admin`
+* `kibana_user` (UI only)
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
+
+[[ml-stop-dfanalytics-desc]]
+==== {api-description-title}
+
+A {dfanalytics-job} can be started and stopped multiple times throughout its 
+lifecycle.
+
+You can stop multiple {dfanalytics-jobs} in a single API request by using a 
+comma-separated list of {dfanalytics-jobs} or a wildcard expression. You can 
+stop all {dfanalytics-job} by using _all or by specifying * as the 
+<data_frame_analytics_id>.
+
+[[ml-stop-dfanalytics-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+  
+[[ml-stop-dfanalytics-query-params]]
+==== {api-query-parms-title}  
+  
+`allow_no_match`::
+(Optional, boolean) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+
+
+`force`::
+  (Optional, boolean) If true, the {dfanalytics-job} is stopped forcefully.
+  
+`timeout`::
+(Optional, <<time-units,time units>>) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=timeout-stop]
+
+
+[[ml-stop-dfanalytics-example]]
+==== {api-examples-title}
+
+The following example stops the `loganalytics` {dfanalytics-job}:
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/analytics/loganalytics/_stop
+--------------------------------------------------
+// TEST[skip:TBD]
+
+When the {dfanalytics-job} stops, you receive the following results:
+
+[source,console-result]
+----
+{
+  "stopped" : true
+}
+----

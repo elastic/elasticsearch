@@ -6,27 +6,32 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteRoleResponse;
+import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetRolesResponse;
+import org.elasticsearch.client.security.PutRoleRequest;
+import org.elasticsearch.client.security.PutRoleResponse;
+import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
+import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
-import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
-import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-
 
 /**
  * Test for the clear roles API
@@ -44,24 +49,29 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
     }
 
     @Before
-    public void setupForTests() {
-        SecurityClient c = securityClient();
+    public void setupForTests() throws IOException {
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         // create roles
         for (String role : roles) {
-            c.preparePutRole(role)
-                    .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null)
-                    .get();
+            restClient.security().putRole(new PutRoleRequest(
+                Role.builder().name(role)
+                    .clusterPrivileges("none")
+                    .indicesPrivileges(
+                        IndicesPrivileges.builder().indices("*").privileges("ALL").allowRestrictedIndices(randomBoolean()).build())
+                    .build(), RefreshPolicy.IMMEDIATE),
+                SECURITY_REQUEST_OPTIONS);
             logger.debug("--> created role [{}]", role);
         }
 
-        ensureGreen(SecurityIndexManager.SECURITY_INDEX_NAME);
+        ensureGreen(RestrictedIndicesNames.SECURITY_MAIN_ALIAS);
 
+        final Set<String> rolesSet = new HashSet<>(Arrays.asList(roles));
         // warm up the caches on every node
         for (NativeRolesStore rolesStore : internalCluster().getInstances(NativeRolesStore.class)) {
-            PlainActionFuture<Collection<RoleDescriptor>> future = new PlainActionFuture<>();
-            rolesStore.getRoleDescriptors(roles, future);
+            PlainActionFuture<RoleRetrievalResult> future = new PlainActionFuture<>();
+            rolesStore.getRoleDescriptors(rolesSet, future);
             assertThat(future.actionGet(), notNullValue());
+            assertTrue(future.actionGet().isSuccess());
         }
     }
 
@@ -71,50 +81,50 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
     }
 
     public void testModifyingViaApiClearsCache() throws Exception {
-        Client client = internalCluster().transportClient();
-        SecurityClient securityClient = securityClient(client);
-
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         int modifiedRolesCount = randomIntBetween(1, roles.length);
         List<String> toModify = randomSubsetOf(modifiedRolesCount, roles);
         logger.debug("--> modifying roles {} to have run_as", toModify);
         for (String role : toModify) {
-            PutRoleResponse response = securityClient.preparePutRole(role)
-                    .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null)
-                    .runAs(role)
-                    .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
-                    .get();
+            PutRoleResponse response = restClient.security().putRole(new PutRoleRequest(Role.builder().name(role)
+                    .clusterPrivileges("none")
+                    .indicesPrivileges(
+                        IndicesPrivileges.builder().indices("*").privileges("ALL").allowRestrictedIndices(randomBoolean()).build())
+                    .runAsPrivilege(role)
+                    .build(), randomBoolean() ? RefreshPolicy.IMMEDIATE : RefreshPolicy.NONE), SECURITY_REQUEST_OPTIONS);
             assertThat(response.isCreated(), is(false));
             logger.debug("--> updated role [{}] with run_as", role);
         }
 
-        assertRolesAreCorrect(securityClient, toModify);
+        assertRolesAreCorrect(restClient, toModify);
     }
 
     public void testDeletingViaApiClearsCache() throws Exception {
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         final int rolesToDelete = randomIntBetween(1, roles.length - 1);
         List<String> toDelete = randomSubsetOf(rolesToDelete, roles);
         for (String role : toDelete) {
-            DeleteRoleResponse response = securityClient().prepareDeleteRole(role).get();
-            assertTrue(response.found());
+            DeleteRoleResponse response = restClient.security()
+                .deleteRole(new DeleteRoleRequest(role, RefreshPolicy.IMMEDIATE), SECURITY_REQUEST_OPTIONS);
+            assertTrue(response.isFound());
         }
 
-        GetRolesResponse roleResponse = securityClient().prepareGetRoles().names(roles).get();
-        assertTrue(roleResponse.hasRoles());
-        assertThat(roleResponse.roles().length, is(roles.length - rolesToDelete));
+        GetRolesResponse roleResponse = restClient.security().getRoles(new GetRolesRequest(roles), SECURITY_REQUEST_OPTIONS);
+        assertFalse(roleResponse.getRoles().isEmpty());
+        assertThat(roleResponse.getRoles().size(), is(roles.length - rolesToDelete));
     }
 
-    private void assertRolesAreCorrect(SecurityClient securityClient, List<String> toModify) {
+    private void assertRolesAreCorrect(RestHighLevelClient restClient, List<String> toModify) throws IOException {
         for (String role : roles) {
             logger.debug("--> getting role [{}]", role);
-            GetRolesResponse roleResponse = securityClient.prepareGetRoles().names(role).get();
-            assertThat(roleResponse.hasRoles(), is(true));
-            final String[] runAs = roleResponse.roles()[0].getRunAs();
+            GetRolesResponse roleResponse = restClient.security().getRoles(new GetRolesRequest(role), SECURITY_REQUEST_OPTIONS);
+            assertThat(roleResponse.getRoles().isEmpty(), is(false));
+            final Set<String> runAs = roleResponse.getRoles().get(0).getRunAsPrivilege();
             if (toModify.contains(role)) {
-                assertThat("role [" + role + "] should be modified and have run as", runAs == null || runAs.length == 0, is(false));
-                assertThat(Arrays.asList(runAs).contains(role), is(true));
+                assertThat("role [" + role + "] should be modified and have run as", runAs == null || runAs.size() == 0, is(false));
+                assertThat(runAs.contains(role), is(true));
             } else {
-                assertThat("role [" + role + "] should be cached and not have run as set but does!", runAs == null || runAs.length == 0,
+                assertThat("role [" + role + "] should be cached and not have run as set but does!", runAs == null || runAs.size() == 0,
                         is(true));
             }
         }

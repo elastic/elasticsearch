@@ -28,6 +28,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -42,6 +43,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -166,7 +169,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
                 } else if (propName.equals("norms")) {
-                    builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, "norms") == false);
+                    TypeParsers.parseNorms(builder, name, propNode);
                     iterator.remove();
                 } else if (propName.equals("eager_global_ordinals")) {
                     builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode, "eager_global_ordinals"));
@@ -201,6 +204,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
+        @Override
         public KeywordFieldType clone() {
             return new KeywordFieldType(this);
         }
@@ -234,13 +238,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        public NamedAnalyzer normalizer() {
+        private NamedAnalyzer normalizer() {
             return normalizer;
         }
 
         public void setNormalizer(NamedAnalyzer normalizer) {
             checkIfFrozen();
             this.normalizer = normalizer;
+            setIndexAnalyzer(normalizer);
         }
 
         public boolean splitQueriesOnWhitespace() {
@@ -256,8 +261,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
-            } else {
+            } else if (omitNorms()) {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            } else {
+                return new NormsFieldExistsQuery(name());
             }
         }
 
@@ -265,6 +272,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override
@@ -310,8 +322,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     /** Values that have more chars than the return value of this method will
      *  be skipped at parsing time. */
-    // pkg-private for testing
-    int ignoreAbove() {
+    public int ignoreAbove() {
         return ignoreAbove;
     }
 
@@ -366,17 +377,19 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored())  {
             Field field = new Field(fieldType().name(), binaryValue, fieldType());
             fields.add(field);
+
+            if (fieldType().hasDocValues() == false && fieldType().omitNorms()) {
+                createFieldNamesField(context, fields);
+            }
         }
+
         if (fieldType().hasDocValues()) {
             fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-        } else if (fieldType().stored() || fieldType().indexOptions() != IndexOptions.NONE) {
-            createFieldNamesField(context, fields);
         }
     }
-
     @Override
     protected String contentType() {
         return CONTENT_TYPE;

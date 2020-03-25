@@ -1,0 +1,169 @@
+[role="xpack"]
+[[security-api-put-privileges]]
+=== Create or update application privileges API
+++++
+<titleabbrev>Create or update application privileges</titleabbrev>
+++++
+
+Adds or updates <<application-privileges,application privileges>>.
+
+[[security-api-put-privileges-request]]
+==== {api-request-title}
+
+`POST /_security/privilege` +
+
+`PUT /_security/privilege`
+
+
+[[security-api-put-privileges-prereqs]]
+==== {api-prereq-title}
+
+To use this API, you must have either:
+
+- the `manage_security` cluster privilege (or a greater privilege such as `all`); _or_
+- the _"Manage Application Privileges"_ global privilege for the application 
+being referenced in the request
+
+[[security-api-put-privileges-desc]]
+==== {api-description-title}
+
+This API creates or updates privileges. To remove privileges, use the 
+<<security-api-delete-privilege,delete application privilege API>>. 
+
+For more information, see <<roles-application-priv>>.
+
+To check a user's application privileges, use the
+<<security-api-has-privileges,has privileges API>>.
+
+[[security-api-put-privileges-request-body]]
+==== {api-request-body-title}
+
+The body is a JSON object where the names of the fields are the application
+names and the value of each field is an object. The fields in this inner
+object are the names of the privileges and each value is a JSON object that 
+includes the following fields:
+
+`actions`:: (array-of-string) A list of action names that are granted by this
+privilege. This field must exist and cannot be an empty array.
+
+`metadata`:: (object) Optional meta-data. Within the `metadata` object, keys
+that begin with `_` are reserved for system usage.
+
+
+[[security-api-app-privileges-validation]]
+==== Validation
+
+Application names::
+    Application names are formed from a _prefix_, with an optional _suffix_ that
+    conform to the following rules:
+    * The prefix must begin with a lowercase ASCII letter
+    * The prefix must contain only ASCII letters or digits
+    * The prefix must be at least 3 characters long
+    * If the suffix exists, it must begin with either `-` or `_`
+    * The suffix cannot contain any of the following characters:
+      `\\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, `,`, `*`
+    * No part of the name can contain whitespace.
+
+Privilege names::
+    Privilege names must begin with a lowercase ASCII letter and must contain
+    only ASCII letters and digits along with the characters `_`, `-` and `.`
+
+Action names::
+    Action names can contain any number of printable ASCII characters and must 
+    contain at least one of the following characters: `/` `*`, `:`
+
+[[security-api-put-privileges-response-body]]
+==== {api-response-body-title}
+
+A successful call returns a JSON structure that shows whether the privilege has
+been created or updated.
+
+[[security-api-put-privileges-example]]
+==== {api-examples-title}
+
+To add a single privilege, submit a PUT or POST request to the 
+`/_security/privilege/` endpoint. For example:
+
+[source,console]
+--------------------------------------------------
+PUT /_security/privilege
+{
+  "myapp": {
+    "read": {
+      "actions": [ <1>
+        "data:read/*" , <2> 
+        "action:login" ], 
+        "metadata": { <3>
+          "description": "Read access to myapp"
+        }
+      }
+    }
+}
+--------------------------------------------------
+<1> These strings have significance within the "myapp" application. {es} does not 
+    assign any meaning to them.
+<2> The use of a wildcard here (`*`) means that this privilege grants access to 
+    all actions that start with `data:read/`. {es} does not assign any meaning 
+    to these actions. However, if the request includes an application privilege 
+    such as `data:read/users` or `data:read/settings`, the 
+    <<security-api-has-privileges,has privileges API>> respects the use of a 
+    wildcard and returns `true`.
+<3> The metadata object is optional.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "myapp": {
+    "read": {
+      "created": true <1>
+    }
+  }
+}
+--------------------------------------------------
+
+<1> When an existing privilege is updated, `created` is set to false.
+
+To add multiple privileges, submit a POST request to the 
+`/_security/privilege/` endpoint. For example:
+
+[source,console]
+--------------------------------------------------
+PUT /_security/privilege
+{
+  "app01": {
+    "read": {
+      "actions": [ "action:login", "data:read/*" ]
+    },
+    "write": {
+      "actions": [ "action:login", "data:write/*" ]
+    }
+  },
+  "app02": {
+    "all": {
+      "actions": [ "*" ]
+    }
+  }
+}
+--------------------------------------------------
+
+A successful call returns a JSON structure that shows whether the privileges 
+have been created or updated.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "app02": {
+    "all": {
+      "created": true
+    }
+  },
+  "app01": {
+    "read": {
+      "created": true
+    },
+    "write": {
+      "created": true
+    }
+  }
+}
+--------------------------------------------------

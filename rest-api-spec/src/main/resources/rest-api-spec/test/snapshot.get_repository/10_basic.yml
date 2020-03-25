@@ -15,6 +15,7 @@ setup:
         body:
           type: fs
           settings:
+            readonly: true
             location: "test_repo_get_1_loc"
 
 ---
@@ -51,6 +52,12 @@ setup:
 
 ---
 "Verify created repository":
+  - do:
+      snapshot.verify_repository:
+        repository: test_repo_get_1
+
+  - is_true: nodes
+
   - do:
       snapshot.verify_repository:
         repository: test_repo_get_2

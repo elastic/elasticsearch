@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
+import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 
 /**
  * Factory for {@link LowerCaseFilter} and some language-specific variants
@@ -39,7 +39,7 @@ import org.elasticsearch.index.analysis.MultiTermAwareComponent;
  *   <li>turkish: {@link TurkishLowerCaseFilter}
  * </ul>
  */
-public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     private final String lang;
 
@@ -63,10 +63,6 @@ public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory impl
         }
     }
 
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
-    }
 }
 
 

@@ -1,0 +1,32 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-auto-follow]]
+=== Automatically following indices
+
+In time series use cases where you want to follow new indices that are
+periodically created (such as daily Beats indices), manually configuring follower
+indices for each new leader index can be an operational burden. The auto-follow
+functionality in {ccr} is aimed at easing this burden. With the auto-follow
+functionality, you can specify that new indices in a remote cluster that have a 
+name that matches a pattern are automatically followed.
+
+==== Managing auto-follow patterns
+
+You can add a new auto-follow pattern configuration with the
+{ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API].  When you create
+a new auto-follow pattern configuration, you are configuring a collection of
+patterns against a single remote cluster. Any time a new index with a name that 
+matches one of the patterns in the collection is created in the remote cluster,
+a follower index is configured in the local cluster. The follower index uses the 
+new index as its leader index.
+
+You can inspect all configured auto-follow pattern collections with the
+{ref}/ccr-get-auto-follow-pattern.html[get auto-follow pattern API]. Auto-follow patterns
+can be paused using the {ref}/ccr-pause-auto-follow-pattern.html[pause auto-follow pattern API]
+ and can be resumed using the {ref}/ccr-resume-auto-follow-pattern.html[resume auto-follow pattern API].
+  To delete a configured auto-follow pattern collection, use the
+{ref}/ccr-delete-auto-follow-pattern.html[delete auto-follow pattern API].
+
+Since auto-follow functionality is handled automatically in the background on
+your behalf, error reporting is done through logs on the elected master node
+and through the {ref}/ccr-get-stats.html[{ccr} stats API].

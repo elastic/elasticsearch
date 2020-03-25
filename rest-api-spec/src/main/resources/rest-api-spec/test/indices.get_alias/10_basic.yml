@@ -59,7 +59,7 @@ setup:
 
   - do:
       indices.get_alias:
-        name: _all
+        name: '*'
 
   - match: {test_index.aliases.test_alias: {}}
   - match: {test_index.aliases.test_blias: {}}
@@ -220,7 +220,7 @@ setup:
   - is_false: test_index_2.aliases.test_blias
 
 ---
-"Get aliases via /pref*/_alias/{name}":
+"Get aliases via /*suf/_alias/{name}":
 
   - do:
       indices.get_alias:

@@ -45,7 +45,7 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     private static final ParseField RESCORE_QUERY_WEIGHT_FIELD = new ParseField("rescore_query_weight");
     private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
 
-    private static final ObjectParser<InnerBuilder, Void> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME, null);
+    private static final ObjectParser<InnerBuilder, Void> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME);
     static {
         QUERY_RESCORE_PARSER.declareObject(InnerBuilder::setQueryBuilder, (p, c) -> {
             try {
@@ -250,6 +250,9 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
         queryRescoreBuilder.setQueryWeight(queryWeight);
         queryRescoreBuilder.setRescoreQueryWeight(rescoreQueryWeight);
         queryRescoreBuilder.setScoreMode(scoreMode);
+        if (windowSize() != null) {
+            queryRescoreBuilder.windowSize(windowSize());
+        }
         return queryRescoreBuilder;
     }
 }

@@ -60,35 +60,29 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
     public static class CancellableNodeRequest extends BaseNodeRequest {
         protected String requestName;
-        protected String nodeId;
 
         public CancellableNodeRequest() {
             super();
         }
 
-        public CancellableNodeRequest(CancellableNodesRequest request, String nodeId) {
-            super(nodeId);
-            requestName = request.requestName;
-            this.nodeId = nodeId;
+        public CancellableNodeRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
-            nodeId = in.readString();
+        public CancellableNodeRequest(CancellableNodesRequest request) {
+            requestName = request.requestName;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(requestName);
-            out.writeString(nodeId);
         }
 
         @Override
         public String getDescription() {
-            return "CancellableNodeRequest[" + requestName + ", " + nodeId + "]";
+            return "CancellableNodeRequest[" + requestName + "]";
         }
 
         @Override
@@ -105,19 +99,14 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     public static class CancellableNodesRequest extends BaseNodesRequest<CancellableNodesRequest> {
         private String requestName;
 
-        private CancellableNodesRequest() {
-            super();
+        private CancellableNodesRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
         }
 
         public CancellableNodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
         }
 
         @Override
@@ -152,34 +141,33 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         final CountDownLatch actionStartedLatch;
 
-        CancellableTestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
+        CancellableTestNodesAction(String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, boolean shouldBlock, CountDownLatch
                                        actionStartedLatch) {
-            super(settings, actionName, threadPool, clusterService, transportService, CancellableNodesRequest::new,
-                CancellableNodeRequest::new);
+            super(actionName, threadPool, clusterService, transportService, CancellableNodesRequest::new, CancellableNodeRequest::new);
             this.shouldBlock = shouldBlock;
             this.actionStartedLatch = actionStartedLatch;
         }
 
         @Override
-        protected CancellableNodeRequest newNodeRequest(String nodeId, CancellableNodesRequest request) {
-            return new CancellableNodeRequest(request, nodeId);
+        protected CancellableNodeRequest newNodeRequest(CancellableNodesRequest request) {
+            return new CancellableNodeRequest(request);
         }
 
         @Override
         protected NodeResponse nodeOperation(CancellableNodeRequest request, Task task) {
             assert task instanceof CancellableTask;
-            debugDelay(request.nodeId, "op1");
+            debugDelay("op1");
             if (actionStartedLatch != null) {
                 actionStartedLatch.countDown();
             }
 
-            debugDelay(request.nodeId, "op2");
+            debugDelay("op2");
             if (shouldBlock) {
                 // Simulate a job that takes forever to finish
                 // Using periodic checks method to identify that the task was cancelled
                 try {
-                    awaitBusy(() -> {
+                    waitUntil(() -> {
                         if (((CancellableTask) task).isCancelled()) {
                             throw new TaskCancelledException("Cancelled");
                         }
@@ -190,14 +178,9 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                     Thread.currentThread().interrupt();
                 }
             }
-            debugDelay(request.nodeId, "op4");
+            debugDelay("op4");
 
             return new NodeResponse(clusterService.localNode());
-        }
-
-        @Override
-        protected NodeResponse nodeOperation(CancellableNodeRequest request) {
-            throw new UnsupportedOperationException("the task parameter is required");
         }
     }
 
@@ -214,10 +197,11 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         for (int i = 0; i < testNodes.length; i++) {
             boolean shouldBlock = blockOnNodes.contains(testNodes[i]);
             logger.info("The action in the node [{}] should block: [{}]", testNodes[i].getNodeId(), shouldBlock);
-            actions[i] = new CancellableTestNodesAction(CLUSTER_SETTINGS, "internal:testAction", threadPool, testNodes[i]
+            actions[i] = new CancellableTestNodesAction("internal:testAction", threadPool, testNodes[i]
                 .clusterService, testNodes[i].transportService, shouldBlock, actionLatch);
         }
-        Task task = actions[0].execute(request, listener);
+        Task task = testNodes[0].transportService.getTaskManager().registerAndExecute("transport", actions[0], request,
+            (t, r) -> listener.onResponse(r), (t, e) -> listener.onFailure(e));
         if (waitForActionToStart) {
             logger.info("Awaiting for all actions to start");
             actionLatch.await();
@@ -427,9 +411,9 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
     }
 
-    private static void debugDelay(String nodeId, String name) {
+    private static void debugDelay(String name) {
         // Introduce an additional pseudo random repeatable race conditions
-        String delayName = RandomizedContext.current().getRunnerSeedAsString() + ":" + nodeId + ":" + name;
+        String delayName = RandomizedContext.current().getRunnerSeedAsString() + ":" + name;
         Random random = new Random(delayName.hashCode());
         if (RandomNumbers.randomIntBetween(random, 0, 10) < 1) {
             try {

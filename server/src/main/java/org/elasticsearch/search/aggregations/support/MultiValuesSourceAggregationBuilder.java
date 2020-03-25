@@ -22,13 +22,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -139,10 +138,6 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         return (AB) this;
     }
 
-    public Map<String, MultiValuesSourceFieldConfig> fields() {
-        return fields;
-    }
-
     /**
      * Sets the {@link ValueType} for the value produced by this aggregation
      */
@@ -153,13 +148,6 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         }
         this.valueType = valueType;
         return (AB) this;
-    }
-
-    /**
-     * Gets the {@link ValueType} for the value produced by this aggregation
-     */
-    public ValueType valueType() {
-        return valueType;
     }
 
     /**
@@ -174,26 +162,19 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         return (AB) this;
     }
 
-    /**
-     * Gets the format to use for the output of the aggregation.
-     */
-    public String format() {
-        return format;
-    }
-
     @Override
-    protected final MultiValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected final MultiValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                                   Builder subFactoriesBuilder) throws IOException {
         ValueType finalValueType = this.valueType != null ? this.valueType : targetValueType;
 
         Map<String, ValuesSourceConfig<VS>> configs = new HashMap<>(fields.size());
         fields.forEach((key, value) -> {
-            ValuesSourceConfig<VS> config = ValuesSourceConfig.resolve(context.getQueryShardContext(), finalValueType,
+            ValuesSourceConfig<VS> config = ValuesSourceConfig.resolve(queryShardContext, finalValueType,
                 value.getFieldName(), value.getScript(), value.getMissing(), value.getTimeZone(), format);
             configs.put(key, config);
         });
         DocValueFormat docValueFormat = resolveFormat(format, finalValueType);
-        return innerBuild(context, configs, docValueFormat, parent, subFactoriesBuilder);
+        return innerBuild(queryShardContext, configs, docValueFormat, parent, subFactoriesBuilder);
     }
 
 
@@ -208,9 +189,10 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         return valueFormat;
     }
 
-    protected abstract MultiValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context,
-        Map<String, ValuesSourceConfig<VS>> configs, DocValueFormat format, AggregatorFactory<?> parent,
-        AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract MultiValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
+                                                                         Map<String, ValuesSourceConfig<VS>> configs,
+                                                                         DocValueFormat format, AggregatorFactory parent,
+                                                                         Builder subFactoriesBuilder) throws IOException;
 
 
     /**
@@ -225,7 +207,9 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (fields != null) {
-            builder.field(CommonFields.FIELDS.getPreferredName(), fields);
+            for (Map.Entry<String, MultiValuesSourceFieldConfig> fieldEntry : fields.entrySet()) {
+                builder.field(fieldEntry.getKey(), fieldEntry.getValue());
+            }
         }
         if (format != null) {
             builder.field(CommonFields.FORMAT.getPreferredName(), format);
@@ -241,28 +225,20 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final int doHashCode() {
-        return Objects.hash(fields, format, targetValueType, valueType, innerHashCode());
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), fields, format, targetValueType, valueType);
     }
 
-    protected abstract int innerHashCode();
 
     @Override
-    protected final boolean doEquals(Object other) {
-        if (this == other) {
-            return true;
-        }
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
 
-        if (other == null || getClass() != other.getClass()) {
-            return false;
-        }
-
-        MultiValuesSourceAggregationBuilder that = (MultiValuesSourceAggregationBuilder) other;
-
-        return Objects.equals(this.fields, that.fields)
-            && Objects.equals(this.format, that.format)
-            && Objects.equals(this.valueType, that.valueType);
+        MultiValuesSourceAggregationBuilder other = (MultiValuesSourceAggregationBuilder) obj;
+        return Objects.equals(this.fields, other.fields)
+            && Objects.equals(this.format, other.format)
+            && Objects.equals(this.valueType, other.valueType);
     }
-
-    protected abstract boolean innerEquals(Object obj);
 }

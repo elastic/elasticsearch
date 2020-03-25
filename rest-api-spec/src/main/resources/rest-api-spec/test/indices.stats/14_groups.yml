@@ -4,12 +4,12 @@ setup:
   - do:
       index:
           index: test1
-          type:  bar
           id:    1
           body:  { "bar": "bar", "baz": "baz" }
 
   - do:
       search:
+          rest_total_hits_as_int: true
           body:
               stats:  [ bar, baz ]
 
@@ -76,4 +76,3 @@ setup:
 
   - gt:       { _all.total.search.groups.bar.query_total: 0 }
   - is_false:   _all.total.search.groups.baz
-

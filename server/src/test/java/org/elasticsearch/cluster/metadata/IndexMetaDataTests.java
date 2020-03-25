@@ -23,7 +23,9 @@ import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -33,7 +35,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -45,13 +46,13 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 
 public class IndexMetaDataTests extends ESTestCase {
-
-    private IndicesModule INDICES_MODULE = new IndicesModule(Collections.emptyList());
 
     @Before
     public void setUp() throws Exception {
@@ -60,17 +61,20 @@ public class IndexMetaDataTests extends ESTestCase {
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        return new NamedWriteableRegistry(INDICES_MODULE.getNamedWriteables());
+        return new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(INDICES_MODULE.getNamedXContents());
+        return new NamedXContentRegistry(IndicesModule.getNamedXContents());
     }
 
     public void testIndexMetaDataSerialization() throws IOException {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
         int numberOfReplicas = randomIntBetween(0, 10);
+        Map<String, String> customMap = new HashMap<>();
+        customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+        customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
         IndexMetaData metaData = IndexMetaData.builder("foo")
             .settings(Settings.builder()
                 .put("index.version.created", 1)
@@ -80,6 +84,7 @@ public class IndexMetaDataTests extends ESTestCase {
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
+            .putCustom("my_custom", customMap)
             .putRolloverInfo(
                 new RolloverInfo(randomAlphaOfLength(5),
                     Arrays.asList(new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
@@ -89,11 +94,12 @@ public class IndexMetaDataTests extends ESTestCase {
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        IndexMetaData.FORMAT.toXContent(builder, metaData);
         builder.endObject();
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         final IndexMetaData fromXContentMeta = IndexMetaData.fromXContent(parser);
-        assertEquals(metaData, fromXContentMeta);
+        assertEquals("expected: " + Strings.toString(metaData) + "\nactual  : " + Strings.toString(fromXContentMeta),
+            metaData, fromXContentMeta);
         assertEquals(metaData.hashCode(), fromXContentMeta.hashCode());
 
         assertEquals(metaData.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
@@ -103,6 +109,11 @@ public class IndexMetaDataTests extends ESTestCase {
         assertEquals(metaData.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metaData.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metaData.primaryTerm(0), fromXContentMeta.primaryTerm(0));
+        ImmutableOpenMap.Builder<String, DiffableStringMap> expectedCustomBuilder = ImmutableOpenMap.builder();
+        expectedCustomBuilder.put("my_custom", new DiffableStringMap(customMap));
+        ImmutableOpenMap<String, DiffableStringMap> expectedCustom = expectedCustomBuilder.build();
+        assertEquals(metaData.getCustomData(), expectedCustom);
+        assertEquals(metaData.getCustomData(), fromXContentMeta.getCustomData());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metaData.writeTo(out);
@@ -119,6 +130,8 @@ public class IndexMetaDataTests extends ESTestCase {
             assertEquals(metaData.getRoutingFactor(), deserialized.getRoutingFactor());
             assertEquals(metaData.primaryTerm(0), deserialized.primaryTerm(0));
             assertEquals(metaData.getRolloverInfos(), deserialized.getRolloverInfos());
+            assertEquals(deserialized.getCustomData(), expectedCustom);
+            assertEquals(metaData.getCustomData(),  deserialized.getCustomData());
         }
     }
 
@@ -185,8 +198,7 @@ public class IndexMetaDataTests extends ESTestCase {
         assertEquals(IndexMetaData.selectShrinkShards(shard, shrink, numTargetShards),
             IndexMetaData.selectRecoverFromShards(shard, shrink, numTargetShards));
 
-        assertEquals("can't select recover from shards if both indices have the same number of shards",
-            expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectRecoverFromShards(0, shrink, 32)).getMessage());
+        IndexMetaData.selectRecoverFromShards(0, shrink, 32);
     }
 
     public void testSelectSplitShard() {
@@ -211,7 +223,7 @@ public class IndexMetaDataTests extends ESTestCase {
         assertEquals("the number of target shards (0) must be greater than the shard id: 0",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectSplitShard(0, metaData, 0)).getMessage());
 
-        assertEquals("the number of source shards [2] must be a must be a factor of [3]",
+        assertEquals("the number of source shards [2] must be a factor of [3]",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectSplitShard(0, metaData, 3)).getMessage());
 
         assertEquals("the number of routing shards [4] must be a multiple of the target shards [8]",
@@ -269,6 +281,7 @@ public class IndexMetaDataTests extends ESTestCase {
         Settings notAFactorySettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_routing_shards", 3).build();
         iae = expectThrows(IllegalArgumentException.class,
             () -> IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings));
-        assertEquals("the number of source shards [2] must be a must be a factor of [3]", iae.getMessage());
+        assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
     }
+
 }

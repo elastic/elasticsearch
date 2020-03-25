@@ -3,38 +3,40 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.graph.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
+import org.elasticsearch.protocol.xpack.graph.Hop;
+import org.elasticsearch.protocol.xpack.graph.VertexRequest;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest.TermBoost;
-import org.elasticsearch.xpack.core.graph.action.Hop;
-import org.elasticsearch.xpack.core.graph.action.VertexRequest;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTANCE;
+
 /**
  * @see GraphExploreRequest
  */
-public class RestGraphAction extends XPackRestHandler {
+public class RestGraphAction extends BaseRestHandler {
+
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");
     public static final ParseField RETURN_DETAILED_INFO = new ParseField("return_detailed_stats");
@@ -54,27 +56,20 @@ public class RestGraphAction extends XPackRestHandler {
     public static final ParseField BOOST_FIELD = new ParseField("boost");
     public static final ParseField TERM_FIELD = new ParseField("term");
 
-    public RestGraphAction(Settings settings, RestController controller) {
-        super(settings);
-
-        // @deprecated Remove in 7.0
-        controller.registerWithDeprecatedHandler(GET, "/{index}" + URI_BASE + "/graph/_explore", this,
-                                                 GET, "/{index}" + URI_BASE + "/_graph/_explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, "/{index}" + URI_BASE + "/graph/_explore", this,
-                                                 POST, "/{index}" + URI_BASE + "/_graph/_explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", this,
-                                                 GET, "/{index}/{type}" + URI_BASE + "/_graph/_explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", this,
-                                                 POST, "/{index}/{type}" + URI_BASE + "/_graph/_explore", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/{index}/_graph/explore"),
+            new Route(POST, "/{index}/_graph/explore"));
     }
 
     @Override
     public String getName() {
-        return "xpack_graph_action";
+        return "graph";
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         GraphExploreRequest graphRequest = new GraphExploreRequest(Strings.splitStringByCommaToArray(request.param("index")));
         graphRequest.indicesOptions(IndicesOptions.fromRequest(request, graphRequest.indicesOptions()));
         graphRequest.routing(request.param("routing"));
@@ -98,8 +93,7 @@ public class RestGraphAction extends XPackRestHandler {
             parseHop(parser, currentHop, graphRequest);
         }
 
-        graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-        return channel -> client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
     }
 
     private void parseHop(XContentParser parser, Hop currentHop, GraphExploreRequest graphRequest) throws IOException {
@@ -323,4 +317,5 @@ public class RestGraphAction extends XPackRestHandler {
             }
         }
     }
+
 }

@@ -129,10 +129,12 @@ public class SuggestionEntryTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        Option option = new Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
-        Entry<Option> entry = new Entry<>(new Text("entryText"), 42, 313);
-        entry.addOption(option);
-        BytesReference xContent = toXContent(entry, XContentType.JSON, randomBoolean());
+        PhraseSuggestion.Entry.Option phraseOption = new PhraseSuggestion.Entry.Option(new Text("someText"),
+                new Text("somethingHighlighted"),
+            1.3f, true);
+        PhraseSuggestion.Entry phraseEntry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
+        phraseEntry.addOption(phraseOption);
+        BytesReference xContent = toXContent(phraseEntry, XContentType.JSON, randomBoolean());
         assertEquals(
                 "{\"text\":\"entryText\","
                 + "\"offset\":42,"
@@ -144,11 +146,10 @@ public class SuggestionEntryTests extends ESTestCase {
                     + "\"collate_match\":true}"
                 + "]}", xContent.utf8ToString());
 
-        org.elasticsearch.search.suggest.term.TermSuggestion.Entry.Option termOption =
-                new org.elasticsearch.search.suggest.term.TermSuggestion.Entry.Option(new Text("termSuggestOption"), 42, 3.13f);
-        entry = new Entry<>(new Text("entryText"), 42, 313);
-        entry.addOption(termOption);
-        xContent = toXContent(entry, XContentType.JSON, randomBoolean());
+        TermSuggestion.Entry.Option termOption = new TermSuggestion.Entry.Option(new Text("termSuggestOption"), 42, 3.13f);
+        TermSuggestion.Entry termEntry = new TermSuggestion.Entry(new Text("entryText"), 42, 313);
+        termEntry.addOption(termOption);
+        xContent = toXContent(termEntry, XContentType.JSON, randomBoolean());
         assertEquals(
                 "{\"text\":\"entryText\","
                 + "\"offset\":42,"
@@ -159,12 +160,11 @@ public class SuggestionEntryTests extends ESTestCase {
                     + "\"freq\":42}"
                 + "]}", xContent.utf8ToString());
 
-        org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option completionOption =
-                new org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option(-1, new Text("completionOption"),
+        CompletionSuggestion.Entry.Option completionOption = new CompletionSuggestion.Entry.Option(-1, new Text("completionOption"),
                         3.13f, Collections.singletonMap("key", Collections.singleton("value")));
-        entry = new Entry<>(new Text("entryText"), 42, 313);
-        entry.addOption(completionOption);
-        xContent = toXContent(entry, XContentType.JSON, randomBoolean());
+        CompletionSuggestion.Entry completionEntry = new CompletionSuggestion.Entry(new Text("entryText"), 42, 313);
+        completionEntry.addOption(completionOption);
+        xContent = toXContent(completionEntry, XContentType.JSON, randomBoolean());
         assertEquals(
                 "{\"text\":\"entryText\","
                 + "\"offset\":42,"

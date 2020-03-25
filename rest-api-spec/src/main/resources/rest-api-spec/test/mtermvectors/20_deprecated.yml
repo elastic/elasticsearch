@@ -1,10 +1,7 @@
-
 ---
 "Deprecated camel case and _ parameters should fail in Term Vectors query":
 
    - skip:
-       version: " - 6.99.99"
-       reason:  camel case and _ parameters (e.g. versionType, _version_type) should fail from 7.0
        features: "warnings"
 
    - do:
@@ -12,16 +9,14 @@
            index: testidx
            body:
                mappings:
-                   testtype:
-                       properties:
-                           text:
-                               type :         "text"
-                               term_vector :  "with_positions_offsets"
+                   properties:
+                       text:
+                           type :         "text"
+                           term_vector :  "with_positions_offsets"
 
    - do:
        index:
            index: testidx
-           type:  testtype
            id:    testing_document
            body:  {"text" : "The quick brown fox is brown."}
 
@@ -33,7 +28,6 @@
                "docs":
                    -
                        "_index" : "testidx"
-                       "_type" : "testtype"
                        "_id" : "testing_document"
                        "version" : 1
                        "versionType" : "external"
@@ -46,7 +40,6 @@
                "docs":
                    -
                        "_index" : "testidx"
-                       "_type" : "testtype"
                        "_id" : "testing_document"
                        "version" : 1
                        "_version_type" : "external"

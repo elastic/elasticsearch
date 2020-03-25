@@ -1,0 +1,46 @@
+[role="xpack"]
+[[java-rest-high-security-enable-user]]
+=== Enable User API
+
+[[java-rest-high-security-enable-user-execution]]
+==== Execution
+
+Enabling a disabled user can be performed using the `security().enableUser()`
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[enable-user-execute]
+--------------------------------------------------
+
+[[java-rest-high-security-enable-user-response]]
+==== Response
+
+The returned `Boolean` indicates the request status.
+
+[[java-rest-high-security-enable-user-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[enable-user-execute-async]
+--------------------------------------------------
+<1> The `EnableUser` request to execute and the `ActionListener` to use when
+the execution completes.
+
+The asynchronous method does not block and returns immediately. Once the request
+has completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for a `Boolean` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[enable-user-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument.
+<2> Called in case of failure. The raised exception is provided as an argument.

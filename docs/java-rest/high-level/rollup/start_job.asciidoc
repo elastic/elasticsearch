@@ -1,0 +1,34 @@
+--
+:api: rollup-start-job
+:request: StartRollupJobRequest
+:response: StartRollupJobResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Start Rollup Job API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Start Rollup Job API allows you to start a job by ID.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The ID of the job to start.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the start command was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the start job request was received.
+
+include::../execution.asciidoc[]
+
+

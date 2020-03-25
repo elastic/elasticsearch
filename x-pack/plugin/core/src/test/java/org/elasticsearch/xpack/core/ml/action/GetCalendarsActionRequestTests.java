@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 
-public class GetCalendarsActionRequestTests extends AbstractStreamableXContentTestCase<GetCalendarsAction.Request> {
+public class GetCalendarsActionRequestTests extends AbstractSerializingTestCase<GetCalendarsAction.Request> {
 
     @Override
     protected GetCalendarsAction.Request createTestInstance() {
@@ -25,8 +25,8 @@ public class GetCalendarsActionRequestTests extends AbstractStreamableXContentTe
     }
 
     @Override
-    protected GetCalendarsAction.Request createBlankInstance() {
-        return new GetCalendarsAction.Request();
+    protected Writeable.Reader<GetCalendarsAction.Request> instanceReader() {
+        return GetCalendarsAction.Request::new;
     }
 
     @Override

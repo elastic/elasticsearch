@@ -29,8 +29,9 @@ A `bucket_selector` aggregation looks like this in isolation:
 <1> Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to
 the metrics to use for that variable.
 
-
+[[bucket-selector-params]]
 .`bucket_selector` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>>
@@ -43,7 +44,7 @@ for more details) |Required |
 
 The following snippet only retains buckets where the total sales for the month is more than 200:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -52,7 +53,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "total_sales": {
@@ -73,12 +74,11 @@ POST /sales/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,
@@ -112,4 +112,5 @@ And the following may be the response:
 // TESTRESPONSE[s/"took": 11/"took": $body.took/]
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+
 <1> Bucket for `2015/02/01 00:00:00` has been removed as its total sales was less than 200

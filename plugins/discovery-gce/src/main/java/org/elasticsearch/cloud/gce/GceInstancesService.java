@@ -75,4 +75,8 @@ public interface GceInstancesService extends Closeable {
      * @return a collection of running instances within the same GCE project
      */
     Collection<Instance> instances();
+
+    String projectId();
+
+    List<String> zones();
 }

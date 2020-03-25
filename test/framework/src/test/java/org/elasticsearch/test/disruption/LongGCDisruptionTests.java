@@ -127,18 +127,18 @@ public class LongGCDisruptionTests extends ESTestCase {
         final LockedExecutor lockedExecutor = new LockedExecutor();
         final AtomicLong ops = new AtomicLong();
         final Thread[] threads = new Thread[5];
+        final Runnable yieldAndIncrement = () -> {
+            Thread.yield(); // give some chance to catch this stack trace
+            ops.incrementAndGet();
+        };
         try {
             for (int i = 0; i < threads.length; i++) {
                 threads[i] = new Thread(() -> {
                     for (int iter = 0; stop.get() == false; iter++) {
                         if (iter % 2 == 0) {
-                            lockedExecutor.executeLocked(() -> {
-                                Thread.yield(); // give some chance to catch this stack trace
-                                ops.incrementAndGet();
-                            });
+                            lockedExecutor.executeLocked(yieldAndIncrement);
                         } else {
-                            Thread.yield(); // give some chance to catch this stack trace
-                            ops.incrementAndGet();
+                            yieldAndIncrement.run();
                         }
                     }
                 });
@@ -146,7 +146,14 @@ public class LongGCDisruptionTests extends ESTestCase {
                 threads[i].start();
             }
             // make sure some threads are under lock
-            disruption.startDisrupting();
+            try {
+                disruption.startDisrupting();
+            } catch (RuntimeException e) {
+                if (e.getMessage().contains("suspending node threads took too long") && disruption.sawSlowSuspendBug()) {
+                    return;
+                }
+                throw new AssertionError(e);
+            }
             long first = ops.get();
             assertThat(lockedExecutor.lock.isLocked(), equalTo(false)); // no threads should own the lock
             Thread.sleep(100);
@@ -154,6 +161,7 @@ public class LongGCDisruptionTests extends ESTestCase {
             disruption.stopDisrupting();
             assertBusy(() -> assertThat(ops.get(), greaterThan(first)));
         } finally {
+            disruption.stopDisrupting();
             stop.set(true);
             for (final Thread thread : threads) {
                 thread.join();

@@ -55,13 +55,14 @@ public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
         assertAcked(
                 prepareCreate("test")
                         // Enforces that only one shard can only be allocated to a single node
-                        .setSettings(Settings.builder().put(indexSettings()).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1))
+                        .setSettings(Settings.builder().put(indexSettings())
+                                .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1))
         );
 
         List<IndexRequestBuilder> writes = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             writes.add(
-                    client().prepareIndex("test", "type1")
+                    client().prepareIndex("test")
                             .setSource(jsonBuilder().startObject().field("field", i).endObject())
             );
         }

@@ -5,42 +5,38 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor.BinaryOptionalMathOperation;
+
+import java.util.List;
 
 /**
- * <a href="https://en.wikipedia.org/wiki/Rounding#Round_half_up">Round</a>
- * function.
- *
- * Note that this uses {@link Math#round(double)} which uses "half up" rounding
- * for `ROUND(-1.5)` rounds to `-1`.
+ * Function that takes two parameters: one is the field/value itself, the other is a non-floating point numeric
+ * which indicates how the rounding should behave. If positive, it will round the number till that parameter
+ * count digits after the decimal point. If negative, it will round the number till that paramter count
+ * digits before the decimal point, starting at the decimal point.
  */
-public class Round extends MathFunction {
-    public Round(Location location, Expression field) {
-        super(location, field);
+public class Round extends BinaryOptionalNumericFunction implements OptionalArgument {
+    
+    public Round(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     @Override
-    protected NodeInfo<Round> info() {
-        return NodeInfo.create(this, Round::new, field());
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, Round::new, left(), right());
     }
 
     @Override
-    protected Round replaceChild(Expression newChild) {
-        return new Round(location(), newChild);
+    protected BinaryOptionalMathOperation operation() {
+        return BinaryOptionalMathOperation.ROUND;
     }
-
+    
     @Override
-    protected MathOperation operation() {
-        return MathOperation.ROUND;
-    }
-
-    @Override
-    public DataType dataType() {
-        return DataTypeConversion.asInteger(field().dataType());
+    protected final Expression replacedChildrenInstance(List<Expression> newChildren) {
+        return new Round(source(), newChildren.get(0), right() == null ? null : newChildren.get(1));
     }
 }

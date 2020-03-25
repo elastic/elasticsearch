@@ -1,10 +1,11 @@
 ---
 "External version":
 
+
+
  - do:
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external
@@ -15,7 +16,6 @@
  - do:
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external
@@ -27,7 +27,6 @@
       catch:             conflict
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external
@@ -37,7 +36,6 @@
       catch:             conflict
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external
@@ -46,7 +44,6 @@
  - do:
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external

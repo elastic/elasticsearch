@@ -43,6 +43,7 @@ public class LicenseVerifier {
         try {
             byte[] signatureBytes = Base64.getDecoder().decode(license.signature());
             ByteBuffer byteBuffer = ByteBuffer.wrap(signatureBytes);
+            @SuppressWarnings("unused")
             int version = byteBuffer.getInt();
             int magicLen = byteBuffer.getInt();
             byte[] magic = new byte[magicLen];

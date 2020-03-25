@@ -1,0 +1,16 @@
+[float]
+[[breaking_80_network_changes]]
+=== Network changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[float]
+==== Removal of old network settings
+
+The `network.tcp.connect_timeout` setting was deprecated in 7.x and has been removed in 8.0. This setting
+was a fallback setting for `transport.connect_timeout`. To change the default connection timeout for client
+connections `transport.connect_timeout` should be modified.

@@ -1,5 +1,0 @@
-double profit = 0;
-for (a in params._aggs) {
-  profit += a
-}
-return profit

@@ -1,0 +1,30 @@
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+}
+
+File repoDir = file("$buildDir/testclusters/repo")
+
+integTest.runner {
+  /* To support taking index snapshots, we have to set path.repo setting */
+  systemProperty 'tests.path.repo', repoDir
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 4
+
+  setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.ilm.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'indices.lifecycle.poll_interval', '1000ms'
+  setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
+  setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
+}

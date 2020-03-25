@@ -26,22 +26,24 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -52,14 +54,18 @@ import org.elasticsearch.node.NodeValidationException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Internal startup code.
@@ -96,7 +102,7 @@ final class Bootstrap {
 
     /** initialize native resources */
     public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
-        final Logger logger = Loggers.getLogger(Bootstrap.class);
+        final Logger logger = LogManager.getLogger(Bootstrap.class);
 
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
@@ -184,8 +190,15 @@ final class Bootstrap {
                         IOUtils.close(node, spawner);
                         LoggerContext context = (LoggerContext) LogManager.getContext(false);
                         Configurator.shutdown(context);
+                        if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
+                            throw new IllegalStateException("Node didn't stop within 10 seconds. " +
+                                    "Any outstanding requests or tasks might get killed.");
+                        }
                     } catch (IOException ex) {
                         throw new ElasticsearchException("failed to stop node", ex);
+                    } catch (InterruptedException e) {
+                        LogManager.getLogger(Bootstrap.class).warn("Thread got interrupted while waiting for the node to shutdown.");
+                        Thread.currentThread().interrupt();
                     }
                 }
             });
@@ -193,7 +206,7 @@ final class Bootstrap {
 
         try {
             // look for jar hell
-            final Logger logger = ESLoggerFactory.getLogger(JarHell.class);
+            final Logger logger = LogManager.getLogger(JarHell.class);
             JarHell.checkJarHell(logger::debug);
         } catch (IOException | URISyntaxException e) {
             throw new BootstrapException(e);
@@ -227,19 +240,55 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
+        SecureString password;
         try {
+            if (keystore != null && keystore.hasPassword()) {
+                password = readPassphrase(System.in, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
+            } else {
+                password = new SecureString(new char[0]);
+            }
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
+
+        try (password) {
             if (keystore == null) {
                 final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
                 keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
                 return keyStoreWrapper;
             } else {
-                keystore.decrypt(new char[0] /* TODO: read password from stdin */);
-                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), new char[0]);
+                keystore.decrypt(password.getChars());
+                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), password.getChars());
             }
         } catch (Exception e) {
             throw new BootstrapException(e);
         }
         return keystore;
+    }
+
+    // visible for tests
+    /**
+     * Read from an InputStream up to the first carriage return or newline,
+     * returning no more than maxLength characters.
+     */
+    static SecureString readPassphrase(InputStream stream, int maxLength) throws IOException {
+        SecureString passphrase;
+
+        try(InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+            passphrase = new SecureString(Terminal.readLineToCharArray(reader, maxLength));
+        } catch (RuntimeException e) {
+            if (e.getMessage().startsWith("Input exceeded maximum length")) {
+                throw new IllegalStateException("Password exceeded maximum length of " + maxLength, e);
+            }
+            throw e;
+        }
+
+        if (passphrase.length() == 0) {
+            passphrase.close();
+            throw new IllegalStateException("Keystore passphrase required but none provided.");
+        }
+
+        return passphrase;
     }
 
     private static Environment createEnvironment(
@@ -249,13 +298,15 @@ final class Bootstrap {
             final Path configPath) {
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
-            builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
+            builder.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile);
         }
         builder.put(initialSettings);
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath);
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath,
+                // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
+                () -> System.getenv("HOSTNAME"));
     }
 
     private void start() throws NodeValidationException {
@@ -266,6 +317,12 @@ final class Bootstrap {
     static void stop() throws IOException {
         try {
             IOUtils.close(INSTANCE.node, INSTANCE.spawner);
+            if (INSTANCE.node != null && INSTANCE.node.awaitClose(10, TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException("Node didn't stop within 10 seconds. Any outstanding requests or tasks might get killed.");
+            }
+        } catch (InterruptedException e) {
+            LogManager.getLogger(Bootstrap.class).warn("Thread got interrupted while waiting for the node to shutdown.");
+            Thread.currentThread().interrupt();
         } finally {
             INSTANCE.keepAliveLatch.countDown();
         }
@@ -287,6 +344,13 @@ final class Bootstrap {
 
         final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
+
+        // the LogConfigurator will replace System.out and System.err with redirects to our logfile, so we need to capture
+        // the stream objects before calling LogConfigurator to be able to close them when appropriate
+        final Runnable sysOutCloser = getSysOutCloser();
+        final Runnable sysErrorCloser = getSysErrorCloser();
+
+        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {
@@ -300,15 +364,16 @@ final class Bootstrap {
             }
         }
 
-        final boolean closeStandardStreams = (foreground == false) || quiet;
+
         try {
+            final boolean closeStandardStreams = (foreground == false) || quiet;
             if (closeStandardStreams) {
-                final Logger rootLogger = ESLoggerFactory.getRootLogger();
+                final Logger rootLogger = LogManager.getRootLogger();
                 final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
                 if (maybeConsoleAppender != null) {
                     Loggers.removeAppender(rootLogger, maybeConsoleAppender);
                 }
-                closeSystOut();
+                sysOutCloser.run();
             }
 
             // fail if somebody replaced the lucene jars
@@ -317,8 +382,7 @@ final class Bootstrap {
             // install the default uncaught exception handler; must be done before security is
             // initialized as we do not want to grant the runtime permission
             // setDefaultUncaughtExceptionHandler
-            Thread.setDefaultUncaughtExceptionHandler(
-                new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(environment.settings())));
+            Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
 
             INSTANCE.setup(true, environment);
 
@@ -331,20 +395,23 @@ final class Bootstrap {
 
             INSTANCE.start();
 
-            if (closeStandardStreams) {
-                closeSysError();
+            // We don't close stderr if `--quiet` is passed, because that
+            // hides fatal startup errors. For example, if Elasticsearch is
+            // running via systemd, the init script only specifies
+            // `--quiet`, not `-d`, so we want users to be able to see
+            // startup errors via journalctl.
+            if (foreground == false) {
+                sysErrorCloser.run();
             }
+
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
-            final Logger rootLogger = ESLoggerFactory.getRootLogger();
+            final Logger rootLogger = LogManager.getRootLogger();
             final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
             if (foreground && maybeConsoleAppender != null) {
                 Loggers.removeAppender(rootLogger, maybeConsoleAppender);
             }
-            Logger logger = Loggers.getLogger(Bootstrap.class);
-            if (INSTANCE.node != null) {
-                logger = Loggers.getLogger(Bootstrap.class, Node.NODE_NAME_SETTING.get(INSTANCE.node.settings()));
-            }
+            Logger logger = LogManager.getLogger(Bootstrap.class);
             // HACK, it sucks to do this, but we will run users out of disk space otherwise
             if (e instanceof CreationException) {
                 // guice: log the shortened exc to the log file
@@ -380,13 +447,13 @@ final class Bootstrap {
     }
 
     @SuppressForbidden(reason = "System#out")
-    private static void closeSystOut() {
-        System.out.close();
+    private static Runnable getSysOutCloser() {
+       return System.out::close;
     }
 
     @SuppressForbidden(reason = "System#err")
-    private static void closeSysError() {
-        System.err.close();
+    private static Runnable getSysErrorCloser() {
+        return System.err::close;
     }
 
     private static void checkLucene() {

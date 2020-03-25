@@ -1,19 +1,22 @@
 ---
 "node_info test flat_settings":
-  - do:
-      cluster.state: {}
+  - skip:
+      features: [arbitrary_key]
 
-  - set: { master_node: master }
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
 
   - do:
       nodes.info:
         metric: [ settings ]
 
-  - match : { nodes.$master.settings.client.type: node }
+  - match : { nodes.$node_id.settings.client.type: node }
 
   - do:
       nodes.info:
         metric: [ settings ]
         flat_settings: true
 
-  - match : { nodes.$master.settings.client\.type: node }
+  - match : { nodes.$node_id.settings.client\.type: node }

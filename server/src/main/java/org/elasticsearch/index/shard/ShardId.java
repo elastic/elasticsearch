@@ -22,7 +22,7 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -32,16 +32,11 @@ import java.io.IOException;
 /**
  * Allows for shard level components to be injected with the shard id.
  */
-public class ShardId implements Streamable, Comparable<ShardId>, ToXContentFragment {
+public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeable {
 
-    private Index index;
-
-    private int shardId;
-
-    private int hashCode;
-
-    private ShardId() {
-    }
+    private final Index index;
+    private final int shardId;
+    private final int hashCode;
 
     public ShardId(Index index, int shardId) {
         this.index = index;
@@ -51,6 +46,18 @@ public class ShardId implements Streamable, Comparable<ShardId>, ToXContentFragm
 
     public ShardId(String index, String indexUUID, int shardId) {
         this(new Index(index, indexUUID), shardId);
+    }
+
+    public ShardId(StreamInput in) throws IOException {
+        index = new Index(in);
+        shardId = in.readVInt();
+        hashCode = computeHashCode();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        index.writeTo(out);
+        out.writeVInt(shardId);
     }
 
     public Index getIndex() {
@@ -107,25 +114,6 @@ public class ShardId implements Streamable, Comparable<ShardId>, ToXContentFragm
         int result = index != null ? index.hashCode() : 0;
         result = 31 * result + shardId;
         return result;
-    }
-
-    public static ShardId readShardId(StreamInput in) throws IOException {
-        ShardId shardId = new ShardId();
-        shardId.readFrom(in);
-        return shardId;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        index = new Index(in);
-        shardId = in.readVInt();
-        hashCode = computeHashCode();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        index.writeTo(out);
-        out.writeVInt(shardId);
     }
 
     @Override

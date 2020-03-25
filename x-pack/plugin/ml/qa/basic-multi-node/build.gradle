@@ -1,0 +1,19 @@
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(":x-pack:plugin:core")
+  testCompile project(path: xpackModule('ml'), configuration: 'runtime')
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 3
+  setting 'xpack.ilm.enabled', 'false'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+}

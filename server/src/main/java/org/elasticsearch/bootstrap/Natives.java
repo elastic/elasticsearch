@@ -19,8 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.nio.file.Path;
 
@@ -32,7 +32,7 @@ final class Natives {
     /** no instantiation */
     private Natives() {}
 
-    private static final Logger logger = Loggers.getLogger(Natives.class);
+    private static final Logger logger = LogManager.getLogger(Natives.class);
 
     // marker to determine if the JNA class files are available to the JVM
     static final boolean JNA_AVAILABLE;
@@ -84,7 +84,7 @@ final class Natives {
      */
     static String getShortPathName(final String path) {
         if (!JNA_AVAILABLE) {
-            logger.warn("cannot obtain short path for [{}] because JNA is not avilable", path);
+            logger.warn("cannot obtain short path for [{}] because JNA is not available", path);
             return path;
         }
         return JNANatives.getShortPathName(path);
@@ -123,7 +123,7 @@ final class Natives {
 
     static void trySetMaxSizeVirtualMemory() {
         if (!JNA_AVAILABLE) {
-            logger.warn("cannot getrlimit RLIMIT_AS beacuse JNA is not available");
+            logger.warn("cannot getrlimit RLIMIT_AS because JNA is not available");
             return;
         }
         JNANatives.trySetMaxSizeVirtualMemory();

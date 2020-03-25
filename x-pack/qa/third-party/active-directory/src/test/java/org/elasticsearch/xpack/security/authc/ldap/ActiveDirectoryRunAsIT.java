@@ -43,13 +43,13 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         switch (realmConfig) {
             case AD:
-                builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".bind_dn", "ironman@ad.test.elasticsearch.com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_search.pool.enabled", false);
+                builder.put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".bind_dn", "ironman@ad.test.elasticsearch.com")
+                        .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".user_search.pool.enabled", false);
                 if (useLegacyBindPassword) {
-                    builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".bind_password", ActiveDirectorySessionFactoryTests.PASSWORD);
+                    builder.put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".bind_password", ActiveDirectorySessionFactoryTests.PASSWORD);
                 } else {
                     SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
-                        secureSettings.setString(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".secure_bind_password",
+                        secureSettings.setString(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".secure_bind_password",
                                 ActiveDirectorySessionFactoryTests.PASSWORD);
                     });
                 }
@@ -65,7 +65,7 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
         final AuthenticateRequest request = new AuthenticateRequest(avenger);
         final ActionFuture<AuthenticateResponse> future = runAsClient(avenger).execute(AuthenticateAction.INSTANCE, request);
         final AuthenticateResponse response = future.get(30, TimeUnit.SECONDS);
-        assertThat(response.user().principal(), Matchers.equalTo(avenger));
+        assertThat(response.authentication().getUser().principal(), Matchers.equalTo(avenger));
     }
 
     protected Client runAsClient(String user) {

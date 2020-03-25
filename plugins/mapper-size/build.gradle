@@ -22,6 +22,8 @@ esplugin {
   classname 'org.elasticsearch.plugin.mapper.MapperSizePlugin'
 }
 
-// TODO: migrate to points
-compileJava.options.compilerArgs << "-Xlint:-deprecation"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation"
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'get'
+  }
+}

@@ -1,0 +1,66 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+  name 'x-pack-ccr'
+  description 'Elasticsearch Expanded Pack Plugin - CCR'
+  classname 'org.elasticsearch.xpack.ccr.Ccr'
+  hasNativeController false
+  requiresKeystore true
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-ccr'
+
+integTest.enabled = false
+
+// Integration Test classes that cannot run with the security manager
+String[] noSecurityManagerITClasses = ["**/CloseFollowerIndexIT.class"]
+
+task internalClusterTestNoSecurityManager(type: Test) {
+  description = 'Java fantasy integration tests with no security manager'
+
+  include noSecurityManagerITClasses
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  systemProperty 'tests.security.manager', 'false'
+}
+
+// Instead we create a separate task to run the
+// tests based on ESIntegTestCase
+task internalClusterTest(type: Test) {
+  description = 'Java fantasy integration tests'
+  dependsOn internalClusterTestNoSecurityManager
+  mustRunAfter test
+
+  include '**/*IT.class'
+  exclude noSecurityManagerITClasses
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+check.dependsOn internalClusterTest
+
+// add all sub-projects of the qa sub-project
+gradle.projectsEvaluated {
+  project.subprojects
+    .find { it.path == project.path + ":qa" }
+    .subprojects
+    .findAll { it.path.startsWith(project.path + ":qa") }
+    .each { check.dependsOn it.check }
+}
+
+dependencies {
+  compileOnly project(":server")
+
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
+}
+
+dependencyLicenses {
+  ignoreSha 'x-pack-core'
+}
+
+testingConventions.naming {
+  IT {
+    baseClass "org.elasticsearch.xpack.CcrIntegTestCase"
+  }
+}

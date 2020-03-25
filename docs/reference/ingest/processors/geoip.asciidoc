@@ -1,0 +1,300 @@
+[[geoip-processor]]
+=== GeoIP Processor
+
+The `geoip` processor adds information about the geographical location of IP addresses, based on data from the Maxmind databases.
+This processor adds this information by default under the `geoip` field. The `geoip` processor can resolve both IPv4 and
+IPv6 addresses.
+
+The `ingest-geoip` module ships by default with the GeoLite2 City, GeoLite2 Country and GeoLite2 ASN geoip2 databases from Maxmind made available
+under the CCA-ShareAlike 4.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
+
+The `geoip` processor can run with other GeoIP2 databases from Maxmind. The files must be copied into the `ingest-geoip` config directory,
+and the `database_file` option should be used to specify the filename of the custom database. Custom database files must be stored
+uncompressed. The `ingest-geoip` config directory is located at `$ES_CONFIG/ingest-geoip`.
+
+[[using-ingest-geoip]]
+==== Using the `geoip` Processor in a Pipeline
+
+[[ingest-geoip-options]]
+.`geoip` options
+[options="header"]
+|======
+| Name                   | Required  | Default                                                                            | Description
+| `field`                | yes       | -                                                                                  | The field to get the ip address from for the geographical lookup.
+| `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the Maxmind database.
+| `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename in the geoip config directory. The ingest-geoip module ships with the GeoLite2-City.mmdb, GeoLite2-Country.mmdb and GeoLite2-ASN.mmdb files.
+| `properties`           | no        | [`continent_name`, `country_iso_code`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
+| `ignore_missing`       | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+| `first_only`           | no        | `true`                                                                             | If `true` only first found geoip data will be returned, even if `field` contains array
+|======
+
+*Depends on what is available in `database_file`:
+
+* If the GeoLite2 City database is used, then the following fields may be added under the `target_field`: `ip`,
+`country_iso_code`, `country_name`, `continent_name`, `region_iso_code`, `region_name`, `city_name`, `timezone`, `latitude`, `longitude`
+and `location`. The fields actually added depend on what has been found and which properties were configured in `properties`.
+* If the GeoLite2 Country database is used, then the following fields may be added under the `target_field`: `ip`,
+`country_iso_code`, `country_name` and `continent_name`. The fields actually added depend on what has been found and which properties
+were configured in `properties`.
+* If the GeoLite2 ASN database is used, then the following fields may be added under the `target_field`: `ip`,
+`asn`, and `organization_name`. The fields actually added depend on what has been found and which properties were configured
+in `properties`.
+
+Here is an example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/geoip
+{
+  "description" : "Add geoip info",
+  "processors" : [
+    {
+      "geoip" : {
+        "field" : "ip"
+      }
+    }
+  ]
+}
+PUT my_index/_doc/my_id?pipeline=geoip
+{
+  "ip": "8.8.8.8"
+}
+GET my_index/_doc/my_id
+--------------------------------------------------
+
+Which returns:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "found": true,
+  "_index": "my_index",
+  "_id": "my_id",
+  "_version": 1,
+  "_seq_no": 55,
+  "_primary_term": 1,
+  "_source": {
+    "ip": "8.8.8.8",
+    "geoip": {
+      "continent_name": "North America",
+      "country_iso_code": "US",
+      "location": { "lat": 37.751, "lon": -97.822 }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
+
+Here is an example that uses the default country database and adds the
+geographical information to the `geo` field based on the `ip` field`. Note that
+this database is included in the module. So this:
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/geoip
+{
+  "description" : "Add geoip info",
+  "processors" : [
+    {
+      "geoip" : {
+        "field" : "ip",
+        "target_field" : "geo",
+        "database_file" : "GeoLite2-Country.mmdb"
+      }
+    }
+  ]
+}
+PUT my_index/_doc/my_id?pipeline=geoip
+{
+  "ip": "8.8.8.8"
+}
+GET my_index/_doc/my_id
+--------------------------------------------------
+
+returns this:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "found": true,
+  "_index": "my_index",
+  "_id": "my_id",
+  "_version": 1,
+  "_seq_no": 65,
+  "_primary_term": 1,
+  "_source": {
+    "ip": "8.8.8.8",
+    "geo": {
+      "continent_name": "North America",
+      "country_iso_code": "US",
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+
+
+Not all IP addresses find geo information from the database, When this
+occurs, no `target_field` is inserted into the document.
+
+Here is an example of what documents will be indexed as when information for "80.231.5.0"
+cannot be found:
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/geoip
+{
+  "description" : "Add geoip info",
+  "processors" : [
+    {
+      "geoip" : {
+        "field" : "ip"
+      }
+    }
+  ]
+}
+
+PUT my_index/_doc/my_id?pipeline=geoip
+{
+  "ip": "80.231.5.0"
+}
+
+GET my_index/_doc/my_id
+--------------------------------------------------
+
+Which returns:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "_index" : "my_index",
+  "_id" : "my_id",
+  "_version" : 1,
+  "_seq_no" : 71,
+  "_primary_term": 1,
+  "found" : true,
+  "_source" : {
+    "ip" : "80.231.5.0"
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+
+[[ingest-geoip-mappings-note]]
+===== Recognizing Location as a Geopoint
+Although this processor enriches your document with a `location` field containing
+the estimated latitude and longitude of the IP address, this field will not be
+indexed as a {ref}/geo-point.html[`geo_point`] type in Elasticsearch without explicitly defining it
+as such in the mapping.
+
+You can use the following mapping for the example index above:
+
+[source,console]
+--------------------------------------------------
+PUT my_ip_locations
+{
+  "mappings": {
+    "properties": {
+      "geoip": {
+        "properties": {
+          "location": { "type": "geo_point" }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+////
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/geoip
+{
+  "description" : "Add geoip info",
+  "processors" : [
+    {
+      "geoip" : {
+        "field" : "ip"
+      }
+    }
+  ]
+}
+
+PUT my_ip_locations/_doc/1?refresh=true&pipeline=geoip
+{
+  "ip": "8.8.8.8"
+}
+
+GET /my_ip_locations/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "1m",
+                    "geoip.location" : {
+                        "lon" : -97.822,
+                        "lat" : 37.751
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TEST[continued]
+
+[source,console-result]
+--------------------------------------------------
+{
+  "took" : 3,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my_ip_locations",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "geoip" : {
+            "continent_name" : "North America",
+            "country_iso_code" : "US",
+            "location" : {
+              "lon" : -97.822,
+              "lat" : 37.751
+            }
+          },
+          "ip" : "8.8.8.8"
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took" : 3/"took" : $body.took/]
+////
+
+[[ingest-geoip-settings]]
+===== Node Settings
+
+The `geoip` processor supports the following setting:
+
+`ingest.geoip.cache_size`::
+
+    The maximum number of results that should be cached. Defaults to `1000`.
+
+Note that these settings are node settings and apply to all `geoip` processors, i.e. there is one cache for all defined `geoip` processors.

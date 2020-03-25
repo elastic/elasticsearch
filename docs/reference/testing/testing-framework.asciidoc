@@ -8,7 +8,7 @@ Testing is a crucial part of your application, and as information retrieval itse
 
 
 [[why-randomized-testing]]
-=== why randomized testing?
+=== Why randomized testing?
 
 The key concept of randomized testing is not to use the same input values for every testcase, but still be able to reproduce it in case of a failure. This allows to test with vastly different input variables in order to make sure, that your implementation is actually independent from your provided test data.
 
@@ -48,7 +48,7 @@ We provide a few classes that you can inherit from in your own test classes whic
 
 
 [[unit-tests]]
-=== unit tests
+=== Unit tests
 
 If your test is a well isolated unit test which doesn't need a running Elasticsearch cluster, you can use the `ESTestCase`. If you are testing lucene features, use `ESTestCase` and if you are testing concrete token streams, use the `ESTokenStreamTestCase` class. Those specific classes execute additional checks which ensure that no resources leaks are happening, after the test has run.
 
@@ -230,7 +230,7 @@ As many Elasticsearch tests are checking for a similar output, like the amount o
 `assertMatchCount()`::      Asserts a matching count from a percolation response
 `assertFirstHit()`::        Asserts the first hit hits the specified matcher
 `assertSecondHit()`::       Asserts the second hit hits the specified matcher
-`assertThirdHit()`::        Asserts the third hits hits the specified matcher
+`assertThirdHit()`::        Asserts the third hit hits the specified matcher
 `assertSearchHit()`::       Assert a certain element in a search response hits the specified matcher
 `assertNoFailures()`::      Asserts that no shard failures have occurred in the response
 `assertFailures()`::        Asserts that shard failures have happened during a search request

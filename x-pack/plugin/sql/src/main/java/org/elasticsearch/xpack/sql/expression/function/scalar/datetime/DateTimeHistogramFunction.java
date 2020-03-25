@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * DateTimeFunctions that can be mapped as histogram. This means the dates order is maintained
@@ -16,12 +17,18 @@ import java.util.TimeZone;
  */
 public abstract class DateTimeHistogramFunction extends DateTimeFunction {
 
-    DateTimeHistogramFunction(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+    DateTimeHistogramFunction(Source source, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
+        super(source, field, zoneId, extractor);
     }
 
     /**
-     * used for aggregration (date histogram)
+     * used for aggregation (date histogram)
      */
-    public abstract String interval();
+    public long fixedInterval() {
+        return -1;
+    }
+    
+    public String calendarInterval() {
+        return null;
+    }
 }

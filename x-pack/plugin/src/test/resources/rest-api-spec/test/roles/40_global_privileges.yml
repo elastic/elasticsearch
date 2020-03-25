@@ -7,7 +7,7 @@ setup:
       cluster.health:
         wait_for_status: yellow
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -18,11 +18,11 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "with_global"
         ignore: 404
 
@@ -30,7 +30,7 @@ teardown:
 ---
 "Test put role with conditional security privileges":
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "with_global"
         body:  >
             {
@@ -45,7 +45,7 @@ teardown:
   - match: { role: { created: true } }
 
   - do:
-      xpack.security.get_role:
+      security.get_role:
         name: "with_global"
   - match: { with_global.global.application.manage.applications.0:  "app1-*" }
   - match: { with_global.global.application.manage.applications.1:  "app2-*" }

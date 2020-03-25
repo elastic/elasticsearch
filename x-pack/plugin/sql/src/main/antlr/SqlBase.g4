@@ -50,20 +50,18 @@ statement
         )*
         ')')?
         statement                                                                                         #debug
-    | SHOW TABLES (LIKE? pattern)?                                                                        #showTables
-    | SHOW COLUMNS (FROM | IN) tableIdentifier                                                            #showColumns
-    | (DESCRIBE | DESC) tableIdentifier                                                                   #showColumns
-    | SHOW FUNCTIONS (LIKE? pattern)?                                                                     #showFunctions
+    | SHOW TABLES (INCLUDE FROZEN)? (tableLike=likePattern | tableIdent=tableIdentifier)?                 #showTables
+    | SHOW COLUMNS (INCLUDE FROZEN)? (FROM | IN) (tableLike=likePattern | tableIdent=tableIdentifier)     #showColumns
+    | (DESCRIBE | DESC) (INCLUDE FROZEN)? (tableLike=likePattern | tableIdent=tableIdentifier)            #showColumns
+    | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
-    | SYS CATALOGS                                                                                        #sysCatalogs
-    | SYS TABLES (CATALOG LIKE? clusterPattern=pattern)?
-                 (LIKE? tablePattern=pattern)?
+    | SYS TABLES (CATALOG clusterLike=likePattern)?
+                 (tableLike=likePattern | tableIdent=tableIdentifier)?
                  (TYPE string (',' string)* )?                                                            #sysTables
     | SYS COLUMNS (CATALOG cluster=string)?
-                  (TABLE LIKE? indexPattern=pattern)?
-                  (LIKE? columnPattern=pattern)?                                                          #sysColumns
-    | SYS TYPES                                                                                           #sysTypes
-    | SYS TABLE TYPES                                                                                     #sysTableTypes  
+                  (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
+                  (columnPattern=likePattern)?                                                            #sysColumns
+    | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
     ;
     
 query
@@ -88,11 +86,11 @@ queryTerm
     ;
 
 orderBy
-    : expression ordering=(ASC | DESC)?
+    : expression ordering=(ASC | DESC)? (NULLS nullOrdering=(FIRST | LAST))?
     ;
 
 querySpecification
-    : SELECT setQuantifier? selectItem (',' selectItem)*
+    : SELECT setQuantifier? selectItems
       fromClause?
       (WHERE where=booleanExpression)?
       (GROUP BY groupBy)?
@@ -100,7 +98,7 @@ querySpecification
     ;
 
 fromClause
-    : FROM relation (',' relation)*
+    : FROM relation (',' relation)* pivotClause?
     ;
 
 groupBy
@@ -123,6 +121,10 @@ namedQuery
 setQuantifier
     : DISTINCT
     | ALL
+    ;
+
+selectItems                                       
+    : selectItem (',' selectItem)*
     ;
 
 selectItem
@@ -151,11 +153,23 @@ joinCriteria
     ;
 
 relationPrimary
-    : tableIdentifier (AS? qualifiedName)?                            #tableName
+    : FROZEN? tableIdentifier (AS? qualifiedName)?                    #tableName
     | '(' queryNoWith ')' (AS? qualifiedName)?                        #aliasedQuery
     | '(' relation ')' (AS? qualifiedName)?                           #aliasedRelation
     ;
 
+pivotClause
+    : PIVOT '(' aggs=pivotArgs FOR column=qualifiedName IN '(' vals=pivotArgs ')' ')'
+    ;
+
+pivotArgs
+    : namedValueExpression (',' namedValueExpression)* 
+    ;
+    
+namedValueExpression
+    : valueExpression  (AS? identifier)?
+    ;
+    
 expression
     : booleanExpression
     ;
@@ -163,12 +177,16 @@ expression
 booleanExpression
     : NOT booleanExpression                                                                 #logicalNot
     | EXISTS '(' query ')'                                                                  #exists
-    | QUERY '(' queryString=string (',' options=string)* ')'                                #stringQuery
-    | MATCH '(' singleField=qualifiedName ',' queryString=string (',' options=string)* ')'  #matchQuery
-    | MATCH '(' multiFields=string ',' queryString=string (',' options=string)* ')'         #multiMatchQuery
+    | QUERY '(' queryString=string matchQueryOptions ')'                                    #stringQuery
+    | MATCH '(' singleField=qualifiedName ',' queryString=string matchQueryOptions ')'      #matchQuery
+    | MATCH '(' multiFields=string ',' queryString=string matchQueryOptions ')'             #multiMatchQuery
     | predicated                                                                            #booleanDefault
     | left=booleanExpression operator=AND right=booleanExpression                           #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                            #logicalBinary
+    ;
+
+matchQueryOptions
+    : (',' string)*
     ;
 
 // workaround for:
@@ -182,20 +200,24 @@ predicated
 // instead the property kind is used to differentiate
 predicate
     : NOT? kind=BETWEEN lower=valueExpression AND upper=valueExpression
-    | NOT? kind=IN '(' expression (',' expression)* ')'
+    | NOT? kind=IN '(' valueExpression (',' valueExpression)* ')'
     | NOT? kind=IN '(' query ')'
     | NOT? kind=LIKE pattern
     | NOT? kind=RLIKE regex=string
     | IS NOT? kind=NULL
     ;
 
+likePattern
+    : LIKE pattern
+    ;
+    
 pattern
     : value=string patternEscape?
     ;
     
 patternEscape
     : ESCAPE escape=string
-    | ESCAPE_ESC escape=string '}'
+    | ESCAPE_ESC escape=string ESC_END
     ;
 
 valueExpression
@@ -207,27 +229,40 @@ valueExpression
     ;
 
 primaryExpression
-    : castExpression                                                                 #cast
-    | extractExpression                                                              #extract
-    | constant                                                                       #constantDefault
-    | ASTERISK                                                                       #star
-    | (qualifiedName DOT)? ASTERISK                                                  #star
-    | functionExpression                                                             #function
-    | '(' query ')'                                                                  #subqueryExpression
-    | identifier                                                                     #columnReference
-    | qualifiedName                                                                  #dereference
-    | '(' expression ')'                                                             #parenthesizedExpression
+    : castExpression                                                                           #cast
+    | primaryExpression CAST_OP dataType                                                       #castOperatorExpression
+    | extractExpression                                                                        #extract
+    | builtinDateTimeFunction                                                                  #currentDateTimeFunction
+    | constant                                                                                 #constantDefault
+    | (qualifiedName DOT)? ASTERISK                                                            #star
+    | functionExpression                                                                       #function
+    | '(' query ')'                                                                            #subqueryExpression
+    | qualifiedName                                                                            #dereference
+    | '(' expression ')'                                                                       #parenthesizedExpression
+    | CASE (operand=booleanExpression)? whenClause+ (ELSE elseClause=booleanExpression)? END   #case
+    ;
+
+builtinDateTimeFunction
+    : name=CURRENT_TIMESTAMP
+    | name=CURRENT_DATE
+    | name=CURRENT_TIME
     ;
 
 castExpression
-    : castTemplate                                                                   
-    | FUNCTION_ESC castTemplate ESC_END                                              
+    : castTemplate
+    | FUNCTION_ESC castTemplate ESC_END
+    | convertTemplate
+    | FUNCTION_ESC convertTemplate ESC_END
     ;
-    
+
 castTemplate
     : CAST '(' expression AS dataType ')'
     ;
-    
+
+convertTemplate
+    : CONVERT '(' expression ',' dataType ')'
+    ;
+
 extractExpression
     : extractTemplate
     | FUNCTION_ESC extractTemplate ESC_END
@@ -239,7 +274,7 @@ extractTemplate
 
 functionExpression
     : functionTemplate
-    | FUNCTION_ESC functionTemplate '}'
+    | FUNCTION_ESC functionTemplate ESC_END
     ;
     
 functionTemplate
@@ -253,6 +288,7 @@ functionName
     
 constant
     : NULL                                                                                     #nullLiteral
+    | interval                                                                                 #intervalLiteral
     | number                                                                                   #numericLiteral
     | booleanValue                                                                             #booleanLiteral
     | STRING+                                                                                  #stringLiteral
@@ -264,11 +300,19 @@ constant
     ;
 
 comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NULLEQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
     : TRUE | FALSE
+    ;
+
+interval
+    : INTERVAL sign=(PLUS | MINUS)? (valueNumeric=number | valuePattern=string) leading=intervalField (TO trailing=intervalField)? 
+    ;
+    
+intervalField
+    : YEAR | YEARS | MONTH | MONTHS | DAY | DAYS | HOUR | HOURS | MINUTE | MINUTES | SECOND | SECONDS
     ;
 
 dataType
@@ -310,22 +354,31 @@ string
     | STRING
     ;
 
+whenClause
+    : WHEN condition=expression THEN result=expression
+    ;
+
 // http://developer.mimer.se/validator/sql-reserved-words.tml
+// https://developer.mimer.com/wp-content/uploads/standard-sql-reserved-words-summary.pdf
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS 
-    | DEBUG 
+    | CATALOGS | COLUMNS | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP
+    | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
-    | FORMAT | FUNCTIONS 
-    | GRAPHVIZ 
-    | MAPPED 
+    | FIRST | FORMAT | FULL | FUNCTIONS
+    | GRAPHVIZ
+    | HOUR
+    | INTERVAL
+    | LAST | LIMIT 
+    | MAPPED | MINUTE | MONTH
     | OPTIMIZED 
-    | PARSED | PHYSICAL | PLAN 
+    | PARSED | PHYSICAL | PIVOT | PLAN 
     | QUERY 
     | RLIKE
-    | SCHEMAS | SHOW | SYS
+    | SCHEMAS | SECOND | SHOW | SYS
     | TABLES | TEXT | TYPE | TYPES
     | VERIFY
+    | YEAR
     ;
 
 ALL: 'ALL';
@@ -337,39 +390,61 @@ AS: 'AS';
 ASC: 'ASC';
 BETWEEN: 'BETWEEN';
 BY: 'BY';
+CASE: 'CASE';
 CAST: 'CAST';
 CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
+CONVERT: 'CONVERT';
+CURRENT_DATE : 'CURRENT_DATE';
+CURRENT_TIME : 'CURRENT_TIME';
+CURRENT_TIMESTAMP : 'CURRENT_TIMESTAMP';
+DAY: 'DAY';
+DAYS: 'DAYS';
 DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
 DISTINCT: 'DISTINCT';
+ELSE: 'ELSE';
+END: 'END';
 ESCAPE: 'ESCAPE';
 EXECUTABLE: 'EXECUTABLE';
 EXISTS: 'EXISTS';
 EXPLAIN: 'EXPLAIN';
 EXTRACT: 'EXTRACT';
 FALSE: 'FALSE';
+FIRST: 'FIRST';
+FOR: 'FOR';
 FORMAT: 'FORMAT';
 FROM: 'FROM';
+FROZEN: 'FROZEN';
 FULL: 'FULL';
 FUNCTIONS: 'FUNCTIONS';
 GRAPHVIZ: 'GRAPHVIZ';
 GROUP: 'GROUP';
 HAVING: 'HAVING';
+HOUR: 'HOUR';
+HOURS: 'HOURS';
 IN: 'IN';
+INCLUDE: 'INCLUDE';
 INNER: 'INNER';
+INTERVAL: 'INTERVAL';
 IS: 'IS';
 JOIN: 'JOIN';
+LAST: 'LAST';
 LEFT: 'LEFT';
 LIKE: 'LIKE';
 LIMIT: 'LIMIT';
 MAPPED: 'MAPPED';
 MATCH: 'MATCH';
+MINUTE: 'MINUTE';
+MINUTES: 'MINUTES';
+MONTH: 'MONTH';
+MONTHS: 'MONTHS';
 NATURAL: 'NATURAL';
 NOT: 'NOT';
 NULL: 'NULL';
+NULLS: 'NULLS';
 ON: 'ON';
 OPTIMIZED: 'OPTIMIZED';
 OR: 'OR';
@@ -377,39 +452,50 @@ ORDER: 'ORDER';
 OUTER: 'OUTER';
 PARSED: 'PARSED';
 PHYSICAL: 'PHYSICAL';
+PIVOT: 'PIVOT';
 PLAN: 'PLAN';
 RIGHT: 'RIGHT';
 RLIKE: 'RLIKE';
 QUERY: 'QUERY';
 SCHEMAS: 'SCHEMAS';
+SECOND: 'SECOND';
+SECONDS: 'SECONDS';
 SELECT: 'SELECT';
 SHOW: 'SHOW';
 SYS: 'SYS';
 TABLE: 'TABLE';
 TABLES: 'TABLES';
 TEXT: 'TEXT';
+THEN: 'THEN';
 TRUE: 'TRUE';
+TO: 'TO';
 TYPE: 'TYPE';
 TYPES: 'TYPES';
 USING: 'USING';
 VERIFY: 'VERIFY';
+WHEN: 'WHEN';
 WHERE: 'WHERE';
 WITH: 'WITH';
+YEAR: 'YEAR';
+YEARS: 'YEARS';
 
 // Escaped Sequence
-ESCAPE_ESC: '{ESCAPE';
-FUNCTION_ESC: '{FN';
-LIMIT_ESC:'{LIMIT';
-DATE_ESC: '{D';
-TIME_ESC: '{T';
-TIMESTAMP_ESC: '{TS';
+ESCAPE_ESC: ESC_START 'ESCAPE';
+FUNCTION_ESC: ESC_START 'FN';
+LIMIT_ESC: ESC_START 'LIMIT';
+DATE_ESC: ESC_START 'D';
+TIME_ESC: ESC_START 'T';
+TIMESTAMP_ESC: ESC_START 'TS';
 // mapped to string literal
-GUID_ESC: '{GUID';
+GUID_ESC: ESC_START 'GUID';
 
+ESC_START: '{' (WS)*;
 ESC_END: '}';
 
+// Operators
 EQ  : '=';
-NEQ : '<>' | '!=' | '<=>';
+NULLEQ: '<=>';
+NEQ : '<>' | '!=';
 LT  : '<';
 LTE : '<=';
 GT  : '>';
@@ -420,6 +506,7 @@ MINUS: '-';
 ASTERISK: '*';
 SLASH: '/';
 PERCENT: '%';
+CAST_OP: '::';
 CONCAT: '||';
 DOT: '.';
 PARAM: '?';
@@ -444,11 +531,11 @@ IDENTIFIER
     ;
 
 DIGIT_IDENTIFIER
-    : DIGIT (LETTER | DIGIT | '_' | '@' | ':')+
+    : DIGIT (LETTER | DIGIT | '_' | '@')+
     ;
 
 TABLE_IDENTIFIER
-    : (LETTER | DIGIT | '_' | '@' | ASTERISK)+
+    : (LETTER | DIGIT | '_')+
     ;
 
 QUOTED_IDENTIFIER

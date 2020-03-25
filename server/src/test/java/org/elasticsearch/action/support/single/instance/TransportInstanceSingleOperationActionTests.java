@@ -23,7 +23,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -37,7 +36,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -53,6 +54,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -60,7 +62,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -77,20 +78,32 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
     private TestTransportInstanceSingleOperationAction action;
 
     public static class Request extends InstanceShardOperationRequest<Request> {
-        public Request() {
+        public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
         }
     }
 
     public static class Response extends ActionResponse {
-        public Response() {
+        public Response() {}
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     class TestTransportInstanceSingleOperationAction extends TransportInstanceSingleOperationAction<Request, Response> {
         private final Map<ShardId, Object> shards = new HashMap<>();
 
-        TestTransportInstanceSingleOperationAction(Settings settings, String actionName, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-            super(settings, actionName, THREAD_POOL, TransportInstanceSingleOperationActionTests.this.clusterService, transportService, actionFilters, indexNameExpressionResolver, request);
+        TestTransportInstanceSingleOperationAction(String actionName, TransportService transportService,
+                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                                   Writeable.Reader<Request> request) {
+            super(actionName, THREAD_POOL, TransportInstanceSingleOperationActionTests.this.clusterService, transportService,
+                actionFilters, indexNameExpressionResolver, request);
         }
 
         public Map<ShardId, Object> getResults() {
@@ -108,7 +121,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
 
         @Override
-        protected Response newResponse() {
+        protected Response newResponse(StreamInput in) throws IOException {
             return new Response();
         }
 
@@ -123,10 +136,6 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
     }
 
     class MyResolver extends IndexNameExpressionResolver {
-        MyResolver() {
-            super(Settings.EMPTY);
-        }
-
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();
@@ -144,16 +153,14 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet()
-        );
+        transportService = transport.createTransportService(clusterService.getSettings(), THREAD_POOL,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
         action = new TestTransportInstanceSingleOperationAction(
-                Settings.EMPTY,
                 "indices:admin/test",
                 transportService,
-                new ActionFilters(new HashSet<ActionFilter>()),
+                new ActionFilters(new HashSet<>()),
                 new MyResolver(),
                 Request::new
         );
@@ -214,7 +221,8 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         long requestId = transport.capturedRequests()[0].requestId;
         transport.clear();
         // this should not trigger retry or anything and the listener should report exception immediately
-        transport.handleRemoteError(requestId, new TransportException("a generic transport exception", new Exception("generic test exception")));
+        transport.handleRemoteError(requestId, new TransportException("a generic transport exception",
+            new Exception("generic test exception")));
 
         try {
             // result should return immediately
@@ -297,7 +305,6 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
     public void testUnresolvableRequestDoesNotHang() throws InterruptedException, ExecutionException, TimeoutException {
         action = new TestTransportInstanceSingleOperationAction(
-                Settings.EMPTY,
                 "indices:admin/test_unresolvable",
                 transportService,
                 new ActionFilters(new HashSet<>()),

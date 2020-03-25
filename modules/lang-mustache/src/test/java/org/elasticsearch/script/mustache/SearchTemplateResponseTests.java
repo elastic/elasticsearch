@@ -19,10 +19,10 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -119,7 +119,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             SearchResponse expectedResponse = expectedInstance.getResponse();
             SearchResponse newResponse = newInstance.getResponse();
 
-            assertEquals(expectedResponse.getHits().totalHits, newResponse.getHits().totalHits);
+            assertEquals(expectedResponse.getHits().getTotalHits().value, newResponse.getHits().getTotalHits().value);
             assertEquals(expectedResponse.getHits().getMaxScore(), newResponse.getHits().getMaxScore(), 0.0001);
         }
     }
@@ -164,12 +164,12 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
     }
 
     public void testSearchResponseToXContent() throws IOException {
-        SearchHit hit = new SearchHit(1, "id", new Text("type"), Collections.emptyMap());
+        SearchHit hit = new SearchHit(1, "id", Collections.emptyMap());
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
 
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-            new SearchHits(hits, 100, 1.5f), null, null, null, false, null, 1);
+            new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1);
         SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null,
             0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
 
@@ -188,11 +188,13 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
                     .field("failed", 0)
                 .endObject()
                 .startObject("hits")
-                    .field("total", 100)
+                    .startObject("total")
+                        .field("value", 100)
+                        .field("relation", "eq")
+                    .endObject()
                     .field("max_score", 1.5F)
                     .startArray("hits")
                         .startObject()
-                            .field("_type", "type")
                             .field("_id", "id")
                             .field("_score", 2.0F)
                         .endObject()

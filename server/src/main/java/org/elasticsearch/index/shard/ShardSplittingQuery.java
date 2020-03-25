@@ -19,11 +19,9 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -32,6 +30,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
@@ -40,10 +39,10 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -64,16 +63,12 @@ final class ShardSplittingQuery extends Query {
     private final BitSetProducer nestedParentBitSetProducer;
 
     ShardSplittingQuery(IndexMetaData indexMetaData, int shardId, boolean hasNested) {
-        if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_rc2)) {
-            throw new IllegalArgumentException("Splitting query can only be executed on an index created with version "
-                + Version.V_6_0_0_rc2 + " or higher");
-        }
         this.indexMetaData = indexMetaData;
         this.shardId = shardId;
-        this.nestedParentBitSetProducer =  hasNested ? newParentDocBitSetProducer(indexMetaData.getCreationVersion()) : null;
+        this.nestedParentBitSetProducer =  hasNested ? newParentDocBitSetProducer() : null;
     }
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) {
+    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
         return new ConstantScoreWeight(this, boost) {
             @Override
             public String toString() {
@@ -113,7 +108,7 @@ final class ShardSplittingQuery extends Query {
                         TwoPhaseIterator twoPhaseIterator =
                             parentBitSet == null ? new RoutingPartitionedDocIdSetIterator(visitor) :
                                 new NestedRoutingPartitionedDocIdSetIterator(visitor, parentBitSet);
-                        return new ConstantScoreScorer(this, score(), twoPhaseIterator);
+                        return new ConstantScoreScorer(this, score(), scoreMode, twoPhaseIterator);
                     } else {
                         // here we potentially guard the docID consumers with our parent bitset if we have one.
                         // this ensures that we are only marking root documents in the nested case and if necessary
@@ -154,7 +149,7 @@ final class ShardSplittingQuery extends Query {
                     }
                 }
 
-                return new ConstantScoreScorer(this, score(), new BitSetIterator(bitSet, bitSet.length()));
+                return new ConstantScoreScorer(this, score(), scoreMode, new BitSetIterator(bitSet, bitSet.length()));
             }
 
             @Override
@@ -342,16 +337,8 @@ final class ShardSplittingQuery extends Query {
      * than once. There is no point in using BitsetFilterCache#BitSetProducerWarmer since we use this only as a delete by query which is
      * executed on a recovery-private index writer. There is no point in caching it and it won't have a cache hit either.
      */
-    private static BitSetProducer newParentDocBitSetProducer(Version indexVersionCreated) {
-        return context -> {
-                Query query = Queries.newNonNestedFilter(indexVersionCreated);
-                final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-                final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-                searcher.setQueryCache(null);
-                final Weight weight = searcher.createNormalizedWeight(query, false);
-                Scorer s = weight.scorer(context);
-                return s == null ? null : BitSet.of(s.iterator(), context.reader().maxDoc());
-            };
+    private static BitSetProducer newParentDocBitSetProducer() {
+        return context -> BitsetFilterCache.bitsetFromQuery(Queries.newNonNestedFilter(), context);
     }
 }
 

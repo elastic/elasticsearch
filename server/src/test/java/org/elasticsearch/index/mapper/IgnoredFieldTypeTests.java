@@ -19,6 +19,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
+
 public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 
     @Override
@@ -26,4 +35,45 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
         return new IgnoredFieldMapper.IgnoredFieldType();
     }
 
+    public void testPrefixQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        Query expected = new PrefixQuery(new Term("field", new BytesRef("foo*")));
+        assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_QSC));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.prefixQuery("foo*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
+                        "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
+    }
+
+    public void testRegexpQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        Query expected = new RegexpQuery(new Term("field", new BytesRef("foo?")));
+        assertEquals(expected, ft.regexpQuery("foo?", 0, 10, null, MOCK_QSC));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.regexpQuery("foo?", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                ee.getMessage());
+    }
+
+    public void testWildcardQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        Query expected = new WildcardQuery(new Term("field", new BytesRef("foo*")));
+        assertEquals(expected, ft.wildcardQuery("foo*", null, MOCK_QSC));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                ee.getMessage());
+    }
 }

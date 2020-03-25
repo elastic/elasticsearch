@@ -1,0 +1,387 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  # user watcher_user is allowed to write into this index
+  - do:
+      index:
+        index: my_test_index
+        id: 1
+        refresh: true
+        body: >
+          {
+            "value" : "15"
+          }
+
+---
+teardown:
+  - do:
+      watcher.delete_watch:
+        id: "my_watch"
+        ignore: 404
+
+---
+"Test watch search input is run as user who added the watch":
+  - skip:
+      features: headers
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "search" : {
+                "request" : {
+                  "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
+                  "body" :{
+                    "query" : { "match_all": {} }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "compare" : {
+                "ctx.payload.hits.total" : {
+                  "gte" : 1
+                }
+              }
+            },
+            "actions": {
+              "logging": {
+                "logging": {
+                  "text": "Successfully ran my_watch to test for search input"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { _id: "my_watch" }
+  - is_false: watch.status.headers
+
+  - do:
+      watcher.execute_watch:
+        id: "my_watch"
+  - match: { watch_record.watch_id: "my_watch" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.user: "watcher_manager" }
+
+
+
+
+---
+"Test watch is runas user properly recorded":
+  - skip:
+      features: headers
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "search" : {
+                "request" : {
+                  "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
+                  "body" :{
+                    "query" : { "match_all": {} }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "compare" : {
+                "ctx.payload.hits.total" : {
+                  "gte" : 1
+                }
+              }
+            },
+            "actions": {
+              "logging": {
+                "logging": {
+                  "text": "Successfully ran my_watch to test for search input"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { _id: "my_watch" }
+  - is_false: watch.status.headers
+
+  - do:
+      headers: { es-security-runas-user: x_pack_rest_user }
+      watcher.execute_watch:
+        id: "my_watch"
+  - match: { watch_record.watch_id: "my_watch" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.user: "x_pack_rest_user" }
+
+
+---
+"Test watch search input does not work against index user is not allowed to read":
+  - skip:
+      features: headers
+  - do:
+      # by impersonating this request as powerless user we cannot query the my_test_index
+      # headers: { es-security-runas-user: powerless_user }
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "search" : {
+                "request" : {
+                  "indices" : [ "index_not_allowed_to_read" ],
+                  "rest_total_hits_as_int": true,
+                  "body" :{
+                    "query" : { "match_all": {} }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "compare" : {
+                "ctx.payload.hits.total" : {
+                  "gte" : 1
+                }
+              }
+            },
+            "actions": {
+              "logging": {
+                "logging": {
+                  "text": "This message should never occur in the logs as the search above should not have returned any hits"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { _id: "my_watch" }
+  - is_false: watch.status.headers
+
+  - do:
+      watcher.execute_watch:
+        id: "my_watch"
+  - match: { watch_record.watch_id: "my_watch" }
+  # because we are not allowed to read the index, there wont be any data
+  - match: { watch_record.state: "execution_not_needed" }
+  - match: { watch_record.user: "watcher_manager" }
+
+
+---
+"Test watch search transform is run as user who added the watch":
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple" : {
+                "foo" : "bar"
+              }
+            },
+            "transform" : {
+              "search" : {
+                "request" : {
+                  "indices" : [ "my_test_index" ],
+                  "body" :{
+                    "query" : { "match_all": {} }
+                  }
+                }
+              }
+            },
+            "actions": {
+              "index": {
+                "index": {
+                  "index" : "my_test_index",
+                  "doc_id": "my-id"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      watcher.execute_watch:
+        id: "my_watch"
+  - match: { watch_record.watch_id: "my_watch" }
+
+  - do:
+      get:
+        index: my_test_index
+        id: my-id
+  # this value is from the document in the my_text_index index, see the setup
+  - match: { _source.hits.hits.0._source.value: "15" }
+
+
+---
+"Test watch search transform does not work without permissions":
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple" : {
+                "foo" : "bar"
+              }
+            },
+            "transform" : {
+              "search" : {
+                "request" : {
+                  "rest_total_hits_as_int": true,
+                  "indices" : [ "index_not_allowed_to_read" ],
+                  "body" :{
+                    "query" : { "match_all": {} }
+                  }
+                }
+              }
+            },
+            "actions": {
+              "index": {
+                "index": {
+                  "index" : "my_test_index",
+                  "doc_id": "my-id"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      watcher.execute_watch:
+        id: "my_watch"
+  - match: { watch_record.watch_id: "my_watch" }
+
+  - do:
+      get:
+        index: my_test_index
+        id: my-id
+  - match: { _source.hits.total: 0 }
+
+
+
+---
+"Test watch index action requires permission to write to an index":
+  - skip:
+      features: headers
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple" : {
+                "foo" : "bar"
+              }
+            },
+            "actions": {
+              "index": {
+                "index": {
+                  "index" : "my_test_index",
+                  "doc_id": "my-id"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { _id: "my_watch" }
+  - is_false: watch.status.headers
+
+  - do:
+      watcher.execute_watch:
+        id: "my_watch"
+  - match: { watch_record.watch_id: "my_watch" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.user: "watcher_manager" }
+
+  - do:
+      get:
+        index: my_test_index
+        id: 1
+  - match: { _id: "1" }
+
+
+
+---
+"Test watch index action does not work without permissions":
+  - skip:
+      features: headers
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple" : {
+                "foo" : "bar"
+              }
+            },
+            "actions": {
+              "index": {
+                "index": {
+                  "index" : "index_not_allowed_to_read",
+                  "doc_id": "my-id"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { _id: "my_watch" }
+  - is_false: watch.status.headers
+
+  - do:
+      watcher.execute_watch:
+        id: "my_watch"
+  - match: { watch_record.watch_id: "my_watch" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.user: "watcher_manager" }
+
+  - do:
+      get:
+        index: index_not_allowed_to_read
+        id: 1
+      catch: forbidden
+

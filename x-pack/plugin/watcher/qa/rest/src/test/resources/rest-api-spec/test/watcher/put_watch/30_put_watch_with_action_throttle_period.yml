@@ -1,0 +1,54 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      watcher.delete_watch:
+        id: "my_watch1"
+        ignore: 404
+
+---
+"Test put watch api with action level throttle period":
+  - do:
+      watcher.put_watch:
+        id: "my_watch1"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "throttle_period" : "10s",
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch1" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch1"
+  - match: { found : true}
+  - match: { _id: "my_watch1" }
+  - match: { watch.actions.test_index.throttle_period_in_millis: 10000 }

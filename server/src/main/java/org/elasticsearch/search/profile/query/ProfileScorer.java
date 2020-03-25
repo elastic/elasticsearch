@@ -36,7 +36,9 @@ final class ProfileScorer extends Scorer {
 
     private final Scorer scorer;
     private ProfileWeight profileWeight;
-    private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer;
+
+    private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
+        setMinCompetitiveScoreTimer;
 
     ProfileScorer(ProfileWeight w, Scorer scorer, QueryProfileBreakdown profile) throws IOException {
         super(w);
@@ -46,6 +48,9 @@ final class ProfileScorer extends Scorer {
         nextDocTimer = profile.getTimer(QueryTimingType.NEXT_DOC);
         advanceTimer = profile.getTimer(QueryTimingType.ADVANCE);
         matchTimer = profile.getTimer(QueryTimingType.MATCH);
+        shallowAdvanceTimer = profile.getTimer(QueryTimingType.SHALLOW_ADVANCE);
+        computeMaxScoreTimer = profile.getTimer(QueryTimingType.COMPUTE_MAX_SCORE);
+        setMinCompetitiveScoreTimer = profile.getTimer(QueryTimingType.SET_MIN_COMPETITIVE_SCORE);
     }
 
     @Override
@@ -69,7 +74,7 @@ final class ProfileScorer extends Scorer {
     }
 
     @Override
-    public Collection<ChildScorer> getChildren() throws IOException {
+    public Collection<ChildScorable> getChildren() throws IOException {
         return scorer.getChildren();
     }
 
@@ -165,5 +170,35 @@ final class ProfileScorer extends Scorer {
                 return in.matchCost();
             }
         };
+    }
+
+    @Override
+    public int advanceShallow(int target) throws IOException {
+        shallowAdvanceTimer.start();
+        try {
+            return scorer.advanceShallow(target);
+        } finally {
+            shallowAdvanceTimer.stop();
+        }
+    }
+
+    @Override
+    public float getMaxScore(int upTo) throws IOException {
+        computeMaxScoreTimer.start();
+        try {
+            return scorer.getMaxScore(upTo);
+        } finally {
+            computeMaxScoreTimer.stop();
+        }
+    }
+
+    @Override
+    public void setMinCompetitiveScore(float minScore) throws IOException {
+        setMinCompetitiveScoreTimer.start();
+        try {
+            scorer.setMinCompetitiveScore(minScore);
+        } finally {
+            setMinCompetitiveScoreTimer.stop();
+        }
     }
 }

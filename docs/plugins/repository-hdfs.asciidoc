@@ -25,19 +25,18 @@ plugin folder and point `HADOOP_HOME` variable to it; this should minimize the a
 Once installed, define the configuration for the `hdfs` repository through the
 {ref}/modules-snapshots.html[REST API]:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_hdfs_repository
 {
   "type": "hdfs",
   "settings": {
     "uri": "hdfs://namenode:8020/",
-    "path": "elasticsearch/respositories/my_hdfs_repository",
+    "path": "elasticsearch/repositories/my_hdfs_repository",
     "conf.dfs.client.read.shortcircuit": "true"
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have hdfs set up while testing this]
 
 The following settings are supported:
@@ -62,7 +61,9 @@ The following settings are supported:
 
 `compress`::
 
-    Whether to compress the metadata or not. (Disabled by default)
+    Whether to compress the metadata or not. (Enabled by default)
+
+include::repository-shared-settings.asciidoc[]
 
 `chunk_size`::
 
@@ -78,7 +79,7 @@ The following settings are supported:
 
 [[repository-hdfs-availability]]
 [float]
-===== A Note on HDFS Availablility
+===== A Note on HDFS Availability
 When you initialize a repository, its settings are persisted in the cluster state. When a node comes online, it will
 attempt to initialize all repositories for which it has settings. If your cluster has an HDFS repository configured, then
 all nodes in the cluster must be able to reach HDFS when starting. If not, then the node will fail to initialize the
@@ -142,37 +143,35 @@ Once your keytab files are in place and your cluster is started, creating a secu
 add the name of the principal that you will be authenticating as in the repository settings under the
 `security.principal` option:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_hdfs_repository
 {
   "type": "hdfs",
   "settings": {
     "uri": "hdfs://namenode:8020/",
-    "path": "/user/elasticsearch/respositories/my_hdfs_repository",
+    "path": "/user/elasticsearch/repositories/my_hdfs_repository",
     "security.principal": "elasticsearch@REALM"
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have hdfs set up while testing this]
 
 If you are using different service principals for each node, you can use the `_HOST` pattern in your principal
 name. Elasticsearch will automatically replace the pattern with the hostname of the node at runtime:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_hdfs_repository
 {
   "type": "hdfs",
   "settings": {
     "uri": "hdfs://namenode:8020/",
-    "path": "/user/elasticsearch/respositories/my_hdfs_repository",
+    "path": "/user/elasticsearch/repositories/my_hdfs_repository",
     "security.principal": "elasticsearch/_HOST@REALM"
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have hdfs set up while testing this]
 
 [[repository-hdfs-security-authorization]]

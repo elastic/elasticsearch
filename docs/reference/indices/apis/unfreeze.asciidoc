@@ -1,0 +1,46 @@
+[role="xpack"]
+[testenv="basic"]
+[[unfreeze-index-api]]
+=== Unfreeze index API
+++++
+<titleabbrev>Unfreeze index</titleabbrev>
+++++
+
+Unfreezes an index.
+
+[[unfreeze-index-api-request]]
+==== {api-request-title}
+
+`POST /<index>/_unfreeze`
+
+//[[unfreeze-index-api-prereqs]]
+//==== {api-prereq-title}
+
+[[unfreeze-index-api-desc]]
+==== {api-description-title}
+
+When a frozen index is unfrozen, the index goes through the normal recovery 
+process and becomes writeable again. See <<frozen-indices>> and <<freeze-index-api>>.
+
+IMPORTANT: Freezing an index will close the index and reopen it within the same
+API call. This causes primaries to not be allocated for a short amount of time
+and causes the cluster to go red until the primaries are allocated again. This
+limitation might be removed in the future.
+
+[[unfreeze-index-api-path-parms]]
+==== {api-path-parms-title}
+
+`<index>`::
+  (Required, string) Identifier for the index.
+
+[[unfreeze-index-api-examples]]
+==== {api-examples-title}
+
+The following example freezes and unfreezes an index:
+
+[source,console]
+--------------------------------------------------
+POST /my_index/_freeze
+POST /my_index/_unfreeze
+--------------------------------------------------
+// TEST[s/^/PUT my_index\n/]

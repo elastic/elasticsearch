@@ -4,28 +4,24 @@ setup:
   - do:
       index:
           index:  index_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
   - do:
       index:
           index:  index_1
-          type:   test
           id:     2
           body:   { foo: baz }
 
   - do:
       index:
           index:  index_1
-          type:   test
           id:     3
           body:   { foo: foo }
 
   - do:
       index:
           index:  index_2
-          type:   test
           id:     1
           body:   { foo: foo }
 
@@ -37,6 +33,7 @@ setup:
 
   - do:
       msearch_template:
+        rest_total_hits_as_int: true
         body:
           - index: index_*
           - source: '{"query": {"match": {"foo": "{{value}}"} } }'
@@ -72,6 +69,7 @@ setup:
 
   - do:
       msearch_template:
+        rest_total_hits_as_int: true
         body:
           # Search 0 is OK
           - index: index_*
@@ -96,13 +94,21 @@ setup:
           - source: '{"query": {"{{query_type}}": {} }' # Unknown query type
             params:
               query_type: "unknown"
+          # Search 4 has an unsupported track_total_hits
+          - index: index_*
+          - source: '{"query": {"match_all": {} }, "track_total_hits": "{{trackTotalHits}}" }'
+            params:
+              trackTotalHits: 1
 
   - match:  { responses.0.hits.total:     2  }
   - match:  { responses.1.error.root_cause.0.type: json_e_o_f_exception }
   - match:  { responses.1.error.root_cause.0.reason: "/Unexpected.end.of.input/" }
   - match:  { responses.2.hits.total:     1  }
   - match:  { responses.3.error.root_cause.0.type: parsing_exception }
-  - match:  { responses.3.error.root_cause.0.reason: "/no.\\[query\\].registered.for.\\[unknown\\]/" }
+  - match:  { responses.3.error.root_cause.0.reason: "/unknown.query.\\[unknown\\]/" }
+  - match:  { responses.4.error.root_cause.0.type: illegal_argument_exception }
+  - match:  { responses.4.error.root_cause.0.reason: "[rest_total_hits_as_int] cannot be used if the tracking of total hits is not accurate, got 1" }
+
 
 ---
 "Multi-search template with invalid request":
@@ -110,6 +116,7 @@ setup:
   - do:
       catch: /(.)*action_request_validation_exception(.)*template.is.missing(.)*/
       msearch_template:
+        rest_total_hits_as_int: true
         body:
           # Search 0 is OK
           - index: index_*
@@ -136,6 +143,7 @@ setup:
 
   - do:
       msearch_template:
+        rest_total_hits_as_int: true
         body:
           - index: index_*
           - id: stored_template_1
@@ -156,3 +164,44 @@ setup:
   - match:  { responses.0.hits.total:     2  }
   - match:  { responses.1.hits.total:     1  }
   - match:  { responses.2.hits.total:     1  }
+
+
+  - do:
+      put_script:
+        id: stored_template_1
+        body: { "script": { "lang" : "mustache", "source": { "query": {"match": {"{{field}}": "{{value}}" }}}}}
+  - match: { acknowledged: true }
+
+---
+"Test with rest_total_hits_as_int":
+  - do:
+      put_script:
+        id: stored_template_1
+        body: { "script": { "lang": "mustache", "source": { "query": {"match": {"{{field}}": "{{value}}" }}}}}
+  - match: { acknowledged: true }
+
+  - do:
+      msearch_template:
+        body:
+        - index: index_*
+        - id: stored_template_1
+          params:
+            field: "foo"
+            value: "foo"
+        - index: _all
+        - id: stored_template_1
+          params:
+            field: "foo"
+            value: "bar"
+        - index: index_2
+        - id: stored_template_1
+          params:
+            field: "foo"
+            value: "foo"
+
+  - match:  { responses.0.hits.total.value:     2  }
+  - match:  { responses.0.hits.total.relation:  eq }
+  - match:  { responses.1.hits.total.value:     1  }
+  - match:  { responses.1.hits.total.relation:  eq }
+  - match:  { responses.2.hits.total.value:     1  }
+  - match:  { responses.1.hits.total.relation:  eq }

@@ -19,29 +19,28 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateAction extends BaseRestHandler {
 
-    public RestUpdateAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/{index}/_update/{id}"));
     }
 
     @Override
@@ -51,13 +50,7 @@ public class RestUpdateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
-        final String type = request.param("type");
-        if (includeTypeName == false && MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
-            throw new IllegalArgumentException("You may only use the [include_type_name=false] option with the update API with the " +
-                    "[{index}/_doc/{id}/_update] endpoint.");
-        }
-        UpdateRequest updateRequest = new UpdateRequest(request.param("index"), type, request.param("id"));
+        UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("id"));
         updateRequest.routing(request.param("routing"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
         updateRequest.setRefreshPolicy(request.param("refresh"));
@@ -72,9 +65,15 @@ public class RestUpdateAction extends BaseRestHandler {
         }
 
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
-        updateRequest.version(RestActions.parseVersion(request));
-        updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
+        if (request.hasParam("version") || request.hasParam("version_type")) {
+            final ActionRequestValidationException versioningError = new ActionRequestValidationException();
+            versioningError.addValidationError("internal versioning can not be used for optimistic concurrency control. " +
+                "Please use `if_seq_no` and `if_primary_term` instead");
+            throw versioningError;
+        }
 
+        updateRequest.setIfSeqNo(request.paramAsLong("if_seq_no", updateRequest.ifSeqNo()));
+        updateRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", updateRequest.ifPrimaryTerm()));
 
         request.applyContentParser(parser -> {
             updateRequest.fromXContent(parser);

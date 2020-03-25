@@ -38,9 +38,11 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
     public static final ParseField NESTED_FIELD = new ParseField("nested");
     public static final ParseField PATH_FIELD = new ParseField("path");
     public static final ParseField FILTER_FIELD = new ParseField("filter");
+    public static final ParseField MAX_CHILDREN_FIELD = new ParseField("max_children");
 
     private final String path;
     private QueryBuilder filter;
+    private int maxChildren = Integer.MAX_VALUE;
     private NestedSortBuilder nestedSort;
 
     public NestedSortBuilder(String path) {
@@ -51,6 +53,7 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         path = in.readOptionalString();
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
+        maxChildren = in.readVInt();
     }
 
     public String getPath() {
@@ -61,8 +64,15 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         return filter;
     }
 
+    public int getMaxChildren() { return maxChildren; }
+
     public NestedSortBuilder setFilter(final QueryBuilder filter) {
         this.filter = filter;
+        return this;
+    }
+
+    public NestedSortBuilder setMaxChildren(final int maxChildren) {
+        this.maxChildren = maxChildren;
         return this;
     }
 
@@ -83,6 +93,7 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         out.writeOptionalString(path);
         out.writeOptionalNamedWriteable(filter);
         out.writeOptionalWriteable(nestedSort);
+        out.writeVInt(maxChildren);
     }
 
     @Override
@@ -94,6 +105,11 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         if (filter != null) {
             builder.field(FILTER_FIELD.getPreferredName(), filter);
         }
+
+        if (maxChildren != Integer.MAX_VALUE) {
+            builder.field(MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
+        }
+
         if (nestedSort != null) {
             builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
         }
@@ -104,6 +120,7 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
     public static NestedSortBuilder fromXContent(XContentParser parser) throws IOException {
         String path = null;
         QueryBuilder filter = null;
+        int maxChildren = Integer.MAX_VALUE;
         NestedSortBuilder nestedSort = null;
 
         XContentParser.Token token = parser.currentToken();
@@ -116,6 +133,8 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
                         path = parser.text();
                     } else if (currentName.equals(FILTER_FIELD.getPreferredName())) {
                         filter = parseNestedFilter(parser);
+                    } else if (currentName.equals(MAX_CHILDREN_FIELD.getPreferredName())) {
+                        maxChildren = parser.intValue();
                     } else if (currentName.equals(NESTED_FIELD.getPreferredName())) {
                         nestedSort = NestedSortBuilder.fromXContent(parser);
                     } else {
@@ -129,7 +148,7 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("malformed nested sort format, must start with an object");
         }
 
-        return new NestedSortBuilder(path).setFilter(filter).setNestedSort(nestedSort);
+        return new NestedSortBuilder(path).setFilter(filter).setMaxChildren(maxChildren).setNestedSort(nestedSort);
     }
 
     @Override
@@ -143,12 +162,13 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         NestedSortBuilder that = (NestedSortBuilder) obj;
         return Objects.equals(path, that.path)
             && Objects.equals(filter, that.filter)
+            && Objects.equals(maxChildren, that.maxChildren)
             && Objects.equals(nestedSort, that.nestedSort);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(path, filter, nestedSort);
+        return Objects.hash(path, filter, nestedSort, maxChildren);
     }
 
     public NestedSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
@@ -164,7 +184,7 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
             rewriteNested = nestedSort.rewrite(ctx);
         }
         if (rewriteFilter != this.filter || rewriteNested != this.nestedSort) {
-            return new NestedSortBuilder(this.path).setFilter(rewriteFilter).setNestedSort(rewriteNested);
+            return new NestedSortBuilder(this.path).setFilter(rewriteFilter).setMaxChildren(this.maxChildren).setNestedSort(rewriteNested);
         } else {
             return this;
         }

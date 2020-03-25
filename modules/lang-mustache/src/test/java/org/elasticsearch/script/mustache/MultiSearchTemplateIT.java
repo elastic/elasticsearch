@@ -48,17 +48,12 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         return Collections.singleton(MustachePlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
     public void testBasic() throws Exception {
         createIndex("msearch");
         final int numDocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("msearch", "test", String.valueOf(i))
+            indexRequestBuilders[i] = client().prepareIndex("msearch").setId(String.valueOf(i))
                     .setSource("odd", (i % 2 == 0), "group", (i % 3));
         }
         indexRandom(true, indexRequestBuilders);
@@ -169,7 +164,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         MultiSearchTemplateResponse.Item response4 = response.getResponses()[3];
         assertThat(response4.isFailure(), is(true));
         assertThat(response4.getFailure(), instanceOf(IndexNotFoundException.class));
-        assertThat(response4.getFailure().getMessage(), equalTo("no such index"));
+        assertThat(response4.getFailure().getMessage(), equalTo("no such index [unknown]"));
 
         MultiSearchTemplateResponse.Item response5 = response.getResponses()[4];
         assertThat(response5.isFailure(), is(false));

@@ -5,19 +5,22 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction.Response;
-import org.joda.time.DateTime;
 
-public class PostDataFlushResponseTests extends AbstractStreamableTestCase<Response> {
+import java.time.ZonedDateTime;
+import java.util.Date;
+
+public class PostDataFlushResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
-        return new Response(randomBoolean(), new DateTime(randomDateTimeZone()).toDate());
+        return new Response(randomBoolean(), Date.from(ZonedDateTime.now(randomZone()).toInstant()));
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
 }

@@ -44,6 +44,7 @@ import org.apache.lucene.analysis.hu.HungarianLightStemFilter;
 import org.apache.lucene.analysis.id.IndonesianStemFilter;
 import org.apache.lucene.analysis.it.ItalianLightStemFilter;
 import org.apache.lucene.analysis.lv.LatvianStemFilter;
+import org.apache.lucene.analysis.miscellaneous.EmptyTokenStream;
 import org.apache.lucene.analysis.no.NorwegianLightStemFilter;
 import org.apache.lucene.analysis.no.NorwegianLightStemmer;
 import org.apache.lucene.analysis.no.NorwegianMinimalStemFilter;
@@ -53,7 +54,6 @@ import org.apache.lucene.analysis.pt.PortugueseStemFilter;
 import org.apache.lucene.analysis.ru.RussianLightStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.sv.SwedishLightStemFilter;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -65,6 +65,7 @@ import org.tartarus.snowball.ext.CatalanStemmer;
 import org.tartarus.snowball.ext.DanishStemmer;
 import org.tartarus.snowball.ext.DutchStemmer;
 import org.tartarus.snowball.ext.EnglishStemmer;
+import org.tartarus.snowball.ext.EstonianStemmer;
 import org.tartarus.snowball.ext.FinnishStemmer;
 import org.tartarus.snowball.ext.FrenchStemmer;
 import org.tartarus.snowball.ext.German2Stemmer;
@@ -83,19 +84,23 @@ import org.tartarus.snowball.ext.SpanishStemmer;
 import org.tartarus.snowball.ext.SwedishStemmer;
 import org.tartarus.snowball.ext.TurkishStemmer;
 
+import java.io.IOException;
+
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
+
+    private static final TokenStream EMPTY_TOKEN_STREAM = new EmptyTokenStream();
 
     private String language;
 
-    StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
         super(indexSettings, name, settings);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
+        // check that we have a valid language by trying to create a TokenStream
+        create(EMPTY_TOKEN_STREAM).close();
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        final Version indexVersion = indexSettings.getIndexVersionCreated();
-
         if ("arabic".equalsIgnoreCase(language)) {
             return new ArabicStemFilter(tokenStream);
         } else if ("armenian".equalsIgnoreCase(language)) {
@@ -137,6 +142,9 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new EnglishMinimalStemFilter(tokenStream);
         } else if ("possessive_english".equalsIgnoreCase(language) || "possessiveEnglish".equalsIgnoreCase(language)) {
             return new EnglishPossessiveFilter(tokenStream);
+
+        } else if ("estonian".equalsIgnoreCase(language)) {
+            return new SnowballFilter(tokenStream, new EstonianStemmer());
 
             // Finnish stemmers
         } else if ("finnish".equalsIgnoreCase(language)) {

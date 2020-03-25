@@ -25,12 +25,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -39,16 +39,17 @@ public class RestMultiGetAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    public RestMultiGetAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_mget", this);
-        controller.registerHandler(POST, "/_mget", this);
-        controller.registerHandler(GET, "/{index}/_mget", this);
-        controller.registerHandler(POST, "/{index}/_mget", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mget", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mget", this);
-
+    public RestMultiGetAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_mget"),
+            new Route(POST, "/_mget"),
+            new Route(GET, "/{index}/_mget"),
+            new Route(POST, "/{index}/_mget"));
     }
 
     @Override
@@ -58,6 +59,7 @@ public class RestMultiGetAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
         multiGetRequest.preference(request.param("preference"));
@@ -74,7 +76,7 @@ public class RestMultiGetAction extends BaseRestHandler {
 
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource,
+            multiGetRequest.add(request.param("index"), sFields, defaultFetchSource,
                 request.param("routing"), parser, allowExplicitIndex);
         }
 

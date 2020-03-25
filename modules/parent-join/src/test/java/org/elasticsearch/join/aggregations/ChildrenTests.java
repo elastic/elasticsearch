@@ -37,8 +37,7 @@ public class ChildrenTests extends BaseAggregationTestCase<ChildrenAggregationBu
     protected ChildrenAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAlphaOfLengthBetween(3, 20);
         String childType = randomAlphaOfLengthBetween(5, 40);
-        ChildrenAggregationBuilder factory = new ChildrenAggregationBuilder(name, childType);
-        return factory;
+        return new ChildrenAggregationBuilder(name, childType);
     }
 
 }

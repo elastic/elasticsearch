@@ -19,5 +19,8 @@
 package org.elasticsearch.index.query;
 
 public interface MultiTermQueryBuilder extends QueryBuilder {
-
+    /**
+     * Get the field name for this query.
+     */
+    String fieldName();
 }

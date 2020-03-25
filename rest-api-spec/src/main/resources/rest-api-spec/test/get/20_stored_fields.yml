@@ -6,30 +6,26 @@
         index: test_1
         body:
           mappings:
-            test:
-              properties:
-                foo:
-                  type: keyword
-                  store: true
-                count:
-                  type: integer
-                  store: true
+            properties:
+              foo:
+                type: keyword
+                store: true
+              count:
+                type: integer
+                store: true
 
   - do:
       index:
         index:  test_1
-        type:   test
         id:     1
         body:   { "foo": "bar", "count": 1 }
   - do:
       get:
         index:  test_1
-        type:   test
         id:     1
         stored_fields: foo
 
   - match:   { _index:   test_1  }
-  - match:   { _type:    test    }
   - match:   { _id:      '1'     }
   - match:   { fields.foo:  [bar] }
   - is_false:  _source
@@ -37,7 +33,6 @@
   - do:
       get:
         index:  test_1
-        type:   test
         id:     1
         stored_fields: [foo, count]
 
@@ -48,7 +43,6 @@
   - do:
       get:
         index:  test_1
-        type:   test
         id:     1
         stored_fields: [foo, count, _source]
 

@@ -22,7 +22,8 @@ import java.util.List;
 
 public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheResponse.Node> implements ToXContentFragment {
 
-    public ClearRealmCacheResponse() {
+    public ClearRealmCacheResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
     public ClearRealmCacheResponse(ClusterName clusterName, List<Node> nodes, List<FailedNodeException> failures) {
@@ -31,12 +32,12 @@ public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheRe
 
     @Override
     protected List<ClearRealmCacheResponse.Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(Node::readNodeResponse);
+        return in.readList(Node::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClearRealmCacheResponse.Node> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override
@@ -67,17 +68,12 @@ public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheRe
 
     public static class Node extends BaseNodeResponse {
 
-        public Node() {
+        public Node(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Node(DiscoveryNode node) {
             super(node);
-        }
-
-        public static Node readNodeResponse(StreamInput in) throws IOException {
-            Node node = new Node();
-            node.readFrom(in);
-            return node;
         }
     }
 

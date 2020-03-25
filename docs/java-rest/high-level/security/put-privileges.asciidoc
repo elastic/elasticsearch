@@ -1,0 +1,39 @@
+--
+:api: put-privileges
+:request: PutPrivilegesRequest
+:response: PutPrivilegesResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Put Privileges API
+
+Application privileges can be created or updated using this API.
+
+[id="{upid}-{api}-request"]
+==== Put Privileges Request
+A +{request}+ contains list of application privileges that
+need to be created or updated. Each application privilege
+consists of an application name, application privilege,
+set of actions and optional metadata.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Put Privileges Response
+
+The returned +{response}+ contains the information about the status
+for each privilege present in the +{request}+. The status would be
+`true` if the privilege was created, `false` if the privilege was updated.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The response contains the status for given application name and
+privilege name. The status would be `true` if the privilege was created,
+`false` if the privilege was updated.

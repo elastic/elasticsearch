@@ -20,144 +20,52 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchTask;
-import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SearchSlowLogTests extends ESSingleNodeTestCase {
     @Override
     protected SearchContext createSearchContext(IndexService indexService) {
+       return createSearchContext(indexService, new String[]{});
+    }
+
+    protected SearchContext createSearchContext(IndexService indexService, String ... groupStats) {
         BigArrays bigArrays = indexService.getBigArrays();
-        ThreadPool threadPool = indexService.getThreadPool();
-        return new TestSearchContext(threadPool, bigArrays, indexService) {
-            final ShardSearchRequest request = new ShardSearchRequest() {
-                private SearchSourceBuilder searchSourceBuilder;
-                @Override
-                public ShardId shardId() {
-                    return new ShardId(indexService.index(), 0);
-                }
+        final ShardSearchRequest request =
+            new ShardSearchRequest(new ShardId(indexService.index(), 0), 0L, null);
+        return new TestSearchContext(bigArrays, indexService) {
+            @Override
+            public List<String> groupStats() {
+                return Arrays.asList(groupStats);
+            }
 
-                @Override
-                public String[] types() {
-                    return new String[0];
-                }
-
-                @Override
-                public SearchSourceBuilder source() {
-                    return searchSourceBuilder;
-                }
-
-                @Override
-                public AliasFilter getAliasFilter() {
-                    return new AliasFilter(QueryBuilders.matchAllQuery(), "foo");
-                }
-
-                @Override
-                public void setAliasFilter(AliasFilter filter) {
-
-                }
-
-                @Override
-                public void source(SearchSourceBuilder source) {
-                    searchSourceBuilder = source;
-                }
-
-                @Override
-                public int numberOfShards() {
-                    return 0;
-                }
-
-                @Override
-                public SearchType searchType() {
-                    return null;
-                }
-
-                @Override
-                public float indexBoost() {
-                    return 1.0f;
-                }
-
-                @Override
-                public long nowInMillis() {
-                    return 0;
-                }
-
-                @Override
-                public Boolean requestCache() {
-                    return null;
-                }
-
-                @Override
-                public Boolean allowPartialSearchResults() {
-                    return null;
-                }
-
-                @Override
-                public Scroll scroll() {
-                    return null;
-                }
-
-                @Override
-                public String[] indexRoutings() {
-                    return null;
-                }
-
-                @Override
-                public String preference() {
-                    return null;
-                }
-
-                @Override
-                public void setProfile(boolean profile) {
-
-                }
-
-                @Override
-                public boolean isProfile() {
-                    return false;
-                }
-
-                @Override
-                public BytesReference cacheKey() throws IOException {
-                    return null;
-                }
-
-                @Override
-                public Rewriteable getRewriteable() {
-                    return null;
-                }
-
-                @Override
-                public String getClusterAlias() {
-                    return null;
-                }
-            };
             @Override
             public ShardSearchRequest request() {
                 return request;
@@ -165,17 +73,57 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         };
     }
 
+    public void testSlowLogHasJsonFields() throws IOException {
+        IndexService index = createIndex("foo");
+        SearchContext searchContext = createSearchContext(index);
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        searchContext.request().source(source);
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
+
+        assertThat(p.get("message"), equalTo("[foo][0]"));
+        assertThat(p.get("took"), equalTo("10nanos"));
+        assertThat(p.get("took_millis"), equalTo("0"));
+        assertThat(p.get("total_hits"), equalTo("-1"));
+        assertThat(p.get("stats"), equalTo("[]"));
+        assertThat(p.get("search_type"), Matchers.nullValue());
+        assertThat(p.get("total_shards"), equalTo("1"));
+        assertThat(p.get("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
+    }
+
+    public void testSlowLogsWithStats() throws IOException {
+        IndexService index = createIndex("foo");
+        SearchContext searchContext = createSearchContext(index,"group1");
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        searchContext.request().source(source);
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+
+        ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
+        assertThat(p.get("stats"), equalTo("[\\\"group1\\\"]"));
+
+        searchContext = createSearchContext(index, "group1", "group2");
+        source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        searchContext.request().source(source);
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
+        assertThat(p.get("stats"), equalTo("[\\\"group1\\\", \\\"group2\\\"]"));
+    }
+
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
         SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
-        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10);
-        assertThat(p.toString(), startsWith("[foo][0]"));
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
+        assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
-        assertThat(p.toString(), not(containsString("\n")));
-        assertThat(p.toString(), endsWith("id[my_id], "));
+        assertThat(p.getFormattedMessage(), not(containsString("\n")));
+        assertThat(p.getFormattedMessage(), endsWith("id[my_id], "));
     }
 
     public void testLevelSetting() {
@@ -188,14 +136,17 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchSlowLog log = new SearchSlowLog(settings);
         assertEquals(level, log.getLevel());
         level = randomFrom(SlowLogLevel.values());
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
         assertEquals(level, log.getLevel());
         level = randomFrom(SlowLogLevel.values());
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
         assertEquals(level, log.getLevel());
 
 
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
         assertEquals(level, log.getLevel());
 
         settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
@@ -207,7 +158,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         settings = new IndexSettings(metaData, Settings.EMPTY);
         log = new SearchSlowLog(settings);
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), "NOT A LEVEL").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), "NOT A LEVEL").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             final String expected = "illegal value can't update [index.search.slowlog.level] from [TRACE] to [NOT A LEVEL]";
@@ -218,6 +170,25 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             assertThat(cause, hasToString(containsString("No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), SlowLogLevel.DEBUG)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        SearchSlowLog debugLog = new SearchSlowLog(settings);
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), SlowLogLevel.INFO)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        SearchSlowLog infoLog = new SearchSlowLog(settings);
+
+        assertEquals(SlowLogLevel.DEBUG, debugLog.getLevel());
+        assertEquals(SlowLogLevel.INFO, infoLog.getLevel());
     }
 
     public void testSetQueryLevels() {
@@ -235,7 +206,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertEquals(TimeValue.timeValueMillis(300).nanos(), log.getQueryInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(400).nanos(), log.getQueryWarnThreshold());
 
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "120ms")
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "120ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "220ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "320ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "420ms").build()));
@@ -263,28 +235,36 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryWarnThreshold());
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder()
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.query.trace");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder()
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.query.debug");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder()
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.query.info");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder()
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.query.warn");
@@ -306,7 +286,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertEquals(TimeValue.timeValueMillis(300).nanos(), log.getFetchInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(400).nanos(), log.getFetchWarnThreshold());
 
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "120ms")
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "120ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "220ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(), "320ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "420ms").build()));
@@ -334,28 +315,36 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchWarnThreshold());
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(),
+                    "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.trace");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(),
+                    "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.debug");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(),
+                    "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.info");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(),
+                    "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.warn");

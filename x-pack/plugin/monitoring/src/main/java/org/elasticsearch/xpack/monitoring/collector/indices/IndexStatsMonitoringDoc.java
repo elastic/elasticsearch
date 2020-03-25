@@ -69,13 +69,6 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
             builder.field("created", metaData.getCreationDate());
             builder.field("status", health.getStatus().name().toLowerCase(Locale.ROOT));
 
-            builder.startObject("version");
-            {
-                builder.field("created", metaData.getCreationVersion());
-                builder.field("upgraded", metaData.getUpgradedVersion());
-            }
-            builder.endObject();
-
             builder.startObject("shards");
             {
                 final int total = metaData.getTotalNumberOfShards();
@@ -128,8 +121,6 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "index_stats.uuid",
                         "index_stats.created",
                         "index_stats.status",
-                        "index_stats.version.created",
-                        "index_stats.version.upgraded",
                         "index_stats.shards.total",
                         "index_stats.shards.primaries",
                         "index_stats.shards.replicas",
@@ -171,6 +162,7 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "index_stats.primaries.segments.fixed_bit_set_memory_in_bytes",
                         "index_stats.primaries.store.size_in_bytes",
                         "index_stats.primaries.refresh.total_time_in_millis",
+                        "index_stats.primaries.refresh.external_total_time_in_millis",
                         "index_stats.total.docs.count",
                         "index_stats.total.fielddata.memory_size_in_bytes",
                         "index_stats.total.fielddata.evictions",
@@ -200,5 +192,6 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "index_stats.total.segments.version_map_memory_in_bytes",
                         "index_stats.total.segments.fixed_bit_set_memory_in_bytes",
                         "index_stats.total.store.size_in_bytes",
-                        "index_stats.total.refresh.total_time_in_millis");
+                        "index_stats.total.refresh.total_time_in_millis",
+                        "index_stats.total.refresh.external_total_time_in_millis");
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Nullable;
@@ -38,7 +37,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAllocationExplainRequest> {
 
-    private static ObjectParser<ClusterAllocationExplainRequest, Void> PARSER = new ObjectParser<>("cluster/allocation/explain");
+    private static final ObjectParser<ClusterAllocationExplainRequest, Void> PARSER = new ObjectParser<>("cluster/allocation/explain");
     static {
         PARSER.declareString(ClusterAllocationExplainRequest::setIndex, new ParseField("index"));
         PARSER.declareInt(ClusterAllocationExplainRequest::setShard, new ParseField("shard"));
@@ -69,7 +68,6 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
 
     public ClusterAllocationExplainRequest(StreamInput in) throws IOException {
         super(in);
-        checkVersion(in.getVersion());
         this.index = in.readOptionalString();
         this.shard = in.readOptionalVInt();
         this.primary = in.readOptionalBoolean();
@@ -94,7 +92,6 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        checkVersion(out.getVersion());
         super.writeTo(out);
         out.writeOptionalString(index);
         out.writeOptionalVInt(shard);
@@ -245,17 +242,5 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
 
     public static ClusterAllocationExplainRequest parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, new ClusterAllocationExplainRequest(), null);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    private void checkVersion(Version version) {
-        if (version.before(Version.V_5_2_0)) {
-            throw new IllegalArgumentException("cannot explain shards in a mixed-cluster with pre-" + Version.V_5_2_0 +
-                                               " nodes, node version [" + version + "]");
-        }
     }
 }

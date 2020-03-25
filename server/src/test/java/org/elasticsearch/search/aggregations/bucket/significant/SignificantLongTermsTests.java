@@ -57,7 +57,10 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
         Set<Long> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
             long term = randomValueOtherThanMany(l -> terms.add(l) == false, random()::nextLong);
-            buckets.add(new SignificantLongTerms.Bucket(subsetDfs[i], subsetSize, supersetDfs[i], supersetSize, term, aggs, format));
+            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(subsetDfs[i], subsetSize, 
+                    supersetDfs[i], supersetSize, term, aggs, format, 0);
+            bucket.updateScore(significanceHeuristic);
+            buckets.add(bucket);
         }
         return new SignificantLongTerms(name, requiredSize, 1L, pipelineAggregators, metaData, format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
@@ -106,7 +109,7 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
             case 5:
                 buckets = new ArrayList<>(buckets);
                 buckets.add(new SignificantLongTerms.Bucket(randomLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                        randomNonNegativeLong(), randomNonNegativeLong(), InternalAggregations.EMPTY, format));
+                        randomNonNegativeLong(), randomNonNegativeLong(), InternalAggregations.EMPTY, format, 0));
                 break;
             case 8:
                 if (metaData == null) {

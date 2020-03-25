@@ -1,0 +1,58 @@
+////
+This file is included by every high level rest client API documentation page
+so we don't have to copy and paste the same asciidoc over and over again. We
+*do* have to copy and paste the same Java tests over and over again. For now
+this is intentional because it forces us to *write* and execute the tests
+which, while a bit ceremonial, does force us to cover these calls in *some*
+test.
+////
+
+[id="{upid}-{api}-sync"]
+==== Synchronous execution
+
+When executing a +{request}+ in the following manner, the client waits
+for the +{response}+ to be returned before continuing with code execution:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-execute]
+--------------------------------------------------
+
+Synchronous calls may throw an `IOException` in case of either failing to
+parse the REST response in the high-level REST client, the request times out
+or similar cases where there is no response coming back from the server.
+
+In cases where the server returns a `4xx` or `5xx` error code, the high-level
+client tries to parse the response body error details instead and then throws
+a generic `ElasticsearchException` and adds the original `ResponseException` as a
+suppressed exception to it.
+
+[id="{upid}-{api}-async"]
+==== Asynchronous execution
+
+Executing a +{request}+ can also be done in an asynchronous fashion so that
+the client can return directly. Users need to specify how the response or
+potential failures will be handled by passing the request and a listener to the
+asynchronous {api} method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-execute-async]
+--------------------------------------------------
+<1> The +{request}+ to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed. Failure scenarios and expected exceptions are the same as in the
+synchronous execution case.
+
+A typical listener for +{api}+ looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed.
+<2> Called when the whole +{request}+ fails.

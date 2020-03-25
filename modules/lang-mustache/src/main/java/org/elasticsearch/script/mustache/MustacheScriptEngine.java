@@ -21,12 +21,11 @@ package org.elasticsearch.script.mustache;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheFactory;
-
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -41,6 +40,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Main entry point handling template registration, compilation and
@@ -51,7 +51,7 @@ import java.util.Map;
  * {@link Mustache} object can then be re-used for subsequent executions.
  */
 public final class MustacheScriptEngine implements ScriptEngine {
-    private static final Logger logger = ESLoggerFactory.getLogger(MustacheScriptEngine.class);
+    private static final Logger logger = LogManager.getLogger(MustacheScriptEngine.class);
 
     public static final String NAME = "mustache";
 
@@ -63,7 +63,12 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * @return a compiled template object for later execution.
      * */
     @Override
-    public <T> T compile(String templateName, String templateSource, ScriptContext<T> context, Map<String, String> options) {
+    public <T> T compile(
+        String templateName,
+        String templateSource,
+        ScriptContext<T> context,
+        Map<String, String> options
+    ) {
         if (context.instanceClazz.equals(TemplateScript.class) == false) {
             throw new IllegalArgumentException("mustache engine does not know how to handle context [" + context.name + "]");
         }
@@ -77,6 +82,11 @@ public final class MustacheScriptEngine implements ScriptEngine {
             throw new ScriptException(ex.getMessage(), ex, Collections.emptyList(), templateSource, NAME);
         }
 
+    }
+
+    @Override
+    public Set<ScriptContext<?>> getSupportedContexts() {
+        return Set.of(TemplateScript.CONTEXT);
     }
 
     private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {

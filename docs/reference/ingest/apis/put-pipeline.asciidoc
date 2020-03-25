@@ -1,0 +1,141 @@
+[[put-pipeline-api]]
+=== Put pipeline API
+++++
+<titleabbrev>Put pipeline</titleabbrev>
+++++
+
+Creates or updates an ingest pipeline.
+Changes made using this API take effect immediately.
+
+[source,console]
+----
+PUT _ingest/pipeline/my-pipeline-id
+{
+  "description" : "describe pipeline",
+  "processors" : [
+    {
+      "set" : {
+        "field": "foo",
+        "value": "bar"
+      }
+    }
+  ]
+}
+----
+
+
+[[put-pipeline-api-request]]
+==== {api-request-title}
+
+`PUT /_ingest/pipeline/<pipeline>`
+
+
+[[put-pipeline-api-path-params]]
+==== {api-path-parms-title}
+
+`<pipeline>`::
+(Required, string) ID of the ingest pipeline to create or update.
+
+
+[[put-pipeline-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+
+[[put-pipeline-api-response-body]]
+==== {api-response-body-title}
+
+`description`::
+(Required, string)
+Description of the ingest pipeline.
+
+`processors`::
++
+--
+(Required, array of <<ingest-processors,processor objects>>)
+Array of processors used to pre-process documents
+before indexing.
+
+Processors are executed in the order provided.
+
+See <<ingest-processors>> for processor object definitions
+and a list of built-in processors.
+--
+
+`version`::
++
+--
+(Optional, integer)
+Optional version number used by external systems to manage ingest pipelines.
+
+Versions are not used or validated by {es};
+they are intended for external management only.
+--
+
+
+[[put-pipeline-api-example]]
+==== {api-examples-title}
+
+
+[[versioning-pipelines]]
+===== Pipeline versioning
+
+When creating or updating an ingest pipeline,
+you can specify an optional `version` parameter.
+The version is useful for managing changes to pipeline
+and viewing the current pipeline for an ingest node.
+
+The following request sets a version number of `123`
+for `my-pipeline-id`.
+
+[source,console]
+--------------------------------------------------
+PUT /_ingest/pipeline/my-pipeline-id
+{
+  "description" : "describe pipeline",
+  "version" : 123,
+  "processors" : [
+    {
+      "set" : {
+        "field": "foo",
+        "value": "bar"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+To unset the version number,
+replace the pipeline without specifying a `version` parameter.
+
+[source,console]
+--------------------------------------------------
+PUT /_ingest/pipeline/my-pipeline-id
+{
+  "description" : "describe pipeline",
+  "processors" : [
+    {
+      "set" : {
+        "field": "foo",
+        "value": "bar"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+////
+[source,console]
+--------------------------------------------------
+DELETE /_ingest/pipeline/my-pipeline-id
+--------------------------------------------------
+// TEST[continued]
+
+[source,console-result]
+--------------------------------------------------
+{
+"acknowledged": true
+}
+--------------------------------------------------
+////

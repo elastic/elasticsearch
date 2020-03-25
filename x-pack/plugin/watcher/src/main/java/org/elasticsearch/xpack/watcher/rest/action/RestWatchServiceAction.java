@@ -3,50 +3,54 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
-import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
+
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestWatchServiceAction extends WatcherRestHandler {
+public class RestWatchServiceAction extends BaseRestHandler {
 
-    public RestWatchServiceAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(POST, URI_BASE + "/_start", this);
-        controller.registerHandler(POST, URI_BASE + "/_stop", new StopRestHandler(settings));
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_watcher/_start"));
     }
 
     @Override
     public String getName() {
-        return "xpack_watcher_start_service_action";
+        return "watcher_start_service";
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) {
-        return channel -> client.watcherService(new WatcherServiceRequest().start(), new RestToXContentListener<>(channel));
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        return channel ->
+            client.execute(WatcherServiceAction.INSTANCE, new WatcherServiceRequest().start(), new RestToXContentListener<>(channel));
     }
 
-    private static class StopRestHandler extends WatcherRestHandler {
+    public static class StopRestHandler extends BaseRestHandler {
 
-        StopRestHandler(Settings settings) {
-            super(settings);
+        @Override
+        public List<Route> routes() {
+            return List.of(new Route(POST, "/_watcher/_stop"));
         }
 
         @Override
         public String getName() {
-            return "xpack_watcher_stop_service_action";
+            return "watcher_stop_service";
         }
 
         @Override
-        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) {
-            return channel -> client.watcherService(new WatcherServiceRequest().stop(), new RestToXContentListener<>(channel));
+        public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+            return channel ->
+                client.execute(WatcherServiceAction.INSTANCE, new WatcherServiceRequest().stop(), new RestToXContentListener<>(channel));
         }
     }
 }

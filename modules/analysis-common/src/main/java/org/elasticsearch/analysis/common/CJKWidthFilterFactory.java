@@ -25,9 +25,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
+import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 
-public final class CJKWidthFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+public final class CJKWidthFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     CJKWidthFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -36,11 +36,6 @@ public final class CJKWidthFilterFactory extends AbstractTokenFilterFactory impl
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new CJKWidthFilter(tokenStream);
-    }
-
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
     }
 
 }

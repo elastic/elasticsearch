@@ -1,5 +1,8 @@
 [[percolator]]
 === Percolator type
+++++
+<titleabbrev>Percolator</titleabbrev>
+++++
 
 The `percolator` field type parses a json structure into a native query and
 stores that query, so that the <<query-dsl-percolate-query,percolate query>>
@@ -13,30 +16,27 @@ query.
 If the following mapping configures the `percolator` field type for the
 `query` field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "query": {
-                    "type": "percolator"
-                },
-                "field": {
-                    "type": "text"
-                }
+        "properties": {
+            "query": {
+                "type": "percolator"
+            },
+            "field": {
+                "type": "text"
             }
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 Then you can index a query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index/_doc/match_value
 {
@@ -47,7 +47,6 @@ PUT my_index/_doc/match_value
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [IMPORTANT]
 =====================================
@@ -55,7 +54,6 @@ PUT my_index/_doc/match_value
 Fields referred to in a percolator query must *already* exist in the mapping
 associated with the index used for percolation. In order to make sure these fields exist,
 add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,put mapping>> APIs.
-Fields referred in a percolator query may exist in any type of the index containing the `percolator` field type.
 
 =====================================
 
@@ -68,19 +66,17 @@ new releases.
 Reindexing percolator queries can be reindexed by using the <<docs-reindex,reindex api>>.
 Lets take a look at the following index with a percolator field type:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
   "mappings": {
-    "_doc" : {
-      "properties": {
-        "query" : {
-          "type" : "percolator"
-        },
-        "body" : {
-          "type": "text"
-        }
+    "properties": {
+      "query" : {
+        "type" : "percolator"
+      },
+      "body" : {
+        "type": "text"
       }
     }
   }
@@ -107,7 +103,6 @@ PUT queries/_doc/1?refresh
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> It is always recommended to define an alias for your index, so that in case of a reindex systems / applications
@@ -116,19 +111,17 @@ PUT queries/_doc/1?refresh
 Lets say you're going to upgrade to a new major version and in order for the new Elasticsearch version to still be able
 to read your queries you need to reindex your queries into a new index on the current Elasticsearch version:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT new_index
 {
   "mappings": {
-    "_doc" : {
-      "properties": {
-        "query" : {
-          "type" : "percolator"
-        },
-        "body" : {
-          "type": "text"
-        }
+    "properties": {
+      "query" : {
+        "type" : "percolator"
+      },
+      "body" : {
+        "type": "text"
       }
     }
   }
@@ -162,14 +155,13 @@ POST _aliases
   ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> If you have an alias don't forget to point it to the new index.
 
 Executing the `percolate` query via the `queries` alias:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /queries/_search
 {
@@ -183,12 +175,11 @@ GET /queries/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 now returns matches from the new index:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 3,
@@ -200,14 +191,16 @@ now returns matches from the new index:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.2876821,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.13076457,
     "hits": [
       {
         "_index": "new_index", <1>
-        "_type": "_doc",
         "_id": "1",
-        "_score": 0.2876821,
+        "_score": 0.13076457,
         "_source": {
           "query": {
             "match": {
@@ -265,7 +258,7 @@ Lets say we want to index the following percolator query:
 
 with these settings and mapping:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test_index
 {
@@ -280,28 +273,25 @@ PUT /test_index
     }
   },
   "mappings": {
-    "_doc" : {
-      "properties": {
-        "query" : {
-          "type": "percolator"
-        },
-        "body" : {
-          "type": "text",
-          "analyzer": "my_analyzer" <1>
-        }
+    "properties": {
+      "query" : {
+        "type": "percolator"
+      },
+      "body" : {
+        "type": "text",
+        "analyzer": "my_analyzer" <1>
       }
     }
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> For the purpose of this example, this analyzer is considered expensive.
 
 First we need to use the analyze api to perform the text analysis prior to indexing:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /test_index/_analyze
 {
@@ -309,12 +299,11 @@ POST /test_index/_analyze
   "text" : "missing bicycles"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 This results the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -335,11 +324,10 @@ This results the following response:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 All the tokens in the returned order need to replace the query text in the percolator query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test_index/_doc/1?refresh
 {
@@ -353,7 +341,6 @@ PUT /test_index/_doc/1?refresh
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> It is important to select a whitespace analyzer here, otherwise the analyzer defined in the mapping will be used,
@@ -364,7 +351,7 @@ The analyze api prior to the indexing the percolator flow should be done for eac
 
 At percolate time nothing changes and the `percolate` query can be defined normally:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test_index/_search
 {
@@ -378,12 +365,11 @@ GET /test_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 This results in a response like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 6,
@@ -395,14 +381,16 @@ This results in a response like this:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.2876821,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.13076457,
     "hits": [
       {
         "_index": "test_index",
-        "_type": "_doc",
         "_id": "1",
-        "_score": 0.2876821,
+        "_score": 0.13076457,
         "_source": {
           "query": {
             "match": {
@@ -435,7 +423,7 @@ query on a field where the `edge_ngram` token filter is configured.
 
 Creating an index with custom analysis settings:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_queries1
 {
@@ -446,7 +434,6 @@ PUT my_queries1
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "wildcard_edge_ngram"
           ]
@@ -462,19 +449,17 @@ PUT my_queries1
     }
   },
   "mappings": {
-    "query": {
-      "properties": {
-        "query": {
-          "type": "percolator"
-        },
-        "my_field": {
-          "type": "text",
-          "fields": {
-            "prefix": { <3>
-              "type": "text",
-              "analyzer": "wildcard_prefix",
-              "search_analyzer": "standard"
-            }
+    "properties": {
+      "query": {
+        "type": "percolator"
+      },
+      "my_field": {
+        "type": "text",
+        "fields": {
+          "prefix": { <3>
+            "type": "text",
+            "analyzer": "wildcard_prefix",
+            "search_analyzer": "standard"
           }
         }
       }
@@ -482,7 +467,6 @@ PUT my_queries1
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The analyzer that generates the prefix tokens to be used at index time only.
@@ -507,9 +491,9 @@ Then instead of indexing the following query:
 
 this query below should be indexed:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /my_queries1/query/1?refresh
+PUT /my_queries1/_doc/1?refresh
 {
   "query": {
     "term": {
@@ -518,7 +502,6 @@ PUT /my_queries1/query/1?refresh
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 This way can handle the second query more efficiently than the first query.
@@ -526,7 +509,7 @@ This way can handle the second query more efficiently than the first query.
 The following search request will match with the previously indexed
 percolator query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my_queries1/_search
 {
@@ -540,10 +523,9 @@ GET /my_queries1/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 6,
@@ -555,14 +537,16 @@ GET /my_queries1/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.41501677,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.18864399,
     "hits": [
       {
         "_index": "my_queries1",
-        "_type": "query",
         "_id": "1",
-        "_score": 0.41501677,
+        "_score": 0.18864399,
         "_source": {
           "query": {
             "term": {
@@ -586,7 +570,7 @@ The same technique can also be used to speed up suffix
 wildcard searches. By using the `reverse` token filter
 before the `edge_ngram` token filter.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_queries2
 {
@@ -597,7 +581,6 @@ PUT my_queries2
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "reverse",
             "wildcard_edge_ngram"
@@ -607,7 +590,6 @@ PUT my_queries2
           "type": "custom",
           "tokenizer": "standard",
           "filter": [
-            "standard",
             "lowercase",
             "reverse"
           ]
@@ -623,19 +605,17 @@ PUT my_queries2
     }
   },
   "mappings": {
-    "query": {
-      "properties": {
-        "query": {
-          "type": "percolator"
-        },
-        "my_field": {
-          "type": "text",
-          "fields": {
-            "suffix": {
-              "type": "text",
-              "analyzer": "wildcard_suffix",
-              "search_analyzer": "wildcard_suffix_search_time" <1>
-            }
+    "properties": {
+      "query": {
+        "type": "percolator"
+      },
+      "my_field": {
+        "type": "text",
+        "fields": {
+          "suffix": {
+            "type": "text",
+            "analyzer": "wildcard_suffix",
+            "search_analyzer": "wildcard_suffix_search_time" <1>
           }
         }
       }
@@ -643,7 +623,6 @@ PUT my_queries2
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> A custom analyzer is needed at search time too, because otherwise
@@ -666,9 +645,9 @@ Then instead of indexing the following query:
 
 the following query below should be indexed:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT /my_queries2/query/2?refresh
+PUT /my_queries2/_doc/2?refresh
 {
   "query": {
     "match": { <1>
@@ -677,7 +656,6 @@ PUT /my_queries2/query/2?refresh
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The `match` query should be used instead of the `term` query,
@@ -686,7 +664,7 @@ PUT /my_queries2/query/2?refresh
 The following search request will match with the previously indexed
 percolator query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my_queries2/_search
 {
@@ -700,7 +678,6 @@ GET /my_queries2/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -727,6 +704,7 @@ fail.
 ==== Limitations
 
 [float]
+[[parent-child]]
 ===== Parent/child
 
 Because the `percolate` query is processing one document at a time, it doesn't support queries and filters that run
@@ -750,3 +728,11 @@ The script inside a `script` query can only access doc values fields. The `perco
 into an in-memory index. This in-memory index doesn't support stored fields and because of that the `_source` field and
 other stored fields are not stored. This is the reason why in the `script` query the `_source` and other stored fields
 aren't available.
+
+[float]
+===== Field aliases
+
+Percolator queries that contain <<alias, field aliases>> may not always behave as expected. In particular, if a
+percolator query is registered that contains a field alias, and then that alias is updated in the mappings to refer
+to a different field, the stored query will still refer to the original target field. To pick up the change to
+the field alias, the percolator query must be explicitly reindexed.

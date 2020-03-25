@@ -19,12 +19,10 @@
 
 package org.elasticsearch.qa.die_with_dignity;
 
-import org.apache.http.ConnectionClosedException;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.hamcrest.Matcher;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -36,51 +34,26 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class DieWithDignityIT extends ESRestTestCase {
 
     public void testDieWithDignity() throws Exception {
-        // deleting the PID file prevents stopping the cluster from failing since it occurs if and only if the PID file exists
-        final Path pidFile = PathUtils.get(System.getProperty("pidfile"));
-        final List<String> pidFileLines = Files.readAllLines(pidFile);
-        assertThat(pidFileLines, hasSize(1));
-        final int pid = Integer.parseInt(pidFileLines.get(0));
-        Files.delete(pidFile);
-        IOException e = expectThrows(IOException.class,
-                () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
-        Matcher<IOException> failureMatcher = instanceOf(ConnectionClosedException.class);
-        if (Constants.WINDOWS) {
-            /*
-             * If the other side closes the connection while we're waiting to fill our buffer
-             * we can get IOException with the message below. It seems to only come up on
-             * Windows and it *feels* like it could be a ConnectionClosedException but
-             * upstream does not consider this a bug:
-             * https://issues.apache.org/jira/browse/HTTPASYNC-134
-             *
-             * So we catch it here and consider it "ok".
-            */
-            failureMatcher = either(failureMatcher)
-                    .or(hasToString(containsString("An existing connection was forcibly closed by the remote host")));
-        }
-        assertThat(e, failureMatcher);
+        expectThrows(
+            IOException.class,
+            () -> client().performRequest(new Request("GET", "/_die_with_dignity"))
+        );
 
         // the Elasticsearch process should die and disappear from the output of jps
         assertBusy(() -> {
             final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
-            final Process process = new ProcessBuilder().command(jpsPath).start();
-            assertThat(process.waitFor(), equalTo(0));
+            final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
+
             try (InputStream is = process.getInputStream();
                  BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
                 String line;
                 while ((line = in.readLine()) != null) {
-                    final int currentPid = Integer.parseInt(line.split("\\s+")[0]);
-                    assertThat(line, pid, not(equalTo(currentPid)));
+                    assertThat(line, line, not(containsString("-Ddie.with.dignity.test")));
                 }
             }
         });
@@ -90,29 +63,51 @@ public class DieWithDignityIT extends ESRestTestCase {
 
         final Iterator<String> it = lines.iterator();
 
-        boolean fatalErrorOnTheNetworkLayer = false;
+        boolean fatalError = false;
         boolean fatalErrorInThreadExiting = false;
-
-        while (it.hasNext() && (fatalErrorOnTheNetworkLayer == false || fatalErrorInThreadExiting == false)) {
-            final String line = it.next();
-            if (line.contains("fatal error on the network layer")) {
-                fatalErrorOnTheNetworkLayer = true;
-            } else if (line.matches(".*\\[ERROR\\]\\[o.e.b.ElasticsearchUncaughtExceptionHandler\\] \\[node-0\\]"
-                    + " fatal error in thread \\[Thread-\\d+\\], exiting$")) {
-                fatalErrorInThreadExiting = true;
-                assertTrue(it.hasNext());
-                assertThat(it.next(), equalTo("java.lang.OutOfMemoryError: die with dignity"));
+        try {
+            while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
+                final String line = it.next();
+                if (line.matches(".*ERROR.*o\\.e\\.ExceptionsHelper.*integTest-0.*fatal error.*")) {
+                    fatalError = true;
+                } else if (line.matches(".*ERROR.*o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler.*integTest-0.*"
+                    + "fatal error in thread \\[Thread-\\d+\\], exiting.*")) {
+                    fatalErrorInThreadExiting = true;
+                    assertTrue(it.hasNext());
+                    assertThat(it.next(), containsString("java.lang.OutOfMemoryError: die with dignity"));
+                }
             }
-        }
 
-        assertTrue(fatalErrorOnTheNetworkLayer);
-        assertTrue(fatalErrorInThreadExiting);
+            assertTrue(fatalError);
+            assertTrue(fatalErrorInThreadExiting);
+
+        } catch (AssertionError ae) {
+            Path path = PathUtils.get(System.getProperty("log"));
+            debugLogs(path);
+            throw ae;
+        }
+    }
+
+    private void debugLogs(Path path) throws IOException {
+        try (BufferedReader reader = Files.newBufferedReader(path)) {
+            reader.lines().forEach(line -> logger.info(line));
+        }
     }
 
     @Override
     protected boolean preserveClusterUponCompletion() {
         // as the cluster is dead its state can not be wiped successfully so we have to bypass wiping the cluster
         return true;
+    }
+
+    @Override
+    protected final Settings restClientSettings() {
+        return Settings.builder().put(super.restClientSettings())
+            // increase the timeout here to 90 seconds to handle long waits for a green
+            // cluster health. the waits for green need to be longer than a minute to
+            // account for delayed shards
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "1s")
+            .build();
     }
 
 }

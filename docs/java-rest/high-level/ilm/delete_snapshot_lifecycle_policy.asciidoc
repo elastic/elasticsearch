@@ -1,0 +1,36 @@
+--
+:api: slm-delete-snapshot-lifecycle-policy
+:request: DeleteSnapshotLifecyclePolicyRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Delete Snapshot Lifecycle Policy API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Delete Snapshot Lifecycle Policy API allows you to delete a Snapshot Lifecycle Management Policy
+from the cluster.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The policy with the id `policy_id` will be deleted.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the delete snapshot lifecycle policy request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the delete snapshot lifecycle policy request was acknowledged.
+
+include::../execution.asciidoc[]
+
+

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AbstractDataToProcessWriter.InputOutputMap;
+import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -108,7 +109,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
 
     public void testTokenizeForCategorization() throws IOException {
         CategorizationAnalyzerConfig defaultConfig = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(null);
-        try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, environment, defaultConfig)) {
+        try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, defaultConfig)) {
 
             assertEquals("sol13m-8608.1.p2ps,Info,Source,AES_SERVICE2,on,has,shut,down",
                     AbstractDataToProcessWriter.tokenizeForCategorization(categorizationAnalyzer, "p2ps",

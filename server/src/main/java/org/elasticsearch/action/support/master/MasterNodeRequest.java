@@ -68,13 +68,4 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     public final TimeValue masterNodeTimeout() {
         return this.masterNodeTimeout;
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        // TODO(talevy): throw exception once all MasterNodeRequest
-        //               subclasses have been migrated to Writeable Readers
-        super.readFrom(in);
-        masterNodeTimeout = in.readTimeValue();
-    }
-
 }

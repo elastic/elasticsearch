@@ -49,14 +49,14 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
         assertThat(section, notNullValue());
         assertThat(section.getSkipSection().isEmpty(), equalTo(true));
         assertThat(section.getDoSections().size(), equalTo(2));
-        assertThat(section.getDoSections().get(0).getApiCallSection().getApi(), equalTo("delete"));
-        assertThat(section.getDoSections().get(1).getApiCallSection().getApi(), equalTo("delete2"));
+        assertThat(((DoSection)section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));
+        assertThat(((DoSection)section.getDoSections().get(1)).getApiCallSection().getApi(), equalTo("delete2"));
     }
 
     public void testParseWithSkip() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
             "  - skip:\n" +
-                        "      version:  \"5.0.0 - 5.3.0\"\n" +
+                        "      version:  \"6.0.0 - 6.3.0\"\n" +
                 "      reason:   \"there is a reason\"\n" +
                 "  - do:\n" +
                 "      delete:\n" +
@@ -75,11 +75,11 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
         TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
         assertThat(section.getSkipSection().isEmpty(), equalTo(false));
-        assertThat(section.getSkipSection().getLowerVersion(), equalTo(Version.V_5_0_0));
-        assertThat(section.getSkipSection().getUpperVersion(), equalTo(Version.V_5_3_0));
+        assertThat(section.getSkipSection().getLowerVersion(), equalTo(Version.fromString("6.0.0")));
+        assertThat(section.getSkipSection().getUpperVersion(), equalTo(Version.fromString("6.3.0")));
         assertThat(section.getSkipSection().getReason(), equalTo("there is a reason"));
         assertThat(section.getDoSections().size(), equalTo(2));
-        assertThat(section.getDoSections().get(0).getApiCallSection().getApi(), equalTo("delete"));
-        assertThat(section.getDoSections().get(1).getApiCallSection().getApi(), equalTo("delete2"));
+        assertThat(((DoSection)section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));
+        assertThat(((DoSection)section.getDoSections().get(1)).getApiCallSection().getApi(), equalTo("delete2"));
     }
 }

@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription.DataFormat;
 
-public class PostDataActionRequestTests extends AbstractStreamableTestCase<PostDataAction.Request> {
+public class PostDataActionRequestTests extends AbstractWireSerializingTestCase<PostDataAction.Request> {
     @Override
     protected PostDataAction.Request createTestInstance() {
         PostDataAction.Request request = new PostDataAction.Request(randomAlphaOfLengthBetween(1, 20));
@@ -33,7 +34,7 @@ public class PostDataActionRequestTests extends AbstractStreamableTestCase<PostD
     }
 
     @Override
-    protected PostDataAction.Request createBlankInstance() {
-        return new PostDataAction.Request();
+    protected Writeable.Reader<PostDataAction.Request> instanceReader() {
+        return PostDataAction.Request::new;
     }
 }

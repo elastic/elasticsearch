@@ -15,14 +15,14 @@ The `char_group` tokenizer accepts one parameter:
 `tokenize_on_chars`::
     A list containing a list of characters to tokenize the string on. Whenever a character 
     from this list is encountered, a new token is started. This accepts either single
-    characters like eg. `-`, or character groups: `whitespace`, `letter`, `digit`,
+    characters like e.g. `-`, or character groups: `whitespace`, `letter`, `digit`,
     `punctuation`, `symbol`.
 
 
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -37,11 +37,10 @@ POST _analyze
   "text": "The QUICK brown-fox"
 }
 ---------------------------
-// CONSOLE
 
 returns
 
-[source,js]
+[source,console-result]
 ---------------------------
 {
   "tokens": [
@@ -76,5 +75,3 @@ returns
   ]
 }
 ---------------------------
-// TESTRESPONSE
-

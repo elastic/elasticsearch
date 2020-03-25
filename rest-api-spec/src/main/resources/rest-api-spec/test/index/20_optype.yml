@@ -1,10 +1,11 @@
 ---
 "Optype":
 
+
+
  - do:
       index:
           index:    test_1
-          type:     test
           id:       1
           op_type:  create
           body:   { foo: bar }
@@ -13,7 +14,6 @@
       catch:      conflict
       index:
           index:    test_1
-          type:     test
           id:       1
           op_type:  create
           body:   { foo: bar }
@@ -21,7 +21,6 @@
  - do:
       index:
           index:    test_1
-          type:     test
           id:       1
           op_type:  index
           body:   { foo: bar }

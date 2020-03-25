@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.common.lucene;
 
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 
 public interface ScorerAware {
 
-    void setScorer(Scorer scorer);
+    void setScorer(Scorable scorer);
 
 }

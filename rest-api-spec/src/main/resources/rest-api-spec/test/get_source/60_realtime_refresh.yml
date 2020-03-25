@@ -2,6 +2,7 @@
 "Realtime":
 
 
+
  - do:
       indices.create:
           index: test_1
@@ -17,7 +18,6 @@
  - do:
       index:
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
 
@@ -25,14 +25,12 @@
       catch:        missing
       get_source:
           index:    test_1
-          type:     test
           id:       1
           realtime: false
 
  - do:
       get_source:
           index:    test_1
-          type:     test
           id:       1
           realtime: true
 
@@ -41,10 +39,8 @@
  - do:
       get_source:
           index:    test_1
-          type:     test
           id:       1
           realtime: false
           refresh:  true
 
  - match:   { '': {foo: bar}}
-

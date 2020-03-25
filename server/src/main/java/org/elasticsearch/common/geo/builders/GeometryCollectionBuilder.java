@@ -27,6 +27,8 @@ import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
@@ -34,7 +36,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryCollectionBuilder> {
+public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
+    GeometryCollection<Geometry>, GeometryCollectionBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
@@ -168,12 +171,12 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
     }
 
     @Override
-    public Shape build() {
+    public Shape buildS4J() {
 
         List<Shape> shapes = new ArrayList<>(this.shapes.size());
 
         for (ShapeBuilder shape : this.shapes) {
-            shapes.add(shape.build());
+            shapes.add(shape.buildS4J());
         }
 
         if (shapes.size() == 1)
@@ -181,6 +184,20 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
         else
             return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
+    }
+
+    @Override
+    public GeometryCollection<Geometry> buildGeometry() {
+        if (this.shapes.isEmpty()) {
+            return GeometryCollection.EMPTY;
+        }
+        List<Geometry> shapes = new ArrayList<>(this.shapes.size());
+
+        for (ShapeBuilder shape : this.shapes) {
+            shapes.add(shape.buildGeometry());
+        }
+
+        return new GeometryCollection<>(shapes);
     }
 
     @Override

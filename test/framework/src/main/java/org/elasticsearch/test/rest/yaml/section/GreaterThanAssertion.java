@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -47,7 +47,7 @@ public class GreaterThanAssertion extends Assertion {
         return new GreaterThanAssertion(location, stringObjectTuple.v1(), stringObjectTuple.v2());
     }
 
-    private static final Logger logger = Loggers.getLogger(GreaterThanAssertion.class);
+    private static final Logger logger = LogManager.getLogger(GreaterThanAssertion.class);
 
     public GreaterThanAssertion(XContentLocation location, String field, Object expectedValue) {
         super(location, field, expectedValue);

@@ -4,13 +4,11 @@
   - do:
       index:
         index:  test
-        type:   testtype
         id:     1
         body:   { "text": "value1" }
   - do:
       index:
         index:  test
-        type:   testtype
         id:     2
         body:   { "text": "value2" }
   - do:
@@ -18,6 +16,7 @@
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         body: { "source" : { "query": { "term": { "text": { "value": "{{template}}" } } } }, "params": { "template": "value1" } }
 
   - match: { hits.total: 1 }
@@ -30,14 +29,29 @@
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         body: { "id" : "1", "params": { "template": "value1" } }
   - match: { hits.total: 1 }
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         body: { "source" : { "query": { "match_{{template}}": {} } }, "params" : { "template" : "all" } }
 
   - match: { hits.total: 2 }
+
+---
+"Test with invalid track_total_hits":
+
+  - do:
+      catch:              bad_request
+      search_template:
+        rest_total_hits_as_int: true
+        body: { "source" : { "query": { "match_{{template}}": {} }, "track_total_hits": "{{trackTotalHits}}" }, "params" : { "template" : "all", "trackTotalHits" : 1 } }
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "[rest_total_hits_as_int] cannot be used if the tracking of total hits is not accurate, got 1" }
 
 ---
 "Missing template search request":
@@ -45,6 +59,7 @@
   - do:
       catch: missing
       search_template:
+        rest_total_hits_as_int: true
         body: { "id" : "unknown", "params": { "template": "value1" } }
 
 ---
@@ -53,28 +68,24 @@
   - do:
       index:
         index:  test
-        type:   type
         id:     1
         body:   { "theField": "foo" }
 
   - do:
       index:
         index:  test
-        type:   type
         id:     2
         body:   { "theField": "foo 2" }
 
   - do:
       index:
         index:  test
-        type:   type
         id:     3
         body:   { "theField": "foo 3" }
 
   - do:
       index:
         index:  test
-        type:   type
         id:     4
         body:   { "theField": "foo 4" }
 
@@ -83,7 +94,6 @@
   - do:
       index:
         index:  otherindex
-        type:   type
         id:     5
         body:   { "otherField": "foo" }
   - do:
@@ -97,6 +107,7 @@
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         body: { "id" : "template_1", "params": { "size": "2", "field": "theField", "value": "foo" } }
 
   - match: { hits.total: 4 }
@@ -104,6 +115,7 @@
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         body: { "id" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" } }
 
   - match: { hits.total: 1 }
@@ -111,6 +123,7 @@
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         body: { "id" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" }, "explain" : true }
 
   - match: { hits.total: 1 }
@@ -119,8 +132,32 @@
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         body: { "id" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" }, "profile" : true }
 
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
   - length: { profile: 1 }
+
+---
+"Test with new response format":
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   {}
+        refresh: true
+
+  - do:
+      put_script:
+        id: "template_1"
+        body: { "script": { "lang": "mustache", "source": { "query": { "match_all": {} } } } }
+
+  - match: { acknowledged: true }
+
+  - do:
+      search_template:
+        body: { "id": "template_1", "params": {} }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }

@@ -20,8 +20,10 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
@@ -35,14 +37,16 @@ public final class ESToParentBlockJoinQuery extends Query {
 
     private final ToParentBlockJoinQuery query;
     private final String path;
+    private final ScoreMode scoreMode;
 
     public ESToParentBlockJoinQuery(Query childQuery, BitSetProducer parentsFilter, ScoreMode scoreMode, String path) {
-        this(new ToParentBlockJoinQuery(childQuery, parentsFilter, scoreMode), path);
+        this(new ToParentBlockJoinQuery(childQuery, parentsFilter, scoreMode), path, scoreMode);
     }
 
-    private ESToParentBlockJoinQuery(ToParentBlockJoinQuery query, String path) {
+    private ESToParentBlockJoinQuery(ToParentBlockJoinQuery query, String path, ScoreMode scoreMode) {
         this.query = query;
         this.path = path;
+        this.scoreMode = scoreMode;
     }
 
     /** Return the child query. */
@@ -53,6 +57,11 @@ public final class ESToParentBlockJoinQuery extends Query {
     /** Return the path of results of this query, or {@code null} if matches are at the root level. */
     public String getPath() {
         return path;
+    }
+
+    /** Return the score mode for the matching children. **/
+    public ScoreMode getScoreMode() {
+        return scoreMode;
     }
 
     @Override
@@ -66,7 +75,7 @@ public final class ESToParentBlockJoinQuery extends Query {
             // to a MatchNoDocsQuery. In that case it would be fine to lose information
             // about the nested path.
             if (innerRewrite instanceof ToParentBlockJoinQuery) {
-                return new ESToParentBlockJoinQuery((ToParentBlockJoinQuery) innerRewrite, path);
+                return new ESToParentBlockJoinQuery((ToParentBlockJoinQuery) innerRewrite, path, scoreMode);
             } else {
                 return innerRewrite;
             }
@@ -75,8 +84,14 @@ public final class ESToParentBlockJoinQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
-        return query.createWeight(searcher, needsScores, boost);
+    public void visit(QueryVisitor visitor) {
+        // Highlighters must visit the child query to extract terms
+        query.getChildQuery().visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
+    }
+
+    @Override
+    public Weight createWeight(IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost) throws IOException {
+        return query.createWeight(searcher, scoreMode, boost);
     }
 
     @Override

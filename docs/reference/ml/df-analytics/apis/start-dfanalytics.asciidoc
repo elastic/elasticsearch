@@ -1,0 +1,69 @@
+[role="xpack"]
+[testenv="platinum"]
+[[start-dfanalytics]]
+=== Start {dfanalytics-jobs} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Start {dfanalytics-jobs}</titleabbrev>
+++++
+
+Starts a {dfanalytics-job}.
+
+experimental[]
+
+[[ml-start-dfanalytics-request]]
+==== {api-request-title}
+
+`POST _ml/data_frame/analytics/<data_frame_analytics_id>/_start`
+
+[[ml-start-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles and privileges:
+
+* `machine_learning_admin`
+* `kibana_user` (UI only)
+
+
+* source index: `read`, `view_index_metadata`
+* destination index: `read`, `create_index`, `manage` and `index`
+* cluster: `monitor` (UI only)
+  
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
+
+[[ml-start-dfanalytics-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+
+[[ml-start-dfanalytics-query-params]]
+==== {api-query-parms-title}
+
+`timeout`::
+(Optional, <<time-units,time units>>) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=timeout-start]
+
+[[ml-start-dfanalytics-example]]
+==== {api-examples-title}
+
+The following example starts the `loganalytics` {dfanalytics-job}:
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/analytics/loganalytics/_start
+--------------------------------------------------
+// TEST[skip:setup:logdata_job]
+
+When the {dfanalytics-job} starts, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged" : true
+}
+----

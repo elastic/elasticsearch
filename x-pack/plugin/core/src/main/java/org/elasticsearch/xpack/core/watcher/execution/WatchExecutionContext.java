@@ -10,6 +10,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
@@ -18,9 +19,9 @@ import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 public abstract class WatchExecutionContext {
 
     private final Wid id;
-    private final DateTime executionTime;
+    private final ZonedDateTime executionTime;
     private final TriggerEvent triggerEvent;
     private final TimeValue defaultThrottlePeriod;
 
@@ -48,7 +49,7 @@ public abstract class WatchExecutionContext {
     private String nodeId;
     private String user;
 
-    public WatchExecutionContext(String watchId, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
+    public WatchExecutionContext(String watchId, ZonedDateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
         this.id = new Wid(watchId, executionTime);
         this.executionTime = executionTime;
         this.triggerEvent = triggerEvent;
@@ -97,7 +98,7 @@ public abstract class WatchExecutionContext {
         return id;
     }
 
-    public DateTime executionTime() {
+    public ZonedDateTime executionTime() {
         return executionTime;
     }
 
@@ -262,7 +263,7 @@ public abstract class WatchExecutionContext {
         if (watch != null && watch.status() != null && watch.status().getHeaders() != null) {
             String header = watch.status().getHeaders().get(AuthenticationField.AUTHENTICATION_KEY);
             if (header != null) {
-                Authentication auth = Authentication.decode(header);
+                Authentication auth = AuthenticationContextSerializer.decode(header);
                 return auth.getUser().principal();
             }
         }

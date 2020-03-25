@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.SearchContextId;
 
 import java.io.IOException;
 
@@ -42,12 +43,27 @@ public class DfsSearchResult extends SearchPhaseResult {
     private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
     private int maxDoc;
 
-    public DfsSearchResult() {
+    public DfsSearchResult(StreamInput in) throws IOException {
+        super(in);
+        contextId = new SearchContextId(in);
+        int termsSize = in.readVInt();
+        if (termsSize == 0) {
+            terms = EMPTY_TERMS;
+        } else {
+            terms = new Term[termsSize];
+            for (int i = 0; i < terms.length; i++) {
+                terms[i] = new Term(in.readString(), in.readBytesRef());
+            }
+        }
+        this.termStatistics = readTermStats(in, terms);
+        fieldStatistics = readFieldStats(in);
+
+        maxDoc = in.readVInt();
     }
 
-    public DfsSearchResult(long id, SearchShardTarget shardTarget) {
+    public DfsSearchResult(SearchContextId contextId, SearchShardTarget shardTarget) {
         this.setSearchShardTarget(shardTarget);
-        this.requestId = id;
+        this.contextId = contextId;
     }
 
     public DfsSearchResult maxDoc(int maxDoc) {
@@ -82,30 +98,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         return fieldStatistics;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        requestId = in.readLong();
-        int termsSize = in.readVInt();
-        if (termsSize == 0) {
-            terms = EMPTY_TERMS;
-        } else {
-            terms = new Term[termsSize];
-            for (int i = 0; i < terms.length; i++) {
-                terms[i] = new Term(in.readString(), in.readBytesRef());
-            }
-        }
-        this.termStatistics = readTermStats(in, terms);
-        readFieldStats(in, fieldStatistics);
-
-
-        maxDoc = in.readVInt();
-    }
-
   @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeLong(requestId);
+        contextId.writeTo(out);
         out.writeVInt(terms.length);
         for (Term term : terms) {
             out.writeString(term.field());
@@ -116,7 +111,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         out.writeVInt(maxDoc);
     }
 
-    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
+    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String,
+            CollectionStatistics> fieldStatistics) throws IOException {
         out.writeVInt(fieldStatistics.size());
 
         for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
@@ -124,9 +120,10 @@ public class DfsSearchResult extends SearchPhaseResult {
             CollectionStatistics statistics = c.value;
             assert statistics.maxDoc() >= 0;
             out.writeVLong(statistics.maxDoc());
-            out.writeVLong(addOne(statistics.docCount()));
-            out.writeVLong(addOne(statistics.sumTotalTermFreq()));
-            out.writeVLong(addOne(statistics.sumDocFreq()));
+            // stats are always positive numbers
+            out.writeVLong(statistics.docCount());
+            out.writeVLong(statistics.sumTotalTermFreq());
+            out.writeVLong(statistics.sumDocFreq());
         }
     }
 
@@ -138,34 +135,34 @@ public class DfsSearchResult extends SearchPhaseResult {
     }
 
     public  static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
-        assert termStatistic.docFreq() >= 0;
-        out.writeVLong(termStatistic.docFreq());
-        out.writeVLong(addOne(termStatistic.totalTermFreq()));
-    }
-
-    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
-        return readFieldStats(in, null);
-    }
-
-    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
-        final int numFieldStatistics = in.readVInt();
-        if (fieldStatistics == null) {
-            fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
+        if (termStatistic != null) {
+            assert termStatistic.docFreq() > 0;
+            out.writeVLong(termStatistic.docFreq());
+            out.writeVLong(addOne(termStatistic.totalTermFreq()));
+        } else {
+            out.writeVLong(0);
+            out.writeVLong(0);
         }
+    }
+
+    static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
+        final int numFieldStatistics = in.readVInt();
+        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();
             assert field != null;
             final long maxDoc = in.readVLong();
-            final long docCount = subOne(in.readVLong());
-            final long sumTotalTermFreq = subOne(in.readVLong());
-            final long sumDocFreq = subOne(in.readVLong());
+            // stats are always positive numbers
+            final long docCount = in.readVLong();
+            final long sumTotalTermFreq = in.readVLong();
+            final long sumDocFreq = in.readVLong();
             CollectionStatistics stats = new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
             fieldStatistics.put(field, stats);
         }
         return fieldStatistics;
     }
 
-    public static TermStatistics[] readTermStats(StreamInput in, Term[] terms) throws IOException {
+    static TermStatistics[] readTermStats(StreamInput in, Term[] terms) throws IOException {
         int termsStatsSize = in.readVInt();
         final TermStatistics[] termStatistics;
         if (termsStatsSize == 0) {
@@ -178,12 +175,14 @@ public class DfsSearchResult extends SearchPhaseResult {
                 final long docFreq = in.readVLong();
                 assert docFreq >= 0;
                 final long totalTermFreq = subOne(in.readVLong());
+                if (docFreq == 0) {
+                    continue;
+                }
                 termStatistics[i] = new TermStatistics(term, docFreq, totalTermFreq);
             }
         }
         return termStatistics;
     }
-
 
     /*
      * optional statistics are set to -1 in lucene by default.
@@ -195,7 +194,6 @@ public class DfsSearchResult extends SearchPhaseResult {
         return value + 1;
     }
 
-
     /*
      * See #addOne this just subtracting one and asserts that the actual value
      * is positive.
@@ -204,5 +202,4 @@ public class DfsSearchResult extends SearchPhaseResult {
         assert value >= 0;
         return value - 1;
     }
-
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -28,10 +29,10 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.ISODateTimeFormat;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -42,13 +43,14 @@ public final class DateProcessor extends AbstractProcessor {
 
     public static final String TYPE = "date";
     static final String DEFAULT_TARGET_FIELD = "@timestamp";
+    private static final DateFormatter FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
 
     private final TemplateScript.Factory timezone;
     private final TemplateScript.Factory locale;
     private final String field;
     private final String targetField;
     private final List<String> formats;
-    private final List<Function<Map<String, Object>, Function<String, DateTime>>> dateParsers;
+    private final List<Function<Map<String, Object>, Function<String, ZonedDateTime>>> dateParsers;
 
     DateProcessor(String tag, @Nullable TemplateScript.Factory timezone, @Nullable TemplateScript.Factory locale,
                   String field, List<String> formats, String targetField) {
@@ -65,8 +67,8 @@ public final class DateProcessor extends AbstractProcessor {
         }
     }
 
-    private DateTimeZone newDateTimeZone(Map<String, Object> params) {
-        return timezone == null ? DateTimeZone.UTC : DateTimeZone.forID(timezone.newInstance(params).execute());
+    private ZoneId newDateTimeZone(Map<String, Object> params) {
+        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone.newInstance(params).execute());
     }
 
     private Locale newLocale(Map<String, Object> params) {
@@ -74,7 +76,7 @@ public final class DateProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) {
+    public IngestDocument execute(IngestDocument ingestDocument) {
         Object obj = ingestDocument.getFieldValue(field, Object.class);
         String value = null;
         if (obj != null) {
@@ -82,9 +84,9 @@ public final class DateProcessor extends AbstractProcessor {
             value = obj.toString();
         }
 
-        DateTime dateTime = null;
+        ZonedDateTime dateTime = null;
         Exception lastException = null;
-        for (Function<Map<String, Object>, Function<String, DateTime>> dateParser : dateParsers) {
+        for (Function<Map<String, Object>, Function<String, ZonedDateTime>> dateParser : dateParsers) {
             try {
                 dateTime = dateParser.apply(ingestDocument.getSourceAndMetadata()).apply(value);
             } catch (Exception e) {
@@ -97,7 +99,8 @@ public final class DateProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("unable to parse date [" + value + "]", lastException);
         }
 
-        ingestDocument.setFieldValue(targetField, ISODateTimeFormat.dateTime().print(dateTime));
+        ingestDocument.setFieldValue(targetField, FORMATTER.format(dateTime));
+        return ingestDocument;
     }
 
     @Override

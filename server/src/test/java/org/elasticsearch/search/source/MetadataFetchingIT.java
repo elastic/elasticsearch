@@ -18,11 +18,19 @@
  */
 package org.elasticsearch.search.source;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.SearchContextException;
+import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESIntegTestCase;
+
+import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,7 +41,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
 
         SearchResponse response = client()
@@ -42,7 +50,6 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .setFetchSource(false)
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
         response = client()
@@ -50,15 +57,42 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .storedFields("_none_")
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+    }
+
+    public void testInnerHits() {
+        assertAcked(prepareCreate("test").setMapping("nested", "type=nested"));
+        ensureGreen();
+        client().prepareIndex("test").setId("1")
+            .setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
+        refresh();
+
+        SearchResponse response = client()
+            .prepareSearch("test")
+            .storedFields("_none_")
+            .setFetchSource(false)
+            .setQuery(
+                new NestedQueryBuilder("nested", new TermQueryBuilder("nested.title", "foo"), ScoreMode.Total)
+                    .innerHit(new InnerHitBuilder()
+                        .setStoredFieldNames(Collections.singletonList("_none_"))
+                        .setFetchSourceContext(new FetchSourceContext(false)))
+            )
+            .get();
+        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getAt(0).getId(), nullValue());
+        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
+        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+        SearchHits hits = response.getHits().getAt(0).getInnerHits().get("nested");
+        assertThat(hits.getTotalHits().value, equalTo(1L));
+        assertThat(hits.getAt(0).getId(), nullValue());
+        assertThat(hits.getAt(0).getSourceAsString(), nullValue());
     }
 
     public void testWithRouting() {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1").setSource("field", "value").setRouting("toto").execute().actionGet();
+        client().prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto").get();
         refresh();
 
         SearchResponse response = client()
@@ -67,7 +101,6 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .setFetchSource(false)
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(), nullValue());
         assertThat(response.getHits().getAt(0).field("_routing"), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
@@ -76,7 +109,6 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .storedFields("_none_")
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
     }
 
@@ -84,24 +116,24 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen();
 
-        index("test", "type1", "1", "field", "value");
+        indexDoc("test", "1", "field", "value");
         refresh();
 
         {
             SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
                 () -> client().prepareSearch("test").setFetchSource(true).storedFields("_none_").get());
-            Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchContextException.class);
+            Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchException.class);
             assertNotNull(rootCause);
-            assertThat(rootCause.getClass(), equalTo(SearchContextException.class));
+            assertThat(rootCause.getClass(), equalTo(SearchException.class));
             assertThat(rootCause.getMessage(),
                 equalTo("`stored_fields` cannot be disabled if _source is requested"));
         }
         {
             SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
                 () -> client().prepareSearch("test").storedFields("_none_").setVersion(true).get());
-            Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchContextException.class);
+            Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchException.class);
             assertNotNull(rootCause);
-            assertThat(rootCause.getClass(), equalTo(SearchContextException.class));
+            assertThat(rootCause.getClass(), equalTo(SearchException.class));
             assertThat(rootCause.getMessage(),
                 equalTo("`stored_fields` cannot be disabled if version is requested"));
         }

@@ -19,25 +19,23 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BooleanNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a boolean expression.
  */
-public final class EBool extends AExpression {
+public class EBool extends AExpression {
 
-    private final Operation operation;
-    private AExpression left;
-    private AExpression right;
+    protected final Operation operation;
+    protected final AExpression left;
+    protected final AExpression right;
 
     public EBool(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
@@ -48,69 +46,33 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        left.extractVariables(variables);
-        right.extractVariables(variables);
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-    @Override
-    void analyze(Locals locals) {
-        left.expected = boolean.class;
-        left.analyze(locals);
-        left = left.cast(locals);
+        Input leftInput = new Input();
+        leftInput.expected = boolean.class;
+        Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
+        left.cast(leftInput, leftOutput);
 
-        right.expected = boolean.class;
-        right.analyze(locals);
-        right = right.cast(locals);
+        Input rightInput = new Input();
+        rightInput.expected = boolean.class;
+        Output rightOutput = right.analyze(classNode, scriptRoot, scope, rightInput);
+        right.cast(rightInput, rightOutput);
 
-        if (left.constant != null && right.constant != null) {
-            if (operation == Operation.AND) {
-                constant = (boolean)left.constant && (boolean)right.constant;
-            } else if (operation == Operation.OR) {
-                constant = (boolean)left.constant || (boolean)right.constant;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        output.actual = boolean.class;
 
-        actual = boolean.class;
-    }
+        BooleanNode booleanNode = new BooleanNode();
 
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        if (operation == Operation.AND) {
-            Label fals = new Label();
-            Label end = new Label();
+        booleanNode.setLeftNode(left.cast(leftOutput));
+        booleanNode.setRightNode(right.cast(rightOutput));
 
-            left.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, fals);
-            right.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, fals);
+        booleanNode.setLocation(location);
+        booleanNode.setExpressionType(output.actual);
+        booleanNode.setOperation(operation);
 
-            writer.push(true);
-            writer.goTo(end);
-            writer.mark(fals);
-            writer.push(false);
-            writer.mark(end);
-        } else if (operation == Operation.OR) {
-            Label tru = new Label();
-            Label fals = new Label();
-            Label end = new Label();
+        output.expressionNode = booleanNode;
 
-            left.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFNE, tru);
-            right.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, fals);
-
-            writer.mark(tru);
-            writer.push(true);
-            writer.goTo(end);
-            writer.mark(fals);
-            writer.push(false);
-            writer.mark(end);
-        } else {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
+        return output;
     }
 
     @Override

@@ -41,7 +41,21 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
 
     private int totalTranslogOps;
 
-    public RecoveryFileChunkRequest() {
+    public RecoveryFileChunkRequest(StreamInput in) throws IOException {
+        super(in);
+        recoveryId = in.readLong();
+        shardId = new ShardId(in);
+        String name = in.readString();
+        position = in.readVLong();
+        long length = in.readVLong();
+        String checksum = in.readString();
+        content = in.readBytesReference();
+        Version writtenBy = Lucene.parseVersionLenient(in.readString(), null);
+        assert writtenBy != null;
+        metaData = new StoreFileMetaData(name, length, checksum, writtenBy);
+        lastChunk = in.readBoolean();
+        totalTranslogOps = in.readVInt();
+        sourceThrottleTimeInNanos = in.readLong();
     }
 
     public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content,
@@ -72,10 +86,6 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
         return position;
     }
 
-    public String checksum() {
-        return metaData.checksum();
-    }
-
     public long length() {
         return metaData.length();
     }
@@ -90,24 +100,6 @@ public final class RecoveryFileChunkRequest extends TransportRequest {
 
     public long sourceThrottleTimeInNanos() {
         return sourceThrottleTimeInNanos;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
-        String name = in.readString();
-        position = in.readVLong();
-        long length = in.readVLong();
-        String checksum = in.readString();
-        content = in.readBytesReference();
-        Version writtenBy = Lucene.parseVersionLenient(in.readString(), null);
-        assert writtenBy != null;
-        metaData = new StoreFileMetaData(name, length, checksum, writtenBy);
-        lastChunk = in.readBoolean();
-        totalTranslogOps = in.readVInt();
-        sourceThrottleTimeInNanos = in.readLong();
     }
 
     @Override

@@ -1,0 +1,89 @@
+--
+:api: execute-watch
+:request: ExecuteWatchRequest
+:response: ExecuteWatchResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Execute watch API
+
+The execute watch API allows clients to immediately execute a watch, either
+one that has been previously added via the
+{ref}/watcher-api-put-watch.html[Put Watch API] or inline as part of the request.
+
+[id="{upid}-{api}-request-by-id"]
+==== Execute by id
+
+Submit the following request to execute a previously added watch:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[x-pack-execute-watch-by-id]
+---------------------------------------------------
+<1> Alternative input for the watch to use in json format
+<2> Set the mode for action "action1" to SIMULATE
+<3> Record this execution in watcher history
+<4> Execute the watch regardless of the watch's condition
+<5> Set the trigger data for the watch in json format
+<6> Enable debug mode
+
+[id="{upid}-{api}-response-by-id"]
+==== Execute by id response
+
+The returned `Response` contains details of the execution:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[x-pack-execute-watch-by-id-response]
+---------------------------------------------------
+<1> The record ID for this execution
+<2> The execution response as a java `Map`
+<3> Extract information from the response map using `ObjectPath`
+
+[id="{upid}-{api}-response-by-id-async"]
+==== Asynchronous execution by id
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[x-pack-execute-watch-by-id-execute-async]
+--------------------------------------------------
+<1> The `ExecuteWatchRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `ExecuteWatchResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[x-pack-execute-watch-by-id-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+
+[id="{upid}-{api}-request-inline"]
+==== Execute inline
+
+Submit the following request to execute a watch defined as part of the request:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[x-pack-execute-watch-inline]
+---------------------------------------------------
+<1> Alternative input for the watch to use in json format
+<2> Set the mode for action "action1" to SIMULATE
+<3> Execute the watch regardless of the watch's condition
+<4> Set the trigger data for the watch in json format
+<5> Enable debug mode
+
+Note that inline watches cannot be recorded.
+
+The response format and asynchronous execution methods are the same as for the
+Execute Watch by ID API.

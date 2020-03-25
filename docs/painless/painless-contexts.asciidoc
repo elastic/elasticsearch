@@ -14,6 +14,8 @@ specialized code may define new ways to use a Painless script.
 |====
 | Name                              | Painless Documentation
                                     | Elasticsearch Documentation
+| Ingest processor                  | <<painless-ingest-processor-context, Painless Documentation>>
+                                    | {ref}/script-processor.html[Elasticsearch Documentation]
 | Update                            | <<painless-update-context, Painless Documentation>>
                                     | {ref}/docs-update.html[Elasticsearch Documentation]
 | Update by query                   | <<painless-update-by-query-context, Painless Documentation>>
@@ -21,7 +23,7 @@ specialized code may define new ways to use a Painless script.
 | Reindex                           | <<painless-reindex-context, Painless Documentation>>
                                     | {ref}/docs-reindex.html[Elasticsearch Documentation]
 | Sort                              | <<painless-sort-context, Painless Documentation>>
-                                    | {ref}/search-request-sort.html[Elasticsearch Documentation]
+                                    | {ref}/search-request-body.html#request-body-search-sort[Elasticsearch Documentation]
 | Similarity                        | <<painless-similarity-context, Painless Documentation>>
                                     | {ref}/index-modules-similarity.html[Elasticsearch Documentation]
 | Weight                            | <<painless-weight-context, Painless Documentation>>
@@ -29,7 +31,7 @@ specialized code may define new ways to use a Painless script.
 | Score                             | <<painless-score-context, Painless Documentation>>
                                     | {ref}/query-dsl-function-score-query.html[Elasticsearch Documentation]
 | Field                             | <<painless-field-context, Painless Documentation>>
-                                    | {ref}/search-request-script-fields.html[Elasticsearch Documentation]
+                                    | {ref}/search-request-body.html#request-body-search-script-fields[Elasticsearch Documentation]
 | Filter                            | <<painless-filter-context, Painless Documentation>>
                                     | {ref}/query-dsl-script-query.html[Elasticsearch Documentation]
 | Minimum should match              | <<painless-min-should-match-context, Painless Documentation>>
@@ -42,14 +44,14 @@ specialized code may define new ways to use a Painless script.
                                     | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
 | Metric aggregation reduce         | <<painless-metric-agg-reduce-context, Painless Documentation>>
                                     | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
-| Bucket aggregation                | <<painless-bucket-agg-context, Painless Documentation>>
+| Bucket script aggregation         | <<painless-bucket-script-agg-context, Painless Documentation>>
                                     | {ref}/search-aggregations-pipeline-bucket-script-aggregation.html[Elasticsearch Documentation]
-| Ingest processor                  | <<painless-ingest-processor-context, Painless Documentation>>
-                                    | {ref}/script-processor.html[Elasticsearch Documentation]
+| Bucket selector aggregation       | <<painless-bucket-selector-agg-context, Painless Documentation>>
+                                    | {ref}/search-aggregations-pipeline-bucket-selector-aggregation.html[Elasticsearch Documentation]
 | Watcher condition                 | <<painless-watcher-condition-context, Painless Documentation>>
-                                    | {xpack-ref}/condition-script.html[Elasticsearch Documentation]
+                                    | {ref}/condition-script.html[Elasticsearch Documentation]
 | Watcher transform                 | <<painless-watcher-transform-context, Painless Documentation>>
-                                    | {xpack-ref}/transform-script.html[Elasticsearch Documentation]
+                                    | {ref}/transform-script.html[Elasticsearch Documentation]
 |====
 
 include::painless-contexts/index.asciidoc[]

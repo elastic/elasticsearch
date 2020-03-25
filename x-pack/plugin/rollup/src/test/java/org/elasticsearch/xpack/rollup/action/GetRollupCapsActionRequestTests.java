@@ -10,7 +10,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -27,7 +28,7 @@ import java.util.Optional;
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<GetRollupCapsAction.Request> {
+public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTestCase<GetRollupCapsAction.Request> {
 
     @Override
     protected GetRollupCapsAction.Request createTestInstance() {
@@ -38,8 +39,8 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
     }
 
     @Override
-    protected GetRollupCapsAction.Request createBlankInstance() {
-        return new GetRollupCapsAction.Request();
+    protected Writeable.Reader<GetRollupCapsAction.Request> instanceReader() {
+        return GetRollupCapsAction.Request::new;
     }
 
     public void testNoIndexMetaData() {
@@ -51,9 +52,8 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
     public void testMissingRollup() {
         String indexPattern = randomBoolean() ? randomAlphaOfLength(10) : randomAlphaOfLength(10) + "-*";
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = ImmutableOpenMap.of();
         IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-        Mockito.when(meta.getMappings()).thenReturn(mappings);
+        Mockito.when(meta.mapping()).thenReturn(null);
         Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(indexPattern, meta);
         assertFalse(caps.isPresent());
     }
@@ -63,10 +63,8 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
 
         MappingMetaData mappingMeta = new MappingMetaData(RollupField.NAME, Collections.emptyMap());
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-        mappings.put(RollupField.NAME, mappingMeta);
         IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-        Mockito.when(meta.getMappings()).thenReturn(mappings.build());
+        Mockito.when(meta.mapping()).thenReturn(mappingMeta);
         Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(indexPattern, meta);
         assertFalse(caps.isPresent());
     }
@@ -75,13 +73,11 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
         String indexPattern = randomBoolean() ? randomAlphaOfLength(10) : randomAlphaOfLength(10) + "-*";
 
         MappingMetaData mappingMeta = new MappingMetaData(RollupField.NAME, Collections.singletonMap(RollupField.NAME,
-                Collections.singletonMap("_meta",
-                        Collections.emptyMap())));
+            Collections.singletonMap("_meta",
+                Collections.emptyMap())));
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-        mappings.put(RollupField.NAME, mappingMeta);
         IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-        Mockito.when(meta.getMappings()).thenReturn(mappings.build());
+        Mockito.when(meta.mapping()).thenReturn(mappingMeta);
         Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(indexPattern, meta);
         assertFalse(caps.isPresent());
     }
@@ -89,18 +85,16 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
     public void testOneJob() throws IOException {
         String indexPattern = randomBoolean() ? randomAlphaOfLength(10) : randomAlphaOfLength(10) + "-*";
         String jobName = randomAlphaOfLength(5);
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob(jobName).build();
+        RollupJobConfig job = ConfigTestHelpers.randomRollupJobConfig(random(), jobName);
 
         MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
-                Collections.singletonMap(RollupField.TYPE_NAME,
-                        Collections.singletonMap("_meta",
-                            Collections.singletonMap(RollupField.ROLLUP_META,
-                                Collections.singletonMap(jobName, job)))));
+            Collections.singletonMap(RollupField.TYPE_NAME,
+                Collections.singletonMap("_meta",
+                    Collections.singletonMap(RollupField.ROLLUP_META,
+                        Collections.singletonMap(jobName, job)))));
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-        mappings.put(RollupField.TYPE_NAME, mappingMeta);
         IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-        Mockito.when(meta.getMappings()).thenReturn(mappings.build());
+        Mockito.when(meta.mapping()).thenReturn(mappingMeta);
         Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(indexPattern, meta);
         assertTrue(caps.isPresent());
         assertThat(caps.get().getJobCaps().size(), equalTo(1));
@@ -113,18 +107,16 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
         Map<String, Object> jobs = new HashMap<>(num);
         for (int i = 0; i < num; i++) {
             String jobName = randomAlphaOfLength(5);
-            jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName).build());
+            jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName));
         }
 
         MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
-                Collections.singletonMap(RollupField.TYPE_NAME,
-                        Collections.singletonMap("_meta",
-                                Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
+            Collections.singletonMap(RollupField.TYPE_NAME,
+                Collections.singletonMap("_meta",
+                    Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-        mappings.put(RollupField.TYPE_NAME, mappingMeta);
         IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-        Mockito.when(meta.getMappings()).thenReturn(mappings.build());
+        Mockito.when(meta.mapping()).thenReturn(mappingMeta);
         Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(indexPattern, meta);
         assertTrue(caps.isPresent());
         assertThat(caps.get().getJobCaps().size(), equalTo(num));
@@ -147,18 +139,16 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
                 String jobName = randomAlphaOfLength(10);
                 String indexName = Integer.toString(indexCounter);
                 indexCounter += 1;
-                jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName).setIndexPattern(indexName).build());
+                jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName, indexName));
             }
 
             MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
-                    Collections.singletonMap(RollupField.TYPE_NAME,
-                            Collections.singletonMap("_meta",
-                                    Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
+                Collections.singletonMap(RollupField.TYPE_NAME,
+                    Collections.singletonMap("_meta",
+                        Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-            mappings.put(RollupField.TYPE_NAME, mappingMeta);
             IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-            Mockito.when(meta.getMappings()).thenReturn(mappings.build());
+            Mockito.when(meta.mapping()).thenReturn(mappingMeta);
             indices.put(randomAlphaOfLength(10), meta);
         }
 
@@ -179,24 +169,108 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
             Map<String, Object> jobs = new HashMap<>(num);
             for (int i = 0; i < num; i++) {
                 String jobName = randomAlphaOfLength(5);
-                jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName).setIndexPattern(indexName).build());
+                jobs.put(jobName, ConfigTestHelpers.randomRollupJobConfig(random(), jobName, indexName));
             }
 
             MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
-                    Collections.singletonMap(RollupField.TYPE_NAME,
-                            Collections.singletonMap("_meta",
-                                    Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
+                Collections.singletonMap(RollupField.TYPE_NAME,
+                    Collections.singletonMap("_meta",
+                        Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-            mappings.put(RollupField.TYPE_NAME, mappingMeta);
             IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-            Mockito.when(meta.getMappings()).thenReturn(mappings.build());
+            Mockito.when(meta.mapping()).thenReturn(mappingMeta);
 
             indices.put(indexName, meta);
         }
 
         Map<String, RollableIndexCaps> caps = TransportGetRollupCapsAction.getCaps(selectedIndexName, indices.build());
         assertThat(caps.size(), equalTo(1));
+    }
+
+    public void testNonRollupMeta() throws IOException {
+        String indexPattern = randomBoolean() ? randomAlphaOfLength(10) : randomAlphaOfLength(10) + "-*";
+
+        MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
+            Collections.singletonMap(RollupField.TYPE_NAME,
+                Collections.singletonMap("_meta",
+                    Collections.singletonMap("foo",
+                        Collections.singletonMap("bar", "baz")))));
+
+        IndexMetaData meta = Mockito.mock(IndexMetaData.class);
+        Mockito.when(meta.mapping()).thenReturn(mappingMeta);
+        Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(indexPattern, meta);
+        assertFalse(caps.isPresent());
+    }
+
+    public void testNonRollupPlusRollupMeta() throws IOException {
+        String indexPattern = randomBoolean() ? randomAlphaOfLength(10) : randomAlphaOfLength(10) + "-*";
+        String jobName = randomAlphaOfLength(5);
+        RollupJobConfig job = ConfigTestHelpers.randomRollupJobConfig(random(), jobName);
+
+        Map<String, Object> metaMap = new HashMap<>(2);
+        metaMap.put("foo", Collections.singletonMap("bar", "baz"));
+        metaMap.put(RollupField.ROLLUP_META, Collections.singletonMap(jobName, job));
+
+        MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
+            Collections.singletonMap(RollupField.TYPE_NAME,
+                Collections.singletonMap("_meta", metaMap)));
+
+        IndexMetaData meta = Mockito.mock(IndexMetaData.class);
+        Mockito.when(meta.mapping()).thenReturn(mappingMeta);
+        Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(indexPattern, meta);
+        assertTrue(caps.isPresent());
+        assertThat(caps.get().getJobCaps().size(), equalTo(1));
+        assertThat(caps.get().getJobCaps().get(0).getJobID(), equalTo(jobName));
+    }
+
+    public void testRandomNonRollupPlusRollupMeta() throws IOException {
+        String indexPattern = randomBoolean() ? randomAlphaOfLength(10) : randomAlphaOfLength(10) + "-*";
+
+        Map<String, Object> metaMap = new HashMap<>();
+        int numUnrelated = randomIntBetween(0, 10);
+        for (int i = 0; i < numUnrelated; i++) {
+            int numFields = randomIntBetween(0, 5);
+            Map<String, Object> fields = new HashMap<>(numFields);
+            for (int j = 0; j < numFields; j++) {
+                int numFields2 = randomIntBetween(0, 2);
+                Map<String, String> fields2 = new HashMap<>(numFields2);
+                for (int k = 0; k < numFields; k++) {
+                    fields2.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+                }
+                fields.put(randomAlphaOfLength(5), fields2);
+            }
+            metaMap.put(randomAlphaOfLength(5), fields);
+        }
+
+        int numJobs = randomIntBetween(1,5);
+        Map<String, Object> jobs = new HashMap<>(numJobs);
+        for (int i = 0; i < numJobs; i++) {
+            String name = randomAlphaOfLength(5);
+            jobs.put(name, ConfigTestHelpers.randomRollupJobConfig(random(), name));
+        }
+        metaMap.put(RollupField.ROLLUP_META, jobs);
+
+        MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
+            Collections.singletonMap(RollupField.TYPE_NAME,
+                Collections.singletonMap("_meta", metaMap)));
+
+        IndexMetaData meta = Mockito.mock(IndexMetaData.class);
+        Mockito.when(meta.mapping()).thenReturn(mappingMeta);
+        Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(indexPattern, meta);
+        assertTrue(caps.isPresent());
+        assertThat(caps.get().getJobCaps().size(), equalTo(numJobs));
+    }
+
+    public void testEmptyType() throws IOException {
+        String indexPattern = randomBoolean() ? randomAlphaOfLength(10) : randomAlphaOfLength(10) + "-*";
+
+        MappingMetaData mappingMeta = new MappingMetaData(RollupField.TYPE_NAME,
+            Collections.singletonMap(RollupField.TYPE_NAME, Collections.emptyMap()));
+
+        IndexMetaData meta = Mockito.mock(IndexMetaData.class);
+        Mockito.when(meta.mapping()).thenReturn(mappingMeta);
+        Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(indexPattern, meta);
+        assertFalse(caps.isPresent());
     }
 }
 

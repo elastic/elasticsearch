@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Logarithm">Logarithm</a>
  * base 10 function.
  */
 public class Log10 extends MathFunction {
-    public Log10(Location location, Expression field) {
-        super(location, field);
+    public Log10(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -26,7 +26,7 @@ public class Log10 extends MathFunction {
 
     @Override
     protected Log10 replaceChild(Expression newChild) {
-        return new Log10(location(), newChild);
+        return new Log10(source(), newChild);
     }
 
     @Override

@@ -1,0 +1,83 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-put-lifecycle]]
+=== Create lifecycle policy API
+++++
+<titleabbrev>Create policy</titleabbrev>
+++++
+
+Creates or updates lifecycle policy. See <<ilm-policy-definition>> for
+definitions of policy components.
+
+[[ilm-put-lifecycle-request]]
+==== {api-request-title}
+
+`PUT _ilm/policy/<policy_id>`
+
+[[ilm-put-lifecycle-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage_ilm`
+cluster privilege to use this API. You must also have the `manage` index
+privilege on all indices being managed by `policy`. All operations executed by
+{ilm} for a policy are executed as the user that put the latest version of a
+policy. For more information, see <<security-privileges>>.
+
+[[ilm-put-lifecycle-desc]]
+==== {api-description-title}
+
+Creates a lifecycle policy. If the specified policy exists, the policy is
+replaced and the policy version is incremented.
+
+NOTE: Only the latest version of the policy is stored, you cannot revert to
+previous versions.
+
+[[ilm-put-lifecycle-path-params]]
+==== {api-path-parms-title}
+
+`<policy_id>`::
+  (Required, string) Identifier for the policy.
+
+[[ilm-put-lifecycle-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[[ilm-put-lifecycle-example]]
+==== {api-examples-title}
+
+The following example creates a new policy named `my_policy`:
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "min_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+If the request succeeds, you receive the following result:
+
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----

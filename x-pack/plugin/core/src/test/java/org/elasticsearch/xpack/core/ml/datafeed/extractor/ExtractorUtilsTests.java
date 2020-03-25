@@ -10,15 +10,17 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTimeZone;
 
-import java.util.TimeZone;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ExtractorUtilsTests extends ESTestCase {
 
@@ -73,11 +75,32 @@ public class ExtractorUtilsTests extends ESTestCase {
     public void testGetHistogramIntervalMillis_GivenDateHistogramWithInvalidTimeZone() {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
-                .interval(300000L).timeZone(DateTimeZone.forTimeZone(TimeZone.getTimeZone("EST"))).subAggregation(maxTime);
+                .interval(300000L).timeZone(ZoneId.of("CET")).subAggregation(maxTime);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> ExtractorUtils.getHistogramIntervalMillis(dateHistogram));
 
         assertThat(e.getMessage(), equalTo("ML requires date_histogram.time_zone to be UTC"));
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] " +
+            "or [calendar_interval] in the future.");
+    }
+
+    public void testGetHistogramIntervalMillis_GivenUtcTimeZonesDeprecated() {
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        ZoneId zone = randomFrom(ZoneOffset.UTC, ZoneId.of("UTC"));
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
+            .interval(300000L).timeZone(zone).subAggregation(maxTime);
+        assertThat(ExtractorUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
+
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] " +
+            "or [calendar_interval] in the future.");
+    }
+
+    public void testGetHistogramIntervalMillis_GivenUtcTimeZones() {
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        ZoneId zone = randomFrom(ZoneOffset.UTC, ZoneId.of("UTC"));
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
+            .fixedInterval(new DateHistogramInterval("300000ms")).timeZone(zone).subAggregation(maxTime);
+        assertThat(ExtractorUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
     }
 
     public void testIsHistogram() {

@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: job-stats-test
         body:  >
           {
@@ -25,13 +27,13 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: job-stats-test
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-get-stats-datafeed-job
         body:  >
           {
@@ -53,120 +55,146 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: jobs-get-stats-datafeed-job
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: datafeed-1
         body:  >
           {
             "job_id":"jobs-get-stats-datafeed-job",
-            "indexes":["farequote"],
-            "types":["response"]
+            "indexes":["farequote"]
           }
 
 ---
 "Test get job stats after uploading data prompting the creation of some stats":
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: job-stats-test
         body: >
           {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","time":"1403481600"}
+          {"airline":"JZA","responsetime":"244.1276","time":"1403485200"}
 
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: job-stats-test
   - match: { flushed: true }
 
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: job-stats-test
-  - match: { jobs.0.job_id : job-stats-test }
-  - match: { jobs.0.data_counts.processed_record_count: 2 }
-  - match: { jobs.0.data_counts.processed_field_count: 4 }
-  - match: { jobs.0.data_counts.input_field_count: 4 }
-  - match: { jobs.0.model_size_stats.model_bytes: 0 }
-  - match: { jobs.0.state: opened }
-  - is_true: jobs.0.node.name
-  - is_true: jobs.0.node.transport_address
-  - match: { jobs.0.node.attributes.ml\.enabled: "true"}
-  - is_true: jobs.0.open_time
+  - match:  { jobs.0.job_id : job-stats-test }
+  - match:  { jobs.0.data_counts.processed_record_count: 3 }
+  - match:  { jobs.0.data_counts.processed_field_count: 6 }
+  - match:  { jobs.0.data_counts.input_field_count: 6 }
+  - gte:    { jobs.0.model_size_stats.model_bytes: 0 }
+  - match:  { jobs.0.state: opened }
+  - is_true:  jobs.0.node.name
+  - is_true:  jobs.0.node.transport_address
+  - match:  { jobs.0.node.attributes.ml\.max_open_jobs: "20"}
+  - is_true:  jobs.0.open_time
+  - match:  { jobs.0.timing_stats.job_id: job-stats-test }
+  - match:  { jobs.0.timing_stats.bucket_count: 1 }  # Records are 1h apart and bucket span is 1h so 1 bucket is produced
+  - gte:    { jobs.0.timing_stats.total_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
 
 ---
 "Test get job stats for closed job":
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: job-stats-test
         body: >
           {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","time":"1403481600"}
+          {"airline":"JZA","responsetime":"244.1276","time":"1403485200"}
 
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: job-stats-test
   - match: { flushed: true }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: job-stats-test
   - match: { closed: true }
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: job-stats-test
-  - match: { jobs.0.job_id : job-stats-test }
-  - match: { jobs.0.data_counts.processed_record_count: 2 }
-  - match: { jobs.0.data_counts.processed_field_count: 4}
-  - match: { jobs.0.data_counts.input_field_count: 4 }
-  - gt: { jobs.0.model_size_stats.model_bytes: 0 }
-  - match: { jobs.0.state: closed }
+  - match:  { jobs.0.job_id : job-stats-test }
+  - match:  { jobs.0.data_counts.processed_record_count: 3 }
+  - match:  { jobs.0.data_counts.processed_field_count: 6 }
+  - match:  { jobs.0.data_counts.input_field_count: 6 }
+  - gt:     { jobs.0.model_size_stats.model_bytes: 0 }
+  - match:  { jobs.0.state: closed }
   - is_false: jobs.0.node
   - is_false: jobs.0.open_time
+  - match:  { jobs.0.timing_stats.job_id: job-stats-test }
+  - match:  { jobs.0.timing_stats.bucket_count: 1 }  # Records are 1h apart and bucket span is 1h so 1 bucket is produced
+  - gte:    { jobs.0.timing_stats.total_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
+  - gte:    { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
 
 ---
 "Test get job stats of datafeed job that has not received any data":
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: jobs-get-stats-datafeed-job
-  - match: { jobs.0.job_id : jobs-get-stats-datafeed-job }
-  - match: { jobs.0.data_counts.processed_record_count: 0 }
-  - match: { jobs.0.model_size_stats.model_bytes : 0 }
-  - match: { jobs.0.state: opened }
-  - is_true: jobs.0.open_time
+  - match:  { jobs.0.job_id : jobs-get-stats-datafeed-job }
+  - match:  { jobs.0.data_counts.processed_record_count: 0 }
+  - match:  { jobs.0.model_size_stats.model_bytes : 0 }
+  - match:  { jobs.0.state: opened }
+  - is_true:  jobs.0.open_time
+  - match:  { jobs.0.timing_stats.job_id: jobs-get-stats-datafeed-job }
+  - match:  { jobs.0.timing_stats.bucket_count: 0 }
+  - match:  { jobs.0.timing_stats.total_bucket_processing_time_ms: 0.0 }
+  - is_false: jobs.0.timing_stats.minimum_bucket_processing_time_ms
+  - is_false: jobs.0.timing_stats.maximum_bucket_processing_time_ms
+  - is_false: jobs.0.timing_stats.average_bucket_processing_time_ms
+  - is_false: jobs.0.timing_stats.exponential_average_bucket_processing_time_ms
 
 ---
 "Test get all job stats with _all":
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: _all
   - match: { count: 2 }
+  - match: { jobs.0.job_id : job-stats-test }
   - match: { jobs.0.state: opened }
+  - match: { jobs.1.job_id : jobs-get-stats-datafeed-job }
   - match: { jobs.1.state: opened }
 
 ---
 "Test get all job stats with wildcard":
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: "*"
   - match: { count: 2 }
+  - match: { jobs.0.job_id : job-stats-test }
   - match: { jobs.0.state: opened }
+  - match: { jobs.1.job_id : jobs-get-stats-datafeed-job }
   - match: { jobs.1.state: opened }
 
 ---
 "Test get all job stats implicitly":
 
   - do:
-      xpack.ml.get_job_stats: {}
+      ml.get_job_stats: {}
   - match: { count: 2 }
 
 ---
@@ -174,14 +202,14 @@ setup:
 
   - do:
       catch: missing
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: unknown-job
 
 ---
 "Test get job stats given pattern and allow_no_jobs":
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: "missing-*"
         allow_no_jobs: true
   - match: { count: 0 }
@@ -191,7 +219,7 @@ setup:
 
   - do:
       catch: missing
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: "missing-*"
         allow_no_jobs: false
 
@@ -199,7 +227,7 @@ setup:
 "Test reading v54 data counts and model size stats":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: job-stats-v54-bwc-test
         body:  >
           {
@@ -229,7 +257,6 @@ setup:
         Content-Type: application/json
       index:
         index: .ml-anomalies-shared
-        type: doc
         id: job-stats-v54-bwc-test-data-counts
         body:
           {
@@ -254,7 +281,6 @@ setup:
         Content-Type: application/json
       index:
         index: .ml-anomalies-shared
-        type: doc
         id: job-stats-v54-bwc-test-model_size_stats
         body:
           {
@@ -266,6 +292,12 @@ setup:
             total_partition_field_count : 0,
             bucket_allocation_failures_count : 0,
             memory_status : ok,
+            categorized_doc_count : 0,
+            total_category_count : 0,
+            frequent_category_count : 0,
+            rare_category_count : 0,
+            dead_category_count : 0,
+            categorization_status : ok,
             log_time : 1495808248662
           }
 
@@ -276,7 +308,7 @@ setup:
         index: [.ml-anomalies-shared]
 
   - do:
-      xpack.ml.get_job_stats:
+      ml.get_job_stats:
         job_id: job-stats-v54-bwc-test
   - match: { jobs.0.job_id : job-stats-v54-bwc-test }
   - match: { jobs.0.data_counts.processed_record_count: 10 }
@@ -286,19 +318,19 @@ setup:
 "Test no exception on get job stats with missing index":
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: job-stats-test
         body: >
           {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","time":"1403481600"}
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: jobs-get-stats-datafeed-job
   - match: { closed: true }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: job-stats-test
   - match: { closed: true }
 
@@ -307,21 +339,35 @@ setup:
         index: .ml-anomalies-shared
 
   - do:
-      xpack.ml.get_job_stats: {}
-  - match: { count: 2 }
-  - match: { jobs.0.data_counts.processed_record_count: 0 }
-  - match: { jobs.0.data_counts.processed_field_count: 0 }
-  - match: { jobs.0.data_counts.input_field_count: 0 }
-  - match: { jobs.0.model_size_stats.model_bytes: 0 }
-  - match: { jobs.0.state: closed }
+      ml.get_job_stats: {}
+  - match:  { count: 2 }
+  - match:  { jobs.0.job_id : job-stats-test }
+  - match:  { jobs.0.data_counts.processed_record_count: 0 }
+  - match:  { jobs.0.data_counts.processed_field_count: 0 }
+  - match:  { jobs.0.data_counts.input_field_count: 0 }
+  - match:  { jobs.0.model_size_stats.model_bytes: 0 }
+  - match:  { jobs.0.state: closed }
   - is_false: jobs.0.node
   - is_false: jobs.0.open_time
-  - match: { jobs.1.data_counts.processed_record_count: 0 }
-  - match: { jobs.1.data_counts.processed_field_count: 0 }
-  - match: { jobs.1.data_counts.input_field_count: 0 }
-  - match: { jobs.1.model_size_stats.model_bytes: 0 }
-  - match: { jobs.1.state: closed }
+  - match:  { jobs.0.timing_stats.job_id: job-stats-test }
+  - match:  { jobs.0.timing_stats.bucket_count: 0 }
+  - match:  { jobs.0.timing_stats.total_bucket_processing_time_ms: 0.0 }
+  - is_false: jobs.0.timing_stats.minimum_bucket_processing_time_ms
+  - is_false: jobs.0.timing_stats.maximum_bucket_processing_time_ms
+  - is_false: jobs.0.timing_stats.average_bucket_processing_time_ms
+  - is_false: jobs.0.timing_stats.exponential_average_bucket_processing_time_ms
+  - match:  { jobs.1.job_id : jobs-get-stats-datafeed-job }
+  - match:  { jobs.1.data_counts.processed_record_count: 0 }
+  - match:  { jobs.1.data_counts.processed_field_count: 0 }
+  - match:  { jobs.1.data_counts.input_field_count: 0 }
+  - match:  { jobs.1.model_size_stats.model_bytes: 0 }
+  - match:  { jobs.1.state: closed }
   - is_false: jobs.1.node
   - is_false: jobs.1.open_time
-
-
+  - match:  { jobs.1.timing_stats.job_id: jobs-get-stats-datafeed-job }
+  - match:  { jobs.1.timing_stats.bucket_count: 0 }
+  - match:  { jobs.1.timing_stats.total_bucket_processing_time_ms: 0.0 }
+  - is_false: jobs.1.timing_stats.minimum_bucket_processing_time_ms
+  - is_false: jobs.1.timing_stats.maximum_bucket_processing_time_ms
+  - is_false: jobs.1.timing_stats.average_bucket_processing_time_ms
+  - is_false: jobs.1.timing_stats.exponential_average_bucket_processing_time_ms

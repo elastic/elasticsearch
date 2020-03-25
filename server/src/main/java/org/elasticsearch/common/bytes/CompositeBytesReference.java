@@ -34,7 +34,7 @@ import java.util.Objects;
  *
  * Note, {@link #toBytesRef()} will materialize all pages in this BytesReference.
  */
-public final class CompositeBytesReference extends BytesReference {
+public final class CompositeBytesReference extends AbstractBytesReference {
 
     private final BytesReference[] references;
     private final int[] offsets;
@@ -77,10 +77,16 @@ public final class CompositeBytesReference extends BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
+        Objects.checkFromIndexSize(from, length, this.length);
+
+        if (length == 0) {
+            return BytesArray.EMPTY;
+        }
+
         // for slices we only need to find the start and the end reference
         // adjust them and pass on the references in between as they are fully contained
         final int to = from + length;
-        final int limit = getOffsetIndex(from + length);
+        final int limit = getOffsetIndex(to - 1);
         final int start = getOffsetIndex(from);
         final BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
         for (int i = 0, j = start; i < inSlice.length; i++) {

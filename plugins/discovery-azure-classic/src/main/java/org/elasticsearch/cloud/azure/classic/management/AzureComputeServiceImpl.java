@@ -33,6 +33,8 @@ import com.microsoft.windowsazure.management.compute.ComputeManagementClient;
 import com.microsoft.windowsazure.management.compute.ComputeManagementService;
 import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
 import com.microsoft.windowsazure.management.configuration.ManagementConfiguration;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.azure.classic.AzureServiceRemoteException;
@@ -43,12 +45,13 @@ import org.elasticsearch.common.settings.Settings;
 
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     implements AzureComputeService {
+    private static final Logger logger = LogManager.getLogger(AzureComputeServiceImpl.class);
+
 
     private final ComputeManagementClient client;
     private final String serviceName;
 
     public AzureComputeServiceImpl(Settings settings) {
-        super(settings);
         String subscriptionId = getRequiredSetting(settings, Management.SUBSCRIPTION_ID_SETTING);
 
         serviceName = getRequiredSetting(settings, Management.SERVICE_NAME_SETTING);

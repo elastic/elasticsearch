@@ -1,0 +1,24 @@
+{
+  "ml.delete_calendar":{
+    "documentation":{
+      "url":null
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to delete"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

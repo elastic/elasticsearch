@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.sql.ClientSqlException;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.Node;
+import org.elasticsearch.xpack.ql.tree.Location;
+import org.elasticsearch.xpack.ql.tree.Node;
+import org.elasticsearch.xpack.sql.SqlClientException;
 
-import java.util.Locale;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-public class FoldingException extends ClientSqlException {
+public class FoldingException extends SqlClientException {
 
     private final int line;
     private final int column;
@@ -21,8 +21,8 @@ public class FoldingException extends ClientSqlException {
         super(message, args);
 
         Location loc = Location.EMPTY;
-        if (source != null && source.location() != null) {
-            loc = source.location();
+        if (source != null && source.source() != null) {
+            loc = source.source().source();
         }
         this.line = loc.getLineNumber();
         this.column = loc.getColumnNumber();
@@ -32,8 +32,8 @@ public class FoldingException extends ClientSqlException {
         super(message, cause);
 
         Location loc = Location.EMPTY;
-        if (source != null && source.location() != null) {
-            loc = source.location();
+        if (source != null && source.source() != null) {
+            loc = source.source().source();
         }
         this.line = loc.getLineNumber();
         this.column = loc.getColumnNumber();
@@ -54,6 +54,6 @@ public class FoldingException extends ClientSqlException {
 
     @Override
     public String getMessage() {
-        return String.format(Locale.ROOT, "line %s:%s: %s", getLineNumber(), getColumnNumber(), super.getMessage());
+        return format("line {}:{}: {}", getLineNumber(), getColumnNumber(), super.getMessage());
     }
 }

@@ -140,9 +140,6 @@ public class AllocationCommands implements ToXContentFragment {
             if (!parser.currentName().equals("commands")) {
                 throw new ElasticsearchParseException("expected field name to be named [commands], got [{}] instead", parser.currentName());
             }
-            if (!parser.currentName().equals("commands")) {
-                throw new ElasticsearchParseException("expected field name to be named [commands], got [{}] instead", parser.currentName());
-            }
             token = parser.nextToken();
             if (token != XContentParser.Token.START_ARRAY) {
                 throw new ElasticsearchParseException("commands should follow with an array element");
@@ -161,7 +158,8 @@ public class AllocationCommands implements ToXContentFragment {
                 commands.add(parser.namedObject(AllocationCommand.class, commandName, null));
                 // move to the end object one
                 if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                    throw new ElasticsearchParseException("allocation command is malformed, done parsing a command, but didn't get END_OBJECT, got [{}] instead", token);
+                    throw new ElasticsearchParseException("allocation command is malformed, done parsing a command," +
+                        " but didn't get END_OBJECT, got [{}] instead", token);
                 }
             } else {
                 throw new ElasticsearchParseException("allocation command is malformed, got [{}] instead", token);

@@ -22,7 +22,6 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
@@ -30,27 +29,39 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TYPED_KEYS_PARAM);
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>(
+            asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM)
+        );
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
+
 
     private final boolean allowExplicitIndex;
 
-    public RestMultiSearchTemplateAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestMultiSearchTemplateAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+    }
 
-        controller.registerHandler(GET, "/_msearch/template", this);
-        controller.registerHandler(POST, "/_msearch/template", this);
-        controller.registerHandler(GET, "/{index}/_msearch/template", this);
-        controller.registerHandler(POST, "/{index}/_msearch/template", this);
-        controller.registerHandler(GET, "/{index}/{type}/_msearch/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_msearch/template", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_msearch/template"),
+            new Route(POST, "/_msearch/template"),
+            new Route(GET, "/{index}/_msearch/template"),
+            new Route(POST, "/{index}/_msearch/template"));
     }
 
     @Override
@@ -82,6 +93,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                     } else {
                         throw new IllegalArgumentException("Malformed search template");
                     }
+                    RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
                 });
         return multiRequest;
     }

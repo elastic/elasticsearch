@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.fetch;
 
-
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -30,7 +30,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.termvectors.TermVectorsService;
@@ -65,32 +64,26 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         return Collections.singletonList(FetchTermVectorsPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
     @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
         client().admin()
                 .indices()
                 .prepareCreate("test")
-                .addMapping(
-                        "type1",
+                .setMapping(
                         jsonBuilder()
-                                .startObject().startObject("type1")
+                                .startObject().startObject("_doc")
                                 .startObject("properties")
                                 .startObject("test")
                                 .field("type", "text").field("term_vector", "yes")
                                 .endObject()
                                 .endObject()
-                                .endObject().endObject()).execute().actionGet();
+                                .endObject().endObject()).get();
 
         client().index(
-                indexRequest("test").type("type1").id("1")
+                indexRequest("test").id("1")
                         .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())).actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().get();
 
          SearchResponse response = client().prepareSearch().setSource(new SearchSourceBuilder()
                  .ext(Collections.singletonList(new TermVectorsFetchBuilder("test")))).get();
@@ -135,7 +128,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 hitContext.hit().getFields().put(NAME, hitField);
             }
             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),
-                    hitContext.hit().getType(), hitContext.hit().getId());
+                    hitContext.hit().getId());
             TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), termVectorsRequest);
             try {
                 Map<String, Integer> tv = new HashMap<>();
@@ -146,7 +139,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 }
                 hitField.getValues().add(tv);
             } catch (IOException e) {
-                ESLoggerFactory.getLogger(FetchSubPhasePluginIT.class.getName()).info("Swallowed exception", e);
+                LogManager.getLogger(FetchSubPhasePluginIT.class).info("Swallowed exception", e);
             }
         }
     }

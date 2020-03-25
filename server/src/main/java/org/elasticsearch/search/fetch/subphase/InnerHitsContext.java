@@ -25,12 +25,13 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConjunctionDISI;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -78,8 +79,7 @@ public final class InnerHitsContext {
         protected final SearchContext context;
         private InnerHitsContext childInnerHits;
 
-        // TODO: when types are complete removed just use String instead for the id:
-        private Uid uid;
+        private String id;
 
         protected InnerHitSubContext(String name, SearchContext context) {
             super(context);
@@ -87,7 +87,7 @@ public final class InnerHitsContext {
             this.context = context;
         }
 
-        public abstract TopDocs[] topDocs(SearchHit[] hits) throws IOException;
+        public abstract TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException;
 
         public String getName() {
             return name;
@@ -104,19 +104,20 @@ public final class InnerHitsContext {
 
         protected Weight createInnerHitQueryWeight() throws IOException {
             final boolean needsScores = size() != 0 && (sort() == null || sort().sort.needsScores());
-            return context.searcher().createNormalizedWeight(query(), needsScores);
+            return context.searcher().createWeight(context.searcher().rewrite(query()),
+                    needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
         }
 
         public SearchContext parentSearchContext() {
             return context;
         }
 
-        public Uid getUid() {
-            return uid;
+        public String getId() {
+            return id;
         }
 
-        public void setUid(Uid uid) {
-            this.uid = uid;
+        public void setId(String id) {
+            this.id = id;
         }
     }
 

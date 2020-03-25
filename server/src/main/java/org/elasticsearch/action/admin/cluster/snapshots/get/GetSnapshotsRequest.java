@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.snapshots.SnapshotInfo.VERBOSE_INTRODUCED;
 
 /**
  * Get snapshot request
@@ -38,8 +38,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final String ALL_SNAPSHOTS = "_all";
     public static final String CURRENT_SNAPSHOT = "_current";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
+    public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_8_0_0;
 
-    private String repository;
+    private String[] repositories;
 
     private String[] snapshots = Strings.EMPTY_ARRAY;
 
@@ -51,73 +52,81 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     }
 
     /**
-     * Constructs a new get snapshots request with given repository name and list of snapshots
+     * Constructs a new get snapshots request with given repository names and list of snapshots
      *
-     * @param repository repository name
+     * @param repositories repository names
      * @param snapshots  list of snapshots
      */
-    public GetSnapshotsRequest(String repository, String[] snapshots) {
-        this.repository = repository;
+    public GetSnapshotsRequest(String[] repositories, String[] snapshots) {
+        this.repositories = repositories;
         this.snapshots = snapshots;
     }
 
     /**
-     * Constructs a new get snapshots request with given repository name
+     * Constructs a new get snapshots request with given repository names
      *
-     * @param repository repository name
+     * @param repositories repository names
      */
-    public GetSnapshotsRequest(String repository) {
-        this.repository = repository;
+    public GetSnapshotsRequest(String... repositories) {
+        this.repositories = repositories;
     }
 
     public GetSnapshotsRequest(StreamInput in) throws IOException {
         super(in);
-        repository = in.readString();
+        if (in.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+            repositories = in.readStringArray();
+        } else {
+            repositories = new String[]{in.readString()};
+        }
         snapshots = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
-        if (in.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
-            verbose = in.readBoolean();
-        }
+        verbose = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(repository);
+        if (out.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+            out.writeStringArray(repositories);
+        } else {
+            if (repositories.length != 1) {
+                throw new IllegalArgumentException("Requesting snapshots from multiple repositories is not supported in versions prior " +
+                        "to " + MULTIPLE_REPOSITORIES_SUPPORT_ADDED.toString());
+            }
+            out.writeString(repositories[0]);
+        }
         out.writeStringArray(snapshots);
         out.writeBoolean(ignoreUnavailable);
-        if (out.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
-            out.writeBoolean(verbose);
-        }
+        out.writeBoolean(verbose);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (repository == null) {
-            validationException = addValidationError("repository is missing", validationException);
+        if (repositories == null || repositories.length == 0) {
+            validationException = addValidationError("repositories are missing", validationException);
         }
         return validationException;
     }
 
     /**
-     * Sets repository name
+     * Sets repository names
      *
-     * @param repository repository name
+     * @param repositories repository names
      * @return this request
      */
-    public GetSnapshotsRequest repository(String repository) {
-        this.repository = repository;
+    public GetSnapshotsRequest repositories(String... repositories) {
+        this.repositories = repositories;
         return this;
     }
 
     /**
-     * Returns repository name
+     * Returns repository names
      *
-     * @return repository name
+     * @return repository names
      */
-    public String repository() {
-        return this.repository;
+    public String[] repositories() {
+        return this.repositories;
     }
 
     /**
@@ -175,10 +184,5 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      */
     public boolean verbose() {
         return verbose;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

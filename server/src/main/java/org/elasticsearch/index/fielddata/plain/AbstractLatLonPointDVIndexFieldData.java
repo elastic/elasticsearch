@@ -25,16 +25,21 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 public abstract class AbstractLatLonPointDVIndexFieldData extends DocValuesIndexFieldData
     implements IndexGeoPointFieldData {
@@ -43,7 +48,14 @@ public abstract class AbstractLatLonPointDVIndexFieldData extends DocValuesIndex
     }
 
     @Override
-    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
+    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
+            boolean reverse) {
+        throw new IllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
+    }
+
+    @Override
+    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
         throw new IllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 
@@ -53,17 +65,17 @@ public abstract class AbstractLatLonPointDVIndexFieldData extends DocValuesIndex
         }
 
         @Override
-        public AtomicGeoPointFieldData load(LeafReaderContext context) {
+        public LeafGeoPointFieldData load(LeafReaderContext context) {
             LeafReader reader = context.reader();
             FieldInfo info = reader.getFieldInfos().fieldInfo(fieldName);
             if (info != null) {
                 checkCompatible(info);
             }
-            return new LatLonPointDVAtomicFieldData(reader, fieldName);
+            return new LatLonPointDVLeafFieldData(reader, fieldName);
         }
 
         @Override
-        public AtomicGeoPointFieldData loadDirect(LeafReaderContext context) throws Exception {
+        public LeafGeoPointFieldData loadDirect(LeafReaderContext context) throws Exception {
             return load(context);
         }
 

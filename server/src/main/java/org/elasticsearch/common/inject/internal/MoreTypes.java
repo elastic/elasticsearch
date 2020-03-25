@@ -32,13 +32,11 @@ import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
 import static java.util.Collections.singleton;
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * Static methods for working with types that we aren't publishing in the
@@ -53,20 +51,16 @@ public class MoreTypes {
     private MoreTypes() {
     }
 
-    private static final Map<TypeLiteral<?>, TypeLiteral<?>> PRIMITIVE_TO_WRAPPER;
-    static {
-        Map<TypeLiteral<?>, TypeLiteral<?>> primitiveToWrapper = new HashMap<>();
-        primitiveToWrapper.put(TypeLiteral.get(boolean.class), TypeLiteral.get(Boolean.class));
-        primitiveToWrapper.put(TypeLiteral.get(byte.class), TypeLiteral.get(Byte.class));
-        primitiveToWrapper.put(TypeLiteral.get(short.class), TypeLiteral.get(Short.class));
-        primitiveToWrapper.put(TypeLiteral.get(int.class), TypeLiteral.get(Integer.class));
-        primitiveToWrapper.put(TypeLiteral.get(long.class), TypeLiteral.get(Long.class));
-        primitiveToWrapper.put(TypeLiteral.get(float.class), TypeLiteral.get(Float.class));
-        primitiveToWrapper.put(TypeLiteral.get(double.class), TypeLiteral.get(Double.class));
-        primitiveToWrapper.put(TypeLiteral.get(char.class), TypeLiteral.get(Character.class));
-        primitiveToWrapper.put(TypeLiteral.get(void.class), TypeLiteral.get(Void.class));
-        PRIMITIVE_TO_WRAPPER = unmodifiableMap(primitiveToWrapper);
-    }
+    private static final Map<TypeLiteral<?>, TypeLiteral<?>> PRIMITIVE_TO_WRAPPER = Map.of(
+        TypeLiteral.get(boolean.class), TypeLiteral.get(Boolean.class),
+        TypeLiteral.get(byte.class), TypeLiteral.get(Byte.class),
+        TypeLiteral.get(short.class), TypeLiteral.get(Short.class),
+        TypeLiteral.get(int.class), TypeLiteral.get(Integer.class),
+        TypeLiteral.get(long.class), TypeLiteral.get(Long.class),
+        TypeLiteral.get(float.class), TypeLiteral.get(Float.class),
+        TypeLiteral.get(double.class), TypeLiteral.get(Double.class),
+        TypeLiteral.get(char.class), TypeLiteral.get(Character.class),
+        TypeLiteral.get(void.class), TypeLiteral.get(Void.class));
 
     /**
      * Returns an equivalent type that's safe for use in a key. The returned type will be free of
@@ -634,7 +628,6 @@ public class MoreTypes {
         private final int modifiers;
         private final boolean synthetic;
         private final Class<? extends Member> memberType;
-        private final String memberKey;
 
         private MemberImpl(Member member) {
             this.declaringClass = member.getDeclaringClass();
@@ -642,7 +635,6 @@ public class MoreTypes {
             this.modifiers = member.getModifiers();
             this.synthetic = member.isSynthetic();
             this.memberType = memberType(member);
-            this.memberKey = memberKey(member);
         }
 
         @Override

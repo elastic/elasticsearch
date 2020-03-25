@@ -1,6 +1,8 @@
 ---
 "Realtime Refresh":
 
+
+
  - do:
       indices.create:
         index:    test_1
@@ -17,7 +19,6 @@
  - do:
       index:
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
 
@@ -25,14 +26,12 @@
       catch:        missing
       get:
           index:    test_1
-          type:     test
           id:       1
           realtime: false
 
  - do:
       get:
           index:    test_1
-          type:     test
           id:       1
           realtime: true
 
@@ -41,7 +40,6 @@
  - do:
       get:
           index:    test_1
-          type:     test
           id:       1
           realtime: false
           refresh:  true

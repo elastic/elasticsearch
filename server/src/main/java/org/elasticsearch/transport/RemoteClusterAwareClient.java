@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -43,15 +44,20 @@ final class RemoteClusterAwareClient extends AbstractClient {
 
     @Override
     protected <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
-        remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(res -> {
-            Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
+    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+        remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(v -> {
+            Transport.Connection connection;
+            if (request instanceof RemoteClusterAwareRequest) {
+                DiscoveryNode preferredTargetNode = ((RemoteClusterAwareRequest) request).getPreferredTargetNode();
+                connection = remoteClusterService.getConnection(preferredTargetNode, clusterAlias);
+            } else {
+                connection = remoteClusterService.getConnection(clusterAlias);
+            }
             service.sendRequest(connection, action.name(), request, TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, action::newResponse));
+                new ActionListenerResponseHandler<>(listener, action.getResponseReader()));
         },
         listener::onFailure));
     }
-
 
     @Override
     public void close() {

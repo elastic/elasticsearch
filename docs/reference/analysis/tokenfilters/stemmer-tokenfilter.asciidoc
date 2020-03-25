@@ -1,10 +1,19 @@
 [[analysis-stemmer-tokenfilter]]
-=== Stemmer Token Filter
+=== Stemmer token filter
+++++
+<titleabbrev>Stemmer</titleabbrev>
+++++
+
+// Adds attribute for the 'minimal_portuguese' stemmer values link.
+// This link contains ~, which is converted to subscript.
+// This attribute prevents that substitution.
+// See https://github.com/asciidoctor/asciidoctor/wiki/How-to-prevent-URLs-containing-formatting-characters-from-getting-mangled
+:min-pt-stemmer-values-url: http://www.inf.ufrgs.br/~buriol/papers/Orengo_CLEF07.pdf
 
 A filter that provides access to (almost) all of the available stemming token
 filters through a single unified interface. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my_index
 {
@@ -13,7 +22,7 @@ PUT /my_index
             "analyzer" : {
                 "my_analyzer" : {
                     "tokenizer" : "standard",
-                    "filter" : ["standard", "lowercase", "my_stemmer"]
+                    "filter" : ["lowercase", "my_stemmer"]
                 }
             },
             "filter" : {
@@ -26,7 +35,6 @@ PUT /my_index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `language`/`name` parameter controls the stemmer with the following
 available values (the preferred filters are marked in *bold*):
@@ -46,7 +54,6 @@ http://snowball.tartarus.org/algorithms/basque/stemmer.html[*`basque`*]
 
 Bengali::
 http://www.tandfonline.com/doi/abs/10.1080/02564602.1993.11437284[*`bengali`*]
-http://members.unine.ch/jacques.savoy/clef/BengaliStemmerLight.java.txt[*`light_bengali`*]
 
 Brazilian Portuguese::
 
@@ -158,7 +165,7 @@ Portuguese::
 
 http://snowball.tartarus.org/algorithms/portuguese/stemmer.html[`portuguese`],
 http://dl.acm.org/citation.cfm?id=1141523&dl=ACM&coll=DL&CFID=179095584&CFTOKEN=80067181[*`light_portuguese`*],
-http://www.inf.ufrgs.br/\~buriol/papers/Orengo_CLEF07.pdf[`minimal_portuguese`],
+{min-pt-stemmer-values-url}[`minimal_portuguese`],
 http://www.inf.ufrgs.br/\~viviane/rslp/index.htm[`portuguese_rslp`]
 
 Romanian::

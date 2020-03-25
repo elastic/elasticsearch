@@ -19,10 +19,10 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +42,7 @@ import java.util.Objects;
  */
 public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContentObject {
 
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", true, Builder::new);
     static {
         PARSER.declareString(Builder::setId, new ParseField("id"));
         PARSER.declareField((parser, builder, aVoid) -> {
@@ -117,13 +117,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readEnum(XContentType.class));
-        } else {
-            final String id = in.readString();
-            final BytesReference config = in.readBytesReference();
-            return new PipelineConfiguration(id, config, XContentHelper.xContentType(config));
-        }
+        return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readEnum(XContentType.class));
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
@@ -131,12 +125,15 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            out.writeEnum(xContentType);
-        }
+        out.writeEnum(xContentType);
     }
 
     @Override

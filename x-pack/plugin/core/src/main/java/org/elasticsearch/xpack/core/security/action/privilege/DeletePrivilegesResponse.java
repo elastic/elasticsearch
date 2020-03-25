@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -25,11 +24,13 @@ public final class DeletePrivilegesResponse extends ActionResponse implements To
 
     private Set<String> found;
 
-    public DeletePrivilegesResponse() {
+    public DeletePrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        this.found = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     public DeletePrivilegesResponse(Collection<String> found) {
-        this.found = Collections.unmodifiableSet(new HashSet<>(found));
+        this.found = Set.copyOf(found);
     }
 
     @Override
@@ -43,14 +44,7 @@ public final class DeletePrivilegesResponse extends ActionResponse implements To
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.found = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeCollection(found, StreamOutput::writeString);
     }
 

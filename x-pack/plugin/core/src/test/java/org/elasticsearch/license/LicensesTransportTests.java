@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -182,11 +183,11 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         // delete all licenses
         DeleteLicenseRequestBuilder deleteLicenseRequestBuilder =
                 new DeleteLicenseRequestBuilder(client().admin().cluster(), DeleteLicenseAction.INSTANCE);
-        DeleteLicenseResponse deleteLicenseResponse = deleteLicenseRequestBuilder.get();
+        AcknowledgedResponse deleteLicenseResponse = deleteLicenseRequestBuilder.get();
         assertThat(deleteLicenseResponse.isAcknowledged(), equalTo(true));
         // get licenses (expected no licenses)
         getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertNull(getLicenseResponse.license());
+        assertTrue(License.LicenseType.isBasic(getLicenseResponse.license().type()));
     }
 
     public void testLicenseIsRejectWhenStartDateLaterThanNow() throws Exception {

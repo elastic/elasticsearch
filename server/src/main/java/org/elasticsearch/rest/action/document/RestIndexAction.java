@@ -19,33 +19,31 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
-    public RestIndexAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
-        controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}", this);
-        CreateHandler createHandler = new CreateHandler(settings);
-        controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/{index}/_doc/{id}"),
+            new Route(PUT, "/{index}/_doc/{id}"));
     }
 
     @Override
@@ -53,10 +51,7 @@ public class RestIndexAction extends BaseRestHandler {
         return "document_index_action";
     }
 
-    final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings) {
-            super(settings);
-        }
+    public static final class CreateHandler extends RestIndexAction {
 
         @Override
         public String getName() {
@@ -64,10 +59,17 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         @Override
+        public List<Route> routes() {
+            return List.of(
+                new Route(POST, "/{index}/_create/{id}"),
+                new Route(PUT, "/{index}/_create/{id}"));
+        }
+
+        @Override
         public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
             validateOpType(request.params().get("op_type"));
             request.params().put("op_type", "create");
-            return RestIndexAction.this.prepareRequest(request, client);
+            return super.prepareRequest(request, client);
         }
 
         void validateOpType(String opType) {
@@ -77,15 +79,39 @@ public class RestIndexAction extends BaseRestHandler {
         }
     }
 
+    public static final class AutoIdHandler extends RestIndexAction {
+
+        private final ClusterService clusterService;
+
+        public AutoIdHandler(ClusterService clusterService) {
+            this.clusterService = clusterService;
+        }
+
+        @Override
+        public String getName() {
+            return "document_create_action";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return List.of(new Route(POST, "/{index}/_doc"));
+        }
+
+        @Override
+        public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
+            assert request.params().get("id") == null : "non-null id: " + request.params().get("id");
+            if (request.params().get("op_type") == null && clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_5_0)) {
+                // default to op_type create
+                request.params().put("op_type", "create");
+            }
+            return super.prepareRequest(request, client);
+        }
+    }
+
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
-        final String type = request.param("type");
-        if (includeTypeName == false && MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
-            throw new IllegalArgumentException("You may only use the [include_type_name=false] option with the index APIs with the " +
-                    "[{index}/_doc/{id}] and [{index}/_doc] endpoints.");
-        }
-        IndexRequest indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
+        IndexRequest indexRequest = new IndexRequest(request.param("index"));
+        indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.source(request.requiredContent(), request.getXContentType());
@@ -93,6 +119,8 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
+        indexRequest.setIfSeqNo(request.paramAsLong("if_seq_no", indexRequest.ifSeqNo()));
+        indexRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", indexRequest.ifPrimaryTerm()));
         String sOpType = request.param("op_type");
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

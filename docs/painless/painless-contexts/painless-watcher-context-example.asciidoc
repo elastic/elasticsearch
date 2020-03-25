@@ -1,0 +1,159 @@
+[source,console]
+----
+POST _watcher/watch/_execute
+{
+  "watch" : {
+    "metadata" : { "high_threshold": 50000, "low_threshold": 15000 },
+    "trigger" : { "schedule" : { "interval" : "24h" } },
+    "input" : {
+      "search" : {
+        "request" : {
+          "indices" : [ "seats" ],
+          "body" : {
+            "query" : {
+              "term": { "sold": "true"}
+            },
+            "aggs" : {
+              "theatres" : {
+                "terms" : { "field" : "play" },
+                "aggs" : {
+                  "money" : {
+                    "sum": { "field" : "cost" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "condition" : {
+      "script" :
+      """
+        return ctx.payload.aggregations.theatres.buckets.stream()
+          .anyMatch(theatre -> theatre.money.value < ctx.metadata.low_threshold ||
+                               theatre.money.value > ctx.metadata.high_threshold)
+      """
+    },
+    "transform" : {
+      "script":
+      """
+        return [
+          'money_makers': ctx.payload.aggregations.theatres.buckets.stream()
+            .filter(t -> {
+                return t.money.value > ctx.metadata.high_threshold
+            })
+            .map(t -> {
+                return ['play': t.key, 'total_value': t.money.value ]
+            }).collect(Collectors.toList()),
+          'duds' : ctx.payload.aggregations.theatres.buckets.stream()
+            .filter(t -> {
+                return t.money.value < ctx.metadata.low_threshold
+            })
+            .map(t -> {
+                return ['play': t.key, 'total_value': t.money.value ]
+            }).collect(Collectors.toList())
+          ]
+      """
+    },
+    "actions" : {
+      "log_money_makers" : {
+        "condition": {
+          "script" : "return ctx.payload.money_makers.size() > 0"
+        },
+        "transform": {
+          "script" :
+          """
+          def formatter = NumberFormat.getCurrencyInstance();
+          return [
+            'plays_value': ctx.payload.money_makers.stream()
+              .map(t-> formatter.format(t.total_value) + ' for the play ' + t.play)
+              .collect(Collectors.joining(", "))
+          ]
+          """
+        },
+        "logging" : {
+          "text" : "The following plays contain the highest grossing total income: {{ctx.payload.plays_value}}"
+        }
+      },
+      "log_duds" : {
+        "condition": {
+          "script" : "return ctx.payload.duds.size() > 0"
+        },
+        "transform": {
+          "script" :
+          """
+          def formatter = NumberFormat.getCurrencyInstance();
+          return [
+            'plays_value': ctx.payload.duds.stream()
+              .map(t-> formatter.format(t.total_value) + ' for the play ' + t.play)
+              .collect(Collectors.joining(", "))
+          ]
+          """
+        },
+        "logging" : {
+          "text" : "The following plays need more advertising due to their low total income: {{ctx.payload.plays_value}}"
+        }
+      }
+    }
+  }
+}
+----
+// TEST[skip: requires setup from other pages]
+
+The following example shows the use of metadata and transforming dates into a readable format.
+
+[source,console]
+----
+POST _watcher/watch/_execute
+{
+  "watch" : {
+    "metadata" : { "min_hits": 10000 },
+    "trigger" : { "schedule" : { "interval" : "24h" } },
+    "input" : {
+      "search" : {
+        "request" : {
+          "indices" : [ "seats" ],
+          "body" : {
+            "query" : {
+              "term": { "sold": "true"}
+            },
+            "aggs" : {
+              "theatres" : {
+                "terms" : { "field" : "play" },
+                "aggs" : {
+                  "money" : {
+                    "sum": { "field" : "cost" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "condition" : {
+      "script" :
+      """
+        return ctx.payload.hits.total > ctx.metadata.min_hits
+      """
+    },
+    "transform" : {
+      "script" :
+      """
+        def theDate = ZonedDateTime.ofInstant(ctx.execution_time.toInstant(), ctx.execution_time.getZone());
+        return ['human_date': DateTimeFormatter.RFC_1123_DATE_TIME.format(theDate),
+                'aggregations': ctx.payload.aggregations]
+      """
+    },
+    "actions" : {
+      "my_log" : {
+        "logging" : {
+          "text" : "The watch was successfully executed on {{ctx.payload.human_date}} and contained {{ctx.payload.aggregations.theatres.buckets.size}} buckets"
+        }
+      }
+    }
+  }
+}
+----
+// TEST[skip: requires setup from other pages]

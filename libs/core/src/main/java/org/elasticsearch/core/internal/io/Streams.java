@@ -22,21 +22,20 @@ package org.elasticsearch.core.internal.io;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Objects;
 
 /**
- * Simple utility methods for file and stream copying.
- * All copy methods use a block size of 4096 bytes,
- * and close all affected streams when done.
+ * Simple utility methods for file and stream copying. All copy methods close all affected streams when done.
  * <p>
- * Mainly for use within the framework,
- * but also useful for application code.
+ * Mainly for use within the framework, but also useful for application code.
  */
 public class Streams {
 
+    private Streams() {
+
+    }
+
     /**
-     * Copy the contents of the given InputStream to the given OutputStream.
-     * Closes both streams when done.
+     * Copy the contents of the given InputStream to the given OutputStream. Closes both streams when done.
      *
      * @param in  the stream to copy from
      * @param out the stream to copy to
@@ -44,17 +43,9 @@ public class Streams {
      * @throws IOException in case of I/O errors
      */
     public static long copy(final InputStream in, final OutputStream out) throws IOException {
-        Objects.requireNonNull(in, "No InputStream specified");
-        Objects.requireNonNull(out, "No OutputStream specified");
-        final byte[] buffer = new byte[8192];
         Exception err = null;
         try {
-            long byteCount = 0;
-            int bytesRead;
-            while ((bytesRead = in.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
-                byteCount += bytesRead;
-            }
+            final long byteCount = in.transferTo(out);
             out.flush();
             return byteCount;
         } catch (IOException | RuntimeException e) {
@@ -64,4 +55,5 @@ public class Streams {
             IOUtils.close(err, in, out);
         }
     }
+
 }

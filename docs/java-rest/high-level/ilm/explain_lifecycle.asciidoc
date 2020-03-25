@@ -1,0 +1,50 @@
+--
+:api: ilm-explain-lifecycle
+:request: ExplainLifecycleRequest
+:response: ExplainLifecycleResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Explain Lifecycle API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Explain Lifecycle API allows you to retrieve information about the execution
+of a Lifecycle Policy with respect to one or more indices.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Requests an explanation of policy execution for `my_index` and `other_index`
+
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains a map of `LifecyclePolicyMetadata`,
+accessible by the name of the policy, which contains data about each policy,
+as well as the policy definition.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The name of the policy in use for this index, if any. Will be `null` if the
+index does not have an associated policy.
+<2> Indicates whether this index is being managed by Index Lifecycle Management.
+<3> The Phase (`hot`, `warm`, etc.) this index is currently in. Will be `null` if
+the index is not managed by Index Lifecycle Management.
+<4> The time this index entered this Phase of execution.
+<5> The Action (`rollover`, `shrink`, etc.) this index is currently in. Will be `null` if
+the index is not managed by Index Lifecycle Management.
+<6> The Step this index is currently in. Will be `null` if
+the index is not managed by Index Lifecycle Management.
+<7> If this index is in the `ERROR` Step, this will indicate which Step failed.
+Otherwise, it will be `null`.
+
+include::../execution.asciidoc[]
+
+

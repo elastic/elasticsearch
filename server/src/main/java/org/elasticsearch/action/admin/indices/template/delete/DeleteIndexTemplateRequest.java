@@ -34,6 +34,11 @@ public class DeleteIndexTemplateRequest extends MasterNodeRequest<DeleteIndexTem
 
     private String name;
 
+    public DeleteIndexTemplateRequest(StreamInput in) throws IOException {
+        super(in);
+        name = in.readString();
+    }
+
     public DeleteIndexTemplateRequest() {
     }
 
@@ -66,12 +71,6 @@ public class DeleteIndexTemplateRequest extends MasterNodeRequest<DeleteIndexTem
      */
     public String name() {
         return name;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        name = in.readString();
     }
 
     @Override

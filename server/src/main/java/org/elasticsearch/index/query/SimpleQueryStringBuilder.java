@@ -22,14 +22,12 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -38,7 +36,6 @@ import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -162,39 +159,22 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         for (int i = 0; i < size; i++) {
             String field = in.readString();
             Float weight = in.readFloat();
+            checkNegativeBoost(weight);
             fields.put(field, weight);
         }
         fieldsAndWeights.putAll(fields);
         flags = in.readInt();
         analyzer = in.readOptionalString();
         defaultOperator = Operator.readFromStream(in);
-        if (in.getVersion().before(Version.V_5_1_1)) {
-            in.readBoolean(); // lowercase_expanded_terms
-        }
         settings.lenient(in.readBoolean());
-        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            this.lenientSet = in.readBoolean();
-        }
+        this.lenientSet = in.readBoolean();
         settings.analyzeWildcard(in.readBoolean());
-        if (in.getVersion().before(Version.V_5_1_1)) {
-            in.readString(); // locale
-        }
         minimumShouldMatch = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            settings.quoteFieldSuffix(in.readOptionalString());
-            if (in.getVersion().before(Version.V_6_0_0_beta2)) {
-                Boolean useAllFields = in.readOptionalBoolean();
-                if (useAllFields != null && useAllFields) {
-                    useAllFields(true);
-                }
-            }
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            settings.autoGenerateSynonymsPhraseQuery(in.readBoolean());
-            settings.fuzzyPrefixLength(in.readVInt());
-            settings.fuzzyMaxExpansions(in.readVInt());
-            settings.fuzzyTranspositions(in.readBoolean());
-        }
+        settings.quoteFieldSuffix(in.readOptionalString());
+        settings.autoGenerateSynonymsPhraseQuery(in.readBoolean());
+        settings.fuzzyPrefixLength(in.readVInt());
+        settings.fuzzyMaxExpansions(in.readVInt());
+        settings.fuzzyTranspositions(in.readBoolean());
     }
 
     @Override
@@ -208,34 +188,15 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeInt(flags);
         out.writeOptionalString(analyzer);
         defaultOperator.writeTo(out);
-        if (out.getVersion().before(Version.V_5_1_1)) {
-            out.writeBoolean(true); // lowercase_expanded_terms
-        }
         out.writeBoolean(settings.lenient());
-        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            out.writeBoolean(lenientSet);
-        }
+        out.writeBoolean(lenientSet);
         out.writeBoolean(settings.analyzeWildcard());
-        if (out.getVersion().before(Version.V_5_1_1)) {
-            out.writeString(Locale.ROOT.toLanguageTag()); // locale
-        }
         out.writeOptionalString(minimumShouldMatch);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            out.writeOptionalString(settings.quoteFieldSuffix());
-            if (out.getVersion().before(Version.V_6_0_0_beta2)) {
-                if (useAllFields()) {
-                    out.writeOptionalBoolean(true);
-                } else {
-                    out.writeOptionalBoolean(null);
-                }
-            }
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(settings.autoGenerateSynonymsPhraseQuery());
-            out.writeVInt(settings.fuzzyPrefixLength());
-            out.writeVInt(settings.fuzzyMaxExpansions());
-            out.writeBoolean(settings.fuzzyTranspositions());
-        }
+        out.writeOptionalString(settings.quoteFieldSuffix());
+        out.writeBoolean(settings.autoGenerateSynonymsPhraseQuery());
+        out.writeVInt(settings.fuzzyPrefixLength());
+        out.writeVInt(settings.fuzzyMaxExpansions());
+        out.writeBoolean(settings.fuzzyTranspositions());
     }
 
     /** Returns the text to parse the query from. */
@@ -257,6 +218,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (Strings.isEmpty(field)) {
             throw new IllegalArgumentException("supplied field is null or empty");
         }
+        checkNegativeBoost(boost);
         this.fieldsAndWeights.put(field, boost);
         return this;
     }
@@ -264,6 +226,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Add several fields to run the query against with a specific boost. */
     public SimpleQueryStringBuilder fields(Map<String, Float> fields) {
         Objects.requireNonNull(fields, "fields cannot be null");
+        for (float fieldBoost : fields.values()) {
+            checkNegativeBoost(fieldBoost);
+        }
         this.fieldsAndWeights.putAll(fields);
         return this;
     }
@@ -282,22 +247,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Returns the analyzer to use for the query. */
     public String analyzer() {
         return this.analyzer;
-    }
-
-    @Deprecated
-    public Boolean useAllFields() {
-        return fieldsAndWeights.size() == 1 && fieldsAndWeights.keySet().stream().anyMatch(Regex::isMatchAllPattern);
-    }
-
-    /**
-     * This setting is deprecated, set {@link #field(String)} to "*" instead.
-     */
-    @Deprecated
-    public SimpleQueryStringBuilder useAllFields(Boolean useAllFields) {
-        if (useAllFields != null && useAllFields) {
-            this.fieldsAndWeights = Collections.singletonMap("*", 1.0f);
-        }
-        return this;
     }
 
     /**
@@ -449,16 +398,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Settings newSettings = new Settings(settings);
         final Map<String, Float> resolvedFieldsAndWeights;
+        boolean isAllField;
         if (fieldsAndWeights.isEmpty() == false) {
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
+            isAllField = QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet());
         } else {
             List<String> defaultFields = context.defaultFields();
-            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
-            if (isAllField) {
-                newSettings.lenient(lenientSet ? settings.lenient() : true);
-            }
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context,
                 QueryParserHelper.parseFieldsAndWeights(defaultFields));
+            isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);
+        }
+
+        if (isAllField) {
+            newSettings.lenient(lenientSet ? settings.lenient() : true);
         }
 
         final SimpleQueryStringQueryParser sqp;

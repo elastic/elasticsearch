@@ -26,31 +26,30 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestValidateQueryAction extends BaseRestHandler {
-    public RestValidateQueryAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_validate/query", this);
-        controller.registerHandler(POST, "/_validate/query", this);
-        controller.registerHandler(GET, "/{index}/_validate/query", this);
-        controller.registerHandler(POST, "/{index}/_validate/query", this);
-        controller.registerHandler(GET, "/{index}/{type}/_validate/query", this);
-        controller.registerHandler(POST, "/{index}/{type}/_validate/query", this);
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_validate/query"),
+            new Route(POST, "/_validate/query"),
+            new Route(GET, "/{index}/_validate/query"),
+            new Route(POST, "/{index}/_validate/query"));
     }
 
     @Override
@@ -63,7 +62,6 @@ public class RestValidateQueryAction extends BaseRestHandler {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
-        validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
         validateQueryRequest.allShards(request.paramAsBoolean("all_shards", false));
 

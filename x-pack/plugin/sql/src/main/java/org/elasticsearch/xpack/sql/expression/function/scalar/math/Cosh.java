@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Hyperbolic_function">Hyperbolic cosine</a>
  * function.
  */
 public class Cosh extends MathFunction {
-    public Cosh(Location location, Expression field) {
-        super(location, field);
+    public Cosh(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -26,7 +26,7 @@ public class Cosh extends MathFunction {
 
     @Override
     protected Cosh replaceChild(Expression newChild) {
-        return new Cosh(location(), newChild);
+        return new Cosh(source(), newChild);
     }
 
     @Override

@@ -68,7 +68,8 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
         indexShards = new HashMap<>();
         for (Map.Entry<Integer, List<ShardStats>> entry : tmpIndexShards.entrySet()) {
-            indexShards.put(entry.getKey(), new IndexShardStats(entry.getValue().get(0).getShardRouting().shardId(), entry.getValue().toArray(new ShardStats[entry.getValue().size()])));
+            indexShards.put(entry.getKey(), new IndexShardStats(entry.getValue().get(0).getShardRouting().shardId(),
+                entry.getValue().toArray(new ShardStats[entry.getValue().size()])));
         }
         return indexShards;
     }
@@ -106,5 +107,25 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
         primary = stats;
         return stats;
+    }
+
+    public static class IndexStatsBuilder {
+        private final String indexName;
+        private final String uuid;
+        private final List<ShardStats> shards = new ArrayList<>();
+
+        public IndexStatsBuilder(String indexName, String uuid) {
+            this.indexName = indexName;
+            this.uuid = uuid;
+        }
+
+        public IndexStatsBuilder add(ShardStats shardStats) {
+            shards.add(shardStats);
+            return this;
+        }
+
+        public IndexStats build() {
+            return new IndexStats(indexName, uuid, shards.toArray(new ShardStats[shards.size()]));
+        }
     }
 }

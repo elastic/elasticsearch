@@ -21,13 +21,12 @@ package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -91,23 +90,21 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)));
-        MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
+    protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+        MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
             assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));
 
-            if (mapper != null) {
-                Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
-                assertThat(termQuery.getTerm(), equalTo(term));
-            } else {
-                assertThat(termQuery.getTerm().bytes(), equalTo(BytesRefs.toBytesRef(queryBuilder.value())));
-            }
-        } else {
+            Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
+            assertThat(termQuery.getTerm(), equalTo(term));
+        } else if (mapper != null) {
             assertEquals(query, mapper.termQuery(queryBuilder.value(), null));
+        } else {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
         }
     }
 
@@ -167,5 +164,35 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+    }
+
+    public void testTypeField() throws IOException {
+        TermQueryBuilder builder = QueryBuilders.termQuery("_type", "value1");
+        builder.doToQuery(createShardContext());
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+    }   
+
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        TermQueryBuilder query = QueryBuilders.termQuery("_index", "does_not_exist");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }   
+
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        TermQueryBuilder query = QueryBuilders.termQuery("_index", getIndex().getName());
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        TermQueryBuilder queryBuilder = new TermQueryBuilder("unmapped_field", "foo");
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

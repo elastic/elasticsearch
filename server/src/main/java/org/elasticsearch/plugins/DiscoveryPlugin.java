@@ -19,24 +19,18 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.transport.TransportService;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
-
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's discovery functionality. To add an additional
@@ -52,30 +46,6 @@ import org.elasticsearch.transport.TransportService;
  * }</pre>
  */
 public interface DiscoveryPlugin {
-
-    /**
-     * Returns custom discovery implementations added by this plugin.
-     *
-     * The key of the returned map is the name of the discovery implementation
-     * (see {@link org.elasticsearch.discovery.DiscoveryModule#DISCOVERY_TYPE_SETTING}, and
-     * the value is a supplier to construct the {@link Discovery}.
-     *
-     * @param threadPool Use to schedule ping actions
-     * @param transportService Use to communicate with other nodes
-     * @param masterService Use to submit cluster state update tasks
-     * @param clusterApplier Use to locally apply cluster state updates
-     * @param clusterSettings Use to get cluster settings
-     * @param hostsProvider Use to find configured hosts which should be pinged for initial discovery
-     */
-    default Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
-                                                               NamedWriteableRegistry namedWriteableRegistry,
-                                                               MasterService masterService,
-                                                               ClusterApplier clusterApplier,
-                                                               ClusterSettings clusterSettings,
-                                                               UnicastHostsProvider hostsProvider,
-                                                               AllocationService allocationService) {
-        return Collections.emptyMap();
-    }
 
     /**
      * Override to add additional {@link NetworkService.CustomNameResolver}s.
@@ -95,18 +65,18 @@ public interface DiscoveryPlugin {
     }
 
     /**
-     * Returns providers of unicast host lists for zen discovery.
+     * Returns providers of seed hosts for discovery.
      *
      * The key of the returned map is the name of the host provider
-     * (see {@link org.elasticsearch.discovery.DiscoveryModule#DISCOVERY_HOSTS_PROVIDER_SETTING}), and
+     * (see {@link org.elasticsearch.discovery.DiscoveryModule#DISCOVERY_SEED_PROVIDERS_SETTING}), and
      * the value is a supplier to construct the host provider when it is selected for use.
      *
      * @param transportService Use to form the {@link org.elasticsearch.common.transport.TransportAddress} portion
      *                         of a {@link org.elasticsearch.cluster.node.DiscoveryNode}
      * @param networkService Use to find the publish host address of the current node
      */
-    default Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
-                                                                             NetworkService networkService) {
+    default Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
+                                                                          NetworkService networkService) {
         return Collections.emptyMap();
     }
 
@@ -116,4 +86,11 @@ public interface DiscoveryPlugin {
      * {@link IllegalStateException} if the node and the cluster-state are incompatible.
      */
     default BiConsumer<DiscoveryNode,ClusterState> getJoinValidator() { return null; }
+
+    /**
+     * Allows plugging in election strategies (see {@link ElectionStrategy}) that define a customized notion of an election quorum.
+     */
+    default Map<String, ElectionStrategy> getElectionStrategies() {
+        return Collections.emptyMap();
+    }
 }

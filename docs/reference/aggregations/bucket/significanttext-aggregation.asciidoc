@@ -1,8 +1,6 @@
 [[search-aggregations-bucket-significanttext-aggregation]]
 === Significant Text Aggregation
 
-experimental[]
-
 An aggregation that returns interesting or unusual occurrences of free-text terms in a set.
 It is like the <<search-aggregations-bucket-significantterms-aggregation,significant terms>> aggregation but differs in that:
 
@@ -27,8 +25,6 @@ The significant words are the ones that have undergone a significant change in p
 If the term "H5N1" only exists in 5 documents in a 10 million document index and yet is found in 4 of the 100 documents that make up a user's search results
 that is significant and probably very relevant to their search. 5/10,000,000 vs 4/100 is a big swing in frequency.
 
-experimental[The `significant_text` aggregation is new and may change in non-backwards compatible ways if we add further text-analysis features e.g. phrase detection]
-
 ==== Basic use
 
 In the typical use case, the _foreground_ set of interest is a selection of the top-matching search results for a query 
@@ -36,7 +32,7 @@ and the _background_set used for statistical comparisons is the index or indices
 
 Example:
 
-[source,js]
+[source,console,id=significanttext-aggregation-example]
 --------------------------------------------------
 GET news/_search
 {
@@ -57,13 +53,12 @@ GET news/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:news]
 
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 9,
@@ -89,14 +84,14 @@ Response:
     }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE[skip:historically skipped]
 
 The results show that "h5n1" is one of several terms strongly associated with bird flu.
 It only occurs 5 times in our index as a whole (see the `bg_count`) and yet 4 of these 
 were lucky enough to appear in our 100 document sample of "bird flu" results. That suggests
 a significant word and one which the user can potentially add to their search. 
 
-
+[[filter-duplicate-text-noisy-data]]
 ==== Dealing with noisy data using `filter_duplicate_text`
 Free-text fields often contain a mix of original content and mechanical copies of text (cut-and-paste biographies, email reply chains, 
 retweets, boilerplate headers/footers, page navigation menus, sidebar news links, copyright notices, standard disclaimers, addresses).
@@ -151,7 +146,7 @@ The uncleansed documents have thrown up some odd-looking terms that are, on the 
 correlated with appearances of our search term "elasticsearch" e.g. "pozmantier".
 We can drill down into examples of these documents to see why pozmantier is connected using this query:
 
-[source,js]
+[source,console,id=significanttext-aggregation-pozmantier-example]
 --------------------------------------------------
 GET news/_search
 {
@@ -171,8 +166,8 @@ GET news/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:news]
+
 The results show a series of very similar news articles about a judging panel for a number of tech projects:
 
 [source,js]
@@ -219,7 +214,7 @@ Fortunately similar documents tend to rank similarly so as part of examining the
 aggregation can apply a filter to remove sequences of any 6 or more tokens that have already been seen. Let's try this same query now but
 with the `filter_duplicate_text` setting turned on:
 
-[source,js]
+[source,console,id=significanttext-aggregation-filter-duplicate-text-example]
 --------------------------------------------------
 GET news/_search
 {
@@ -245,7 +240,6 @@ GET news/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:news]
 
 The results from analysing our deduplicated text are obviously of higher quality to anyone familiar with the elastic stack:
@@ -357,7 +351,7 @@ However, the `size` and `shard size` settings covered in the next section provid
 
 This aggregation supports the same scoring heuristics (JLH, mutual_information, gnd, chi_square etc) as the <<search-aggregations-bucket-significantterms-aggregation,significant terms>> aggregation
 
-
+[[sig-text-shard-size]]
 ===== Size & Shard Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
@@ -368,7 +362,7 @@ If the number of unique terms is greater than `size`, the returned list can be s
 size buckets was not returned).
 
 To ensure better accuracy a multiple of the final `size` is used as the number of terms to request from each shard
-using a heuristic based on the number of shards. To take manual control of this setting the `shard_size` parameter
+(`2 * (size * 1.5 + 10)`). To take manual control of this setting the `shard_size` parameter
 can be  used to control the volumes of candidate terms produced by each shard.
 
 Low-frequency terms can turn out to be the most interesting ones once all results are combined so the
@@ -422,7 +416,7 @@ The default source of statistical information for background term frequencies is
 scope can be narrowed through the use of a `background_filter` to focus in on significant terms within a narrower
 context:
 
-[source,js]
+[source,console,id=significanttext-aggregation-custom-background-example]
 --------------------------------------------------
 GET news/_search
 {
@@ -443,7 +437,6 @@ GET news/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:news]
 
 The above filter would help focus in on terms that were peculiar to the city of Madrid rather than revealing
@@ -461,7 +454,7 @@ JSON field(s) and the indexed field being aggregated can differ.
 In these cases it is possible to list the JSON _source fields from which text
 will be analyzed using the `source_fields` parameter:
 
-[source,js]
+[source,console,id=significanttext-aggregation-mappings-example]
 --------------------------------------------------
 GET news/_search
 {
@@ -480,7 +473,6 @@ GET news/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:news]
 
 

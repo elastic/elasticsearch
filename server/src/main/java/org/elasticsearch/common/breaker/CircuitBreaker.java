@@ -53,7 +53,7 @@ public interface CircuitBreaker {
      * The in-flight request breaker tracks bytes allocated for reading and
      * writing requests on the network layer.
      */
-    String IN_FLIGHT_REQUESTS = "in_flight_requests";
+    String IN_FLIGHT_REQUESTS = "inflight_requests";
     /**
      * The accounting breaker tracks things held in memory that is independent
      * of the request lifecycle. This includes memory used by Lucene for
@@ -62,7 +62,7 @@ public interface CircuitBreaker {
     String ACCOUNTING = "accounting";
 
     enum Type {
-        // A regular or child MemoryCircuitBreaker
+        // A regular or ChildMemoryCircuitBreaker
         MEMORY,
         // A special parent-type for the hierarchy breaker service
         PARENT,
@@ -81,6 +81,13 @@ public interface CircuitBreaker {
                     throw new IllegalArgumentException("No CircuitBreaker with type: " + value);
             }
         }
+    }
+
+    enum Durability {
+        // The condition that tripped the circuit breaker fixes itself eventually.
+        TRANSIENT,
+        // The condition that tripped the circuit breaker requires manual intervention.
+        PERMANENT
     }
 
     /**
@@ -127,4 +134,9 @@ public interface CircuitBreaker {
      * @return the name of the breaker
      */
     String getName();
+
+    /**
+     * @return whether a tripped circuit breaker will reset itself (transient) or requires manual intervention (permanent).
+     */
+    Durability getDurability();
 }

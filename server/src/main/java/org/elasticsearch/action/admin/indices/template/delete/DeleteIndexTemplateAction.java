@@ -19,19 +19,17 @@
 
 package org.elasticsearch.action.admin.indices.template.delete;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class DeleteIndexTemplateAction extends Action<DeleteIndexTemplateResponse> {
+public class DeleteIndexTemplateAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteIndexTemplateAction INSTANCE = new DeleteIndexTemplateAction();
     public static final String NAME = "indices:admin/template/delete";
 
     private DeleteIndexTemplateAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new
+        );
     }
 
-    @Override
-    public DeleteIndexTemplateResponse newResponse() {
-        return new DeleteIndexTemplateResponse();
-    }
 }

@@ -1,8 +1,11 @@
+setup:
+  - skip:
+      features: headers
 ---
 "Test CRUD on two jobs in shared index":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-job
         body:  >
           {
@@ -25,7 +28,7 @@
 
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-job2
         body:  >
           {
@@ -47,22 +50,22 @@
   - match: { job_id: "index-layout-job2" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: index-layout-job
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: index-layout-job2
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: index-layout-job
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: index-layout-job2
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
@@ -70,23 +73,23 @@
 
 
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: index-layout-job
   - match: { flushed: true }
 
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: index-layout-job2
   - match: { flushed: true }
 
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: index-layout-job
   - match: { closed: true }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: index-layout-job2
   - match: { closed: true }
 
@@ -94,7 +97,14 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.exists:
-        index: ".ml-state"
+        index: ".ml-state-000001"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists_alias:
+        name: ".ml-state-write"
   - is_true: ''
 
   - do:
@@ -107,13 +117,14 @@
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh: {}
+      indices.refresh:
+        expand_wildcards: all
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - gt: {count: 0}
 
   - do:
@@ -182,8 +193,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
-        type: doc
+        index: .ml-state-000001
         id: index-layout-job2_categorizer_state#1
         body:
           key: value
@@ -192,14 +202,13 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
-        type: doc
+        index: .ml-state-000001
         id: index-layout-job2_categorizer_state#2
         body:
           key: value
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: "index-layout-job"
   - match: { acknowledged: true }
 
@@ -214,7 +223,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 4}
 
   - do:
@@ -267,7 +276,7 @@
   - match: {count: 3}
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: "index-layout-job2"
   - match: { acknowledged: true }
 
@@ -296,31 +305,28 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        type: doc
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        type: doc
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        type: doc
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
   - do:
@@ -335,7 +341,7 @@
 "Test unrelated index":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-job
         body:  >
           {
@@ -357,11 +363,11 @@
   - match: { job_id: "index-layout-job" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: index-layout-job
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: index-layout-job
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
@@ -384,7 +390,6 @@
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: foo
-        type: doc
         body:
           key: value
 
@@ -393,7 +398,6 @@
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-anomalies-foo
-        type: doc
         body:
           key: value
 
@@ -402,23 +406,22 @@
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: .ml-anomalies-foo
-        type: doc
         body:
           key: value
           job_id: foo
 
   - do:
-      xpack.ml.flush_job:
+      ml.flush_job:
         job_id: index-layout-job
   - match: { flushed: true }
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: index-layout-job
   - match: { closed: true }
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: "index-layout-job"
   - match: { acknowledged: true }
 
@@ -440,7 +443,14 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.exists:
-        index: ".ml-state"
+        index: ".ml-state-000001"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.exists_alias:
+        name: ".ml-state-write"
   - is_true: ''
 
   - do:
@@ -454,7 +464,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
   - do:
@@ -467,7 +477,8 @@
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh: {}
+      indices.refresh:
+        expand_wildcards: all
 
   - do:
       headers:
@@ -487,7 +498,7 @@
 "Test delete removes quantiles":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-quantiles-job
         body:  >
           {
@@ -508,8 +519,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
-        type: doc
+        index: .ml-state-000001
         id: index-layout-quantiles-job_quantiles
         body:
           state: quantile-state
@@ -517,10 +527,11 @@
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh: {}
+      indices.refresh:
+        expand_wildcards: all
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: "index-layout-quantiles-job"
   - match: { acknowledged: true }
 
@@ -528,14 +539,14 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
 ---
 "Test delete removes state":
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-state-job
         body:  >
           {
@@ -560,7 +571,6 @@
 
       index:
         index:  .ml-anomalies-shared
-        type:   doc
         id:     "index-layout-state-job_model_snapshot_123"
         body: >
           {
@@ -575,8 +585,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
-        type: doc
+        index: .ml-state-000001
         id: index-layout-state-job_model_state_123#1
         body:
           state: new-model-state
@@ -585,8 +594,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
-        type: doc
+        index: .ml-state-000001
         id: index-layout-state-job_model_state_123#2
         body:
           state: more-new-model-state
@@ -595,8 +603,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
-        type: doc
+        index: .ml-state-000001
         id: index-layout-state-job_categorizer_state#1
         body:
           state: new-categorizer-state
@@ -605,8 +612,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
-        type: doc
+        index: .ml-state-000001
         id: index-layout-state-job_categorizer_state#2
         body:
           state: more-new-categorizer-state
@@ -614,10 +620,11 @@
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh: {}
+      indices.refresh:
+        expand_wildcards: all
 
   - do:
-      xpack.ml.delete_job:
+      ml.delete_job:
         job_id: "index-layout-state-job"
   - match: { acknowledged: true }
 
@@ -632,7 +639,7 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 
 ---
@@ -642,10 +649,10 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
-        index: .ml-state
+        index: .ml-state-000001
 
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: index-layout-force-close-job
         body:  >
           {
@@ -665,18 +672,18 @@
   - match: { job_id: "index-layout-force-close-job" }
 
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: index-layout-force-close-job
 
   - do:
-      xpack.ml.post_data:
+      ml.post_data:
         job_id: index-layout-force-close-job
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
 
   - do:
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: index-layout-force-close-job
         force: true
   - match: { closed: true }
@@ -685,18 +692,26 @@
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.exists:
-        index: ".ml-state"
+        index: ".ml-state-000001"
   - is_true: ''
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh: {}
+      indices.exists_alias:
+        name: ".ml-state-write"
+  - is_true: ''
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        expand_wildcards: all
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
-        index: .ml-state
+        index: .ml-state*
   - match: {count: 0}
 

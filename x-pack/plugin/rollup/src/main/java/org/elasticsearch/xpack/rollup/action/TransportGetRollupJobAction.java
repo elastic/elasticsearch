@@ -16,8 +16,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
@@ -28,7 +26,6 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -38,10 +35,9 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
         GetRollupJobsAction.Response, GetRollupJobsAction.Response> {
 
     @Inject
-    public TransportGetRollupJobAction(Settings settings, TransportService transportService,
-                                       ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, GetRollupJobsAction.NAME, clusterService, transportService, actionFilters,
-            GetRollupJobsAction.Request::new, GetRollupJobsAction.Response::new, ThreadPool.Names.SAME);
+    public TransportGetRollupJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+        super(GetRollupJobsAction.NAME, clusterService, transportService, actionFilters, GetRollupJobsAction.Request::new,
+            GetRollupJobsAction.Response::new, GetRollupJobsAction.Response::new, ThreadPool.Names.SAME);
     }
 
     @Override
@@ -63,7 +59,7 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
             // Non-master nodes may have a stale cluster state that shows jobs which are cancelled
             // on the master, which makes testing difficult.
             if (nodes.getMasterNode() == null) {
-                listener.onFailure(new MasterNotDiscoveredException("no known master nodes"));
+                listener.onFailure(new MasterNotDiscoveredException());
             } else {
                 transportService.sendRequest(nodes.getMasterNode(), actionName, request,
                         new ActionListenerResponseHandler<>(listener, GetRollupJobsAction.Response::new));
@@ -120,8 +116,4 @@ public class TransportGetRollupJobAction extends TransportTasksAction<RollupJobT
         return new GetRollupJobsAction.Response(jobs, taskOperationFailures, failedNodeExceptions);
     }
 
-    @Override
-    protected GetRollupJobsAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new GetRollupJobsAction.Response(in);
-    }
 }

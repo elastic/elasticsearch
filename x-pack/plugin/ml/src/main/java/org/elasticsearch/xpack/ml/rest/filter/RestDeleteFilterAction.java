@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.filter;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
@@ -16,18 +14,30 @@ import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction.Request;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteFilterAction extends BaseRestHandler {
 
-    public RestDeleteFilterAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE,
-                MachineLearning.BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}", this);
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
+        // TODO: remove deprecated endpoint in 8.0.0
+        return Collections.singletonList(
+            new ReplacedRoute(DELETE, MachineLearning.BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}",
+                DELETE, MachineLearning.PRE_V7_BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}")
+        );
     }
 
     @Override
     public String getName() {
-        return "xpack_ml_delete_filter_action";
+        return "ml_delete_filter_action";
     }
 
     @Override

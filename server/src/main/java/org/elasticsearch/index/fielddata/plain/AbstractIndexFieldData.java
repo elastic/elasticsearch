@@ -26,14 +26,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 
 import java.io.IOException;
 
-public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
+public abstract class AbstractIndexFieldData<FD extends LeafFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
 
     private final String fieldName;
     protected final IndexFieldDataCache cache;
@@ -86,7 +86,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
      * A {@code PerValueEstimator} is a sub-class that can be used to estimate
      * the memory overhead for loading the data. Each field data
      * implementation should implement its own {@code PerValueEstimator} if it
-     * intends to take advantage of the MemoryCircuitBreaker.
+     * intends to take advantage of the CircuitBreaker.
      * <p>
      * Note that the .beforeLoad(...) and .afterLoad(...) methods must be
      * manually called.

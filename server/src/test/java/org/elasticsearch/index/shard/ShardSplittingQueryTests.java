@@ -29,6 +29,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
@@ -38,9 +39,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESTestCase;
 
@@ -72,7 +73,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 for (int i = 0; i < numNested; i++) {
                     docs.add(Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                        new StringField(TypeFieldMapper.NAME, "__nested", Field.Store.YES),
+                        new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId)
                     ));
                 }
@@ -120,7 +121,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 for (int i = 0; i < numNested; i++) {
                     docs.add(Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                        new StringField(TypeFieldMapper.NAME, "__nested", Field.Store.YES),
+                        new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId)
                     ));
                 }
@@ -186,7 +187,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 for (int i = 0; i < numNested; i++) {
                     docs.add(Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                        new StringField(TypeFieldMapper.NAME, "__nested", Field.Store.YES),
+                        new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId)
                     ));
                 }
@@ -227,7 +228,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 for (int i = 0; i < numNested; i++) {
                     docs.add(Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                        new StringField(TypeFieldMapper.NAME, "__nested", Field.Store.YES),
+                        new StringField(NestedPathFieldMapper.NAME, "__nested", Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId)
                     ));
                 }
@@ -260,9 +261,8 @@ public class ShardSplittingQueryTests extends ESTestCase {
         try (IndexReader reader = DirectoryReader.open(dir)) {
             IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
-            final boolean needsScores = false;
-            final Weight splitWeight = searcher.createNormalizedWeight(new ShardSplittingQuery(metaData, targetShardId, hasNested),
-                needsScores);
+            final Weight splitWeight = searcher.createWeight(searcher.rewrite(new ShardSplittingQuery(metaData, targetShardId, hasNested)),
+                ScoreMode.COMPLETE_NO_SCORES, 1f);
             final List<LeafReaderContext> leaves = reader.leaves();
             for (final LeafReaderContext ctx : leaves) {
                 Scorer scorer = splitWeight.scorer(ctx);

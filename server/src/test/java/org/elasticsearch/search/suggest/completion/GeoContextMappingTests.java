@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +40,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.common.geo.GeoHashUtils.addNeighbors;
+import static org.elasticsearch.geometry.utils.Geohash.addNeighborsAtLevel;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.suggest.completion.CategoryContextMappingTests.assertContextSuggestFields;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,7 +49,7 @@ import static org.hamcrest.Matchers.isIn;
 public class GeoContextMappingTests extends ESSingleNodeTestCase {
 
     public void testIndexingWithNoContexts() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
                 .startArray("contexts")
@@ -60,9 +61,9 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fullName("completion");
-        ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        MappedFieldType completionFieldType = mapperService.fieldType("completion");
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(new SourceToParse("test", "1",
             BytesReference.bytes(jsonBuilder()
                         .startObject()
                         .startArray("completion")
@@ -86,7 +87,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithSimpleContexts() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
                 .startArray("contexts")
@@ -99,9 +100,9 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fullName("completion");
-        ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        MappedFieldType completionFieldType = mapperService.fieldType("completion");
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(new SourceToParse("test", "1",
             BytesReference.bytes(jsonBuilder()
                         .startObject()
                         .startArray("completion")
@@ -123,7 +124,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithContextList() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
                 .startArray("contexts")
@@ -135,9 +136,9 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fullName("completion");
-        ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        MappedFieldType completionFieldType = mapperService.fieldType("completion");
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(new SourceToParse("test", "1",
             BytesReference.bytes(jsonBuilder()
                         .startObject()
                             .startObject("completion")
@@ -163,7 +164,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexingWithMultipleContexts() throws Exception {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject("completion")
                 .field("type", "completion")
                 .startArray("contexts")
@@ -179,8 +180,8 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject()
                 .endObject().endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fullName("completion");
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+        MappedFieldType completionFieldType = mapperService.fieldType("completion");
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                 .startArray("completion")
@@ -194,10 +195,74 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject();
-        ParsedDocument parsedDocument = mapperService.documentMapper().parse(SourceToParse.source("test", "type1", "1",
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(new SourceToParse("test", "1",
             BytesReference.bytes(builder), XContentType.JSON));
         IndexableField[] fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
+    }
+
+    public void testMalformedGeoField() throws Exception {
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject();
+        mapping.startObject("_doc");
+        mapping.startObject("properties");
+        mapping.startObject("pin");
+        String type = randomFrom("text", "keyword", "long");
+        mapping.field("type", type);
+        mapping.endObject();
+        mapping.startObject("suggestion");
+        mapping.field("type", "completion");
+        mapping.field("analyzer", "simple");
+
+        mapping.startArray("contexts");
+        mapping.startObject();
+        mapping.field("name", "st");
+        mapping.field("type", "geo");
+        mapping.field("path", "pin");
+        mapping.field("precision", 5);
+        mapping.endObject();
+        mapping.endArray();
+
+        mapping.endObject();
+
+        mapping.endObject();
+        mapping.endObject();
+        mapping.endObject();
+
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+            () ->  createIndex("test", Settings.EMPTY, mapping));
+
+        assertThat(ex.getMessage(), equalTo("field [pin] referenced in context [st] must be mapped to geo_point, found [" + type + "]"));
+    }
+
+    public void testMissingGeoField() throws Exception {
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject();
+        mapping.startObject("_doc");
+        mapping.startObject("properties");
+        mapping.startObject("suggestion");
+        mapping.field("type", "completion");
+        mapping.field("analyzer", "simple");
+
+        mapping.startArray("contexts");
+        mapping.startObject();
+        mapping.field("name", "st");
+        mapping.field("type", "geo");
+        mapping.field("path", "pin");
+        mapping.field("precision", 5);
+        mapping.endObject();
+        mapping.endArray();
+
+        mapping.endObject();
+
+        mapping.endObject();
+        mapping.endObject();
+        mapping.endObject();
+
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+            () ->  createIndex("test", Settings.EMPTY, mapping));
+
+        assertThat(ex.getMessage(), equalTo("field [pin] referenced in context [st] is not defined in the mapping"));
     }
 
     public void testParsingQueryContextBasic() throws Exception {
@@ -208,7 +273,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.size(), equalTo(1 + 8));
         Collection<String> locations = new ArrayList<>();
         locations.add("ezs42e");
-        addNeighbors("ezs42e", GeoContextMapping.DEFAULT_PRECISION, locations);
+        addNeighborsAtLevel("ezs42e", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
             assertThat(internalQueryContext.context, isIn(locations));
             assertThat(internalQueryContext.boost, equalTo(1));
@@ -227,7 +292,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.size(), equalTo(1 + 8));
         Collection<String> locations = new ArrayList<>();
         locations.add("wh0n94");
-        addNeighbors("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
+        addNeighborsAtLevel("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
             assertThat(internalQueryContext.context, isIn(locations));
             assertThat(internalQueryContext.boost, equalTo(1));
@@ -251,11 +316,11 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Collection<String> locations = new ArrayList<>();
         locations.add("wh0n94");
         locations.add("w");
-        addNeighbors("w", 1, locations);
+        addNeighborsAtLevel("w", 1, locations);
         locations.add("wh");
-        addNeighbors("wh", 2, locations);
+        addNeighborsAtLevel("wh", 2, locations);
         locations.add("wh0");
-        addNeighbors("wh0", 3, locations);
+        addNeighborsAtLevel("wh0", 3, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
             assertThat(internalQueryContext.context, isIn(locations));
             assertThat(internalQueryContext.boost, equalTo(10));
@@ -289,15 +354,15 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Collection<String> firstLocations = new ArrayList<>();
         firstLocations.add("wh0n94");
         firstLocations.add("w");
-        addNeighbors("w", 1, firstLocations);
+        addNeighborsAtLevel("w", 1, firstLocations);
         firstLocations.add("wh");
-        addNeighbors("wh", 2, firstLocations);
+        addNeighborsAtLevel("wh", 2, firstLocations);
         firstLocations.add("wh0");
-        addNeighbors("wh0", 3, firstLocations);
+        addNeighborsAtLevel("wh0", 3, firstLocations);
         Collection<String> secondLocations = new ArrayList<>();
         secondLocations.add("w5cx04");
         secondLocations.add("w5cx0");
-        addNeighbors("w5cx0", 5, secondLocations);
+        addNeighborsAtLevel("w5cx0", 5, secondLocations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
             if (firstLocations.contains(internalQueryContext.context)) {
                 assertThat(internalQueryContext.boost, equalTo(10));
@@ -332,12 +397,12 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Collection<String> firstLocations = new ArrayList<>();
         firstLocations.add("wh0n94");
         firstLocations.add("w");
-        addNeighbors("w", 1, firstLocations);
+        addNeighborsAtLevel("w", 1, firstLocations);
         firstLocations.add("wh");
-        addNeighbors("wh", 2, firstLocations);
+        addNeighborsAtLevel("wh", 2, firstLocations);
         Collection<String> secondLocations = new ArrayList<>();
         secondLocations.add("w5cx04");
-        addNeighbors("w5cx04", 6, secondLocations);
+        addNeighborsAtLevel("w5cx04", 6, secondLocations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
             if (firstLocations.contains(internalQueryContext.context)) {
                 assertThat(internalQueryContext.boost, equalTo(10));

@@ -19,15 +19,15 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.LineString;
-
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geometry.Line;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LineString;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuilder> {
+public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geometry.Geometry, LineStringBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
     /**
@@ -101,11 +101,11 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
     }
 
     @Override
-    public JtsGeometry build() {
+    public JtsGeometry buildS4J() {
         Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
         Geometry geometry;
         if(wrapdateline) {
-            ArrayList<LineString> strings = decompose(FACTORY, coordinates, new ArrayList<LineString>());
+            ArrayList<LineString> strings = decomposeS4J(FACTORY, coordinates, new ArrayList<LineString>());
 
             if(strings.size() == 1) {
                 geometry = strings.get(0);
@@ -120,7 +120,13 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
         return jtsGeometry(geometry);
     }
 
-    static ArrayList<LineString> decompose(GeometryFactory factory, Coordinate[] coordinates, ArrayList<LineString> strings) {
+    @Override
+    public org.elasticsearch.geometry.Geometry buildGeometry() {
+        return new Line(coordinates.stream().mapToDouble(i->i.x).toArray(), coordinates.stream().mapToDouble(i->i.y).toArray()
+        );
+    }
+
+    static ArrayList<LineString> decomposeS4J(GeometryFactory factory, Coordinate[] coordinates, ArrayList<LineString> strings) {
         for(Coordinate[] part : decompose(+DATELINE, coordinates)) {
             for(Coordinate[] line : decompose(-DATELINE, part)) {
                 strings.add(factory.createLineString(line));

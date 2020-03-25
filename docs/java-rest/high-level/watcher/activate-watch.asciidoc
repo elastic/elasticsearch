@@ -1,0 +1,56 @@
+--
+:api: activate-watch
+:request: ActivateWatchRequest
+:response: ActivateWatchResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Activate watch API
+
+[id="{upid}-{api}-request"]
+==== Execution
+
+A watch can be activated as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the new status of the activated watch.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `watchStatus` contains status of the watch
+
+[id="{upid}-{api}-request-async"]
+==== Asynchronous execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-async]
+--------------------------------------------------
+<1> The +{request}+ to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for +{response}+ looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

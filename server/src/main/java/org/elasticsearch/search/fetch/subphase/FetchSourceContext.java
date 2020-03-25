@@ -91,8 +91,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static FetchSourceContext parseFromRestRequest(RestRequest request) {
         Boolean fetchSource = null;
-        String[] source_excludes = null;
-        String[] source_includes = null;
+        String[] sourceExcludes = null;
+        String[] sourceIncludes = null;
 
         String source = request.param("_source");
         if (source != null) {
@@ -101,23 +101,22 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             } else if (Booleans.isFalse(source)) {
                 fetchSource = false;
             } else {
-                source_includes = Strings.splitStringByCommaToArray(source);
+                sourceIncludes = Strings.splitStringByCommaToArray(source);
             }
         }
+
         String sIncludes = request.param("_source_includes");
-        sIncludes = request.param("_source_include", sIncludes);
         if (sIncludes != null) {
-            source_includes = Strings.splitStringByCommaToArray(sIncludes);
+            sourceIncludes = Strings.splitStringByCommaToArray(sIncludes);
         }
 
         String sExcludes = request.param("_source_excludes");
-        sExcludes = request.param("_source_exclude", sExcludes);
         if (sExcludes != null) {
-            source_excludes = Strings.splitStringByCommaToArray(sExcludes);
+            sourceExcludes = Strings.splitStringByCommaToArray(sExcludes);
         }
 
-        if (fetchSource != null || source_includes != null || source_excludes != null) {
-            return new FetchSourceContext(fetchSource == null ? true : fetchSource, source_includes, source_excludes);
+        if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
+            return new FetchSourceContext(fetchSource == null ? true : fetchSource, sourceIncludes, sourceExcludes);
         }
         return null;
     }

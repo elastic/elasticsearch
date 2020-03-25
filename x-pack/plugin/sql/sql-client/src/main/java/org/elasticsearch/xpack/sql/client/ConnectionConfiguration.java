@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.sql.client;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -28,6 +28,14 @@ import static java.util.Collections.emptyList;
  * to move away from the loose Strings...
  */
 public class ConnectionConfiguration {
+    
+    // Validation
+    public static final String PROPERTIES_VALIDATION = "validate.properties";
+    private static final String PROPERTIES_VALIDATION_DEFAULT = "true";
+    
+    // Binary communication
+    public static final String BINARY_COMMUNICATION = "binary.format";
+    private static final String BINARY_COMMUNICATION_DEFAULT = "true";
 
     // Timeouts
 
@@ -57,12 +65,16 @@ public class ConnectionConfiguration {
     public static final String AUTH_PASS = "password";
 
     protected static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-            Arrays.asList(CONNECT_TIMEOUT, NETWORK_TIMEOUT, QUERY_TIMEOUT, PAGE_TIMEOUT, PAGE_SIZE, AUTH_USER, AUTH_PASS));
+            Arrays.asList(PROPERTIES_VALIDATION, BINARY_COMMUNICATION, CONNECT_TIMEOUT, NETWORK_TIMEOUT, QUERY_TIMEOUT, PAGE_TIMEOUT,
+                    PAGE_SIZE, AUTH_USER, AUTH_PASS));
 
     static {
         OPTION_NAMES.addAll(SslConfig.OPTION_NAMES);
         OPTION_NAMES.addAll(ProxyConfig.OPTION_NAMES);
     }
+    
+    private final boolean validateProperties;
+    private final boolean binaryCommunication;
 
     // Base URI for all request
     private final URI baseURI;
@@ -85,7 +97,14 @@ public class ConnectionConfiguration {
         this.connectionString = connectionString;
         Properties settings = props != null ? props : new Properties();
 
-        checkPropertyNames(settings, optionNames());
+        validateProperties = parseValue(PROPERTIES_VALIDATION, settings.getProperty(PROPERTIES_VALIDATION, PROPERTIES_VALIDATION_DEFAULT),
+                Boolean::parseBoolean);
+        if (validateProperties) {
+            checkPropertyNames(settings, optionNames());
+        }
+
+        binaryCommunication = parseValue(BINARY_COMMUNICATION, settings.getProperty(BINARY_COMMUNICATION, BINARY_COMMUNICATION_DEFAULT),
+                Boolean::parseBoolean);
 
         connectTimeout = parseValue(CONNECT_TIMEOUT, settings.getProperty(CONNECT_TIMEOUT, CONNECT_TIMEOUT_DEFAULT), Long::parseLong);
         networkTimeout = parseValue(NETWORK_TIMEOUT, settings.getProperty(NETWORK_TIMEOUT, NETWORK_TIMEOUT_DEFAULT), Long::parseLong);
@@ -98,15 +117,17 @@ public class ConnectionConfiguration {
         user = settings.getProperty(AUTH_USER);
         pass = settings.getProperty(AUTH_PASS);
 
-        sslConfig = new SslConfig(settings);
+        sslConfig = new SslConfig(settings, baseURI);
         proxyConfig = new ProxyConfig(settings);
 
         this.baseURI = normalizeSchema(baseURI, connectionString, sslConfig.isEnabled());
     }
 
-    public ConnectionConfiguration(URI baseURI, String connectionString, long connectTimeout, long networkTimeout, long queryTimeout,
-                                   long pageTimeout, int pageSize, String user, String pass, SslConfig sslConfig,
-                                   ProxyConfig proxyConfig) throws ClientException {
+    public ConnectionConfiguration(URI baseURI, String connectionString, boolean validateProperties, boolean binaryCommunication,
+                                   long connectTimeout, long networkTimeout, long queryTimeout, long pageTimeout, int pageSize,
+                                   String user, String pass, SslConfig sslConfig, ProxyConfig proxyConfig) throws ClientException {
+        this.validateProperties = validateProperties;
+        this.binaryCommunication = binaryCommunication;
         this.connectionString = connectionString;
         this.connectTimeout = connectTimeout;
         this.networkTimeout = networkTimeout;
@@ -126,32 +147,21 @@ public class ConnectionConfiguration {
 
 
     private static URI normalizeSchema(URI uri, String connectionString, boolean isSSLEnabled)  {
-        // Make sure the protocol is correct
-        final String scheme;
-        if (isSSLEnabled) {
-            // It's ok to upgrade from http to https
-            scheme = "https";
-        } else {
-            // Silently downgrading from https to http can cause security issues
-            if ("https".equals(uri.getScheme())) {
-                throw new ClientException("SSL is disabled");
-            }
-            scheme = "http";
-        }
         try {
-            return new URI(scheme, null, uri.getHost(), uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment());
+            return new URI(isSSLEnabled ? "https" : "http", null, uri.getHost(), uri.getPort(), uri.getPath(), uri.getQuery(),
+                    uri.getFragment());
         } catch (URISyntaxException ex) {
             throw new ClientException("Cannot parse process baseURI [" + connectionString + "] " + ex.getMessage());
         }
     }
 
-    private Collection<String> optionNames() {
-        Collection<String> options = new ArrayList<>(OPTION_NAMES);
+    protected Collection<String> optionNames() {
+        Set<String> options = new TreeSet<>(OPTION_NAMES);
         options.addAll(extraOptions());
         return options;
     }
 
-    protected Collection<? extends String> extraOptions() {
+    protected Collection<String> extraOptions() {
         return emptyList();
     }
 
@@ -170,7 +180,7 @@ public class ConnectionConfiguration {
         if (knownOptions.contains(propertyName)) {
             return null;
         }
-        return "Unknown parameter [" + propertyName + "] ; did you mean " + StringUtils.findSimiliar(propertyName, knownOptions);
+        return "Unknown parameter [" + propertyName + "]; did you mean " + StringUtils.findSimilar(propertyName, knownOptions);
     }
 
     protected <T> T parseValue(String key, String value, Function<String, T> parser) {
@@ -183,6 +193,14 @@ public class ConnectionConfiguration {
 
     protected boolean isSSLEnabled() {
         return sslConfig.isEnabled();
+    }
+    
+    public boolean validateProperties() {
+        return validateProperties;
+    }
+
+    public boolean binaryCommunication() {
+        return binaryCommunication;
     }
 
     public SslConfig sslConfig() {

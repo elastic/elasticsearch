@@ -49,8 +49,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.join.mapper.MetaJoinFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -105,6 +105,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                 expectedMinValue = Math.min(expectedMinValue, expectedValues.v2());
             }
             assertEquals(expectedTotalChildren, child.getDocCount());
+            assertTrue(JoinAggregationInspectionHelper.hasValue(child));
             assertEquals(expectedMinValue, ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
         });
 
@@ -164,7 +165,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         MapperService mapperService = mock(MapperService.class);
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
         when(metaJoinFieldType.getMapper()).thenReturn(joinFieldMapper);
-        when(mapperService.fullName("_parent_join")).thenReturn(metaJoinFieldType);
+        when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
         return mapperService;
     }
 

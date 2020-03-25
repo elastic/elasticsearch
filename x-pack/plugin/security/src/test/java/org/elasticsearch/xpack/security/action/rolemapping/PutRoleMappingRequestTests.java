@@ -5,17 +5,16 @@
  */
 package org.elasticsearch.xpack.security.action.rolemapping;
 
-import java.util.Collections;
-
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.junit.Before;
 import org.mockito.Mockito;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -27,7 +26,7 @@ public class PutRoleMappingRequestTests extends ESTestCase {
     @Before
     public void setupBuilder() {
         final ElasticsearchClient client = Mockito.mock(ElasticsearchClient.class);
-        builder = new PutRoleMappingRequestBuilder(client, PutRoleMappingAction.INSTANCE);
+        builder = new PutRoleMappingRequestBuilder(client);
     }
 
     public void testValidateMissingName() throws Exception {

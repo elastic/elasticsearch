@@ -24,22 +24,22 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Official documentation for this can be found at
  *
- * https://developer.pagerduty.com/documentation/howto/manually-trigger-an-incident/
- * https://developer.pagerduty.com/documentation/integration/events/trigger
- * https://developer.pagerduty.com/documentation/integration/events/acknowledge
- * https://developer.pagerduty.com/documentation/integration/events/resolve
+ * https://v2.developer.pagerduty.com/docs/send-an-event-events-api-v2
  */
 public class IncidentEvent implements ToXContentObject {
 
     static final String HOST = "events.pagerduty.com";
-    static final String PATH = "/generic/2010-04-15/create_event.json";
+    static final String PATH = "/v2/enqueue";
+    static final String ACCEPT_HEADER = "application/vnd.pagerduty+json;version=2";
 
     final String description;
     @Nullable final HttpProxy proxy;
@@ -93,44 +93,79 @@ public class IncidentEvent implements ToXContentObject {
         return result;
     }
 
-    public HttpRequest createRequest(final String serviceKey, final Payload payload) throws IOException {
+    HttpRequest createRequest(final String serviceKey, final Payload payload, final String watchId) throws IOException {
         return HttpRequest.builder(HOST, -1)
                 .method(HttpMethod.POST)
                 .scheme(Scheme.HTTPS)
                 .path(PATH)
                 .proxy(proxy)
-                .jsonBody(new ToXContent() {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        builder.field(Fields.SERVICE_KEY.getPreferredName(), serviceKey);
-                        builder.field(Fields.EVENT_TYPE.getPreferredName(), eventType);
-                        builder.field(Fields.DESCRIPTION.getPreferredName(), description);
-                        if (incidentKey != null) {
-                            builder.field(Fields.INCIDENT_KEY.getPreferredName(), incidentKey);
-                        }
-                        if (client != null) {
-                            builder.field(Fields.CLIENT.getPreferredName(), client);
-                        }
-                        if (clientUrl != null) {
-                            builder.field(Fields.CLIENT_URL.getPreferredName(), clientUrl);
-                        }
-                        if (attachPayload) {
-                            builder.startObject(Fields.DETAILS.getPreferredName());
-                            builder.field(Fields.PAYLOAD.getPreferredName());
-                            payload.toXContent(builder, params);
-                            builder.endObject();
-                        }
-                        if (contexts != null && contexts.length > 0) {
-                            builder.startArray(Fields.CONTEXTS.getPreferredName());
-                            for (IncidentEventContext context : contexts) {
-                                context.toXContent(builder, params);
-                            }
-                            builder.endArray();
-                        }
-                        return builder;
-                    }
-                })
+                .setHeader("Accept", ACCEPT_HEADER)
+                .jsonBody((b, p) -> buildAPIXContent(b, p, serviceKey, payload, watchId))
                 .build();
+    }
+
+    XContentBuilder buildAPIXContent(XContentBuilder builder, Params params, String serviceKey,
+                                            Payload payload, String watchId) throws IOException {
+        builder.field(Fields.ROUTING_KEY.getPreferredName(), serviceKey);
+        builder.field(Fields.EVENT_ACTION.getPreferredName(), eventType);
+        if (incidentKey != null) {
+            builder.field(Fields.DEDUP_KEY.getPreferredName(), incidentKey);
+        }
+
+        builder.startObject(Fields.PAYLOAD.getPreferredName());
+        {
+            builder.field(Fields.SUMMARY.getPreferredName(), description);
+
+            if (attachPayload && payload != null) {
+                builder.startObject(Fields.CUSTOM_DETAILS.getPreferredName());
+                {
+                    builder.field(Fields.PAYLOAD.getPreferredName(), payload, params);
+                }
+                builder.endObject();
+            }
+
+            if (watchId != null) {
+                builder.field(Fields.SOURCE.getPreferredName(), watchId);
+            } else {
+                builder.field(Fields.SOURCE.getPreferredName(), "watcher");
+            }
+            // TODO externalize this into something user editable
+            builder.field(Fields.SEVERITY.getPreferredName(), "critical");
+        }
+        builder.endObject();
+
+        if (client != null) {
+            builder.field(Fields.CLIENT.getPreferredName(), client);
+        }
+        if (clientUrl != null) {
+            builder.field(Fields.CLIENT_URL.getPreferredName(), clientUrl);
+        }
+
+        if (contexts != null && contexts.length > 0) {
+            toXContentV2Contexts(builder, params, contexts);
+        }
+
+        return builder;
+    }
+
+    /**
+     * Turns the V1 API contexts into 2 distinct lists, images and links. The V2 API has separated these out into 2 top level fields.
+     */
+    private void toXContentV2Contexts(XContentBuilder builder, ToXContent.Params params,
+                                      IncidentEventContext[] contexts) throws IOException {
+        // contexts can be either links or images, and the v2 api needs them separate
+        Map<IncidentEventContext.Type, List<IncidentEventContext>> groups = Arrays.stream(contexts)
+            .collect(Collectors.groupingBy(iec -> iec.type));
+
+        List<IncidentEventContext> links = groups.getOrDefault(IncidentEventContext.Type.LINK, Collections.emptyList());
+        if (links.isEmpty() == false) {
+            builder.array(Fields.LINKS.getPreferredName(), links.toArray());
+        }
+
+        List<IncidentEventContext> images = groups.getOrDefault(IncidentEventContext.Type.IMAGE, Collections.emptyList());
+        if (images.isEmpty() == false) {
+            builder.array(Fields.IMAGES.getPreferredName(), images.toArray());
+        }
     }
 
     @Override
@@ -445,8 +480,15 @@ public class IncidentEvent implements ToXContentObject {
         // we need to keep this for BWC
         ParseField CONTEXT_DEPRECATED = new ParseField("context");
 
-        ParseField SERVICE_KEY = new ParseField("service_key");
         ParseField PAYLOAD = new ParseField("payload");
-        ParseField DETAILS = new ParseField("details");
+        ParseField ROUTING_KEY = new ParseField("routing_key");
+        ParseField EVENT_ACTION = new ParseField("event_action");
+        ParseField DEDUP_KEY = new ParseField("dedup_key");
+        ParseField SUMMARY = new ParseField("summary");
+        ParseField SOURCE = new ParseField("source");
+        ParseField SEVERITY = new ParseField("severity");
+        ParseField LINKS = new ParseField("links");
+        ParseField IMAGES = new ParseField("images");
+        ParseField CUSTOM_DETAILS = new ParseField("custom_details");
     }
 }

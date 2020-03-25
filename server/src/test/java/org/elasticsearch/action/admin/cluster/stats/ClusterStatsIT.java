@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -54,7 +54,8 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     private void waitForNodes(int numNodes) {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes))).actionGet();
+                .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID)
+                    .waitForNodes(Integer.toString(numNodes))).actionGet();
         assertThat(actionGet.isTimedOut(), is(false));
     }
 
@@ -62,9 +63,10 @@ public class ClusterStatsIT extends ESIntegTestCase {
         int total = 1;
         internalCluster().startNode();
         Map<String, Integer> expectedCounts = new HashMap<>();
-        expectedCounts.put(DiscoveryNode.Role.DATA.getRoleName(), 1);
-        expectedCounts.put(DiscoveryNode.Role.MASTER.getRoleName(), 1);
-        expectedCounts.put(DiscoveryNode.Role.INGEST.getRoleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.INGEST_ROLE.roleName(), 1);
+        expectedCounts.put(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), 1);
         expectedCounts.put(ClusterStatsNodes.Counts.COORDINATING_ONLY, 0);
         int numNodes = randomIntBetween(1, 5);
 
@@ -75,23 +77,30 @@ public class ClusterStatsIT extends ESIntegTestCase {
             boolean isDataNode = randomBoolean();
             boolean isMasterNode = randomBoolean();
             boolean isIngestNode = randomBoolean();
-            Settings settings = Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), isDataNode)
-                    .put(Node.NODE_MASTER_SETTING.getKey(), isMasterNode).put(Node.NODE_INGEST_SETTING.getKey(), isIngestNode)
-                    .build();
+            boolean isRemoteClusterClientNode = randomBoolean();
+            Settings settings = Settings.builder()
+                .put(Node.NODE_DATA_SETTING.getKey(), isDataNode)
+                .put(Node.NODE_MASTER_SETTING.getKey(), isMasterNode)
+                .put(Node.NODE_INGEST_SETTING.getKey(), isIngestNode)
+                .put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), isRemoteClusterClientNode)
+                .build();
             internalCluster().startNode(settings);
             total++;
             waitForNodes(total);
 
             if (isDataNode) {
-                incrementCountForRole(DiscoveryNode.Role.DATA.getRoleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNodeRole.DATA_ROLE.roleName(), expectedCounts);
             }
             if (isMasterNode) {
-                incrementCountForRole(DiscoveryNode.Role.MASTER.getRoleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts);
             }
             if (isIngestNode) {
-                incrementCountForRole(DiscoveryNode.Role.INGEST.getRoleName(), expectedCounts);
+                incrementCountForRole(DiscoveryNodeRole.INGEST_ROLE.roleName(), expectedCounts);
             }
-            if (!isDataNode && !isMasterNode && !isIngestNode) {
+            if (isRemoteClusterClientNode) {
+                incrementCountForRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), expectedCounts);
+            }
+            if (!isDataNode && !isMasterNode && !isIngestNode && !isRemoteClusterClientNode) {
                 incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);
             }
 
@@ -133,7 +142,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         // add another node, replicas should get assigned
         internalCluster().startNode();
         ensureGreen();
-        index("test1", "type", "1", "f", "f");
+        indexDoc("test1", "1", "f", "f");
         refresh(); // make the doc visible
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
@@ -163,7 +172,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     public void testValuesSmokeScreen() throws IOException, ExecutionException, InterruptedException {
         internalCluster().startNodes(randomIntBetween(1, 3));
-        index("test1", "type", "1", "f", "f");
+        indexDoc("test1", "1", "f", "f");
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         String msg = response.toString();
@@ -202,7 +211,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     public void testAllocatedProcessors() throws Exception {
         // start one node with 7 processors.
-        internalCluster().startNode(Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), 7).build());
+        internalCluster().startNode(Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 7).build());
         waitForNodes(1);
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
@@ -215,9 +224,9 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
         if (randomBoolean()) {
-            internalCluster().startMasterOnlyNode(Settings.EMPTY);
+            internalCluster().startMasterOnlyNode();
         } else {
-            internalCluster().startDataOnlyNode(Settings.EMPTY);
+            internalCluster().startDataOnlyNode();
         }
         // wait for the cluster status to settle
         ensureGreen();

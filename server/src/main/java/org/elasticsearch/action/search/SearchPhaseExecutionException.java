@@ -85,8 +85,9 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         if (shardFailures.length == 0) {
-            // if no successful shards, it means no active shards, so just return SERVICE_UNAVAILABLE
-            return RestStatus.SERVICE_UNAVAILABLE;
+            // if no successful shards, the failure can be due to EsRejectedExecutionException during fetch phase
+            // on coordinator node. so get the status from cause instead of returning SERVICE_UNAVAILABLE blindly
+            return getCause() == null ? RestStatus.SERVICE_UNAVAILABLE : ExceptionsHelper.status(getCause());
         }
         RestStatus status = shardFailures[0].status();
         if (shardFailures.length > 1) {
@@ -134,16 +135,12 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     @Override
     protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("phase", phaseName);
-        final boolean group = params.paramAsBoolean("group_shard_failures", true); // we group by default
-        builder.field("grouped", group); // notify that it's grouped
+        builder.field("grouped", true); // notify that it's grouped
         builder.field("failed_shards");
         builder.startArray();
-        ShardOperationFailedException[] failures = params.paramAsBoolean("group_shard_failures", true) ?
-                ExceptionsHelper.groupBy(shardFailures) : shardFailures;
+        ShardOperationFailedException[] failures = ExceptionsHelper.groupBy(shardFailures);
         for (ShardOperationFailedException failure : failures) {
-            builder.startObject();
             failure.toXContent(builder, params);
-            builder.endObject();
         }
         builder.endArray();
     }

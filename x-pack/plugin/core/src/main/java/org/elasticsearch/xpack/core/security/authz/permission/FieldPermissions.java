@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -44,7 +43,6 @@ public final class FieldPermissions implements Accountable {
 
     private static final long BASE_FIELD_PERM_DEF_BYTES = RamUsageEstimator.shallowSizeOf(new FieldPermissionsDefinition(null, null));
     private static final long BASE_FIELD_GROUP_BYTES = RamUsageEstimator.shallowSizeOf(new FieldGrantExcludeGroup(null, null));
-    private static final long BASE_HASHSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(HashSet.class);
     private static final long BASE_HASHSET_ENTRY_SIZE;
     static {
         HashMap<String, Object> map = new HashMap<>();
@@ -92,13 +90,15 @@ public final class FieldPermissions implements Accountable {
 
         long ramBytesUsed = BASE_FIELD_PERM_DEF_BYTES;
 
-        for (FieldGrantExcludeGroup group : fieldPermissionsDefinition.getFieldGrantExcludeGroups()) {
-            ramBytesUsed += BASE_FIELD_GROUP_BYTES + BASE_HASHSET_ENTRY_SIZE;
-            if (group.getGrantedFields() != null) {
-                ramBytesUsed += RamUsageEstimator.shallowSizeOf(group.getGrantedFields());
-            }
-            if (group.getExcludedFields() != null) {
-                ramBytesUsed += RamUsageEstimator.shallowSizeOf(group.getExcludedFields());
+        if (fieldPermissionsDefinition != null) {
+            for (FieldGrantExcludeGroup group : fieldPermissionsDefinition.getFieldGrantExcludeGroups()) {
+                ramBytesUsed += BASE_FIELD_GROUP_BYTES + BASE_HASHSET_ENTRY_SIZE;
+                if (group.getGrantedFields() != null) {
+                    ramBytesUsed += RamUsageEstimator.shallowSizeOf(group.getGrantedFields());
+                }
+                if (group.getExcludedFields() != null) {
+                    ramBytesUsed += RamUsageEstimator.shallowSizeOf(group.getExcludedFields());
+                }
             }
         }
         ramBytesUsed += permittedFieldsAutomaton.ramBytesUsed();
@@ -119,12 +119,16 @@ public final class FieldPermissions implements Accountable {
         assert groups.size() > 0 : "there must always be a single group for field inclusion/exclusion";
         List<Automaton> automatonList =
                 groups.stream()
-                        .map(g -> FieldPermissions.initializePermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
+                        .map(g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
                         .collect(Collectors.toList());
         return Automatons.unionAndMinimize(automatonList);
     }
 
-    private static Automaton initializePermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
+    /**
+     * Construct a single automaton to represent the set of {@code grantedFields} except for the {@code deniedFields}.
+     * @throws ElasticsearchSecurityException If {@code deniedFields} is not a subset of {@code grantedFields}.
+     */
+    public static Automaton buildPermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
         Automaton grantedFieldsAutomaton;
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
@@ -156,6 +160,28 @@ public final class FieldPermissions implements Accountable {
     }
 
     /**
+     * Returns a field permissions instance where it is limited by the given field permissions.<br>
+     * If the current and the other field permissions have field level security then it takes
+     * an intersection of permitted fields.<br>
+     * If none of the permissions have field level security enabled, then returns permissions
+     * instance where all fields are allowed.
+     *
+     * @param limitedBy {@link FieldPermissions} used to limit current field permissions
+     * @return {@link FieldPermissions}
+     */
+    public FieldPermissions limitFieldPermissions(FieldPermissions limitedBy) {
+        if (hasFieldLevelSecurity() && limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
+            Automaton permittedFieldsAutomaton = Automatons.intersectAndMinimize(getIncludeAutomaton(), limitedBy.getIncludeAutomaton());
+            return new FieldPermissions(null, permittedFieldsAutomaton);
+        } else if (limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
+            return new FieldPermissions(limitedBy.getFieldPermissionsDefinition(), limitedBy.getIncludeAutomaton());
+        } else if (hasFieldLevelSecurity()) {
+            return new FieldPermissions(getFieldPermissionsDefinition(), getIncludeAutomaton());
+        }
+        return FieldPermissions.DEFAULT;
+    }
+
+    /**
      * Returns true if this field permission policy allows access to the field and false if not.
      * fieldName can be a wildcard.
      */
@@ -163,7 +189,7 @@ public final class FieldPermissions implements Accountable {
         return permittedFieldsAutomatonIsTotal || permittedFieldsAutomaton.run(fieldName);
     }
 
-    FieldPermissionsDefinition getFieldPermissionsDefinition() {
+    public FieldPermissionsDefinition getFieldPermissionsDefinition() {
         return fieldPermissionsDefinition;
     }
 
@@ -180,7 +206,6 @@ public final class FieldPermissions implements Accountable {
         return FieldSubsetReader.wrap(reader, permittedFieldsAutomaton);
     }
 
-    // for testing only
     Automaton getIncludeAutomaton() {
         return originalAutomaton;
     }

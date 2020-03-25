@@ -33,14 +33,14 @@ import static org.junit.Assert.assertTrue;
  */
 public class EqualsHashCodeTestUtils {
 
-    private static Object[] someObjects = new Object[] { "some string", new Integer(1), new Double(1.0) };
+    private static Object[] someObjects = new Object[] { "some string", Integer.valueOf(1), Double.valueOf(1.0) };
 
     /**
      * A function that makes a copy of its input argument
      */
     public interface CopyFunction<T> {
         T copy(T t) throws IOException;
-    };
+    }
 
     /**
      * A function that creates a copy of its input argument that is different from its
@@ -48,7 +48,7 @@ public class EqualsHashCodeTestUtils {
      */
     public interface MutateFunction<T> {
         T mutate(T t) throws IOException;
-    };
+    }
 
     /**
      * Perform common equality and hashCode checks on the input object

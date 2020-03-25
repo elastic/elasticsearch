@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.ResponseCollectorService;
@@ -530,7 +530,6 @@ public class OperationRoutingTests extends ESTestCase{
             indexNames[i] = "test" + i;
         }
         ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, numShards, numReplicas);
-        final int numRepeatedSearches = 4;
         OperationRouting opRouting = new OperationRouting(Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         opRouting.setUseAdaptiveReplicaSelection(true);
@@ -538,7 +537,7 @@ public class OperationRoutingTests extends ESTestCase{
         Set<String> selectedNodes = new HashSet<>(numShards);
         TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupportNodeIds");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        ResponseCollectorService collector = new ResponseCollectorService(Settings.EMPTY, clusterService);
+        ResponseCollectorService collector = new ResponseCollectorService(clusterService);
         Map<String, Long> outstandingRequests = new HashMap<>();
         GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state,
                 indexNames, null, null, collector, outstandingRequests);
@@ -600,7 +599,7 @@ public class OperationRoutingTests extends ESTestCase{
         collector.addNodeStatistics("node_1", 4, TimeValue.timeValueMillis(300).nanos(), TimeValue.timeValueMillis(250).nanos());
         groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
         shardChoice = groupIterator.get(0).nextOrNull();
-        // finally, node 2 is choosen instead
+        // finally, node 2 is chosen instead
         assertThat(shardChoice.currentNodeId(), equalTo("node_2"));
 
         IOUtils.close(clusterService);

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
@@ -17,8 +18,8 @@ import java.util.Map;
  */
 public class MockHttpResource extends PublishableHttpResource {
 
-    public final CheckResponse check;
-    public final boolean publish;
+    public final Boolean check;
+    public final Boolean publish;
 
     public int checked = 0;
     public int published = 0;
@@ -29,7 +30,7 @@ public class MockHttpResource extends PublishableHttpResource {
      * @param resourceOwnerName The user-recognizable name
      */
     public MockHttpResource(final String resourceOwnerName) {
-        this(resourceOwnerName, true, CheckResponse.EXISTS, true);
+        this(resourceOwnerName, true, true, true);
     }
 
     /**
@@ -39,7 +40,7 @@ public class MockHttpResource extends PublishableHttpResource {
      * @param dirty The starting dirtiness of the resource.
      */
     public MockHttpResource(final String resourceOwnerName, final boolean dirty) {
-        this(resourceOwnerName, dirty, CheckResponse.EXISTS, true);
+        this(resourceOwnerName, dirty, true, true);
     }
 
     /**
@@ -50,7 +51,7 @@ public class MockHttpResource extends PublishableHttpResource {
      * @param parameters The base parameters to specify for the request.
      */
     public MockHttpResource(final String resourceOwnerName, @Nullable final TimeValue masterTimeout, final Map<String, String> parameters) {
-        this(resourceOwnerName, masterTimeout, parameters, true, CheckResponse.EXISTS, true);
+        this(resourceOwnerName, masterTimeout, parameters, true, true, true);
     }
 
     /**
@@ -59,9 +60,9 @@ public class MockHttpResource extends PublishableHttpResource {
      * @param resourceOwnerName The user-recognizable name
      * @param dirty The starting dirtiness of the resource.
      * @param check The expected response when checking for the resource.
-     * @param publish The expected response when publishing the resource (assumes check was {@link CheckResponse#DOES_NOT_EXIST}).
+     * @param publish The expected response when publishing the resource (assumes check was {@code false}).
      */
-    public MockHttpResource(final String resourceOwnerName, final boolean dirty, final CheckResponse check, final boolean publish) {
+    public MockHttpResource(final String resourceOwnerName, final boolean dirty, final Boolean check, final Boolean publish) {
         this(resourceOwnerName, null, Collections.emptyMap(), dirty, check, publish);
     }
 
@@ -70,12 +71,12 @@ public class MockHttpResource extends PublishableHttpResource {
      *
      * @param resourceOwnerName The user-recognizable name
      * @param check The expected response when checking for the resource.
-     * @param publish The expected response when publishing the resource (assumes check was {@link CheckResponse#DOES_NOT_EXIST}).
+     * @param publish The expected response when publishing the resource (assumes check was {@code false}).
      * @param masterTimeout Master timeout to use with any request.
      * @param parameters The base parameters to specify for the request.
      */
     public MockHttpResource(final String resourceOwnerName, @Nullable final TimeValue masterTimeout, final Map<String, String> parameters,
-                            final CheckResponse check, final boolean publish) {
+                            final Boolean check, final Boolean publish) {
         this(resourceOwnerName, masterTimeout, parameters, true, check, publish);
     }
 
@@ -85,12 +86,12 @@ public class MockHttpResource extends PublishableHttpResource {
      * @param resourceOwnerName The user-recognizable name
      * @param dirty The starting dirtiness of the resource.
      * @param check The expected response when checking for the resource.
-     * @param publish The expected response when publishing the resource (assumes check was {@link CheckResponse#DOES_NOT_EXIST}).
+     * @param publish The expected response when publishing the resource (assumes check was {@code false}).
      * @param masterTimeout Master timeout to use with any request.
      * @param parameters The base parameters to specify for the request.
      */
     public MockHttpResource(final String resourceOwnerName, @Nullable final TimeValue masterTimeout, final Map<String, String> parameters,
-                            final boolean dirty, final CheckResponse check, final boolean publish) {
+                            final boolean dirty, final Boolean check, final Boolean publish) {
         super(resourceOwnerName, masterTimeout, parameters, dirty);
 
         this.check = check;
@@ -98,21 +99,30 @@ public class MockHttpResource extends PublishableHttpResource {
     }
 
     @Override
-    protected CheckResponse doCheck(final RestClient client) {
+    protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
         assert client != null;
 
         ++checked;
 
-        return check;
+        if (check == null) {
+            listener.onFailure(new RuntimeException("TEST - expected"));
+        } else {
+            listener.onResponse(check);
+        }
     }
 
     @Override
-    protected boolean doPublish(final RestClient client) {
+    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
         assert client != null;
 
         ++published;
 
-        return publish;
+
+        if (publish == null) {
+            listener.onFailure(new RuntimeException("TEST - expected"));
+        } else {
+            listener.onResponse(publish);
+        }
     }
 
 }

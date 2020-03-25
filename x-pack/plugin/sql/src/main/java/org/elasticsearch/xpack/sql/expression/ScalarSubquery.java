@@ -5,19 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.NameId;
+import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 public class ScalarSubquery extends SubQueryExpression {
 
-    public ScalarSubquery(Location location, LogicalPlan query) {
-        this(location, query, null);
+    public ScalarSubquery(Source source, LogicalPlan query) {
+        this(source, query, null);
     }
 
-    public ScalarSubquery(Location location, LogicalPlan query, ExpressionId id) {
-        super(location, query, id);
+    public ScalarSubquery(Source source, LogicalPlan query, NameId id) {
+        super(source, query, id);
     }
 
     @Override
@@ -27,7 +29,7 @@ public class ScalarSubquery extends SubQueryExpression {
 
     @Override
     protected ScalarSubquery clone(LogicalPlan newQuery) {
-        return new ScalarSubquery(location(), newQuery);
+        return new ScalarSubquery(source(), newQuery);
     }
 
     @Override
@@ -36,7 +38,7 @@ public class ScalarSubquery extends SubQueryExpression {
     }
 
     @Override
-    public boolean nullable() {
-        return true;
+    public Nullability nullable() {
+        return Nullability.TRUE;
     }
 }

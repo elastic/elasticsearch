@@ -30,17 +30,16 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -69,7 +68,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
 
     public void testInvalidateEntries() throws Exception {
         IndexWriter writer = new IndexWriter(
-                new RAMDirectory(),
+                new ByteBuffersDirectory(),
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
         Document document = new Document();
@@ -89,7 +88,6 @@ public class BitSetFilterCacheTests extends ESTestCase {
 
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
-        IndexSearcher searcher = new IndexSearcher(reader);
 
         BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
             @Override
@@ -114,7 +112,6 @@ public class BitSetFilterCacheTests extends ESTestCase {
         reader.close();
         reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
-        searcher = new IndexSearcher(reader);
 
         assertThat(matchCount(filter, reader), equalTo(3));
 
@@ -131,7 +128,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
 
     public void testListener() throws IOException {
         IndexWriter writer = new IndexWriter(
-                new RAMDirectory(),
+                new ByteBuffersDirectory(),
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
         Document document = new Document();

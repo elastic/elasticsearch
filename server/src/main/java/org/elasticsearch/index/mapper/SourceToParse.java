@@ -19,39 +19,37 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Objects;
-
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 
-public class SourceToParse {
+import java.util.Objects;
 
-    public static SourceToParse source(String index, String type, String id, BytesReference source,
-                                       XContentType contentType) {
-        return new SourceToParse(index, type, id, source, contentType);
-    }
+public class SourceToParse {
 
     private final BytesReference source;
 
     private final String index;
 
-    private final String type;
-
     private final String id;
 
-    private String routing;
+    private final @Nullable String routing;
 
-    private XContentType xContentType;
+    private final XContentType xContentType;
 
-    private SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType) {
+    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType, @Nullable String routing) {
         this.index = Objects.requireNonNull(index);
-        this.type = Objects.requireNonNull(type);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.routing = routing;
+    }
+
+    public SourceToParse(String index, String id, BytesReference source, XContentType xContentType) {
+        this(index, id, source, xContentType, null);
     }
 
     public BytesReference source() {
@@ -62,25 +60,16 @@ public class SourceToParse {
         return this.index;
     }
 
-    public String type() {
-        return this.type;
-    }
-
     public String id() {
         return this.id;
     }
 
-    public String routing() {
+    public @Nullable String routing() {
         return this.routing;
     }
 
     public XContentType getXContentType() {
         return this.xContentType;
-    }
-
-    public SourceToParse routing(String routing) {
-        this.routing = routing;
-        return this;
     }
 
     public enum Origin {

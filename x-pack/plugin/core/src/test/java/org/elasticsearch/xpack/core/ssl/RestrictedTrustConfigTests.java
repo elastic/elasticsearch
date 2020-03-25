@@ -69,7 +69,7 @@ public class RestrictedTrustConfigTests extends ESTestCase {
             }
         };
 
-        final RestrictedTrustConfig restrictedTrustConfig = new RestrictedTrustConfig(settings, groupConfigPath.toString(), delegate);
+        final RestrictedTrustConfig restrictedTrustConfig = new RestrictedTrustConfig(groupConfigPath.toString(), delegate);
         List<Path> filesToMonitor = restrictedTrustConfig.filesToMonitor(environment);
         List<Path> expectedPathList = new ArrayList<>(otherFiles);
         expectedPathList.add(groupConfigPath);

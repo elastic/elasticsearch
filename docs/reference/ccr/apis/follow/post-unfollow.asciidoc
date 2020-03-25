@@ -1,0 +1,82 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-post-unfollow]]
+=== Unfollow API
+++++
+<titleabbrev>Unfollow</titleabbrev>
+++++
+
+Converts a follower index to a regular index.
+
+[[ccr-post-unfollow-request]]
+==== {api-request-title}
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
+{
+  "remote_cluster" : "remote_cluster",
+  "leader_index" : "leader_index"
+}
+
+POST /follower_index/_ccr/pause_follow
+
+POST /follower_index/_close
+--------------------------------------------------
+// TESTSETUP
+// TEST[setup:remote_cluster_and_leader_index]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+POST /<follower_index>/_ccr/unfollow
+--------------------------------------------------
+// TEST[s/<follower_index>/follower_index/]
+
+[[ccr-post-unfollow-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_follow_index` 
+index privileges for the follower index. For more information, see
+<<security-privileges>>.  
+
+[[ccr-post-unfollow-desc]]
+==== {api-description-title}
+
+This API stops the following task associated with a follower index and removes
+index metadata and settings associated with {ccr}. This enables the index to
+treated as a regular index. The follower index must be paused and closed before
+invoking the unfollow API.
+
+NOTE: Currently {ccr} does not support converting an existing regular index to a
+follower index. Converting a follower index to a regular index is an
+irreversible operation.
+
+[[ccr-post-unfollow-path-parms]]
+==== {api-path-parms-title}
+
+`<follower_index>`::
+  (Required, string) The name of the follower index.
+
+[[ccr-post-unfollow-examples]]
+==== {api-examples-title}
+
+This example converts `follower_index` from a follower index to a regular index:
+
+[source,console]
+--------------------------------------------------
+POST /follower_index/_ccr/unfollow
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged" : true
+}
+--------------------------------------------------

@@ -5,7 +5,7 @@ setup:
         wait_for_status: yellow
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -16,7 +16,7 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
 
@@ -24,7 +24,7 @@ teardown:
 "Test creating a user without password":
   - do:
       catch: bad_request
-      xpack.security.put_user:
+      security.put_user:
         username: "no_password_user"
         body:  >
             {
@@ -44,7 +44,7 @@ teardown:
   - match: { timed_out: false }
 
   - do:
-      xpack.security.get_user:
+      security.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
   - match: { joe.roles.0:  "superuser" }
@@ -54,7 +54,7 @@ teardown:
 # update the user without a password
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -66,7 +66,7 @@ teardown:
                 "key2" : "val2"
               }
             }
-  - match: { user: { created: false } }
+  - match: { created: false }
 
 # validate existing password works
   - do:
@@ -77,7 +77,7 @@ teardown:
 
 # validate other properties
   - do:
-      xpack.security.get_user:
+      security.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
   - match: { joe.roles.0:  "superuser" }
@@ -89,7 +89,7 @@ teardown:
 
 # update with password
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -103,7 +103,7 @@ teardown:
                 "key3" : "val3"
               }
             }
-  - match: { user: { created: false } }
+  - match: { created: false }
 
 # validate old password doesn't work
   - do:
@@ -121,7 +121,7 @@ teardown:
 
 # validate properties
   - do:
-      xpack.security.get_user:
+      security.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
   - match: { joe.roles.0:  "superuser" }

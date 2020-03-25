@@ -19,12 +19,15 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -32,27 +35,43 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.common.Booleans.parseBoolean;
+
 public class TransportInfo implements Writeable, ToXContentFragment {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TransportInfo.class));
+
+    /** Whether to add hostname to publish host field when serializing. */
+    private static final boolean CNAME_IN_PUBLISH_ADDRESS =
+            parseBoolean(System.getProperty("es.transport.cname_in_publish_address"), false);
 
     private BoundTransportAddress address;
     private Map<String, BoundTransportAddress> profileAddresses;
+    private final boolean cnameInPublishAddressProperty;
 
     public TransportInfo(BoundTransportAddress address, @Nullable Map<String, BoundTransportAddress> profileAddresses) {
+        this(address, profileAddresses, CNAME_IN_PUBLISH_ADDRESS);
+    }
+
+    public TransportInfo(BoundTransportAddress address, @Nullable Map<String, BoundTransportAddress> profileAddresses,
+                         boolean cnameInPublishAddressProperty) {
         this.address = address;
         this.profileAddresses = profileAddresses;
+        this.cnameInPublishAddressProperty = cnameInPublishAddressProperty;
     }
 
     public TransportInfo(StreamInput in) throws IOException {
-        address = BoundTransportAddress.readBoundTransportAddress(in);
+        address = new BoundTransportAddress(in);
         int size = in.readVInt();
         if (size > 0) {
             profileAddresses = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
-                BoundTransportAddress value = BoundTransportAddress.readBoundTransportAddress(in);
+                BoundTransportAddress value = new BoundTransportAddress(in);
                 profileAddresses.put(key, value);
             }
         }
+        this.cnameInPublishAddressProperty = CNAME_IN_PUBLISH_ADDRESS;
     }
 
     @Override
@@ -78,17 +97,33 @@ public class TransportInfo implements Writeable, ToXContentFragment {
         static final String PROFILES = "profiles";
     }
 
+    private String formatPublishAddressString(String propertyName, TransportAddress publishAddress) {
+        String publishAddressString = publishAddress.toString();
+        String hostString = publishAddress.address().getHostString();
+        if (InetAddresses.isInetAddress(hostString) == false) {
+            publishAddressString = hostString + '/' + publishAddress.toString();
+            if (cnameInPublishAddressProperty) {
+                deprecationLogger.deprecated(
+                        "es.transport.cname_in_publish_address system property is deprecated and no longer affects " + propertyName +
+                                " formatting. Remove this property to get rid of this deprecation warning."
+                );
+            }
+        }
+        return publishAddressString;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.TRANSPORT);
         builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
-        builder.field(Fields.PUBLISH_ADDRESS, address.publishAddress().toString());
+        builder.field(Fields.PUBLISH_ADDRESS, formatPublishAddressString("transport.publish_address", address.publishAddress()));
         builder.startObject(Fields.PROFILES);
         if (profileAddresses != null && profileAddresses.size() > 0) {
             for (Map.Entry<String, BoundTransportAddress> entry : profileAddresses.entrySet()) {
                 builder.startObject(entry.getKey());
                 builder.array(Fields.BOUND_ADDRESS, (Object[]) entry.getValue().boundAddresses());
-                builder.field(Fields.PUBLISH_ADDRESS, entry.getValue().publishAddress().toString());
+                String propertyName = "transport." + entry.getKey() + ".publish_address";
+                builder.field(Fields.PUBLISH_ADDRESS, formatPublishAddressString(propertyName, entry.getValue().publishAddress()));
                 builder.endObject();
             }
         }

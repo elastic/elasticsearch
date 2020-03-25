@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,8 +32,6 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public class DynamicTemplate implements ToXContentObject {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DynamicTemplate.class));
 
     public enum MatchType {
         SIMPLE {
@@ -160,8 +155,7 @@ public class DynamicTemplate implements ToXContentObject {
         public abstract String defaultMappingType();
     }
 
-    public static DynamicTemplate parse(String name, Map<String, Object> conf,
-            Version indexVersionCreated) throws MapperParsingException {
+    public static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
         String match = null;
         String pathMatch = null;
         String unmatch = null;
@@ -202,34 +196,21 @@ public class DynamicTemplate implements ToXContentObject {
 
         XContentFieldType xcontentFieldType = null;
         if (matchMappingType != null && matchMappingType.equals("*") == false) {
-            try {
-                xcontentFieldType = XContentFieldType.fromString(matchMappingType);
-            } catch (IllegalArgumentException e) {
-                if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1)) {
-                    throw e;
-                } else {
-                    DEPRECATION_LOGGER.deprecated("match_mapping_type [" + matchMappingType + "] is invalid and will be ignored: "
-                            + e.getMessage());
-                    // this template is on an unknown type so it will never match anything
-                    // null indicates that the template should be ignored
-                    return null;
-                }
-            }
+            xcontentFieldType = XContentFieldType.fromString(matchMappingType);
         }
 
         final MatchType matchType = MatchType.fromString(matchPattern);
 
-        if (indexVersionCreated.onOrAfter(Version.V_6_3_0)) {
-            // Validate that the pattern
-            for (String regex : new String[] { pathMatch, match, pathUnmatch, unmatch }) {
-                if (regex == null) {
-                    continue;
-                }
-                try {
-                    matchType.matches(regex, "");
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Pattern [" + regex + "] of type [" + matchType + "] is invalid. Cannot create dynamic template [" + name + "].", e);
-                }
+        // Validate that the pattern
+        for (String regex : new String[] { pathMatch, match, pathUnmatch, unmatch }) {
+            if (regex == null) {
+                continue;
+            }
+            try {
+                matchType.matches(regex, "");
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Pattern [" + regex + "] of type [" + matchType
+                    + "] is invalid. Cannot create dynamic template [" + name + "].", e);
             }
         }
 
@@ -320,14 +301,16 @@ public class DynamicTemplate implements ToXContentObject {
     private Map<String, Object> processMap(Map<String, Object> map, String name, String dynamicType) {
         Map<String, Object> processedMap = new HashMap<>();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
-            String key = entry.getKey().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+            String key = entry.getKey().replace("{name}", name).replace("{dynamic_type}", dynamicType)
+                .replace("{dynamicType}", dynamicType);
             Object value = entry.getValue();
             if (value instanceof Map) {
                 value = processMap((Map<String, Object>) value, name, dynamicType);
             } else if (value instanceof List) {
                 value = processList((List) value, name, dynamicType);
             } else if (value instanceof String) {
-                value = value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+                value = value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType)
+                    .replace("{dynamicType}", dynamicType);
             }
             processedMap.put(key, value);
         }
@@ -342,11 +325,25 @@ public class DynamicTemplate implements ToXContentObject {
             } else if (value instanceof List) {
                 value = processList((List) value, name, dynamicType);
             } else if (value instanceof String) {
-                value = value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+                value = value.toString().replace("{name}", name)
+                    .replace("{dynamic_type}", dynamicType)
+                    .replace("{dynamicType}", dynamicType);
             }
             processedList.add(value);
         }
         return processedList;
+    }
+
+    String getName() {
+        return name;
+    }
+
+    XContentFieldType getXContentFieldType() {
+        return xcontentFieldType;
+    }
+
+    Map<String, Object> getMapping() {
+        return mapping;
     }
 
     @Override

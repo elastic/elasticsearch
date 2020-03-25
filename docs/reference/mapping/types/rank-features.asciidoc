@@ -1,0 +1,65 @@
+[[rank-features]]
+=== Rank features datatype
+++++
+<titleabbrev>Rank features</titleabbrev>
+++++
+
+A `rank_features` field can index numeric feature vectors, so that they can
+later be used to boost documents in queries with a
+<<query-dsl-rank-feature-query,`rank_feature`>> query.
+
+It is analogous to the <<rank-feature,`rank_feature`>> datatype but is better suited
+when the list of features is sparse so that it wouldn't be reasonable to add
+one field to the mappings for each of them.
+
+[source,console]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "topics": {
+        "type": "rank_features" <1>
+      }
+    }
+  }
+}
+
+PUT my_index/_doc/1
+{
+  "topics": { <2>
+    "politics": 20,
+    "economics": 50.8
+  }
+}
+
+PUT my_index/_doc/2
+{
+  "topics": {
+    "politics": 5.2,
+    "sports": 80.1
+  }
+}
+
+GET my_index/_search
+{
+  "query": {
+    "rank_feature": {
+      "field": "topics.politics"
+    }
+  }
+}
+--------------------------------------------------
+
+<1> Rank features fields must use the `rank_features` field type
+<2> Rank features fields must be a hash with string keys and strictly positive numeric values
+
+NOTE: `rank_features` fields only support single-valued features and strictly
+positive values. Multi-valued fields and zero or negative values will be rejected.
+
+NOTE: `rank_features` fields do not support sorting or aggregating and may
+only be queried using <<query-dsl-rank-feature-query,`rank_feature`>> queries.
+
+NOTE: `rank_features` fields only preserve 9 significant bits for the
+precision, which translates to a relative error of about 0.4%.
+

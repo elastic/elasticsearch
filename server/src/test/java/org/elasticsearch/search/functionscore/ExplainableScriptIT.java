@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ExplainableSearchScript;
+import org.elasticsearch.script.ExplainableScoreScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -50,6 +50,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -74,7 +75,12 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+                public <T> T compile(
+                    String scriptName,
+                    String scriptSource,
+                    ScriptContext<T> context,
+                    Map<String, String> params
+                ) {
                     assert scriptSource.equals("explainable_script");
                     assert context == ScoreScript.CONTEXT;
                     ScoreScript.Factory factory = (params1, lookup) -> new ScoreScript.LeafFactory() {
@@ -90,25 +96,30 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                     };
                     return context.factoryClazz.cast(factory);
                 }
+
+                @Override
+                public Set<ScriptContext<?>> getSupportedContexts() {
+                    return Set.of(ScoreScript.CONTEXT);
+                }
             };
         }
     }
 
-    static class MyScript extends ScoreScript implements ExplainableSearchScript {
+    static class MyScript extends ScoreScript implements ExplainableScoreScript {
 
         MyScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
             super(params, lookup, leafContext);
         }
-    
+
         @Override
         public Explanation explain(Explanation subQueryScore) throws IOException {
             Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
-            return Explanation.match((float) (execute()), "This script returned " + execute(), scoreExp);
+            return Explanation.match((float) (execute(null)), "This script returned " + execute(null), scoreExp);
         }
 
         @Override
-        public double execute() {
-            return ((Number) ((ScriptDocValues) getDoc().get("number_field")).getValues().get(0)).doubleValue();
+        public double execute(ExplanationHolder explanation) {
+            return ((Number) ((ScriptDocValues) getDoc().get("number_field")).get(0)).doubleValue();
         }
     }
 
@@ -120,11 +131,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
     public void testExplainScript() throws InterruptedException, IOException, ExecutionException {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
-            indexRequests.add(client().prepareIndex("test", "type").setId(Integer.toString(i)).setSource(
+            indexRequests.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource(
                     jsonBuilder().startObject().field("number_field", i).field("text", "text").endObject()));
         }
         indexRandom(true, true, indexRequests);
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().get();
         ensureYellow();
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
@@ -135,14 +146,13 @@ public class ExplainableScriptIT extends ESIntegTestCase {
 
         ElasticsearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits(), equalTo(20L));
+        assertThat(hits.getTotalHits().value, equalTo(20L));
         int idCounter = 19;
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
-            assertThat(hit.getExplanation().toString(),
-                    containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
-            assertThat(hit.getExplanation().toString(), containsString("freq=1.0"));
-            assertThat(hit.getExplanation().toString(), containsString("termFreq=1.0"));
+            assertThat(hit.getExplanation().toString(), containsString(Double.toString(idCounter)));
+            assertThat(hit.getExplanation().toString(), containsString("1 = n"));
+            assertThat(hit.getExplanation().toString(), containsString("1 = N"));
             assertThat(hit.getExplanation().getDetails().length, equalTo(2));
             idCounter--;
         }

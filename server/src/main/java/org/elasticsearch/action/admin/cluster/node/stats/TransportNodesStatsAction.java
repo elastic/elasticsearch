@@ -27,8 +27,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -43,10 +43,9 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     private final NodeService nodeService;
 
     @Inject
-    public TransportNodesStatsAction(Settings settings, ThreadPool threadPool,
-                                     ClusterService clusterService, TransportService transportService,
+    public TransportNodesStatsAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                      NodeService nodeService, ActionFilters actionFilters) {
-        super(settings, NodesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(NodesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
             NodesStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT, NodeStats.class);
         this.nodeService = nodeService;
     }
@@ -57,17 +56,17 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     }
 
     @Override
-    protected NodeStatsRequest newNodeRequest(String nodeId, NodesStatsRequest request) {
-        return new NodeStatsRequest(nodeId, request);
+    protected NodeStatsRequest newNodeRequest(NodesStatsRequest request) {
+        return new NodeStatsRequest(request);
     }
 
     @Override
-    protected NodeStats newNodeResponse() {
-        return new NodeStats();
+    protected NodeStats newNodeResponse(StreamInput in) throws IOException {
+        return new NodeStats(in);
     }
 
     @Override
-    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) {
+    protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest, Task task) {
         NodesStatsRequest request = nodeStatsRequest.request;
         return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(),
                 request.fs(), request.transport(), request.http(), request.breaker(), request.script(), request.discovery(),
@@ -78,19 +77,13 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
 
         NodesStatsRequest request;
 
-        public NodeStatsRequest() {
+        public NodeStatsRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesStatsRequest(in);
         }
 
-        NodeStatsRequest(String nodeId, NodesStatsRequest request) {
-            super(nodeId);
+        NodeStatsRequest(NodesStatsRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesStatsRequest();
-            request.readFrom(in);
         }
 
         @Override

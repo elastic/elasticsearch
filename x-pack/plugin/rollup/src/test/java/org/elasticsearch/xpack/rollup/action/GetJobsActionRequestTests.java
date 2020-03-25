@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
-
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction.Request;
@@ -20,8 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-
-public class GetJobsActionRequestTests extends AbstractStreamableTestCase<Request> {
+public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -32,8 +31,8 @@ public class GetJobsActionRequestTests extends AbstractStreamableTestCase<Reques
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     public void testStateCheckNoPersistentTasks() {
@@ -70,7 +69,7 @@ public class GetJobsActionRequestTests extends AbstractStreamableTestCase<Reques
 
     public void testStateCheckMatchingPersistentTasks() {
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request("foo");
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob("foo").build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
         Map<String, PersistentTasksCustomMetaData.PersistentTask<?>> tasks
                 = Collections.singletonMap("foo", new PersistentTasksCustomMetaData.PersistentTask<>("foo", RollupJob.NAME, job, 1, null));
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
@@ -83,7 +82,7 @@ public class GetJobsActionRequestTests extends AbstractStreamableTestCase<Reques
 
     public void testStateCheckAllMatchingPersistentTasks() {
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request("_all");
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob("foo").build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
         Map<String, PersistentTasksCustomMetaData.PersistentTask<?>> tasks
                 = Collections.singletonMap("foo", new PersistentTasksCustomMetaData.PersistentTask<>("foo", RollupJob.NAME, job, 1, null));
         ClusterState state = ClusterState.builder(new ClusterName("_name"))
@@ -96,8 +95,8 @@ public class GetJobsActionRequestTests extends AbstractStreamableTestCase<Reques
 
     public void testStateCheckAllWithSeveralMatchingPersistentTasks() {
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request("_all");
-        RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob("foo").build(), Collections.emptyMap());
-        RollupJob job2 = new RollupJob(ConfigTestHelpers.getRollupJob("bar").build(), Collections.emptyMap());
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
+        RollupJob job2 = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "bar"), Collections.emptyMap());
         Map<String, PersistentTasksCustomMetaData.PersistentTask<?>> tasks = new HashMap<>(2);
         tasks.put("foo", new PersistentTasksCustomMetaData.PersistentTask<>("foo", RollupJob.NAME, job, 1, null));
         tasks.put("bar", new PersistentTasksCustomMetaData.PersistentTask<>("bar", RollupJob.NAME, job2, 1, null));

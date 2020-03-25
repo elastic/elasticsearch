@@ -1,0 +1,36 @@
+--
+:api: open-job
+:request: OpenJobRequest
+:response: OpenJobResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Open {anomaly-job} API
+
+Opens {anomaly-jobs} in the cluster. It accepts a +{request}+ object and
+responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Open {anomaly-job} request
+
+An +{request}+ object gets created with an existing non-null `jobId`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`
+<2> Optionally setting the `timeout` value for how long the
+execution should wait for the job to be opened.
+
+[id="{upid}-{api}-response"]
+==== Open {anomaly-job} response
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `isOpened()` from the +{response}+ indicates if the job was successfully
+opened or not.
+
+include::../execution.asciidoc[]

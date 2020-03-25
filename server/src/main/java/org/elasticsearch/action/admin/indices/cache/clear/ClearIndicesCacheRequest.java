@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.cache.clear;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,8 +33,12 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
     private boolean requestCache = false;
     private String[] fields = Strings.EMPTY_ARRAY;
 
-
-    public ClearIndicesCacheRequest() {
+    public ClearIndicesCacheRequest(StreamInput in) throws IOException {
+        super(in);
+        queryCache = in.readBoolean();
+        fieldDataCache = in.readBoolean();
+        fields = in.readStringArray();
+        requestCache = in.readBoolean();
     }
 
     public ClearIndicesCacheRequest(String... indices) {
@@ -79,25 +82,10 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        queryCache = in.readBoolean();
-        fieldDataCache = in.readBoolean();
-        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
-            in.readBoolean(); // recycler
-        }
-        fields = in.readStringArray();
-        requestCache = in.readBoolean();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(queryCache);
         out.writeBoolean(fieldDataCache);
-        if (out.getVersion().before(Version.V_6_0_0_beta1)) {
-            out.writeBoolean(false); // recycler
-        }
         out.writeStringArrayNullable(fields);
         out.writeBoolean(requestCache);
     }

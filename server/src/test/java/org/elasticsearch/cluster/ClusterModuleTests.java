@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -63,10 +61,9 @@ import java.util.function.Supplier;
 public class ClusterModuleTests extends ModuleTestCase {
     private ClusterInfoService clusterInfoService = EmptyClusterInfoService.INSTANCE;
     private ClusterService clusterService = new ClusterService(Settings.EMPTY,
-        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, Collections.emptyMap());
+        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
     static class FakeAllocationDecider extends AllocationDecider {
-        protected FakeAllocationDecider(Settings settings) {
-            super(settings);
+        protected FakeAllocationDecider() {
         }
     }
 
@@ -129,7 +126,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             Collections.singletonList(new ClusterPlugin() {
                 @Override
                 public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-                    return Collections.singletonList(new FakeAllocationDecider(settings));
+                    return Collections.singletonList(new FakeAllocationDecider());
                 }
             }), clusterInfoService);
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
@@ -200,81 +197,5 @@ public class ClusterModuleTests extends ModuleTestCase {
             AllocationDecider decider = iter.next();
             assertSame(decider.getClass(), expectedDeciders.get(idx++));
         }
-    }
-
-    public void testCustomSuppliers() {
-        Map<String, Supplier<ClusterState.Custom>> customSuppliers = ClusterModule.getClusterStateCustomSuppliers(Collections.emptyList());
-        assertEquals(3, customSuppliers.size());
-        assertTrue(customSuppliers.containsKey(SnapshotsInProgress.TYPE));
-        assertTrue(customSuppliers.containsKey(SnapshotDeletionsInProgress.TYPE));
-        assertTrue(customSuppliers.containsKey(RestoreInProgress.TYPE));
-
-        customSuppliers = ClusterModule.getClusterStateCustomSuppliers(Collections.singletonList(new ClusterPlugin() {
-            @Override
-            public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-                return Collections.singletonMap("foo", () -> null);
-            }
-        }));
-        assertEquals(4, customSuppliers.size());
-        assertTrue(customSuppliers.containsKey(SnapshotsInProgress.TYPE));
-        assertTrue(customSuppliers.containsKey(SnapshotDeletionsInProgress.TYPE));
-        assertTrue(customSuppliers.containsKey(RestoreInProgress.TYPE));
-        assertTrue(customSuppliers.containsKey("foo"));
-
-        {
-            // Eclipse Neon 2 didn't compile the plugins definition inside the lambda expression,
-            // probably due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=511750, which is
-            // fixed in Eclipse Oxygon. Pulled out the plugins definition to make it work in older versions
-            List<ClusterPlugin> plugins = Collections.singletonList(new ClusterPlugin() {
-                @Override
-                public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-                    return Collections.singletonMap(SnapshotsInProgress.TYPE, () -> null);
-                }
-            });
-            IllegalStateException ise = expectThrows(IllegalStateException.class,
-                    () -> ClusterModule.getClusterStateCustomSuppliers(plugins));
-            assertEquals(ise.getMessage(), "custom supplier key [snapshots] is registered more than once");
-        }
-        {
-            List<ClusterPlugin> plugins = Arrays.asList(new ClusterPlugin() {
-                @Override
-                public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-                    return Collections.singletonMap("foo", () -> null);
-                }
-            }, new ClusterPlugin() {
-                @Override
-                public Map<String, Supplier<ClusterState.Custom>> getInitialClusterStateCustomSupplier() {
-                    return Collections.singletonMap("foo", () -> null);
-                }
-            });
-            IllegalStateException ise = expectThrows(IllegalStateException.class,
-                    () -> ClusterModule.getClusterStateCustomSuppliers(plugins));
-            assertEquals(ise.getMessage(), "custom supplier key [foo] is registered more than once");
-        }
-    }
-
-    public void testPre63CustomsFiltering() {
-        final String whiteListedClusterCustom = randomFrom(ClusterModule.PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST);
-        final String whiteListedMetaDataCustom = randomFrom(ClusterModule.PRE_6_3_METADATA_CUSTOMS_WHITE_LIST);
-        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .putCustom(whiteListedClusterCustom, new RestoreInProgress())
-            .putCustom("other", new RestoreInProgress())
-            .metaData(MetaData.builder()
-                .putCustom(whiteListedMetaDataCustom, new RepositoriesMetaData(Collections.emptyList()))
-                .putCustom("other", new RepositoriesMetaData(Collections.emptyList()))
-                .build())
-            .build();
-
-        assertNotNull(clusterState.custom(whiteListedClusterCustom));
-        assertNotNull(clusterState.custom("other"));
-        assertNotNull(clusterState.metaData().custom(whiteListedMetaDataCustom));
-        assertNotNull(clusterState.metaData().custom("other"));
-
-        final ClusterState fixedClusterState = ClusterModule.filterCustomsForPre63Clients(clusterState);
-
-        assertNotNull(fixedClusterState.custom(whiteListedClusterCustom));
-        assertNull(fixedClusterState.custom("other"));
-        assertNotNull(fixedClusterState.metaData().custom(whiteListedMetaDataCustom));
-        assertNull(fixedClusterState.metaData().custom("other"));
     }
 }

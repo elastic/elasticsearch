@@ -14,14 +14,11 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
@@ -43,19 +40,19 @@ public class JiraIssueTests extends ESTestCase {
 
             Map<String, Object> parsedFields = null;
             Map<String, Object> parsedResult = null;
-    
+
             HttpRequest parsedRequest = null;
             HttpResponse parsedResponse = null;
             String parsedAccount = null;
             String parsedReason = null;
-    
+
             try (XContentParser parser = createParser(builder)) {
                 assertNull(parser.currentToken());
                 parser.nextToken();
-    
+
                 XContentParser.Token token = parser.currentToken();
                 assertThat(token, is(XContentParser.Token.START_OBJECT));
-    
+
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -65,9 +62,7 @@ public class JiraIssueTests extends ESTestCase {
                     } else if ("result".equals(currentFieldName)) {
                         parsedResult = parser.map();
                     } else if ("request".equals(currentFieldName)) {
-                        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
-                        HttpRequest.Parser httpRequestParser = new HttpRequest.Parser(registry);
-                        parsedRequest = httpRequestParser.parse(parser);
+                        parsedRequest = HttpRequest.Parser.parse(parser);
                     } else if ("response".equals(currentFieldName)) {
                         parsedResponse = HttpResponse.parse(parser);
                     } else if ("fields".equals(currentFieldName)) {
@@ -79,7 +74,7 @@ public class JiraIssueTests extends ESTestCase {
                     }
                 }
             }
-            
+
             assertThat(parsedAccount, equalTo(issue.getAccount()));
             assertThat(parsedFields, equalTo(issue.getFields()));
             if (issue.successful()) {

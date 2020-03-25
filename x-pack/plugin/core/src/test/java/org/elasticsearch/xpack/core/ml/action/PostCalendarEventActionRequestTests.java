@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEventTests;
 
@@ -18,12 +18,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class PostCalendarEventActionRequestTests extends AbstractStreamableTestCase<PostCalendarEventsAction.Request> {
+public class PostCalendarEventActionRequestTests extends AbstractWireSerializingTestCase<PostCalendarEventsAction.Request> {
 
     @Override
     protected PostCalendarEventsAction.Request createTestInstance() {
         String id = randomAlphaOfLengthBetween(1, 20);
         return createTestInstance(id);
+    }
+
+    @Override
+    protected Writeable.Reader<PostCalendarEventsAction.Request> instanceReader() {
+        return PostCalendarEventsAction.Request::new;
     }
 
     private PostCalendarEventsAction.Request createTestInstance(String calendarId) {
@@ -36,12 +41,6 @@ public class PostCalendarEventActionRequestTests extends AbstractStreamableTestC
         PostCalendarEventsAction.Request request = new PostCalendarEventsAction.Request(calendarId, events);
         return request;
     }
-
-    @Override
-    protected PostCalendarEventsAction.Request createBlankInstance() {
-        return new PostCalendarEventsAction.Request();
-    }
-
 
     public void testParseRequest() throws IOException {
         PostCalendarEventsAction.Request sourceRequest = createTestInstance();
@@ -63,7 +62,6 @@ public class PostCalendarEventActionRequestTests extends AbstractStreamableTestC
 
     public void testParseRequest_throwsIfCalendarIdsAreDifferent() throws IOException {
         PostCalendarEventsAction.Request sourceRequest = createTestInstance("foo");
-        PostCalendarEventsAction.Request request = new PostCalendarEventsAction.Request("bar", sourceRequest.getScheduledEvents());
 
         StringBuilder requestString = new StringBuilder();
         requestString.append("{\"events\": [");

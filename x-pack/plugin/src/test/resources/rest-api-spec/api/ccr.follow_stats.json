@@ -1,0 +1,24 @@
+{
+  "ccr.follow_stats":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-follow-stats.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_ccr/stats",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"list",
+              "description":"A comma-separated list of index patterns; use `_all` to perform the operation on all indices"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

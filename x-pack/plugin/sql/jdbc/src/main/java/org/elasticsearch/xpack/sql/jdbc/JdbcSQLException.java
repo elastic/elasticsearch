@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import java.sql.SQLException;
 
-public class JdbcSQLException extends SQLException {
+class JdbcSQLException extends SQLException {
     
-    public JdbcSQLException(String message) {
+    JdbcSQLException(String message) {
         super(message);
     }
 
-    public JdbcSQLException(Throwable cause, String message) {
+    JdbcSQLException(Throwable cause, String message) {
         super(message, cause);
     }
 }

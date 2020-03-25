@@ -19,22 +19,20 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -100,6 +98,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         out.writeOptionalString(rewrite);
     }
 
+    @Override
     public String fieldName() {
         return fieldName;
     }
@@ -180,26 +179,44 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                 .rewrite(rewrite)
                 .boost(boost)
                 .queryName(queryName);
-    }
+    }    
+    
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryShardContext context = queryRewriteContext.convertToShardContext();
+        if (context != null) {
+            MappedFieldType fieldType = context.fieldMapper(this.fieldName);
+            if (fieldType == null) {
+                return new MatchNoneQueryBuilder();
+            } else if (fieldType instanceof ConstantFieldType) {
+                // This logic is correct for all field types, but by only applying it to constant
+                // fields we also have the guarantee that it doesn't perform I/O, which is important
+                // since rewrites might happen on a network thread.
+                Query query = fieldType.wildcardQuery(value, null, context); // the rewrite method doesn't matter
+                if (query instanceof MatchAllDocsQuery) {
+                    return new MatchAllQueryBuilder();
+                } else if (query instanceof MatchNoDocsQuery) {
+                    return new MatchNoneQueryBuilder();
+                } else {
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query ;
+                }
+            }
+        }
+
+        return super.doRewrite(queryRewriteContext);
+    }    
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        Term term;
+
         if (fieldType == null) {
-            term = new Term(fieldName, BytesRefs.toBytesRef(value));
-        } else {
-            Query termQuery = fieldType.termQuery(value, context);
-            if (termQuery instanceof MatchNoDocsQuery || termQuery instanceof MatchAllDocsQuery) {
-                return termQuery;
-            }
-            term = MappedFieldType.extractTerm(termQuery);
+            throw new IllegalStateException("Rewrite first");
         }
 
-        WildcardQuery query = new WildcardQuery(term);
-        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
-        QueryParsers.setRewriteMethod(query, rewriteMethod);
-        return query;
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(
+            rewrite, null, LoggingDeprecationHandler.INSTANCE);
+        return fieldType.wildcardQuery(value, method, context);
     }
 
     @Override

@@ -109,10 +109,13 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalMappedSignificantTerms<?, ?> that = (InternalMappedSignificantTerms<?, ?>) obj;
-        return super.doEquals(obj)
-                && Objects.equals(format, that.format)
+        return Objects.equals(format, that.format)
                 && subsetSize == that.subsetSize
                 && supersetSize == that.supersetSize
                 && Objects.equals(significanceHeuristic, that.significanceHeuristic)
@@ -121,8 +124,8 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(super.doHashCode(), format, subsetSize, supersetSize, significanceHeuristic, buckets, bucketMap);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), format, subsetSize, supersetSize, significanceHeuristic, buckets, bucketMap);
     }
 
     @Override

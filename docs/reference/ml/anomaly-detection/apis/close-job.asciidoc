@@ -1,0 +1,104 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-close-job]]
+=== Close {anomaly-jobs} API
+++++
+<titleabbrev>Close jobs</titleabbrev>
+++++
+
+Closes one or more {anomaly-jobs}.
+A job can be opened and closed multiple times throughout its lifecycle.
+
+A closed job cannot receive data or perform analysis
+operations, but you can still explore and navigate results.
+
+[[ml-close-job-request]]
+==== {api-request-title}
+
+`POST _ml/anomaly_detectors/<job_id>/_close` +
+
+`POST _ml/anomaly_detectors/<job_id>,<job_id>/_close` +
+
+`POST _ml/anomaly_detectors/_all/_close` +
+
+[[ml-close-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+<<security-privileges>>.
+* Before you can close an {anomaly-job}, you must stop its {dfeed}. See
+<<ml-stop-datafeed>>.
+
+[[ml-close-job-desc]]
+==== {api-description-title}
+
+You can close multiple {anomaly-jobs} in a single API request by using a group
+name, a comma-separated list of jobs, or a wildcard expression. You can close
+all jobs by using `_all` or by specifying `*` as the `<job_id>`.
+
+When you close a job, it runs housekeeping tasks such as pruning the model history,
+flushing buffers, calculating final results and persisting the model snapshots.
+Depending upon the size of the job, it could take several minutes to close and
+the equivalent time to re-open.
+
+After it is closed, the job has a minimal overhead on the cluster except for
+maintaining its meta data. Therefore it is a best practice to close jobs that
+are no longer required to process data.
+
+When a {dfeed} that has a specified end date stops, it automatically closes
+the job.
+
+NOTE: If you use the `force` query parameter, the request returns without performing
+the associated actions such as flushing buffers and persisting the model snapshots.
+Therefore, do not use this parameter if you want the job to be in a consistent state
+after the close job API returns.  The `force` query parameter should only be used in
+situations where the job has already failed, or where you are not interested in
+results the job might have recently produced or might produce in the future.
+
+[[ml-close-job-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+(Required, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
+
+[[ml-close-job-query-parms]]
+==== {api-query-parms-title}
+
+`allow_no_jobs`::
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
+
+`force`::
+  (Optional, boolean) Use to close a failed job, or to forcefully close a job
+  which has not responded to its initial close request.
+
+`timeout`::
+  (Optional, <<time-units, time units>>) Controls the time to wait until a job 
+  has closed. The default value is 30 minutes.
+
+[[ml-close-job-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_jobs` is `false`, this code indicates that there are no 
+  resources that match the request or only partial matches for the request.
+
+[[ml-close-job-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/low_request_rate/_close
+--------------------------------------------------
+// TEST[skip:sometimes fails due to https://github.com/elastic/elasticsearch/pull/48583#issuecomment-552991325]
+
+When the job is closed, you receive the following results:
+
+[source,console-result]
+----
+{
+  "closed": true
+}
+----

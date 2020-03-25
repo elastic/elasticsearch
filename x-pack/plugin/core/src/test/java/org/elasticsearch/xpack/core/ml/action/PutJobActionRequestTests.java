@@ -6,10 +6,11 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
@@ -19,7 +20,7 @@ import java.util.Date;
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.randomValidJobId;
 
-public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class PutJobActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     private final String jobId = randomValidJobId();
 
@@ -30,8 +31,8 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
@@ -46,7 +47,7 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
 
     public void testParseRequest_InvalidCreateSetting() throws IOException {
         Job.Builder jobConfiguration = buildJobBuilder(jobId, null);
-        jobConfiguration.setLastDataTime(new Date());
+        jobConfiguration.setFinishedTime(new Date());
         BytesReference bytes = XContentHelper.toXContent(jobConfiguration, XContentType.JSON, false);
         XContentParser parser = createParser(XContentType.JSON.xContent(), bytes);
         expectThrows(IllegalArgumentException.class, () -> Request.parseRequest(jobId, parser));

@@ -22,8 +22,8 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,33 +31,33 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.PipelineStore;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.IngestInfo;
-import org.elasticsearch.node.NodeService;
+import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPipelineRequest, WritePipelineResponse> {
+public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPipelineRequest, AcknowledgedResponse> {
 
-    private final PipelineStore pipelineStore;
-    private final ClusterService clusterService;
+    private final IngestService ingestService;
     private final NodeClient client;
 
     @Inject
-    public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      TransportService transportService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService,
-                                      NodeClient client) {
-        super(settings, PutPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new);
-        this.clusterService = clusterService;
+    public PutPipelineTransportAction(ThreadPool threadPool, TransportService transportService,
+        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+        IngestService ingestService, NodeClient client) {
+        super(
+            PutPipelineAction.NAME, transportService, ingestService.getClusterService(),
+            threadPool, actionFilters, PutPipelineRequest::new, indexNameExpressionResolver
+        );
         this.client = client;
-        this.pipelineStore = nodeService.getIngestService().getPipelineStore();
+        this.ingestService = ingestService;
     }
 
     @Override
@@ -66,34 +66,23 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
     }
 
     @Override
-    protected WritePipelineResponse newResponse() {
-        return new WritePipelineResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(PutPipelineRequest request, ClusterState state, ActionListener<WritePipelineResponse> listener) throws Exception {
+    protected void masterOperation(Task task, PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+            throws Exception {
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-        nodesInfoRequest.clear();
-        nodesInfoRequest.ingest(true);
-        client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
-            @Override
-            public void onResponse(NodesInfoResponse nodeInfos) {
-                try {
-                    Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
-                    for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
-                        ingestInfos.put(nodeInfo.getNode(), nodeInfo.getIngest());
-                    }
-                    pipelineStore.put(clusterService, ingestInfos, request, listener);
-                } catch (Exception e) {
-                    onFailure(e);
-                }
+        nodesInfoRequest.clear()
+            .addMetric(NodesInfoRequest.Metric.INGEST.metricName());
+        client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(nodeInfos -> {
+            Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+            for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
+                ingestInfos.put(nodeInfo.getNode(), nodeInfo.getIngest());
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            ingestService.putPipeline(ingestInfos, request, listener);
+        }, listener::onFailure));
     }
 
     @Override

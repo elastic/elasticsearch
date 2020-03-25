@@ -15,11 +15,11 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,6 +45,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
      * Result fields (all detector types)
      */
     public static final ParseField PROBABILITY = new ParseField("probability");
+    public static final ParseField MULTI_BUCKET_IMPACT = new ParseField("multi_bucket_impact");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
     public static final ParseField CORRELATED_BY_FIELD_VALUE = new ParseField("correlated_by_field_value");
@@ -56,6 +57,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     public static final ParseField ACTUAL = new ParseField("actual");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
+    public static final ParseField GEO_RESULTS = new ParseField("geo_results");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("records");
@@ -89,18 +91,12 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
                 a -> new AnomalyRecord((String) a[0], (Date) a[1], (long) a[2]));
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
-                    + Result.TIMESTAMP.getPreferredName() + "]");
-        }, Result.TIMESTAMP, ValueType.VALUE);
+        parser.declareField(ConstructingObjectParser.constructorArg(),
+                p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()), Result.TIMESTAMP, ValueType.VALUE);
         parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         parser.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
         parser.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
+        parser.declareDouble(AnomalyRecord::setMultiBucketImpact, MULTI_BUCKET_IMPACT);
         parser.declareDouble(AnomalyRecord::setRecordScore, RECORD_SCORE);
         parser.declareDouble(AnomalyRecord::setInitialRecordScore, INITIAL_RECORD_SCORE);
         parser.declareInt(AnomalyRecord::setDetectorIndex, Detector.DETECTOR_INDEX);
@@ -121,6 +117,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
                 CAUSES);
         parser.declareObjectArray(AnomalyRecord::setInfluencers, ignoreUnknownFields ? Influence.LENIENT_PARSER : Influence.STRICT_PARSER,
                 INFLUENCERS);
+        parser.declareObject(AnomalyRecord::setGeoResults,
+            ignoreUnknownFields ? GeoResults.LENIENT_PARSER : GeoResults.STRICT_PARSER,
+            GEO_RESULTS);
 
         return parser;
     }
@@ -128,6 +127,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     private final String jobId;
     private int detectorIndex;
     private double probability;
+    private Double multiBucketImpact;
     private String byFieldName;
     private String byFieldValue;
     private String correlatedByFieldValue;
@@ -138,6 +138,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     private List<Double> typical;
     private List<Double> actual;
     private boolean isInterim;
+    private GeoResults geoResults;
 
     private String fieldName;
 
@@ -163,12 +164,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     @SuppressWarnings("unchecked")
     public AnomalyRecord(StreamInput in) throws IOException {
         jobId = in.readString();
-        // bwc for removed sequenceNum field
-        if (in.getVersion().before(Version.V_5_5_0)) {
-            in.readInt();
-        }
         detectorIndex = in.readInt();
         probability = in.readDouble();
+        multiBucketImpact = in.readOptionalDouble();
         byFieldName = in.readOptionalString();
         byFieldValue = in.readOptionalString();
         correlatedByFieldValue = in.readOptionalString();
@@ -196,17 +194,17 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         if (in.readBoolean()) {
             influences = in.readList(Influence::new);
         }
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            geoResults = in.readOptionalWriteable(GeoResults::new);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        // bwc for removed sequenceNum field
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            out.writeInt(0);
-        }
         out.writeInt(detectorIndex);
         out.writeDouble(probability);
+        out.writeOptionalDouble(multiBucketImpact);
         out.writeOptionalString(byFieldName);
         out.writeOptionalString(byFieldValue);
         out.writeOptionalString(correlatedByFieldValue);
@@ -242,6 +240,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         if (hasInfluencers) {
             out.writeList(influences);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeOptionalWriteable(geoResults);
+        }
     }
 
     @Override
@@ -256,6 +257,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(PROBABILITY.getPreferredName(), probability);
+        if (multiBucketImpact != null) {
+            builder.field(MULTI_BUCKET_IMPACT.getPreferredName(), multiBucketImpact);
+        }
         builder.field(RECORD_SCORE.getPreferredName(), recordScore);
         builder.field(INITIAL_RECORD_SCORE.getPreferredName(), initialRecordScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
@@ -304,6 +308,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         if (influences != null) {
             builder.field(INFLUENCERS.getPreferredName(), influences);
         }
+        if (geoResults != null) {
+            builder.field(GEO_RESULTS.getPreferredName(), geoResults);
+        }
 
         Map<String, LinkedHashSet<String>> inputFields = inputFieldMap();
         for (String fieldName : inputFields.keySet()) {
@@ -347,12 +354,13 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
      * Data store ID of this record.
      */
     public String getId() {
-        int valuesHash = Objects.hash(byFieldValue, overFieldValue, partitionFieldValue);
-        int length = (byFieldValue == null ? 0 : byFieldValue.length()) +
-                (overFieldValue == null ? 0 : overFieldValue.length()) +
-                (partitionFieldValue == null ? 0 : partitionFieldValue.length());
+        return buildId(jobId, timestamp, bucketSpan, detectorIndex, byFieldValue, overFieldValue, partitionFieldValue);
+    }
 
-        return jobId + "_record_" + timestamp.getTime() + "_" + bucketSpan + "_" + detectorIndex + "_" + valuesHash + "_" + length;
+    static String buildId(String jobId, Date timestamp, long bucketSpan, int detectorIndex,
+                          String byFieldValue, String overFieldValue, String partitionFieldValue) {
+        return jobId + "_record_" + timestamp.getTime() + "_" + bucketSpan + "_" + detectorIndex + "_"
+            + MachineLearningField.valuesToId(byFieldValue, overFieldValue, partitionFieldValue);
     }
 
     public int getDetectorIndex() {
@@ -396,6 +404,14 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
 
     public void setProbability(double value) {
         probability = value;
+    }
+
+    public double getMultiBucketImpact() {
+        return multiBucketImpact;
+    }
+
+    public void setMultiBucketImpact(double value) {
+        multiBucketImpact = value;
     }
 
     public String getByFieldName() {
@@ -525,16 +541,22 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         this.influences = influencers;
     }
 
+    public GeoResults getGeoResults() {
+        return geoResults;
+    }
+
+    public void setGeoResults(GeoResults geoResults) {
+        this.geoResults = geoResults;
+    }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, detectorIndex, bucketSpan, probability, recordScore,
+        return Objects.hash(jobId, detectorIndex, bucketSpan, probability, multiBucketImpact, recordScore,
                 initialRecordScore, typical, actual,function, functionDescription, fieldName,
                 byFieldName, byFieldValue, correlatedByFieldValue, partitionFieldName,
                 partitionFieldValue, overFieldName, overFieldValue, timestamp, isInterim,
-                causes, influences, jobId);
+                causes, influences, jobId, geoResults);
     }
-
 
     @Override
     public boolean equals(Object other) {
@@ -552,6 +574,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
                 && this.detectorIndex == that.detectorIndex
                 && this.bucketSpan == that.bucketSpan
                 && this.probability == that.probability
+                && Objects.equals(this.multiBucketImpact, that.multiBucketImpact)
                 && this.recordScore == that.recordScore
                 && this.initialRecordScore == that.initialRecordScore
                 && Objects.deepEquals(this.typical, that.typical)
@@ -569,6 +592,12 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
                 && Objects.equals(this.timestamp, that.timestamp)
                 && Objects.equals(this.isInterim, that.isInterim)
                 && Objects.equals(this.causes, that.causes)
+                && Objects.equals(this.geoResults, that.geoResults)
                 && Objects.equals(this.influences, that.influences);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

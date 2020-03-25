@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -30,7 +31,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -47,7 +48,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -117,6 +118,13 @@ public class BucketScriptIT extends ESIntegTestCase {
                 return value0 + value1 + value2;
             });
 
+            scripts.put("single_input", vars -> {
+                double value = (double) vars.get("_value");
+                return value;
+            });
+
+            scripts.put("return null", vars -> null);
+
             return scripts;
         }
     }
@@ -134,7 +142,7 @@ public class BucketScriptIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int docs = 0; docs < numDocs; docs++) {
-            builders.add(client().prepareIndex("idx", "type").setSource(newDocBuilder()));
+            builders.add(client().prepareIndex("idx").setSource(newDocBuilder()));
         }
 
         indexRandom(true, builders);
@@ -168,7 +176,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                                 new Script(ScriptType.INLINE,
                                                     CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
                                             "field2Sum", "field3Sum", "field4Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -215,7 +223,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                                 new Script(ScriptType.INLINE,
                                                     CustomScriptPlugin.NAME, "_value0 + _value1 / _value2", Collections.emptyMap()),
                                                 "field2Sum", "field3Sum", "field4Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -261,7 +269,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                         bucketScript("seriesArithmetic",
                             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap())
                             , "field2Sum", "field3Sum", "field4Sum")))
-            .execute().actionGet();
+            .get();
 
         assertSearchResponse(response);
 
@@ -305,7 +313,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                         bucketScript("seriesArithmetic",
                                                 new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0", Collections.emptyMap()),
                                                 "field2Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -349,7 +357,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                         bucketScript("seriesArithmetic", bucketsPathsMap,
                                                 new Script(ScriptType.INLINE,
                                                     CustomScriptPlugin.NAME, "foo + bar + baz", Collections.emptyMap()))))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -397,7 +405,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(bucketScript("seriesArithmetic", script, "field2Sum", "field3Sum", "field4Sum")))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -444,7 +452,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                                 new Script(ScriptType.INLINE,
                                                     CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
                                                 "field2Sum", "field3Sum", "field4Sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -478,6 +486,33 @@ public class BucketScriptIT extends ESIntegTestCase {
         }
     }
 
+    public void testInlineScriptReturnNull() {
+        SearchResponse response = client()
+            .prepareSearch("idx")
+            .addAggregation(
+                histogram("histo")
+                    .field(FIELD_1_NAME).interval(interval)
+                    .subAggregation(
+                        bucketScript(
+                            "nullField",
+                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return null", Collections.emptyMap())
+                        )
+                    )
+            ).get();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+
+        for (int i = 0; i < buckets.size(); ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            assertNull(bucket.getAggregations().get("nullField"));
+        }
+    }
+
     public void testStoredScript() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("my_script")
@@ -497,7 +532,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(
                                         bucketScript("seriesArithmetic",
                                                 new Script(ScriptType.STORED, null, "my_script", Collections.emptyMap()),
-                                                "field2Sum", "field3Sum", "field4Sum"))).execute().actionGet();
+                                                "field2Sum", "field3Sum", "field4Sum"))).get();
 
         assertSearchResponse(response);
 
@@ -544,7 +579,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                                 new Script(ScriptType.INLINE,
                                                     CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
                                                 "field2Sum", "field3Sum", "field4Sum")))
-                                .execute().actionGet();
+                                .get();
 
         assertSearchResponse(response);
 
@@ -568,7 +603,162 @@ public class BucketScriptIT extends ESIntegTestCase {
                                         bucketScript("seriesArithmetic",
                                                 new Script(ScriptType.INLINE,
                                                     CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
-                                                "field2Sum", "field3Sum", "field4Sum"))).execute().actionGet();
+                                                "field2Sum", "field3Sum", "field4Sum"))).get();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+
+        for (int i = 0; i < buckets.size(); ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            if (bucket.getDocCount() == 0) {
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, nullValue());
+            } else {
+                Sum field2Sum = bucket.getAggregations().get("field2Sum");
+                assertThat(field2Sum, notNullValue());
+                double field2SumValue = field2Sum.getValue();
+                Sum field3Sum = bucket.getAggregations().get("field3Sum");
+                assertThat(field3Sum, notNullValue());
+                double field3SumValue = field3Sum.getValue();
+                Sum field4Sum = bucket.getAggregations().get("field4Sum");
+                assertThat(field4Sum, notNullValue());
+                double field4SumValue = field4Sum.getValue();
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, notNullValue());
+                double seriesArithmeticValue = seriesArithmetic.value();
+                assertThat(seriesArithmeticValue, equalTo(field2SumValue + field3SumValue + field4SumValue));
+            }
+        }
+    }
+
+    public void testSingleBucketPathAgg() throws Exception {
+        XContentBuilder content = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("buckets_path", "field2Sum")
+            .startObject("script")
+            .field("source", "single_input")
+            .field("lang", CustomScriptPlugin.NAME)
+            .endObject()
+            .endObject();
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg =
+            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
+
+        SearchResponse response = client()
+            .prepareSearch("idx", "idx_unmapped")
+            .addAggregation(
+                histogram("histo")
+                    .field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(bucketScriptAgg)).get();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+
+        for (int i = 0; i < buckets.size(); ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            if (bucket.getDocCount() == 0) {
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, nullValue());
+            } else {
+                Sum field2Sum = bucket.getAggregations().get("field2Sum");
+                assertThat(field2Sum, notNullValue());
+                double field2SumValue = field2Sum.getValue();
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, notNullValue());
+                double seriesArithmeticValue = seriesArithmetic.value();
+                assertThat(seriesArithmeticValue, equalTo(field2SumValue));
+            }
+        }
+    }
+
+    public void testArrayBucketPathAgg() throws Exception {
+        XContentBuilder content = XContentFactory.jsonBuilder()
+            .startObject()
+            .array("buckets_path", "field2Sum", "field3Sum", "field4Sum")
+            .startObject("script")
+            .field("source", "_value0 + _value1 + _value2")
+            .field("lang", CustomScriptPlugin.NAME)
+            .endObject()
+            .endObject();
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg =
+            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
+
+        SearchResponse response = client()
+            .prepareSearch("idx", "idx_unmapped")
+            .addAggregation(
+                histogram("histo")
+                    .field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                    .subAggregation(bucketScriptAgg)).get();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+
+        for (int i = 0; i < buckets.size(); ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            if (bucket.getDocCount() == 0) {
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, nullValue());
+            } else {
+                Sum field2Sum = bucket.getAggregations().get("field2Sum");
+                assertThat(field2Sum, notNullValue());
+                double field2SumValue = field2Sum.getValue();
+                Sum field3Sum = bucket.getAggregations().get("field3Sum");
+                assertThat(field3Sum, notNullValue());
+                double field3SumValue = field3Sum.getValue();
+                Sum field4Sum = bucket.getAggregations().get("field4Sum");
+                assertThat(field4Sum, notNullValue());
+                double field4SumValue = field4Sum.getValue();
+                SimpleValue seriesArithmetic = bucket.getAggregations().get("seriesArithmetic");
+                assertThat(seriesArithmetic, notNullValue());
+                double seriesArithmeticValue = seriesArithmetic.value();
+                assertThat(seriesArithmeticValue, equalTo(field2SumValue + field3SumValue + field4SumValue));
+            }
+        }
+    }
+
+    public void testObjectBucketPathAgg() throws Exception {
+        XContentBuilder content = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("buckets_path")
+               .field("_value0", "field2Sum")
+               .field("_value1", "field3Sum")
+               .field("_value2", "field4Sum")
+            .endObject()
+            .startObject("script")
+            .field("source", "_value0 + _value1 + _value2")
+            .field("lang", CustomScriptPlugin.NAME)
+            .endObject()
+            .endObject();
+        BucketScriptPipelineAggregationBuilder bucketScriptAgg =
+            BucketScriptPipelineAggregationBuilder.PARSER.parse(createParser(content), "seriesArithmetic");
+
+        SearchResponse response = client()
+            .prepareSearch("idx", "idx_unmapped")
+            .addAggregation(
+                histogram("histo")
+                    .field(FIELD_1_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                    .subAggregation(bucketScriptAgg)).get();
 
         assertSearchResponse(response);
 

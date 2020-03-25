@@ -22,23 +22,27 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -54,6 +58,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
@@ -103,15 +108,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         out.writeString(path);
         out.writeVInt(scoreMode.ordinal());
         out.writeNamedWriteable(query);
-        if (out.getVersion().before(Version.V_5_5_0)) {
-            final boolean hasInnerHit = innerHitBuilder != null;
-            out.writeBoolean(hasInnerHit);
-            if (hasInnerHit) {
-                innerHitBuilder.writeToNestedBWC(out, query, path);
-            }
-        } else {
-            out.writeOptionalWriteable(innerHitBuilder);
-        }
+        out.writeOptionalWriteable(innerHitBuilder);
         out.writeBoolean(ignoreUnmapped);
     }
 
@@ -271,6 +268,11 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[joining] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
+
         ObjectMapper nestedObjectMapper = context.getObjectMapper(path);
         if (nestedObjectMapper == null) {
             if (ignoreUnmapped) {
@@ -286,7 +288,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         Query innerQuery;
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         if (objectMapper == null) {
-            parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
+            parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
         } else {
             parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
         }
@@ -322,10 +324,14 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     @Override
     public void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         if (innerHitBuilder != null) {
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : path;
+            if (innerHits.containsKey(name)) {
+                throw new IllegalArgumentException("[inner_hits] already contains an entry for key [" + name + "]");
+            }
+
             Map<String, InnerHitContextBuilder> children = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(query, children);
             InnerHitContextBuilder innerHitContextBuilder = new NestedInnerHitContextBuilder(path, query, innerHitBuilder, children);
-            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : path;
             innerHits.put(name, innerHitContextBuilder);
         }
     }
@@ -374,14 +380,22 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
 
         @Override
-        public TopDocs[] topDocs(SearchHit[] hits) throws IOException {
+        public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+            assert seqNoAndPrimaryTerm() == false;
+            if (seqNoAndPrimaryTerm) {
+                throw new UnsupportedOperationException("nested documents are not assigned sequence numbers");
+            }
+        }
+
+        @Override
+        public TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException {
             Weight innerHitQueryWeight = createInnerHitQueryWeight();
-            TopDocs[] result = new TopDocs[hits.length];
+            TopDocsAndMaxScore[] result = new TopDocsAndMaxScore[hits.length];
             for (int i = 0; i < hits.length; i++) {
                 SearchHit hit = hits[i];
                 Query rawParentFilter;
                 if (parentObjectMapper == null) {
-                    rawParentFilter = Queries.newNonNestedFilter(context.indexShard().indexSettings().getIndexVersionCreated());
+                    rawParentFilter = Queries.newNonNestedFilter();
                 } else {
                     rawParentFilter = parentObjectMapper.nestedTypeFilter();
                 }
@@ -394,25 +408,38 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 Query childFilter = childObjectMapper.nestedTypeFilter();
                 BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
                 Query q = new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId);
-                Weight weight = context.searcher().createNormalizedWeight(q, false);
+                Weight weight = context.searcher().createWeight(context.searcher().rewrite(q),
+                        org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
                 if (size() == 0) {
                     TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                     intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
-                    result[i] = new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+                    result[i] = new TopDocsAndMaxScore(new TopDocs(new TotalHits(totalHitCountCollector.getTotalHits(),
+                        TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN);
                 } else {
                     int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topDocsCollector;
+                    MaxScoreCollector maxScoreCollector = null;
                     if (sort() != null) {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores(), true);
+                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
+                        if (trackScores()) {
+                            maxScoreCollector = new MaxScoreCollector();
+                        }
                     } else {
-                        topDocsCollector = TopScoreDocCollector.create(topN);
+                        topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+                        maxScoreCollector = new MaxScoreCollector();
                     }
                     try {
-                        intersect(weight, innerHitQueryWeight, topDocsCollector, ctx);
+                        intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
                     } finally {
                         clearReleasables(Lifetime.COLLECTION);
                     }
-                    result[i] = topDocsCollector.topDocs(from(), size());
+
+                    TopDocs td = topDocsCollector.topDocs(from(), size());
+                    float maxScore = Float.NaN;
+                    if (maxScoreCollector != null) {
+                        maxScore = maxScoreCollector.getMaxScore();
+                    }
+                    result[i] = new TopDocsAndMaxScore(td, maxScore);
                 }
             }
             return result;

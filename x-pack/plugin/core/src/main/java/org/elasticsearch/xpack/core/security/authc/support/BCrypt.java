@@ -14,6 +14,7 @@ package org.elasticsearch.xpack.core.security.authc.support;
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.settings.SecureString;
 
 import java.security.SecureRandom;
@@ -54,7 +55,7 @@ import java.security.SecureRandom;
  * String stronger_salt = BCrypt.gensalt(12)<br>
  * </code>
  * <p>
- * The amount of work increases exponentially (2**log_rounds), so 
+ * The amount of work increases exponentially (2**log_rounds), so
  * each increment is twice as much work. The default log_rounds is
  * 10, and the valid range is 4 to 30.
  *
@@ -689,7 +690,11 @@ public class BCrypt {
 
         // the next lines are the SecureString replacement for the above commented-out section
         if (minor >= 'a') {
-            try (SecureString secureString = new SecureString(CharArrays.concat(password.getChars(), "\000".toCharArray()))) {
+            final char[] suffix = "\000".toCharArray();
+            final char[] result = new char[password.length() + suffix.length];
+            System.arraycopy(password.getChars(), 0, result, 0, password.length());
+            System.arraycopy(suffix, 0, result, password.length(), suffix.length);
+            try (SecureString secureString = new SecureString(result)) {
                 passwordb = CharArrays.toUtf8Bytes(secureString.getChars());
             }
         } else {

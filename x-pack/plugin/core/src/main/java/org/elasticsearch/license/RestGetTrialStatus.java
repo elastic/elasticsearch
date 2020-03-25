@@ -3,46 +3,35 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
-import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestGetTrialStatus extends XPackRestHandler {
+public class RestGetTrialStatus extends BaseRestHandler {
 
-    RestGetTrialStatus(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, URI_BASE + "/license/trial_status", this);
+    RestGetTrialStatus() {}
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_license/trial_status"));
     }
 
     @Override
-    protected RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
-        return channel -> client.licensing().prepareGetStartTrial().execute(
-                new RestBuilderListener<GetTrialStatusResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(GetTrialStatusResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject();
-                        builder.field("eligible_to_start_trial", response.isEligibleToStartTrial());
-                        builder.endObject();
-                        return new BytesRestResponse(RestStatus.OK, builder);
-                    }
-                });
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        return channel -> new GetTrialStatusRequestBuilder(client).execute(new RestToXContentListener<>(channel));
     }
 
     @Override
     public String getName() {
-        return "xpack_trial_status_action";
+        return "get_trial_status";
     }
+
 }

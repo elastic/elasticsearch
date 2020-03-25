@@ -22,13 +22,12 @@ package org.elasticsearch.common.xcontent.json;
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -200,12 +199,16 @@ public class JsonXContentParser extends AbstractXContentParser {
         switch (numberType) {
             case INT:
                 return NumberType.INT;
+            case BIG_INTEGER:
+                return NumberType.BIG_INTEGER;
             case LONG:
                 return NumberType.LONG;
             case FLOAT:
                 return NumberType.FLOAT;
             case DOUBLE:
                 return NumberType.DOUBLE;
+            case BIG_DECIMAL:
+                return NumberType.BIG_DECIMAL;
         }
         throw new IllegalStateException("No matching token for number_type [" + numberType + "]");
     }

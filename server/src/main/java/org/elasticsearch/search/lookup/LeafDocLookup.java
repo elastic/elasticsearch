@@ -20,7 +20,6 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,18 +41,14 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     private final MapperService mapperService;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
 
-    @Nullable
-    private final String[] types;
-
     private final LeafReaderContext reader;
 
     private int docId = -1;
 
-    LeafDocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup, @Nullable String[] types,
+    LeafDocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
                   LeafReaderContext reader) {
         this.mapperService = mapperService;
         this.fieldDataLookup = fieldDataLookup;
-        this.types = types;
         this.reader = reader;
     }
 
@@ -76,9 +70,9 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         String fieldName = key.toString();
         ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
         if (scriptValues == null) {
-            final MappedFieldType fieldType = mapperService.fullName(fieldName);
+            final MappedFieldType fieldType = mapperService.fieldType(fieldName);
             if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types));
+                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
             }
             // load fielddata on behalf of the script: otherwise it would need additional permissions
             // to deal with pagedbytes/ramusagestimator/etc
@@ -104,7 +98,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         String fieldName = key.toString();
         ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
         if (scriptValues == null) {
-            MappedFieldType fieldType = mapperService.fullName(fieldName);
+            MappedFieldType fieldType = mapperService.fieldType(fieldName);
             if (fieldType == null) {
                 return false;
             }

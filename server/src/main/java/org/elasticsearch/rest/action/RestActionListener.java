@@ -19,9 +19,9 @@
 
 package org.elasticsearch.rest.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 
@@ -33,7 +33,7 @@ public abstract class RestActionListener<Response> implements ActionListener<Res
 
     // we use static here so we won't have to pass the actual logger each time for a very rare case of logging
     // where the settings don't matter that much
-    private static Logger logger = Loggers.getLogger(RestResponseListener.class);
+    private static Logger logger = LogManager.getLogger(RestResponseListener.class);
 
     protected final RestChannel channel;
 

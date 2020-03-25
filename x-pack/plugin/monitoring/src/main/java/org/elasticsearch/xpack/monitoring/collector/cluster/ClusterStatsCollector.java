@@ -55,6 +55,7 @@ public class ClusterStatsCollector extends Collector {
      */
     public static final Setting<TimeValue> CLUSTER_STATS_TIMEOUT = collectionTimeoutSetting("cluster.stats.timeout");
 
+    private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final LicenseService licenseService;
     private final Client client;
@@ -63,18 +64,10 @@ public class ClusterStatsCollector extends Collector {
                                  final ClusterService clusterService,
                                  final XPackLicenseState licenseState,
                                  final Client client,
-                                 final LicenseService licenseService) {
-        this(settings, clusterService, licenseState, client, licenseService, new IndexNameExpressionResolver(Settings.EMPTY));
-    }
-
-    ClusterStatsCollector(final Settings settings,
-                          final ClusterService clusterService,
-                          final XPackLicenseState licenseState,
-                          final Client client,
-                          final LicenseService licenseService,
-                          final IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);
-
+                                 final LicenseService licenseService,
+                                 final IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);
+        this.settings = settings;
         this.client = client;
         this.licenseService = licenseService;
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
@@ -104,7 +97,8 @@ public class ClusterStatsCollector extends Collector {
         final List<XPackFeatureSet.Usage> xpackUsage = collect(usageSupplier);
         final boolean apmIndicesExist = doAPMIndicesExist(clusterState);
         // if they have any other type of license, then they are either okay or already know
-        final boolean clusterNeedsTLSEnabled = license.operationMode() == License.OperationMode.TRIAL &&
+        final boolean clusterNeedsTLSEnabled = license != null &&
+                                               license.operationMode() == License.OperationMode.TRIAL &&
                                                settings.hasValue(SECURITY_ENABLED.getKey()) &&
                                                SECURITY_ENABLED.get(settings) &&
                                                TRANSPORT_SSL_ENABLED.get(settings) == false;
@@ -112,7 +106,8 @@ public class ClusterStatsCollector extends Collector {
         // Adds a cluster stats document
         return Collections.singleton(
                 new ClusterStatsMonitoringDoc(clusterUuid, timestamp(), interval, node, clusterName, version,  clusterStats.getStatus(),
-                                              license, apmIndicesExist, xpackUsage, clusterStats, clusterState, clusterNeedsTLSEnabled));
+                                              license, apmIndicesExist, xpackUsage, clusterStats, clusterState,
+                                              clusterNeedsTLSEnabled));
     }
 
     boolean doAPMIndicesExist(final ClusterState clusterState) {

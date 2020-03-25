@@ -6,11 +6,11 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -119,16 +119,16 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         // remove signed licenses
         removeAndAckSignedLicenses(licenseService);
         licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData.getLicense(), equalTo(LicensesMetaData.LICENSE_TOMBSTONE));
+        assertTrue(License.LicenseType.isBasic(licensesMetaData.getLicense().type()));
     }
 
     private void removeAndAckSignedLicenses(final LicenseService licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
-        licenseService.removeLicense(new DeleteLicenseRequest(), new ActionListener<ClusterStateUpdateResponse>() {
+        licenseService.removeLicense(new DeleteLicenseRequest(), new ActionListener<PostStartBasicResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                if (clusterStateUpdateResponse.isAcknowledged()) {
+            public void onResponse(PostStartBasicResponse postStartBasicResponse) {
+                if (postStartBasicResponse.isAcknowledged()) {
                     success.set(true);
                 }
                 latch.countDown();

@@ -1,0 +1,24 @@
+{
+  "rollup.get_rollup_index_caps":{
+    "documentation":{
+      "url":""
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_rollup/data",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The rollup index or index pattern to obtain rollup capabilities from."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

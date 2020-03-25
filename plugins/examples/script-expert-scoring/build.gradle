@@ -16,13 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
   name 'script-expert-scoring'
   description 'An example script engine to use low level Lucene internals for expert scoring'
   classname 'org.elasticsearch.example.expertscript.ExpertScriptPlugin'
+  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile rootProject.file('NOTICE.txt')
 }
 
 test.enabled = false
+

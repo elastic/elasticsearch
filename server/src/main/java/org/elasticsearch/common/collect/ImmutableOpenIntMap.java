@@ -39,8 +39,8 @@ import java.util.Map;
 /**
  * An immutable map implementation based on open hash map.
  * <p>
- * Can be constructed using a {@link #builder()}, or using {@link #builder(org.elasticsearch.common.collect.ImmutableOpenIntMap)} (which is an optimized
- * option to copy over existing content and modify it).
+ * Can be constructed using a {@link #builder()}, or using {@link #builder(org.elasticsearch.common.collect.ImmutableOpenIntMap)}
+ * (which is an optimized option to copy over existing content and modify it).
  */
 public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCursor<VType>> {
 
@@ -174,6 +174,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -190,7 +191,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         return map.hashCode();
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private static final ImmutableOpenIntMap EMPTY = new ImmutableOpenIntMap(new IntObjectHashMap());
 
     @SuppressWarnings("unchecked")
@@ -214,8 +215,8 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
 
         private IntObjectHashMap<VType> map;
 
+        @SuppressWarnings("unchecked")
         public Builder() {
-            //noinspection unchecked
             this(EMPTY);
         }
 

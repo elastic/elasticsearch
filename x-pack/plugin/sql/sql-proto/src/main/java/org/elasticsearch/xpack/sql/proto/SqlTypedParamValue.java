@@ -10,8 +10,8 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -25,8 +25,7 @@ import static org.elasticsearch.xpack.sql.proto.ProtoUtils.parseFieldsValue;
 public class SqlTypedParamValue implements ToXContentObject {
     private static final ConstructingObjectParser<SqlTypedParamValue, Void> PARSER =
             new ConstructingObjectParser<>("params", true, objects ->
-                    new SqlTypedParamValue(
-                        DataType.fromEsType((String) objects[1]), objects[0]
+            new SqlTypedParamValue((String) objects[1], objects[0]
                     ));
 
     private static final ParseField VALUE = new ParseField("value");
@@ -38,17 +37,40 @@ public class SqlTypedParamValue implements ToXContentObject {
     }
 
     public final Object value;
-    public final DataType dataType;
+    public final String type;
+    private boolean hasExplicitType;        // the type is explicitly set in the request or inferred by the parser
+    private XContentLocation tokenLocation; // location of the token failing the parsing rules
 
-    public SqlTypedParamValue(DataType dataType, Object value) {
+    public SqlTypedParamValue(String type, Object value) {
+        this(type, value, true);
+    }
+    
+    public SqlTypedParamValue(String type, Object value, boolean hasExplicitType) {
         this.value = value;
-        this.dataType = dataType;
+        this.type = type;
+        this.hasExplicitType = hasExplicitType;
+    }
+    
+    public boolean hasExplicitType() {
+        return hasExplicitType;
+    }
+    
+    public void hasExplicitType(boolean hasExplicitType) {
+        this.hasExplicitType = hasExplicitType;
+    }
+    
+    public XContentLocation tokenLocation() {
+        return tokenLocation;
+    }
+    
+    public void tokenLocation(XContentLocation tokenLocation) {
+        this.tokenLocation = tokenLocation;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("type", dataType.esType);
+        builder.field("type", type);
         builder.field("value", value);
         builder.endObject();
         return builder;
@@ -67,17 +89,18 @@ public class SqlTypedParamValue implements ToXContentObject {
             return false;
         }
         SqlTypedParamValue that = (SqlTypedParamValue) o;
-        return Objects.equals(value, that.value) &&
-                dataType == that.dataType;
+        return Objects.equals(value, that.value)
+                && Objects.equals(type, that.type)
+                && Objects.equals(hasExplicitType, that.hasExplicitType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value, dataType);
+        return Objects.hash(value, type, hasExplicitType);
     }
 
     @Override
     public String toString() {
-        return String.valueOf(value) + "[" + dataType + "]";
+        return String.valueOf(value) + " [" + type + "][" + hasExplicitType + "][" + tokenLocation + "]";
     }
 }

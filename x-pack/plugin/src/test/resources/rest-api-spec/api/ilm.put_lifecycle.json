@@ -1,0 +1,28 @@
+{
+  "ilm.put_lifecycle":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-put-lifecycle.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ilm/policy/{policy}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "policy":{
+              "type":"string",
+              "description":"The name of the index lifecycle policy"
+            }
+          }
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The lifecycle policy definition to register"
+    }
+  }
+}

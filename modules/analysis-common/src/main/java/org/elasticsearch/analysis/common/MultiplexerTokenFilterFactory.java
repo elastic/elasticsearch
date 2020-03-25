@@ -29,32 +29,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.analysis.ReferringFilterFactory;
+import org.elasticsearch.index.analysis.AnalysisMode;
+import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
-public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory implements ReferringFilterFactory {
+public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private List<TokenFilterFactory> filters;
     private List<String> filterNames;
     private final boolean preserveOriginal;
-
-    private static final TokenFilterFactory IDENTITY_FACTORY = new TokenFilterFactory() {
-        @Override
-        public String name() {
-            return "identity";
-        }
-
-        @Override
-        public TokenStream create(TokenStream tokenStream) {
-            return tokenStream;
-        }
-    };
 
     public MultiplexerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
         super(indexSettings, name, settings);
@@ -64,31 +52,71 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory im
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        List<Function<TokenStream, TokenStream>> functions = new ArrayList<>();
-        for (TokenFilterFactory tff : filters) {
-            functions.add(tff::create);
-        }
-        return new RemoveDuplicatesTokenFilter(new MultiplexTokenFilter(tokenStream, functions));
+        throw new UnsupportedOperationException("TokenFilterFactory.getChainAwareTokenFilterFactory() must be called first");
     }
 
     @Override
-    public void setReferences(Map<String, TokenFilterFactory> factories) {
-        filters = new ArrayList<>();
+    public TokenFilterFactory getSynonymFilter() {
+        throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
+    }
+
+    @Override
+    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
+                                                              List<TokenFilterFactory> previousTokenFilters,
+                                                              Function<String, TokenFilterFactory> allFilters) {
+        List<TokenFilterFactory> filters = new ArrayList<>();
         if (preserveOriginal) {
-            filters.add(IDENTITY_FACTORY);
+            filters.add(IDENTITY_FILTER);
         }
+        // also merge and transfer token filter analysis modes with analyzer
+        AnalysisMode mode = AnalysisMode.ALL;
         for (String filter : filterNames) {
             String[] parts = Strings.tokenizeToStringArray(filter, ",");
             if (parts.length == 1) {
-                filters.add(resolveFilterFactory(factories, parts[0]));
+                TokenFilterFactory factory = resolveFilterFactory(allFilters, parts[0]);
+                factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters);
+                filters.add(factory);
+                mode = mode.merge(factory.getAnalysisMode());
             } else {
+                List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
                 List<TokenFilterFactory> chain = new ArrayList<>();
                 for (String subfilter : parts) {
-                    chain.add(resolveFilterFactory(factories, subfilter));
+                    TokenFilterFactory factory = resolveFilterFactory(allFilters, subfilter);
+                    factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
+                    chain.add(factory);
+                    existingChain.add(factory);
+                    mode = mode.merge(factory.getAnalysisMode());
                 }
                 filters.add(chainFilters(filter, chain));
             }
         }
+        final AnalysisMode analysisMode = mode;
+
+        return new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return MultiplexerTokenFilterFactory.this.name();
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                List<Function<TokenStream, TokenStream>> functions = new ArrayList<>();
+                for (TokenFilterFactory tff : filters) {
+                    functions.add(tff::create);
+                }
+                return new RemoveDuplicatesTokenFilter(new MultiplexTokenFilter(tokenStream, functions));
+            }
+
+            @Override
+            public TokenFilterFactory getSynonymFilter() {
+                throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
+            }
+
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return analysisMode;
+            }
+        };
     }
 
     private TokenFilterFactory chainFilters(String name, List<TokenFilterFactory> filters) {
@@ -108,11 +136,12 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory im
         };
     }
 
-    private TokenFilterFactory resolveFilterFactory(Map<String, TokenFilterFactory> factories, String name) {
-        if (factories.containsKey(name) == false) {
+    private TokenFilterFactory resolveFilterFactory(Function<String, TokenFilterFactory> factories, String name) {
+        TokenFilterFactory factory = factories.apply(name);
+        if (factory == null) {
             throw new IllegalArgumentException("Multiplexing filter [" + name() + "] refers to undefined tokenfilter [" + name + "]");
         } else {
-            return factories.get(name);
+            return factory;
         }
     }
 

@@ -19,14 +19,13 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
@@ -59,12 +58,13 @@ public class SubSearchContext extends FilteredSearchContext {
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
-    private DocValueFieldsContext docValueFieldsContext;
+    private FetchDocValuesContext docValuesContext;
     private SearchContextHighlight highlight;
 
     private boolean explain;
     private boolean trackScores;
     private boolean version;
+    private boolean seqNoAndPrimaryTerm;
 
     public SubSearchContext(SearchContext context) {
         super(context);
@@ -150,13 +150,13 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public DocValueFieldsContext docValueFieldsContext() {
-        return docValueFieldsContext;
+    public FetchDocValuesContext docValuesContext() {
+        return docValuesContext;
     }
 
     @Override
-    public SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext) {
-        this.docValueFieldsContext = docValueFieldsContext;
+    public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
+        this.docValuesContext = docValuesContext;
         return this;
     }
 
@@ -295,6 +295,16 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
+    public boolean seqNoAndPrimaryTerm() {
+        return seqNoAndPrimaryTerm;
+    }
+
+    @Override
+    public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
+    }
+
+    @Override
     public int[] docIdsToLoad() {
         return docIdsToLoad;
     }
@@ -343,8 +353,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public Counter timeEstimateCounter() {
+    public long getRelativeTimeInMillis() {
         throw new UnsupportedOperationException("Not supported");
     }
-
 }

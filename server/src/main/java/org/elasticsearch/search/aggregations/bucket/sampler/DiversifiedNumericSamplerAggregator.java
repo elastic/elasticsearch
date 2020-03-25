@@ -37,6 +37,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
 
@@ -53,7 +54,7 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        bdd = new DiverseDocsDeferringCollector();
+        bdd = new DiverseDocsDeferringCollector(this::addRequestCircuitBreakerBytes);
         return bdd;
     }
 
@@ -63,13 +64,20 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
      * This implementation is only for use with a single bucket aggregation.
      */
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
-        DiverseDocsDeferringCollector() {
-            super(shardSize, context.bigArrays());
+        DiverseDocsDeferringCollector(Consumer<Long> circuitBreakerConsumer) {
+            super(shardSize, context.bigArrays(), circuitBreakerConsumer);
         }
 
         @Override
         protected TopDocsCollector<ScoreDocKey> createTopDocsCollector(int size) {
-            return new ValuesDiversifiedTopDocsCollector(size, maxDocsPerValue);
+            // Make sure we do not allow size > maxDoc, to prevent accidental OOM
+            int minMaxDocsPerValue = Math.min(maxDocsPerValue, context.searcher().getIndexReader().maxDoc());
+            return new ValuesDiversifiedTopDocsCollector(size, minMaxDocsPerValue);
+        }
+
+        @Override
+        protected long getPriorityQueueSlotSize() {
+            return SCOREDOCKEY_SIZE;
         }
 
         // This class extends the DiversifiedTopDocsCollector and provides

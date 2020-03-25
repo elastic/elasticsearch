@@ -37,13 +37,13 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.xpack.security.support.RestorableContextClassLoader;
+import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.XMLObjectBuilderFactory;
@@ -71,7 +71,7 @@ public class SamlUtils {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private static XMLObjectBuilderFactory builderFactory = null;
-    private static final Logger LOGGER = ESLoggerFactory.getLogger(SamlUtils.class);
+    private static final Logger LOGGER = LogManager.getLogger(SamlUtils.class);
 
     /**
      * This is needed in order to initialize the underlying OpenSAML library.
@@ -162,9 +162,9 @@ public class SamlUtils {
         serializer.transform(new DOMSource(element), new StreamResult(writer));
     }
 
-    static String samlObjectToString(SAMLObject object) {
+    static String getXmlContent(SAMLObject object) {
         try {
-            return toString(XMLObjectSupport.marshall(object), true);
+            return toString(XMLObjectSupport.marshall(object), false);
         } catch (MarshallingException e) {
             LOGGER.info("Error marshalling SAMLObject ", e);
             return SAML_MARSHALLING_ERROR_STRING;
@@ -202,7 +202,7 @@ public class SamlUtils {
             sb.append("]");
             return sb.toString();
         }
-        return samlObjectToString(object);
+        return getXmlContent(object);
     }
 
     @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")

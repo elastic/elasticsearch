@@ -46,7 +46,7 @@
     - match:  { tokens.1.token: bar }
     - match:  { tokens.2.token: resume }
 ---
-"Normalization with a UnicodeSet Filter":
+"Normalization with unicode_set_filter":
     - do:
         indices.create:
             index:  test
@@ -57,14 +57,14 @@
                             char_filter:
                                 charfilter_icu_normalizer:
                                     type: icu_normalizer
-                                    unicodeSetFilter: "[^ß]"
+                                    unicode_set_filter: "[^ß]"
                             filter:
                                 tokenfilter_icu_normalizer:
                                     type: icu_normalizer
-                                    unicodeSetFilter: "[^ßB]"
+                                    unicode_set_filter: "[^ßB]"
                                 tokenfilter_icu_folding:
                                     type: icu_folding
-                                    unicodeSetFilter: "[^â]"
+                                    unicode_set_filter: "[^â]"
     - do:
         indices.analyze:
           index:    test
@@ -77,6 +77,7 @@
     - match:  { tokens.1.token: föo }
     - match:  { tokens.2.token: bâr }
     - match:  { tokens.3.token: ruß }
+
     - do:
         indices.analyze:
           index:    test
@@ -89,6 +90,7 @@
     - match:  { tokens.1.token: föo }
     - match:  { tokens.2.token: Bâr }
     - match:  { tokens.3.token: ruß }
+
     - do:
         indices.analyze:
           index:    test

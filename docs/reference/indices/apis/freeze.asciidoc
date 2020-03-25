@@ -1,0 +1,49 @@
+[role="xpack"]
+[testenv="basic"]
+[[freeze-index-api]]
+=== Freeze index API
+++++
+<titleabbrev>Freeze index</titleabbrev>
+++++
+
+Freezes an index. 
+
+[[freeze-index-api-request]]
+==== {api-request-title}
+
+`POST /<index>/_freeze`
+
+//[[freeze-index-api-prereqs]]
+//==== {api-prereq-title}
+
+[[freeze-index-api-desc]]
+==== {api-description-title}
+
+A frozen index has almost no overhead on the cluster (except for maintaining its
+metadata in memory) and is read-only. Read-only indices are blocked for write
+operations, such as <<indexing,docs-index_>> or <<indices-forcemerge,force
+merges>>. See <<frozen-indices>> and <<unfreeze-index-api>>.
+
+IMPORTANT: Freezing an index will close the index and reopen it within the same
+API call. This causes primaries to not be allocated for a short amount of time
+and causes the cluster to go red until the primaries are allocated again. This
+limitation might be removed in the future.
+
+[[freeze-index-api-path-parms]]
+==== {api-path-parms-title}
+
+`<index>`::
+  (Required, string) Identifier for the index.
+
+[[freeze-index-api-examples]]
+==== {api-examples-title}
+
+The following example freezes and unfreezes an index:
+
+[source,console]
+--------------------------------------------------
+POST /my_index/_freeze
+POST /my_index/_unfreeze
+--------------------------------------------------
+// TEST[s/^/PUT my_index\n/]
+

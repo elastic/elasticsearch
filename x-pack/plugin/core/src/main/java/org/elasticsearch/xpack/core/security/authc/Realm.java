@@ -6,8 +6,11 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -23,33 +26,26 @@ import java.util.Map;
  */
 public abstract class Realm implements Comparable<Realm> {
 
-    protected final Logger logger;
-    protected final String type;
-
-    public String getType() {
-        return type;
-    }
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     protected RealmConfig config;
 
-    public Realm(String type, RealmConfig config) {
-        this.type = type;
+    public Realm(RealmConfig config) {
         this.config = config;
-        this.logger = config.logger(getClass());
     }
 
     /**
      * @return The type of this realm
      */
     public String type() {
-        return type;
+        return config.type();
     }
 
     /**
      * @return The name of this realm.
      */
     public String name() {
-        return config.name;
+        return config.name();
     }
 
     /**
@@ -76,7 +72,7 @@ public abstract class Realm implements Comparable<Realm> {
         int result = Integer.compare(config.order, other.config.order);
         if (result == 0) {
             // If same order, compare based on the realm name
-            result = config.name.compareTo(other.config.name);
+            result = config.name().compareTo(other.config.name());
         }
         return result;
     }
@@ -143,7 +139,15 @@ public abstract class Realm implements Comparable<Realm> {
 
     @Override
     public String toString() {
-        return type + "/" + config.name;
+        return config.type() + "/" + config.name();
+    }
+
+    /**
+     * This is no-op in the base class, but allows realms to be aware of what other realms are configured
+     *
+     * @see DelegatedAuthorizationSettings
+     */
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
     }
 
     /**

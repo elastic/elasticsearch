@@ -1,0 +1,47 @@
+version: '3.1'
+services:
+  openldap:
+    command: --copy-service --loglevel debug
+    image: "osixia/openldap:1.2.3"
+    ports:
+      - "389"
+      - "636"
+    environment:
+      LDAP_ADMIN_PASSWORD: "NickFuryHeartsES"
+      LDAP_DOMAIN: "oldap.test.elasticsearch.com"
+      LDAP_BASE_DN: "DC=oldap,DC=test,DC=elasticsearch,DC=com"
+      LDAP_TLS: "true"
+      LDAP_TLS_CRT_FILENAME: "ldap_server.pem"
+      LDAP_TLS_CA_CRT_FILENAME: "ca_server.pem"
+      LDAP_TLS_KEY_FILENAME: "ldap_server.key"
+      LDAP_TLS_VERIFY_CLIENT: "never"
+      LDAP_TLS_CIPHER_SUITE: "NORMAL"
+      LDAP_LOG_LEVEL: 256
+    volumes:
+      - ./openldap/ldif/users.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/20-bootstrap-users.ldif
+      - ./openldap/ldif/config.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/10-bootstrap-config.ldif
+      - ./openldap/certs:/container/service/slapd/assets/certs
+
+  shibboleth-idp:
+    image: "unicon/shibboleth-idp:3.4.2"
+    depends_on:
+      - openldap
+    environment:
+      - JETTY_MAX_HEAP=64m
+      - JETTY_BROWSER_SSL_KEYSTORE_PASSWORD=secret
+      - JETTY_BACKCHANNEL_SSL_KEYSTORE_PASSWORD=secret
+    ports:
+      - "4443"
+    links:
+      - openldap:openldap
+    volumes:
+      - ./idp/shibboleth-idp/conf:/opt/shibboleth-idp/conf
+      - ./idp/shibboleth-idp/credentials:/opt/shibboleth-idp/credentials
+      - ./idp/shib-jetty-base/start.d/ssl.ini:/opt/shib-jetty-base/start.d/ssl.ini
+
+  oidc-provider:
+    image: "c2id/c2id-server:7.8"
+    ports:
+      - "8080"
+    volumes:
+      - ./oidc/override.properties:/etc/c2id/override.properties

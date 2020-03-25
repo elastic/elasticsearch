@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.email;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.Date;
 import java.util.Locale;
 
 import javax.mail.Message;
@@ -182,7 +183,7 @@ public enum Profile {
         if (email.priority != null) {
             email.priority.applyTo(message);
         }
-        message.setSentDate(email.sentDate.toDate());
+        message.setSentDate(Date.from(email.sentDate.toInstant()));
         message.setRecipients(Message.RecipientType.TO, email.to.toArray());
         if (email.cc != null) {
             message.setRecipients(Message.RecipientType.CC, email.cc.toArray());

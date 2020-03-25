@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:c="http://www.springframework.org/schema/c"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                           http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+                           
+       default-init-method="initialize"
+       default-destroy-method="destroy">
+
+    <!-- Simple transforms to apply to username after authentication. -->
+    <util:constant id="shibboleth.c14n.simple.Lowercase" static-field="java.lang.Boolean.FALSE"/>
+    <util:constant id="shibboleth.c14n.simple.Uppercase" static-field="java.lang.Boolean.FALSE"/>
+    <util:constant id="shibboleth.c14n.simple.Trim" static-field="java.lang.Boolean.TRUE"/>
+
+    <!-- Apply any regular expression replacement pairs after authentication. -->
+    <util:list id="shibboleth.c14n.simple.Transforms">
+        <!--
+        <bean parent="shibboleth.Pair" p:first="^(.+)@example\.edu$" p:second="$1" />
+        -->
+    </util:list>
+        
+</beans>

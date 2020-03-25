@@ -9,7 +9,7 @@
     "index.priority": 800
   },
   "mappings": {
-    "doc": {
+    "_doc": {
       "dynamic" : "strict",
       "properties": {
         "status": {
@@ -58,5 +58,6 @@
         }
       }
     }
-  }
+  },
+  "version": ${xpack.watcher.template.version}
 }

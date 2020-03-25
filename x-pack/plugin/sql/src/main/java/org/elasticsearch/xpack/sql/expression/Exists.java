@@ -5,19 +5,23 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.NameId;
+import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 
 public class Exists extends SubQueryExpression {
 
-    public Exists(Location location, LogicalPlan query) {
-        this(location, query, null);
+    public Exists(Source source, LogicalPlan query) {
+        this(source, query, null);
     }
 
-    public Exists(Location location, LogicalPlan query, ExpressionId id) {
-        super(location, query, id);
+    public Exists(Source source, LogicalPlan query, NameId id) {
+        super(source, query, id);
     }
 
     @Override
@@ -27,16 +31,16 @@ public class Exists extends SubQueryExpression {
 
     @Override
     protected SubQueryExpression clone(LogicalPlan newQuery) {
-        return new Exists(location(), newQuery);
+        return new Exists(source(), newQuery);
     }
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN;
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 }

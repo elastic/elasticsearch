@@ -1,0 +1,106 @@
+--
+:api: put-datafeed
+:request: PutDatafeedRequest
+:response: PutDatafeedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Put datafeed API
+
+Creates a new {ml} datafeed in the cluster. The API accepts a +{request}+ object
+as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Put datafeed request
+
+A +{request}+ requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The configuration of the {ml} datafeed to create.
+
+[id="{upid}-{api}-config"]
+==== Datafeed configuration
+
+The `DatafeedConfig` object contains all the details about the {ml} datafeed
+configuration.
+
+A `DatafeedConfig` requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config]
+--------------------------------------------------
+<1> The datafeed ID and the {anomaly-job} ID.
+<2> The indices that contain the data to retrieve and feed into the {anomaly-job}.
+
+==== Optional arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-chunking-config]
+--------------------------------------------------
+<1> Specifies how data searches are split into time chunks.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-frequency]
+--------------------------------------------------
+<1> The interval at which scheduled queries are made while the datafeed runs in
+real time.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-query]
+--------------------------------------------------
+<1> A query to filter the search results by. Defaults to the `match_all` query.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-query-delay]
+--------------------------------------------------
+<1> The time interval behind real time that data is queried.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-delayed-data-check-config]
+--------------------------------------------------
+<1> Sets the delayed data check configuration.
+The window must be larger than the Job's bucket size, but smaller than 24 hours,
+and span less than 10,000 buckets.
+Defaults to `null`, which causes an appropriate window span to be calculated when
+the datafeed runs.
+The default `check_window` span calculation is the max between `2h` or
+`8 * bucket_span`. To explicitly disable, pass
+`DelayedDataCheckConfig.disabledDelayedDataCheckConfig()`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-script-fields]
+--------------------------------------------------
+<1> Allows the use of script fields.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-scroll-size]
+--------------------------------------------------
+<1> The `size` parameter used in the searches.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ returns the full representation of
+the new {ml} datafeed if it has been successfully created. This will
+contain the creation time and other fields initialized using
+default values:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The created datafeed.

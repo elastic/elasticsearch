@@ -21,13 +21,12 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.JaroWinklerDistance;
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -466,7 +465,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         } else if ("damerau_levenshtein".equals(distanceVal)) {
             return new LuceneLevenshteinDistance();
         } else if ("levenshtein".equals(distanceVal)) {
-            return new LevensteinDistance();
+            return new LevenshteinDistance();
         } else if ("jaro_winkler".equals(distanceVal)) {
             return new JaroWinklerDistance();
         } else if ("ngram".equals(distanceVal)) {
@@ -490,7 +489,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
             toXContent(builder, EMPTY_PARAMS);
             return Strings.toString(builder);
         } catch (Exception e) {
-            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
+            throw new RuntimeException(e);
         }
     }
 

@@ -38,20 +38,33 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-public class MultiTermVectorsRequest extends ActionRequest implements Iterable<TermVectorsRequest>, CompositeIndicesRequest, RealtimeRequest {
+public class MultiTermVectorsRequest extends ActionRequest
+        implements Iterable<TermVectorsRequest>, CompositeIndicesRequest, RealtimeRequest {
 
     String preference;
     List<TermVectorsRequest> requests = new ArrayList<>();
 
     final Set<String> ids = new HashSet<>();
 
+    public MultiTermVectorsRequest(StreamInput in) throws IOException {
+        super(in);
+        preference = in.readOptionalString();
+        int size = in.readVInt();
+        requests = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            requests.add(new TermVectorsRequest(in));
+        }
+    }
+
+    public MultiTermVectorsRequest() {}
+
     public MultiTermVectorsRequest add(TermVectorsRequest termVectorsRequest) {
         requests.add(termVectorsRequest);
         return this;
     }
 
-    public MultiTermVectorsRequest add(String index, @Nullable String type, String id) {
-        requests.add(new TermVectorsRequest(index, type, id));
+    public MultiTermVectorsRequest add(String index, String id) {
+        requests.add(new TermVectorsRequest(index, id));
         return this;
     }
 
@@ -132,17 +145,6 @@ public class MultiTermVectorsRequest extends ActionRequest implements Iterable<T
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        preference = in.readOptionalString();
-        int size = in.readVInt();
-        requests = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            requests.add(TermVectorsRequest.readTermVectorsRequest(in));
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(preference);
@@ -163,6 +165,7 @@ public class MultiTermVectorsRequest extends ActionRequest implements Iterable<T
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public MultiTermVectorsRequest realtime(boolean realtime) {
         for (TermVectorsRequest request : requests) {
             request.realtime(realtime);

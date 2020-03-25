@@ -73,18 +73,17 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
         ClusterSearchShardsResponse clusterSearchShardsResponse = new ClusterSearchShardsResponse(clusterSearchShardsGroups,
                 nodes.toArray(new DiscoveryNode[nodes.size()]), indicesAndFilters);
 
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         try(BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             clusterSearchShardsResponse.writeTo(out);
             try(StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
                 in.setVersion(version);
-                ClusterSearchShardsResponse deserialized = new ClusterSearchShardsResponse();
-                deserialized.readFrom(in);
+                ClusterSearchShardsResponse deserialized = new ClusterSearchShardsResponse(in);
                 assertArrayEquals(clusterSearchShardsResponse.getNodes(), deserialized.getNodes());
                 assertEquals(clusterSearchShardsResponse.getGroups().length, deserialized.getGroups().length);
                 for (int i = 0; i < clusterSearchShardsResponse.getGroups().length; i++) {
@@ -93,11 +92,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
                     assertEquals(clusterSearchShardsGroup.getShardId(), deserializedGroup.getShardId());
                     assertArrayEquals(clusterSearchShardsGroup.getShards(), deserializedGroup.getShards());
                 }
-                if (version.onOrAfter(Version.V_5_1_1)) {
-                    assertEquals(clusterSearchShardsResponse.getIndicesAndFilters(), deserialized.getIndicesAndFilters());
-                } else {
-                    assertNull(deserialized.getIndicesAndFilters());
-                }
+                assertEquals(clusterSearchShardsResponse.getIndicesAndFilters(), deserialized.getIndicesAndFilters());
             }
         }
     }

@@ -28,12 +28,12 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -64,7 +64,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     protected static int numDocs;
     protected static int numUniqueGeoPoints;
     protected static GeoPoint[] singleValues, multiValues;
-    protected static GeoPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight, singleCentroid, multiCentroid, unmappedCentroid;
+    protected static GeoPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight,
+        singleCentroid, multiCentroid, unmappedCentroid;
     protected static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
     protected static ObjectObjectMap<String, GeoPoint> expectedCentroidsForGeoHash = null;
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
@@ -73,7 +74,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(UNMAPPED_IDX_NAME);
         assertAcked(prepareCreate(IDX_NAME)
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point",
+                .setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point",
                         MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=keyword"));
 
         singleTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
@@ -114,7 +115,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
             singleVal = singleValues[i % numUniqueGeoPoints];
             multiVal[0] = multiValues[i % numUniqueGeoPoints];
             multiVal[1] = multiValues[(i+1) % numUniqueGeoPoints];
-            builders.add(client().prepareIndex(IDX_NAME, "type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex(IDX_NAME).setSource(jsonBuilder()
                     .startObject()
                     .array(SINGLE_VALUED_FIELD_NAME, singleVal.lon(), singleVal.lat())
                     .startArray(MULTI_VALUED_FIELD_NAME)
@@ -132,10 +133,13 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     multiCentroid.lon() + (newMVLon - multiCentroid.lon()) / (i+1));
         }
 
-        assertAcked(prepareCreate(EMPTY_IDX_NAME).addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
 
         assertAcked(prepareCreate(DATELINE_IDX_NAME)
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point", MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=keyword"));
+                .setMapping(SINGLE_VALUED_FIELD_NAME,
+                    "type=geo_point", MULTI_VALUED_FIELD_NAME,
+                    "type=geo_point", NUMBER_FIELD_NAME,
+                    "type=long", "tag", "type=keyword"));
 
         GeoPoint[] geoValues = new GeoPoint[5];
         geoValues[0] = new GeoPoint(38, 178);
@@ -145,7 +149,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         geoValues[4] = new GeoPoint(-11, 178);
 
         for (int i = 0; i < 5; i++) {
-            builders.add(client().prepareIndex(DATELINE_IDX_NAME, "type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex(DATELINE_IDX_NAME).setSource(jsonBuilder()
                     .startObject()
                     .array(SINGLE_VALUED_FIELD_NAME, geoValues[i].lon(), geoValues[i].lat())
                     .field(NUMBER_FIELD_NAME, i)
@@ -153,16 +157,26 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     .endObject()));
         }
         assertAcked(prepareCreate(HIGH_CARD_IDX_NAME).setSettings(Settings.builder().put("number_of_shards", 2))
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point", MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long,store=true", "tag", "type=keyword"));
+                .setMapping(SINGLE_VALUED_FIELD_NAME,
+                    "type=geo_point", MULTI_VALUED_FIELD_NAME,
+                    "type=geo_point", NUMBER_FIELD_NAME,
+                    "type=long,store=true",
+                    "tag", "type=keyword"));
 
         for (int i = 0; i < 2000; i++) {
             singleVal = singleValues[i % numUniqueGeoPoints];
-            builders.add(client().prepareIndex(HIGH_CARD_IDX_NAME, "type").setSource(jsonBuilder()
+            builders.add(client().prepareIndex(HIGH_CARD_IDX_NAME).setSource(jsonBuilder()
                     .startObject()
                     .array(SINGLE_VALUED_FIELD_NAME, singleVal.lon(), singleVal.lat())
                     .startArray(MULTI_VALUED_FIELD_NAME)
-                    .startArray().value(multiValues[i % numUniqueGeoPoints].lon()).value(multiValues[i % numUniqueGeoPoints].lat()).endArray()
-                    .startArray().value(multiValues[(i + 1) % numUniqueGeoPoints].lon()).value(multiValues[(i + 1) % numUniqueGeoPoints].lat()).endArray()
+                    .startArray()
+                        .value(multiValues[i % numUniqueGeoPoints].lon())
+                        .value(multiValues[i % numUniqueGeoPoints].lat())
+                    .endArray()
+                    .startArray()
+                        .value(multiValues[(i + 1) % numUniqueGeoPoints].lon())
+                        .value(multiValues[(i + 1) % numUniqueGeoPoints].lat())
+                    .endArray()
                     .endArray()
                     .field(NUMBER_FIELD_NAME, i)
                     .field("tag", "tag" + i)
@@ -170,27 +184,27 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
            updateGeohashBucketsCentroid(singleVal);
         }
 
-        builders.add(client().prepareIndex(IDX_ZERO_NAME, "type").setSource(
+        builders.add(client().prepareIndex(IDX_ZERO_NAME).setSource(
                 jsonBuilder().startObject().array(SINGLE_VALUED_FIELD_NAME, 0.0, 1.0).endObject()));
-        assertAcked(prepareCreate(IDX_ZERO_NAME).addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(IDX_ZERO_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
 
         indexRandom(true, builders);
         ensureSearchable();
 
-        // Added to debug a test failure where the terms aggregation seems to be reporting two documents with the same value for NUMBER_FIELD_NAME.  This will check that after
-        // random indexing each document only has 1 value for NUMBER_FIELD_NAME and it is the correct value. Following this initial change its seems that this call was getting
-        // more that 2000 hits (actual value was 2059) so now it will also check to ensure all hits have the correct index and type
-        SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME).addStoredField(NUMBER_FIELD_NAME).addSort(SortBuilders.fieldSort(NUMBER_FIELD_NAME)
-                .order(SortOrder.ASC)).setSize(5000).get();
+        // Added to debug a test failure where the terms aggregation seems to be reporting two documents with the same
+        // value for NUMBER_FIELD_NAME. This will check that after random indexing each document only has 1 value for
+        // NUMBER_FIELD_NAME and it is the correct value. Following this initial change its seems that this call was getting
+        // more that 2000 hits (actual value was 2059) so now it will also check to ensure all hits have the correct index and type.
+        SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME).addStoredField(NUMBER_FIELD_NAME)
+            .addSort(SortBuilders.fieldSort(NUMBER_FIELD_NAME).order(SortOrder.ASC)).setSize(5000).get();
         assertSearchResponse(response);
-        long totalHits = response.getHits().getTotalHits();
+        long totalHits = response.getHits().getTotalHits().value;
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         logger.info("Full high_card_idx Response Content:\n{ {} }", Strings.toString(builder));
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);
             assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));
-            assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getType(), equalTo("type"));
             DocumentField hitField = searchHit.field(NUMBER_FIELD_NAME);
 
             assertThat("Hit " + i + " has wrong number of values", hitField.getValues().size(), equalTo(1));
@@ -201,8 +215,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     }
 
     private void updateGeohashBucketsCentroid(final GeoPoint location) {
-        String hash = GeoHashUtils.stringEncode(location.lon(), location.lat(), GeoHashUtils.PRECISION);
-        for (int precision = GeoHashUtils.PRECISION; precision > 0; --precision) {
+        String hash = Geohash.stringEncode(location.lon(), location.lat(), Geohash.PRECISION);
+        for (int precision = Geohash.PRECISION; precision > 0; --precision) {
             final String h = hash.substring(0, precision);
             expectedDocCountsForGeoHash.put(h, expectedDocCountsForGeoHash.getOrDefault(h, 0) + 1);
             expectedCentroidsForGeoHash.put(h, updateHashCentroid(h, location));

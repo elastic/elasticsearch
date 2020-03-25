@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -67,23 +65,5 @@ public class SimulatePipelineRequestTests extends ESTestCase {
         SimulatePipelineRequest serialized = new SimulatePipelineRequest(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getSource().utf8ToString());
-    }
-
-    public void testSerializationWithXContentBwc() throws IOException {
-        final byte[] data = Base64.getDecoder().decode("AAAAAnt9AAA=");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-            SimulatePipelineRequest request = new SimulatePipelineRequest(in);
-            assertEquals(XContentType.JSON, request.getXContentType());
-            assertEquals("{}", request.getSource().utf8ToString());
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(version);
-                request.writeTo(out);
-                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
-            }
-        }
     }
 }

@@ -25,24 +25,23 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  * <pre>
- * { "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" }
+ * { "index" : { "_index" : "test", "_id" : "1" }
  * { "type1" : { "field1" : "value1" } }
- * { "delete" : { "_index" : "test", "_type" : "type1", "_id" : "2" } }
- * { "create" : { "_index" : "test", "_type" : "type1", "_id" : "1" }
+ * { "delete" : { "_index" : "test", "_id" : "2" } }
+ * { "create" : { "_index" : "test", "_id" : "1" }
  * { "type1" : { "field1" : "value1" } }
  * </pre>
  */
@@ -50,17 +49,17 @@ public class RestBulkAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    public RestBulkAction(Settings settings, RestController controller) {
-        super(settings);
-
-        controller.registerHandler(POST, "/_bulk", this);
-        controller.registerHandler(PUT, "/_bulk", this);
-        controller.registerHandler(POST, "/{index}/_bulk", this);
-        controller.registerHandler(PUT, "/{index}/_bulk", this);
-        controller.registerHandler(POST, "/{index}/{type}/_bulk", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_bulk", this);
-
+    public RestBulkAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_bulk"),
+            new Route(PUT, "/_bulk"),
+            new Route(POST, "/{index}/_bulk"),
+            new Route(PUT, "/{index}/_bulk"));
     }
 
     @Override
@@ -72,15 +71,6 @@ public class RestBulkAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");
-        String defaultType = request.param("type");
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
-        if (includeTypeName == false && defaultType != null) {
-            throw new IllegalArgumentException("You may only use the [include_type_name=false] option with the bulx APIs with the " +
-                    "[_bulk] and [{index}/_bulk] endpoints.");
-        }
-        if (defaultType == null) {
-            defaultType = MapperService.SINGLE_MAPPING_NAME;
-        }
         String defaultRouting = request.param("routing");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         String defaultPipeline = request.param("pipeline");
@@ -90,14 +80,19 @@ public class RestBulkAction extends BaseRestHandler {
         }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
-        bulkRequest.add(request.requiredContent(), defaultIndex, defaultType, defaultRouting,
-            defaultFetchSourceContext, defaultPipeline, null, allowExplicitIndex, request.getXContentType());
+        bulkRequest.add(request.requiredContent(), defaultIndex, defaultRouting,
+            defaultFetchSourceContext, defaultPipeline, allowExplicitIndex, request.getXContentType());
 
         return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));
     }
 
     @Override
     public boolean supportsContentStream() {
+        return true;
+    }
+
+    @Override
+    public boolean allowsUnsafeBuffers() {
         return true;
     }
 }

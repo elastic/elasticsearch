@@ -1,0 +1,19 @@
+{
+  "ilm.stop":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-stop.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ilm/stop",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

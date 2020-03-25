@@ -36,7 +36,7 @@ from the outside. Defaults to the actual port assigned via `http.port`.
 
 |`http.publish_host` |The host address to publish for HTTP clients to connect to. Defaults to `http.host` (if set) or `network.publish_host`.
 
-|`http.host` |Used to set the `http.bind_host` and the `http.publish_host` Defaults to `http.host` or `network.host`.
+|`http.host` |Used to set the `http.bind_host` and the `http.publish_host`.
 
 |`http.max_content_length` |The max content of an HTTP request. Defaults to
 `100mb`.
@@ -96,7 +96,7 @@ and stack traces in response output. Note: When set to `false` and the `error_tr
 parameter is specified, an error will be returned; when `error_trace` is not specified, a
 simple message will be returned. Defaults to `true`
 
-|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before a HTTP connection is closed, defaults to `10000`.
+|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before an HTTP connection is closed, defaults to `10000`.
 
 |`http.max_warning_header_count` |The maximum number of warning headers in
  client HTTP responses, defaults to unbounded.
@@ -108,3 +108,33 @@ client HTTP responses, defaults to unbounded.
 
 It also uses the common
 <<modules-network,network settings>>.
+
+[float]
+=== Rest Request Tracer
+
+The http module has a dedicated tracer logger which, when activated, logs incoming requests. The log can be dynamically activated
+by setting the level of the `org.elasticsearch.http.HttpTracer` logger to `TRACE`:
+
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+   "transient" : {
+      "logger.org.elasticsearch.http.HttpTracer" : "TRACE"
+   }
+}
+--------------------------------------------------
+
+You can also control which uris will be traced, using a set of include and exclude wildcard patterns. By default every request will be
+traced.
+
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+   "transient" : {
+      "http.tracer.include" : "*",
+      "http.tracer.exclude" : ""
+   }
+}
+--------------------------------------------------

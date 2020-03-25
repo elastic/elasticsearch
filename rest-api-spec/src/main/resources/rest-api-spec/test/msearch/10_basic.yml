@@ -4,28 +4,24 @@ setup:
   - do:
       index:
           index:  index_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
   - do:
       index:
           index:  index_1
-          type:   test
           id:     2
           body:   { foo: baz }
 
   - do:
       index:
           index:  index_1
-          type:   test
           id:     3
           body:   { foo: foo }
 
   - do:
       index:
           index:  index_2
-          type:   test
           id:     1
           body:   { foo: foo }
 
@@ -37,6 +33,7 @@ setup:
 
   - do:
       msearch:
+        rest_total_hits_as_int: true
         body:
           - index: index_*
           - query:
@@ -50,7 +47,7 @@ setup:
           - index: index_3
           - query:
               match_all: {}
-          - type: test
+          - {}
           - query:
               match_all: {}
 
@@ -61,3 +58,92 @@ setup:
   - match:  { responses.3.error.root_cause.0.reason: "/no.such.index/" }
   - match:  { responses.3.error.root_cause.0.index: index_3 }
   - match:  { responses.4.hits.total:     4  }
+
+---
+"Least impact smoke test":
+# only passing these parameters to make sure they are consumed
+  - do:
+      msearch:
+        rest_total_hits_as_int: true
+        max_concurrent_shard_requests: 1
+        max_concurrent_searches: 1
+        body:
+          - index: index_*
+          - query:
+              match: {foo: foo}
+          - index: index_2
+          - query:
+              match_all: {}
+          - index: index_1
+          - query:
+              match: {foo: foo}
+          - index: index_3
+          - query:
+              match_all: {}
+          - {}
+          - query:
+              match_all: {}
+
+  - match:  { responses.0.hits.total:     2  }
+  - match:  { responses.1.hits.total:     1  }
+  - match:  { responses.2.hits.total:     1  }
+  - match:  { responses.3.error.root_cause.0.type: index_not_found_exception }
+  - match:  { responses.3.error.root_cause.0.reason: "/no.such.index/" }
+  - match:  { responses.3.error.root_cause.0.index: index_3 }
+  - match:  { responses.4.hits.total:     4  }
+
+---
+"Search with new response format":
+
+  - do:
+      msearch:
+        body:
+          - index: index_*
+          - query:
+              match: {foo: foo}
+          - index: index_2
+          - query:
+              match_all: {}
+          - index: index_1
+          - query:
+              match: {foo: foo}
+
+  - match:  { responses.0.hits.total.value:     2   }
+  - match:  { responses.0.hits.total.relation:  eq  }
+  - match:  { responses.1.hits.total.value:     1   }
+  - match:  { responses.1.hits.total.relation:  eq  }
+  - match:  { responses.2.hits.total.value:     1   }
+  - match:  { responses.2.hits.total.relation:  eq  }
+
+  - do:
+      msearch:
+        body:
+        - index: index_*
+        - { query: { match: {foo: foo}}, track_total_hits: 1 }
+        - index: index_2
+        - query:
+            match_all: {}
+        - index: index_1
+        - query:
+            match: {foo: foo}
+
+  - match:  { responses.0.hits.total.value:     1    }
+  - match:  { responses.0.hits.total.relation:  gte  }
+  - match:  { responses.1.hits.total.value:     1    }
+  - match:  { responses.1.hits.total.relation:  eq   }
+  - match:  { responses.2.hits.total.value:     1    }
+  - match:  { responses.2.hits.total.relation:  eq   }
+
+  - do:
+      catch: /\[rest_total_hits_as_int\] cannot be used if the tracking of total hits is not accurate, got 10/
+      msearch:
+        rest_total_hits_as_int: true
+        body:
+          - index: index_*
+          - { query: { match_all: {}}, track_total_hits: 10}
+          - index: index_2
+          - query:
+              match_all: {}
+          - index: index_1
+          - query:
+              match: {foo: foo}

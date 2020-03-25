@@ -28,13 +28,16 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 
 /** Utility class to do efficient primary-key (only 1 doc contains the
@@ -66,15 +69,24 @@ final class PerThreadIDVersionAndSeqNoLookup {
      */
     PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
         this.uidField = uidField;
-        Terms terms = reader.terms(uidField);
+        final Terms terms = reader.terms(uidField);
         if (terms == null) {
-            throw new IllegalArgumentException("reader misses the [" + uidField + "] field");
+            // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
+            final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
+            final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
+            // this is a special case when we pruned away all IDs in a segment since all docs are deleted.
+            final boolean allDocsDeleted = (softDeletesDV != null && reader.numDocs() == 0);
+            if ((softDeletesDV == null || tombstoneDV == null) && allDocsDeleted == false) {
+                throw new IllegalArgumentException("reader does not have _uid terms but not a no-op segment; " +
+                    "_soft_deletes [" + softDeletesDV + "], _tombstone [" + tombstoneDV + "]");
+            }
+            termsEnum = null;
+        } else {
+            termsEnum = terms.iterator();
         }
-        termsEnum = terms.iterator();
         if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
-            throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field");
+            throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field; _uid terms [" + terms + "]");
         }
-
         Object readerKey = null;
         assert (readerKey = reader.getCoreCacheHelper().getKey()) != null;
         this.readerKey = readerKey;
@@ -86,21 +98,24 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * using the same cache key. Otherwise we'd have to disable caching
      * entirely for these readers.
      */
-    public DocIdAndVersion lookupVersion(BytesRef id, LeafReaderContext context)
+    public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context)
         throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, context.reader().getLiveDocs());
+        int docID = getDocID(id, context);
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            final NumericDocValues versions = context.reader().getNumericDocValues(VersionFieldMapper.NAME);
-            if (versions == null) {
-                throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field");
+            final long seqNo;
+            final long term;
+            if (loadSeqNo) {
+                seqNo = readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID);
+                term = readNumericDocValues(context.reader(), SeqNoFieldMapper.PRIMARY_TERM_NAME, docID);
+            } else {
+                seqNo = UNASSIGNED_SEQ_NO;
+                term = UNASSIGNED_PRIMARY_TERM;
             }
-            if (versions.advanceExact(docID) == false) {
-                throw new IllegalArgumentException("Document [" + docID + "] misses the [" + VersionFieldMapper.NAME + "] field");
-            }
-            return new DocIdAndVersion(docID, versions.longValue(), context.reader(), context.docBase);
+            final long version = readNumericDocValues(context.reader(), VersionFieldMapper.NAME, docID);
+            return new DocIdAndVersion(docID, version, seqNo, term, context.reader(), context.docBase);
         } else {
             return null;
         }
@@ -110,8 +125,10 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * returns the internal lucene doc id for the given id bytes.
      * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
      * */
-    private int getDocID(BytesRef id, Bits liveDocs) throws IOException {
-        if (termsEnum.seekExact(id)) {
+    private int getDocID(BytesRef id, LeafReaderContext context) throws IOException {
+        // termsEnum can possibly be null here if this leaf contains only no-ops.
+        if (termsEnum != null && termsEnum.seekExact(id)) {
+            final Bits liveDocs = context.reader().getLiveDocs();
             int docID = DocIdSetIterator.NO_MORE_DOCS;
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
             docsEnum = termsEnum.postings(docsEnum, 0);
@@ -127,19 +144,22 @@ final class PerThreadIDVersionAndSeqNoLookup {
         }
     }
 
+    private static long readNumericDocValues(LeafReader reader, String field, int docId) throws IOException {
+        final NumericDocValues dv = reader.getNumericDocValues(field);
+        if (dv == null || dv.advanceExact(docId) == false) {
+            assert false : "document [" + docId + "] does not have docValues for [" + field + "]";
+            throw new IllegalStateException("document [" + docId + "] does not have docValues for [" + field + "]");
+        }
+        return dv.longValue();
+    }
+
     /** Return null if id is not found. */
     DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, context.reader().getLiveDocs());
+        final int docID = getDocID(id, context);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-            long seqNo;
-            if (seqNos != null && seqNos.advanceExact(docID)) {
-                seqNo = seqNos.longValue();
-            } else {
-                seqNo =  SequenceNumbers.UNASSIGNED_SEQ_NO;
-            }
+            final long seqNo = readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID);
             return new DocIdAndSeqNo(docID, seqNo, context);
         } else {
             return null;

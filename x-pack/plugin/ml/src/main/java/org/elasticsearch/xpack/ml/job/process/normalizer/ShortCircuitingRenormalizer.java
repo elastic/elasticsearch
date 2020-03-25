@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 
 import java.util.Deque;
@@ -21,12 +21,11 @@ import java.util.concurrent.Semaphore;
  */
 public class ShortCircuitingRenormalizer implements Renormalizer {
 
-    private static final Logger LOGGER = Loggers.getLogger(ShortCircuitingRenormalizer.class);
+    private static final Logger LOGGER = LogManager.getLogger(ShortCircuitingRenormalizer.class);
 
     private final String jobId;
     private final ScoresUpdater scoresUpdater;
     private final ExecutorService executorService;
-    private final boolean isPerPartitionNormalization;
     private final Deque<QuantilesWithLatch> quantilesDeque = new ConcurrentLinkedDeque<>();
     private final Deque<CountDownLatch> latchDeque = new ConcurrentLinkedDeque<>();
     /**
@@ -34,12 +33,10 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
      */
     private final Semaphore semaphore = new Semaphore(1);
 
-    public ShortCircuitingRenormalizer(String jobId, ScoresUpdater scoresUpdater, ExecutorService executorService,
-                                       boolean isPerPartitionNormalization) {
+    public ShortCircuitingRenormalizer(String jobId, ScoresUpdater scoresUpdater, ExecutorService executorService) {
         this.jobId = jobId;
         this.scoresUpdater = scoresUpdater;
         this.executorService = executorService;
-        this.isPerPartitionNormalization = isPerPartitionNormalization;
     }
 
     @Override
@@ -125,7 +122,26 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     }
 
     private void forceFinishWork() {
-        semaphore.release();
+        // We cannot allow new quantiles to be added while we are failing from a previous renormalization failure.
+        synchronized (quantilesDeque) {
+            // We discard all but the earliest quantiles, if they exist
+            QuantilesWithLatch earliestQuantileWithLatch = null;
+            for (QuantilesWithLatch quantilesWithLatch = quantilesDeque.pollFirst(); quantilesWithLatch != null;
+                 quantilesWithLatch = quantilesDeque.pollFirst()) {
+                if (earliestQuantileWithLatch == null) {
+                    earliestQuantileWithLatch = quantilesWithLatch;
+                }
+                // Count down all the latches as they no longer matter since we failed
+                quantilesWithLatch.latch.countDown();
+            }
+            // Keep the earliest quantile so that the next call to doRenormalizations() will include as much as the failed normalization
+            // window as possible.
+            // Since this latch is already countedDown, there is no reason to put it in the `latchDeque` again
+            if (earliestQuantileWithLatch != null) {
+                quantilesDeque.addLast(earliestQuantileWithLatch);
+            }
+            semaphore.release();
+        }
     }
 
     private void doRenormalizations() {
@@ -161,8 +177,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
                                 jobId, latestBucketTimeMs, earliestBucketTimeMs);
                         windowExtensionMs = 0;
                     }
-                    scoresUpdater.update(latestQuantiles.getQuantileState(), latestBucketTimeMs, windowExtensionMs,
-                            isPerPartitionNormalization);
+                    scoresUpdater.update(latestQuantiles.getQuantileState(), latestBucketTimeMs, windowExtensionMs);
                     latch.countDown();
                     latch = null;
                 }

@@ -1,0 +1,96 @@
+--
+:api: count
+:request: CountRequest
+:response: CountResponse
+--
+[id="{upid}-{api}"]
+
+=== Count API
+
+[id="{upid}-{api}-request"]
+
+==== Count Request
+
+The +{request}+ is used to execute a query and get the number of matches for the query. The query to use in +{request}+ can be
+set in similar way as query in `SearchRequest` using `SearchSourceBuilder`.
+
+In its most basic form, we can add a query to the request:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-basic]
+--------------------------------------------------
+
+<1> Creates the +{request}+. Without arguments this runs against all indices.
+<2> Most search parameters are added to the `SearchSourceBuilder`.
+<3> Add a `match_all` query to the `SearchSourceBuilder`.
+<4> Add the `SearchSourceBuilder` to the +{request}+.
+
+[[java-rest-high-count-request-optional]]
+===== Count Request optional arguments
+
+A +{request}+ also takes the following optional arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-args]
+--------------------------------------------------
+<1> Restricts the request to an index
+<2> Set a routing parameter
+<3> Setting `IndicesOptions` controls how unavailable indices are resolved and how wildcard expressions are expanded
+<4> Use the preference parameter e.g. to execute the search to prefer local shards. The default is to randomize across shards.
+
+===== Using the SearchSourceBuilder in CountRequest
+
+Both in search and count API calls, most options controlling the search behavior can be set on the `SearchSourceBuilder`,
+which contains more or less the equivalent of the options in the search request body of the Rest API.
+
+Here are a few examples of some common options:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-source-basics]
+--------------------------------------------------
+<1> Create a `SearchSourceBuilder` with default options.
+<2> Set the query. Can be any type of `QueryBuilder`
+
+After this, the `SearchSourceBuilder` only needs to be added to the
++{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-source-setter]
+--------------------------------------------------
+
+Note subtle difference when using `SearchSourceBuilder` in `SearchRequest` and using `SearchSourceBuilder` in +{request}+ - using
+`SearchSourceBuilder` in `SearchRequest` one can use `SearchSourceBuilder.size()` and `SearchSourceBuilder.from()` methods to set the
+number of search hits to return, and the starting index. In +{request}+ we're interested in total number of matches and these methods
+have no meaning.
+
+The <<java-rest-high-query-builders, Building Queries>> page gives a list of all available search queries with
+their corresponding `QueryBuilder` objects and `QueryBuilders` helper methods.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== CountResponse
+
+The +{response}+ that is returned by executing the count API call provides total count of hits and details about the count execution
+itself, like the HTTP status code, or whether the request terminated early:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-1]
+--------------------------------------------------
+
+The response also provides information about the execution on the
+shard level by offering statistics about the total number of shards that were
+affected by the underlying search, and the successful vs. unsuccessful shards. Possible
+failures can also be handled by iterating over an array off
+`ShardSearchFailures` like in the following example:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-2]
+--------------------------------------------------
+

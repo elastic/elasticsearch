@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,51 +26,75 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public abstract class AbstractSqlRequest extends ActionRequest implements ToXContent {
 
-    private Mode mode = Mode.PLAIN;
+    private RequestInfo requestInfo;
 
     protected AbstractSqlRequest() {
-
+        this.requestInfo = new RequestInfo(Mode.PLAIN);
     }
 
-    protected AbstractSqlRequest(Mode mode) {
-        this.mode = mode;
+    protected AbstractSqlRequest(RequestInfo requestInfo) {
+        this.requestInfo = requestInfo;
     }
 
     protected AbstractSqlRequest(StreamInput in) throws IOException {
         super(in);
-        mode = in.readEnum(Mode.class);
+        Mode mode = in.readEnum(Mode.class);
+        String clientId = in.readOptionalString();
+        String clientVersion = in.readOptionalString();
+        requestInfo = new RequestInfo(mode, clientId, clientVersion);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (mode == null) {
+        if (requestInfo == null || requestInfo.mode() == null) {
             validationException = addValidationError("[mode] is required", validationException);
         }
         return validationException;
     }
 
     @Override
-    public final void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeEnum(mode);
+        out.writeEnum(requestInfo.mode());
+        out.writeOptionalString(requestInfo.clientId());
+        out.writeOptionalString(requestInfo.version() == null ? null : requestInfo.version().toString());
+    }
+
+    public RequestInfo requestInfo() {
+        return requestInfo;
+    }
+    
+    public void requestInfo(RequestInfo requestInfo) {
+        this.requestInfo = requestInfo;
     }
 
     public Mode mode() {
-        return mode;
+        return requestInfo.mode();
     }
 
     public void mode(Mode mode) {
-        this.mode = mode;
+        this.requestInfo.mode(mode);
     }
 
     public void mode(String mode) {
-        this.mode = Mode.fromString(mode);
+        this.requestInfo.mode(Mode.fromString(mode));
+    }
+    
+    public String clientId() {
+        return requestInfo.clientId();
+    }
+
+    public void clientId(String clientId) {
+        this.requestInfo.clientId(clientId);
+    }
+
+    public void version(String clientVersion) {
+        requestInfo.version(clientVersion);
+    }
+
+    public SqlVersion version() {
+        return requestInfo.version();
     }
 
     @Override
@@ -76,12 +102,12 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AbstractSqlRequest that = (AbstractSqlRequest) o;
-        return mode == that.mode;
+        return Objects.equals(requestInfo, that.requestInfo);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(mode);
+        return requestInfo.hashCode();
     }
 
 }

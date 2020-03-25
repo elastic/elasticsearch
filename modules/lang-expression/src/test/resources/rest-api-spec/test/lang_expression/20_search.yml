@@ -5,14 +5,12 @@ setup:
         index: test123
         body:
           mappings:
-            test:
-              properties:
-                age:
-                  type: long
+            properties:
+              age:
+                type: long
   - do:
       index:
         index:  test123
-        type:   test
         id:     1
         body:   { age: 23 }
 
@@ -22,6 +20,30 @@ setup:
 ---
 "Expressions scripting test":
 
-  - do: { search: { body: { script_fields : { my_field : { script: { lang: expression, source: 'doc["age"].value + 19' } } } } } }
-  - match:  { hits.hits.0.fields.my_field.0: 42.0 }
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            my_field:
+              script:
+                lang: expression
+                source: 'doc["age"].value + 19'
 
+  - match: { hits.hits.0.fields.my_field.0: 42.0 }
+
+---
+"Expressions aggregation score test":
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            aggs:
+              max_score:
+                max:
+                  script:
+                    lang: expression
+                    source: '_score'
+
+    - match: { aggregations.max_score.value: 1.0 }

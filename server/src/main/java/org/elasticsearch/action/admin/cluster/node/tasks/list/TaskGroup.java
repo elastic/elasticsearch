@@ -19,14 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -42,7 +40,7 @@ public class TaskGroup implements ToXContentObject {
 
     public TaskGroup(TaskInfo task, List<TaskGroup> childTasks) {
         this.task = task;
-        this.childTasks = Collections.unmodifiableList(new ArrayList<>(childTasks));
+        this.childTasks = List.copyOf(childTasks);
     }
 
     public static Builder builder(TaskInfo taskInfo) {

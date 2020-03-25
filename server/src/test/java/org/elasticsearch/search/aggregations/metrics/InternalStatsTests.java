@@ -26,8 +26,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
-import org.elasticsearch.search.aggregations.metrics.stats.ParsedStats;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -116,7 +114,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             aggregations.add(new InternalStats("dummy1", 1, value, value, value, null, null, null));
         }
         InternalStats internalStats = new InternalStats("dummy2", 0, 0.0, 2.0, 0.0, null, null, null);
-        InternalStats reduced = internalStats.doReduce(aggregations, null);
+        InternalStats reduced = internalStats.reduce(aggregations, null);
         assertEquals("dummy2", reduced.getName());
         assertEquals(values.length, reduced.getCount());
         assertEquals(expectedSum, reduced.getSum(), delta);

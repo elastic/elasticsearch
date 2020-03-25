@@ -45,15 +45,28 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private String[] fields = Strings.EMPTY_ARRAY;
+    private boolean includeUnmapped = false;
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
 
-    private static ObjectParser<FieldCapabilitiesRequest, Void> PARSER =
+    private static final ObjectParser<FieldCapabilitiesRequest, Void> PARSER =
         new ObjectParser<>(NAME, FieldCapabilitiesRequest::new);
 
     static {
-        PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields),
-            FIELDS_FIELD);
+        PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), FIELDS_FIELD);
+    }
+
+    public FieldCapabilitiesRequest(StreamInput in) throws IOException {
+        super(in);
+        fields = in.readStringArray();
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        mergeResults = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            includeUnmapped = in.readBoolean();
+        } else {
+            includeUnmapped = false;
+        }
     }
 
     public FieldCapabilitiesRequest() {}
@@ -78,26 +91,14 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        fields = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-            indices = in.readStringArray();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-            mergeResults = in.readBoolean();
-        } else {
-            mergeResults = true;
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(fields);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-            out.writeStringArray(indices);
-            indicesOptions.writeIndicesOptions(out);
-            out.writeBoolean(mergeResults);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeBoolean(mergeResults);
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            out.writeBoolean(includeUnmapped);
         }
     }
 
@@ -118,7 +119,6 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     }
 
     /**
-     *
      * The list of indices to lookup
      */
     public FieldCapabilitiesRequest indices(String... indices) {
@@ -128,6 +128,11 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
 
     public FieldCapabilitiesRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indices options must not be null");
+        return this;
+    }
+
+    public FieldCapabilitiesRequest includeUnmapped(boolean includeUnmapped) {
+        this.includeUnmapped = includeUnmapped;
         return this;
     }
 
@@ -141,12 +146,15 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return indicesOptions;
     }
 
+    public boolean includeUnmapped() {
+        return includeUnmapped;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (fields == null || fields.length == 0) {
-            validationException =
-                ValidateActions.addValidationError("no fields specified", validationException);
+            validationException = ValidateActions.addValidationError("no fields specified", validationException);
         }
         return validationException;
     }
@@ -160,14 +168,12 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return  Arrays.equals(indices, that.indices) &&
             Objects.equals(indicesOptions, that.indicesOptions) &&
             Arrays.equals(fields, that.fields) &&
-            Objects.equals(mergeResults, that.mergeResults);
+            Objects.equals(mergeResults, that.mergeResults) &&
+            includeUnmapped == that.includeUnmapped;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(indices),
-            indicesOptions,
-            Arrays.hashCode(fields),
-            mergeResults);
+        return Objects.hash(Arrays.hashCode(indices), indicesOptions, Arrays.hashCode(fields), mergeResults, includeUnmapped);
     }
 }

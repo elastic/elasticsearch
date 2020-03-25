@@ -23,6 +23,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,7 +38,7 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
 
     // Equivalent to:
     //
-    // List values = doc['values'].values;
+    // List values = doc['values'];
     // double[] res = new double[values.size()];
     // for (int i = 0; i < res.length; i++) {
     //      res[i] = values.get(i) - dec;
@@ -85,7 +86,7 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
             return value.getValue() + inc;
         });
 
-        scripts.put("doc['values'].values", vars -> {
+        scripts.put("doc['values']", vars -> {
             Map<?, ?> doc = (Map<?,?>) vars.get("doc");
             return doc.get("values");
         });
@@ -113,6 +114,15 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
             Long b = (Long) scripts.get("doc['value'].value + inc").apply(vars);
             return new Long[]{a, b};
         });
+
+        return scripts;
+    }
+
+    @Override
+    protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+        Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+        scripts.put("Math.random()", vars -> ESTestCase.randomDouble());
 
         return scripts;
     }

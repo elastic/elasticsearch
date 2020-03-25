@@ -9,10 +9,10 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegrationTestCase {
 
     public void testTimeFields() throws Exception {
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
                 .condition(InternalAlwaysCondition.INSTANCE)
@@ -48,11 +48,11 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
             GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
             assertThat(mappingsResponse, notNullValue());
             assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
-            for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> metadatas : mappingsResponse.getMappings()) {
+            for (ObjectObjectCursor<String, MappingMetaData> metadatas : mappingsResponse.getMappings()) {
                 if (!metadatas.key.startsWith(HistoryStoreField.INDEX_PREFIX)) {
                     continue;
                 }
-                MappingMetaData metadata = metadatas.value.get("doc");
+                MappingMetaData metadata = metadatas.value;
                 assertThat(metadata, notNullValue());
                 try {
                     Map<String, Object> source = metadata.getSourceAsMap();

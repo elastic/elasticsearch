@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -30,7 +31,6 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,9 +38,9 @@ import java.util.Map;
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
 
-    private static final ObjectParser<RangeAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<RangeAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, RangeAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(RangeAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
         PARSER.declareBoolean(RangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
@@ -49,10 +49,6 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
                 agg.addRange(range);
             }
         }, (p, c) -> RangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
-    }
-
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new RangeAggregationBuilder(aggregationName), null);
     }
 
     private static Range parseRange(XContentParser parser) throws IOException {
@@ -146,8 +142,8 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     @Override
-    protected RangeAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected RangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
+                                                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(range -> {
             DocValueFormat parser = config.format();
@@ -155,17 +151,17 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
             Double from = range.from;
             Double to = range.to;
             if (range.fromAsStr != null) {
-                from = parser.parseDouble(range.fromAsStr, false, context.getQueryShardContext()::nowInMillis);
+                from = parser.parseDouble(range.fromAsStr, false, queryShardContext::nowInMillis);
             }
             if (range.toAsStr != null) {
-                to = parser.parseDouble(range.toAsStr, false, context.getQueryShardContext()::nowInMillis);
+                to = parser.parseDouble(range.toAsStr, false, queryShardContext::nowInMillis);
             }
             return new Range(range.key, from, range.fromAsStr, to, range.toAsStr);
         });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
-        return new RangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
+        return new RangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder,
                 metaData);
     }
 

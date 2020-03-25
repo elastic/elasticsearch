@@ -7,16 +7,19 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -45,13 +48,15 @@ public class InternalRealmsTests extends ESTestCase {
         assertThat(factories, hasEntry(is(NativeRealmSettings.TYPE), any(Realm.Factory.class)));
         verifyZeroInteractions(securityIndex);
 
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        factories.get(NativeRealmSettings.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings,
-            TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "test");
+        Settings settings = Settings.builder().put("path.home", createTempDir())
+            .put(RealmSettings.getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0).build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+        final ThreadContext threadContext = new ThreadContext(settings);
+        factories.get(NativeRealmSettings.TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
         verify(securityIndex).addIndexStateListener(isA(BiConsumer.class));
 
-        factories.get(NativeRealmSettings.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings,
-            TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
+        factories.get(NativeRealmSettings.TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
         verify(securityIndex, times(2)).addIndexStateListener(isA(BiConsumer.class));
     }
 
@@ -59,7 +64,7 @@ public class InternalRealmsTests extends ESTestCase {
         String type = randomFrom(NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE,
                 PkiRealmSettings.TYPE);
         assertThat(InternalRealms.isStandardRealm(type), is(true));
-        type = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE);
+        type = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE, OpenIdConnectRealmSettings.TYPE);
         assertThat(InternalRealms.isStandardRealm(type), is(false));
     }
 }

@@ -20,8 +20,11 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.io.IOException;
 
 /**
  * A response for a resize index action, either shrink or split index.
@@ -35,10 +38,11 @@ public final class ResizeResponse extends CreateIndexResponse {
         declareFields(PARSER);
     }
 
-    ResizeResponse() {
+    ResizeResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
-    ResizeResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
+    public ResizeResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
         super(acknowledged, shardsAcknowledged, index);
     }
 

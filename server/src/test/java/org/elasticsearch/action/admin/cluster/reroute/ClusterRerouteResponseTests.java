@@ -84,9 +84,21 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "    },\n" +
                     "    \"metadata\" : {\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_uuid_committed\" : false,\n" +
+                    "      \"cluster_coordination\" : {\n" +
+                    "        \"term\" : 0,\n" +
+                    "        \"last_committed_config\" : [ ],\n" +
+                    "        \"last_accepted_config\" : [ ],\n" +
+                    "        \"voting_config_exclusions\" : [ ]\n" +
+                    "      },\n" +
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +
+                    "          \"version\" : 1,\n" +
+                    "          \"mapping_version\" : 1,\n" +
+                    "          \"settings_version\" : 1,\n" +
+                    "          \"aliases_version\" : 1,\n" +
+                    "          \"routing_num_shards\" : 1,\n" +
                     "          \"state\" : \"open\",\n" +
                     "          \"settings\" : {\n" +
                     "            \"index\" : {\n" +
@@ -108,7 +120,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "          },\n" +
                     "          \"in_sync_allocations\" : {\n" +
                     "            \"0\" : [ ]\n" +
-                    "          }\n" +
+                    "          },\n" +
+                    "          \"rollover_info\" : { }\n" +
                     "        }\n" +
                     "      },\n" +
                     "      \"index-graveyard\" : {\n" +
@@ -173,9 +186,21 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "    \"cluster_uuid\" : \"_na_\",\n" +
                     "    \"metadata\" : {\n" +
                     "      \"cluster_uuid\" : \"_na_\",\n" +
+                    "      \"cluster_uuid_committed\" : false,\n" +
+                    "      \"cluster_coordination\" : {\n" +
+                    "        \"term\" : 0,\n" +
+                    "        \"last_committed_config\" : [ ],\n" +
+                    "        \"last_accepted_config\" : [ ],\n" +
+                    "        \"voting_config_exclusions\" : [ ]\n" +
+                    "      },\n" +
                     "      \"templates\" : { },\n" +
                     "      \"indices\" : {\n" +
                     "        \"index\" : {\n" +
+                    "          \"version\" : 1,\n" +
+                    "          \"mapping_version\" : 1,\n" +
+                    "          \"settings_version\" : 1,\n" +
+                    "          \"aliases_version\" : 1,\n" +
+                    "          \"routing_num_shards\" : 1,\n" +
                     "          \"state\" : \"open\",\n" +
                     "          \"settings\" : {\n" +
                     "            \"index\" : {\n" +
@@ -192,7 +217,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "          },\n" +
                     "          \"in_sync_allocations\" : {\n" +
                     "            \"0\" : [ ]\n" +
-                    "          }\n" +
+                    "          },\n" +
+                    "          \"rollover_info\" : { }\n" +
                     "        }\n" +
                     "      },\n" +
                     "      \"index-graveyard\" : {\n" +

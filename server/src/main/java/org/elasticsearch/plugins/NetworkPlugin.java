@@ -25,6 +25,7 @@ import java.util.function.Supplier;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -58,11 +59,9 @@ public interface NetworkPlugin {
      * Returns a map of {@link Transport} suppliers.
      * See {@link org.elasticsearch.common.network.NetworkModule#TRANSPORT_TYPE_KEY} to configure a specific implementation.
      */
-    default Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                           PageCacheRecycler pageCacheRecycler,
+    default Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                            CircuitBreakerService circuitBreakerService,
-                                                           NamedWriteableRegistry namedWriteableRegistry,
-                                                           NetworkService networkService) {
+                                                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         return Collections.emptyMap();
     }
 
@@ -75,7 +74,8 @@ public interface NetworkPlugin {
                                                                          CircuitBreakerService circuitBreakerService,
                                                                          NamedXContentRegistry xContentRegistry,
                                                                          NetworkService networkService,
-                                                                         HttpServerTransport.Dispatcher dispatcher) {
+                                                                         HttpServerTransport.Dispatcher dispatcher,
+                                                                         ClusterSettings clusterSettings) {
         return Collections.emptyMap();
     }
 }

@@ -1,0 +1,24 @@
+{
+  "ccr.delete_auto_follow_pattern":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-delete-auto-follow-pattern.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ccr/auto_follow/{name}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"The name of the auto follow pattern."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

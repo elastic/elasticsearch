@@ -34,10 +34,9 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Abstract class that allows to mark action responses that support acknowledgements.
- * Facilitates consistency across different api.
+ * A response that indicates that a request has been acknowledged
  */
-public abstract class AcknowledgedResponse extends ActionResponse implements ToXContentObject {
+public class AcknowledgedResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
 
@@ -46,13 +45,14 @@ public abstract class AcknowledgedResponse extends ActionResponse implements ToX
             ObjectParser.ValueType.BOOLEAN);
     }
 
-    protected boolean acknowledged;
+    protected final boolean acknowledged;
 
-    protected AcknowledgedResponse() {
-
+    public AcknowledgedResponse(StreamInput in) throws IOException {
+        super(in);
+        acknowledged = in.readBoolean();
     }
 
-    protected AcknowledgedResponse(boolean acknowledged) {
+    public AcknowledgedResponse(boolean acknowledged) {
         this.acknowledged = acknowledged;
     }
 
@@ -65,14 +65,7 @@ public abstract class AcknowledgedResponse extends ActionResponse implements ToX
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        acknowledged = in.readBoolean();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(acknowledged);
     }
 
@@ -100,8 +93,8 @@ public abstract class AcknowledgedResponse extends ActionResponse implements ToX
                 ObjectParser.ValueType.BOOLEAN);
     }
 
-    protected static boolean parseAcknowledged(XContentParser parser) {
-        return ACKNOWLEDGED_FLAG_PARSER.apply(parser, null);
+    public static AcknowledgedResponse fromXContent(XContentParser parser) throws IOException {
+        return new AcknowledgedResponse(ACKNOWLEDGED_FLAG_PARSER.apply(parser, null));
     }
 
     @Override

@@ -46,14 +46,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * Sets the type to index the document to.
-     */
-    public IndexRequestBuilder setType(String type) {
-        request.type(type);
-        return this;
-    }
-
-    /**
      * Sets the id to index the document under. Optional, and if not set, one will be automatically
      * generated.
      */
@@ -196,6 +188,30 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      */
     public IndexRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);
+        return this;
+    }
+
+    /**
+     * only perform this indexing request if the document was last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public IndexRequestBuilder setIfSeqNo(long seqNo) {
+        request.setIfSeqNo(seqNo);
+        return this;
+    }
+
+    /**
+     * only perform this indexing request if the document was last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public IndexRequestBuilder setIfPrimaryTerm(long term) {
+        request.setIfPrimaryTerm(term);
         return this;
     }
 

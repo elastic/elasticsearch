@@ -29,21 +29,26 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+public class TransportGetIndexTemplatesAction extends
+    TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
 
     @Inject
-    public TransportGetIndexTemplatesAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                            ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexTemplatesRequest::new, indexNameExpressionResolver);
+    public TransportGetIndexTemplatesAction(TransportService transportService, ClusterService clusterService,
+                                            ThreadPool threadPool, ActionFilters actionFilters,
+                                            IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            GetIndexTemplatesRequest::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -52,17 +57,18 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
     }
 
     @Override
+    protected GetIndexTemplatesResponse read(StreamInput in) throws IOException {
+        return new GetIndexTemplatesResponse(in);
+    }
+
+    @Override
     protected ClusterBlockException checkBlock(GetIndexTemplatesRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
-    protected GetIndexTemplatesResponse newResponse() {
-        return new GetIndexTemplatesResponse();
-    }
-
-    @Override
-    protected void masterOperation(GetIndexTemplatesRequest request, ClusterState state, ActionListener<GetIndexTemplatesResponse> listener) {
+    protected void masterOperation(Task task, GetIndexTemplatesRequest request, ClusterState state,
+                                   ActionListener<GetIndexTemplatesResponse> listener) {
         List<IndexTemplateMetaData> results;
 
         // If we did not ask for a specific name, then we return all templates

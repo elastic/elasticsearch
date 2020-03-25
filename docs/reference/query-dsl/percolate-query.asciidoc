@@ -1,5 +1,8 @@
 [[query-dsl-percolate-query]]
-=== Percolate Query
+=== Percolate query
+++++
+<titleabbrev>Percolate</titleabbrev>
+++++
 
 The `percolate` query can be used to match queries
 stored in an index. The `percolate` query itself
@@ -11,25 +14,22 @@ to match with the stored queries.
 
 Create an index with two fields:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my-index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "message": {
-                    "type": "text"
-                },
-                "query": {
-                    "type": "percolator"
-                }
-            }
+        "properties": {
+             "message": {
+                 "type": "text"
+             },
+             "query": {
+                 "type": "percolator"
+             }
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `message` field is the field used to preprocess the document defined in
 the `percolator` query before it gets indexed into a temporary index.
@@ -42,7 +42,7 @@ used later on to match documents defined on the `percolate` query.
 
 Register a query in the percolator:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my-index/_doc/1?refresh
 {
@@ -53,12 +53,11 @@ PUT /my-index/_doc/1?refresh
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Match a document to the registered percolator queries:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -72,12 +71,11 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The above request will yield the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -89,14 +87,16 @@ The above request will yield the following response:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       { <1>
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -118,6 +118,10 @@ The above request will yield the following response:
 <2> The `_percolator_document_slot` field indicates which document has matched with this query.
     Useful when percolating multiple document simultaneously.
 
+TIP: To provide a simple example, this documentation uses one index `my-index` for both the percolate queries and documents.
+This set-up can work well when there are just a few percolate queries registered. However, with heavier usage it is recommended
+to store queries and documents in separate indices. Please see <<how-it-works, How it Works Under the Hood>> for more details.
+
 [float]
 ==== Parameters
 
@@ -129,7 +133,7 @@ The following parameters are required when percolating a document:
          This is an optional parameter.
 `document`:: The source of the document being percolated.
 `documents`:: Like the `document` parameter, but accepts multiple documents via a json array.
-`document_type`:: The type / mapping of the document being percolated. This setting is deprecated and only required for indices created before 6.0
+`document_type`:: The type / mapping of the document being percolated. This parameter is deprecated and will be removed in Elasticsearch 8.0.
 
 Instead of specifying the source of the document being percolated, the source can also be retrieved from an already
 stored document. The `percolate` query will then internally execute a get request to fetch that document.
@@ -138,7 +142,7 @@ In that case the `document` parameter can be substituted with the following para
 
 [horizontal]
 `index`:: The index the document resides in. This is a required parameter.
-`type`:: The type of the document to fetch. This is a required parameter.
+`type`:: The type of the document to fetch. This parameter is deprecated and will be removed in Elasticsearch 8.0.
 `id`:: The id of the document to fetch. This is a required parameter.
 `routing`:: Optionally, routing to be used to fetch document to percolate.
 `preference`:: Optionally, preference to be used to fetch document to percolate.
@@ -150,7 +154,7 @@ In that case the `document` parameter can be substituted with the following para
 In case you are not interested in the score, better performance can be expected by wrapping
 the percolator query in a `bool` query's filter clause or in a `constant_score` query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -168,7 +172,6 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 At index time terms are extracted from the percolator query and the percolator
@@ -191,7 +194,7 @@ The `_percolator_document_slot` field that is being returned with each matched p
 multiple documents simultaneously. It indicates which documents matched with a particular percolator query. The numbers
 correlate with the slot in the `documents` array specified in the `percolate` query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -216,12 +219,11 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The documents array contains 4 documents that are going to be percolated at the same time.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -233,14 +235,16 @@ GET /my-index/_search
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 1.5606477,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.7093853,
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
-        "_score": 1.5606477,
+        "_score": 0.7093853,
         "_source": {
           "query": {
             "match": {
@@ -275,22 +279,20 @@ Based on the previous example.
 
 Index the document we want to percolate:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my-index/_doc/2
 {
   "message" : "A new bonsai tree in the office"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 Index response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "my-index",
-  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_shards": {
@@ -303,11 +305,10 @@ Index response:
   "_primary_term" : 1
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Percolating an existing document, using the index response as basis to build to new search request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -315,14 +316,12 @@ GET /my-index/_search
         "percolate" : {
             "field": "query",
             "index" : "my-index",
-            "type" : "_doc",
             "id" : "2",
             "version" : 1 <1>
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The version is optional, but useful in certain cases. We can ensure that we are trying to percolate
@@ -345,7 +344,7 @@ This example is based on the mapping of the first example.
 
 Save a query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my-index/_doc/3?refresh
 {
@@ -356,12 +355,11 @@ PUT /my-index/_doc/3?refresh
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Save another query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my-index/_doc/4?refresh
 {
@@ -372,12 +370,11 @@ PUT /my-index/_doc/4?refresh
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Execute a search request with the `percolate` query and highlighting enabled:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -396,12 +393,11 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 This will yield the following response.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 7,
@@ -413,14 +409,16 @@ This will yield the following response.
     "failed": 0
   },
   "hits": {
-    "total": 2,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 2,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "3",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -439,9 +437,8 @@ This will yield the following response.
       },
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "4",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -471,7 +468,7 @@ the document defined in the `percolate` query.
 
 When percolating multiple documents at the same time like the request below then the highlight response is different:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -501,12 +498,11 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The slightly different response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -518,14 +514,16 @@ The slightly different response:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 1.5606477,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.7093853,
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
-        "_score": 1.5606477,
+        "_score": 0.7093853,
         "_source": {
           "query": {
             "match": {
@@ -562,7 +560,7 @@ The slightly different response:
 
 It is possible to specify multiple `percolate` queries in a single search request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /my-index/_search
 {
@@ -592,7 +590,6 @@ GET /my-index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The `name` parameter will be used to identify which percolator document slots belong to what `percolate` query.
@@ -602,7 +599,7 @@ If that isn't specified then the `field` parameter will be used, which in this c
 
 The above search request returns a response similar to this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -614,14 +611,16 @@ The above search request returns a response similar to this:
     "failed": 0
   },
   "hits": {
-    "total": 1,
-    "max_score": 0.5753642,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
+    "max_score": 0.26152915,
     "hits": [
       {
         "_index": "my-index",
-        "_type": "_doc",
         "_id": "1",
-        "_score": 0.5753642,
+        "_score": 0.26152915,
         "_source": {
           "query": {
             "match": {
@@ -643,6 +642,7 @@ The above search request returns a response similar to this:
     query with `_name` parameter set to `query1`.
 
 [float]
+[[how-it-works]]
 ==== How it Works Under the Hood
 
 When indexing a document into an index that has the <<percolator,percolator field type>> mapping configured, the query
@@ -664,7 +664,7 @@ or the unsupported query is the only query in the percolator document).  These q
 can be found by running the following search:
 
 
-[source,js]
+[source,console]
 ---------------------------------------------------
 GET /_search
 {
@@ -675,7 +675,19 @@ GET /_search
   }
 }
 ---------------------------------------------------
-// CONSOLE
 
 NOTE: The above example assumes that there is a `query` field of type
 `percolator` in the mappings.
+
+Given the design of percolation, it often makes sense to use separate indices for the percolate queries and documents
+being percolated, as opposed to a single index as we do in examples. There are a few benefits to this approach:
+
+- Because percolate queries contain a different set of fields from the percolated documents, using two separate indices
+allows for fields to be stored in a denser, more efficient way.
+- Percolate queries do not scale in the same way as other queries, so percolation performance may benefit from using
+a different index configuration, like the number of primary shards.
+
+=== Notes
+==== Allow expensive queries
+Percolate queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.

@@ -26,7 +26,6 @@ import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -41,8 +40,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 0, numClientNodes = 0)
 public class GceDiscoverTests extends ESIntegTestCase {
@@ -64,18 +63,10 @@ public class GceDiscoverTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
-                        .put("discovery.zen.hosts_provider", "gce")
+                        .put(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "gce")
                         .put("cloud.gce.project_id", "test")
                         .put("cloud.gce.zone", "test")
-                        // Make the test run faster
-                        .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "1s")
-                        .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "500ms")
             .build();
-    }
-
-    @Override
-    protected boolean addTestZenDiscovery() {
-        return false;
     }
 
     public void testJoin() {
@@ -168,6 +159,16 @@ public class GceDiscoverTests extends ESIntegTestCase {
 
                         return instances;
                     });
+                }
+
+                @Override
+                public String projectId() {
+                    return PROJECT_SETTING.get(settings);
+                }
+
+                @Override
+                public List<String> zones() {
+                    return ZONE_SETTING.get(settings);
                 }
 
                 @Override

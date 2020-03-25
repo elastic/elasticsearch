@@ -20,7 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
-
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.Booleans;
@@ -28,8 +28,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.network.IfConfig;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.junit.Assert;
@@ -37,6 +37,7 @@ import org.junit.Assert;
 import java.io.InputStream;
 import java.net.SocketPermission;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Permissions;
@@ -79,8 +80,10 @@ public class BootstrapForTesting {
         }
 
         // just like bootstrap, initialize natives, then SM
+        final boolean memoryLock =
+                BootstrapSettings.MEMORY_LOCK_SETTING.get(Settings.EMPTY); // use the default bootstrap.memory_lock setting
         final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
-        Bootstrap.initializeNatives(javaTmpDir, true, systemCallFilter, true);
+        Bootstrap.initializeNatives(javaTmpDir, memoryLock, systemCallFilter, true);
 
         // initialize probes
         Bootstrap.initializeProbes();
@@ -90,7 +93,7 @@ public class BootstrapForTesting {
 
         // check for jar hell
         try {
-            final Logger logger = ESLoggerFactory.getLogger(JarHell.class);
+            final Logger logger = LogManager.getLogger(JarHell.class);
             JarHell.checkJarHell(logger::debug);
         } catch (Exception e) {
             throw new RuntimeException("found jar hell in test classpath", e);
@@ -177,8 +180,11 @@ public class BootstrapForTesting {
     private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
         try {
             Class<?> clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
-            if (codebases.put(name, clazz.getProtectionDomain().getCodeSource().getLocation()) != null) {
-                throw new IllegalStateException("Already added " + name + " codebase for testing");
+            URL location = clazz.getProtectionDomain().getCodeSource().getLocation();
+            if (location.toString().endsWith(".jar") == false) {
+                if (codebases.put(name, location) != null) {
+                    throw new IllegalStateException("Already added " + name + " codebase for testing");
+                }
             }
         } catch (ClassNotFoundException e) {
             // no class, fall through to not add. this can happen for any tests that do not include
@@ -247,9 +253,12 @@ public class BootstrapForTesting {
         Set<URL> raw = JarHell.parseClassPath();
         Set<URL> cooked = new HashSet<>(raw.size());
         for (URL url : raw) {
-            boolean added = cooked.add(PathUtils.get(url.toURI()).toRealPath().toUri().toURL());
-            if (added == false) {
-                throw new IllegalStateException("Duplicate in classpath after resolving symlinks: " + url);
+            Path path = PathUtils.get(url.toURI());
+            if (Files.exists(path)) {
+                boolean added = cooked.add(path.toRealPath().toUri().toURL());
+                if (added == false) {
+                    throw new IllegalStateException("Duplicate in classpath after resolving symlinks: " + url);
+                }
             }
         }
         return raw;

@@ -7,7 +7,7 @@ setup:
       cluster.health:
         wait_for_status: yellow
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -15,7 +15,7 @@ setup:
               "roles" : [ "x_cluster_role" ]
             }
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "x_cluster_role"
         body:  >
             {
@@ -30,11 +30,11 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "joe"
         ignore: 404
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "x_cluster_role"
         ignore: 404
 ---
@@ -43,6 +43,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
         size: 4
         scroll: 1m
@@ -51,6 +52,9 @@ teardown:
           query:
             match_all: {}
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
   - set: {_scroll_id: scroll_id}
   - match: {hits.total:      6    }
   - length: {hits.hits:      4    }
@@ -62,8 +66,10 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       scroll:
+        rest_total_hits_as_int: true
         body: { "scroll_id": "$scroll_id", "scroll": "1m"}
 
+  - is_false: _clusters
   - match: {hits.total:      6    }
   - length: {hits.hits:      2    }
   - match: {hits.hits.0._source.filter_field: 1 }
@@ -72,6 +78,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       scroll:
+        rest_total_hits_as_int: true
         scroll_id: $scroll_id
         scroll: 1m
 
@@ -88,6 +95,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
         size: 4
         scroll: 1m
@@ -96,6 +104,9 @@ teardown:
           query:
             match_all: {}
 
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
   - set: {_scroll_id: scroll_id}
   - match: {hits.total:      6    }
   - length: {hits.hits:      4    }
@@ -107,6 +118,7 @@ teardown:
   - do: # steal the scroll ID cross cluster and make sure it fails
       catch: /search_context_missing_exception/
       scroll:
+        rest_total_hits_as_int: true
         body: { "scroll_id": "$scroll_id", "scroll": "1m"}
 
   - do:

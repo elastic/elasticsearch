@@ -73,13 +73,13 @@ public final class AttachmentProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) {
+    public IngestDocument execute(IngestDocument ingestDocument) {
         Map<String, Object> additionalFields = new HashMap<>();
 
         byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
 
         if (input == null && ignoreMissing) {
-            return;
+            return ingestDocument;
         } else if (input == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
         }
@@ -112,6 +112,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
+            // TODO: stop using LanguageIdentifier...
             LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
             String language = identifier.getLanguage();
             additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
@@ -164,6 +165,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         ingestDocument.setFieldValue(targetField, additionalFields);
+        return ingestDocument;
     }
 
     @Override

@@ -1,0 +1,148 @@
+--
+:api: update-by-query
+:request: UpdateByQueryRequest
+:response: UpdateByQueryResponse
+--
+
+[id="{upid}-{api}"]
+=== Update By Query API
+
+[id="{upid}-{api}-request"]
+==== Update By Query Request
+
+A +{request}+ can be used to update documents in an index.
+
+It requires an existing index (or a set of indices) on which the update is to
+be performed.
+
+The simplest form of a +{request}+ looks like this:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Creates the +{request}+ on a set of indices.
+
+By default version conflicts abort the +{request}+ process but you can just
+count them instead with:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-conflicts]
+--------------------------------------------------
+<1> Set `proceed` on version conflict
+
+You can limit the documents by adding a query.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-query]
+--------------------------------------------------
+<1> Only copy documents which have field `user` set to `kimchy`
+
+It’s also possible to limit the number of processed documents by setting `maxDocs`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-maxDocs]
+--------------------------------------------------
+<1> Only copy 10 documents
+
+By default +{request}+ uses batches of 1000. You can change the batch size with
+`setBatchSize`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-scrollSize]
+--------------------------------------------------
+<1> Use batches of 100 documents
+
+Update by query can also use the ingest feature by specifying a `pipeline`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-pipeline]
+--------------------------------------------------
+<1> set pipeline to `my_pipeline`
+
++{request}+ also supports a `script` that modifies the document:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-script]
+--------------------------------------------------
+<1> `setScript` to increment the `likes` field on all documents with user `kimchy`.
+
++{request}+ can be parallelized using `sliced-scroll` with `setSlices`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-slices]
+--------------------------------------------------
+<1> set number of slices to use
+
+`UpdateByQueryRequest` uses the `scroll` parameter to control how long it keeps the "search context" alive.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-scroll]
+--------------------------------------------------
+<1> set scroll time
+
+If you provide routing then the routing is copied to the scroll query, limiting the process to the shards that match
+that routing value.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-routing]
+--------------------------------------------------
+<1> set routing
+
+
+==== Optional arguments
+In addition to the options above the following arguments can optionally be also provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the update by query request to be performed as a `TimeValue`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-refresh]
+--------------------------------------------------
+<1> Refresh index after calling update by query
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Set indices options
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Update By Query Response
+
+The returned +{response}+ contains information about the executed operations and
+allows to iterate over each result as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Get total time taken
+<2> Check if the request timed out
+<3> Get total number of docs processed
+<4> Number of docs that were updated
+<5> Number of docs that were deleted
+<6> Number of batches that were executed
+<7> Number of skipped docs
+<8> Number of version conflicts
+<9> Number of times request had to retry bulk index operations
+<10> Number of times request had to retry search operations
+<11> The total time this request has throttled itself not including the current throttle time if it is currently sleeping
+<12> Remaining delay of any current throttle sleep or 0 if not sleeping
+<13> Failures during search phase
+<14> Failures during bulk index operation

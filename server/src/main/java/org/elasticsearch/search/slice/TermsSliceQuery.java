@@ -25,6 +25,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Weight;
@@ -55,13 +56,13 @@ public final class TermsSliceQuery extends SliceQuery {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         return new ConstantScoreWeight(this, boost) {
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 final DocIdSet disi = build(context.reader());
                 final DocIdSetIterator leafIt = disi.iterator();
-                return new ConstantScoreScorer(this, score(), leafIt);
+                return new ConstantScoreScorer(this, score(), scoreMode, leafIt);
             }
 
             @Override
@@ -77,6 +78,9 @@ public final class TermsSliceQuery extends SliceQuery {
     private DocIdSet build(LeafReader reader) throws IOException {
         final DocIdSetBuilder builder = new DocIdSetBuilder(reader.maxDoc());
         final Terms terms = reader.terms(getField());
+        if (terms == null) {
+            return DocIdSet.EMPTY;
+        }
         final TermsEnum te = terms.iterator();
         PostingsEnum docsEnum = null;
         for (BytesRef term = te.next(); term != null; term = te.next()) {

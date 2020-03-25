@@ -2,11 +2,6 @@
 # pull in rest test from modules in core
 ---
 "Basic Rankeval test":
-
-  - skip:
-      version: " - 6.2.99"
-      reason: response format was updated in 6.3
-
   - do:
      indices.create:
          index: foo
@@ -17,14 +12,12 @@
   - do:
       index:
         index:   foo
-        type:    bar
         id:      doc1
         body:    { "text": "berlin" }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc2
         body:   { "text": "amsterdam" }
 

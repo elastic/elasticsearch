@@ -51,7 +51,7 @@ public class NestedSortBuilderTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
@@ -152,7 +152,7 @@ public class NestedSortBuilderTests extends ESTestCase {
             @Override
             protected QueryBuilder doRewrite(org.elasticsearch.index.query.QueryRewriteContext queryShardContext) throws IOException {
                 return new MatchAllQueryBuilder();
-            };
+            }
         };
         // test that filter gets rewritten
         NestedSortBuilder original = new NestedSortBuilder("path").setFilter(filterThatRewrites);

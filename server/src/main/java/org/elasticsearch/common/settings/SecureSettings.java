@@ -42,6 +42,8 @@ public interface SecureSettings extends Closeable {
     /** Return a file setting. The {@link InputStream} should be closed once it is used. */
     InputStream getFile(String setting) throws GeneralSecurityException;
 
+    byte[] getSHA256Digest(String setting) throws GeneralSecurityException;
+
     @Override
     void close() throws IOException;
 }

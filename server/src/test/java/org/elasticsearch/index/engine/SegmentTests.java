@@ -77,7 +77,7 @@ public class SegmentTests extends ESTestCase {
         segment.sizeInBytes = randomNonNegativeLong();
         segment.docCount = randomIntBetween(1, Integer.MAX_VALUE);
         segment.delDocCount = randomIntBetween(0, segment.docCount);
-        segment.version = Version.LUCENE_6_5_0;
+        segment.version = Version.LUCENE_7_0_0;
         segment.compound = randomBoolean();
         segment.mergeId = randomAlphaOfLengthBetween(1, 10);
         segment.memoryInBytes = randomNonNegativeLong();
@@ -95,8 +95,7 @@ public class SegmentTests extends ESTestCase {
             segment.writeTo(output);
             output.flush();
             StreamInput input = output.bytes().streamInput();
-            Segment deserialized = new Segment();
-            deserialized.readFrom(input);
+            Segment deserialized = new Segment(input);
             assertTrue(isSegmentEquals(deserialized, segment));
         }
     }

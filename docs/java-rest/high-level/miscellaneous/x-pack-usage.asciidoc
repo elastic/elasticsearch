@@ -1,0 +1,54 @@
+[[java-rest-high-x-pack-usage]]
+=== X-Pack Usage API
+
+[[java-rest-high-x-pack-usage-execution]]
+==== Execution
+
+Detailed information about the usage of features from {xpack} can be
+retrieved using the `usage()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-usage-execute]
+--------------------------------------------------
+
+[[java-rest-high-x-pack-usage-response]]
+==== Response
+
+The returned `XPackUsageResponse` contains a `Map` keyed by feature name.
+Every feature map has an `available` key, indicating whether that
+feature is available given the current license, and an `enabled` key,
+indicating whether that feature is currently enabled. Other keys
+are specific to each feature.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-usage-response]
+--------------------------------------------------
+
+[[java-rest-high-x-pack-usage-async]]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-usage-execute-async]
+--------------------------------------------------
+<1> The call to execute the usage api and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `XPackUsageResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[x-pack-usage-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

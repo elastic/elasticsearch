@@ -25,19 +25,15 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.join.query.ParentChildTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
+import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.sort.SortOrder;
-import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,80 +54,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ChildrenIT extends ParentChildTestCase {
-
-
-    private static final Map<String, Control> categoryToControl = new HashMap<>();
-
-
-    @Before
-    public void setupCluster() throws Exception {
-        categoryToControl.clear();
-        assertAcked(
-            prepareCreate("test")
-                .addMapping("doc",
-                    addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "article", "comment"),
-                        "commenter", "keyword", "category", "keyword"))
-        );
-
-        List<IndexRequestBuilder> requests = new ArrayList<>();
-        String[] uniqueCategories = new String[randomIntBetween(1, 25)];
-        for (int i = 0; i < uniqueCategories.length; i++) {
-            uniqueCategories[i] = Integer.toString(i);
-        }
-        int catIndex = 0;
-
-        int numParentDocs = randomIntBetween(uniqueCategories.length, uniqueCategories.length * 5);
-        for (int i = 0; i < numParentDocs; i++) {
-            String id = "article-" + i;
-
-            // TODO: this array is always of length 1, and testChildrenAggs fails if this is changed
-            String[] categories = new String[randomIntBetween(1,1)];
-            for (int j = 0; j < categories.length; j++) {
-                String category = categories[j] = uniqueCategories[catIndex++ % uniqueCategories.length];
-                Control control = categoryToControl.get(category);
-                if (control == null) {
-                    categoryToControl.put(category, control = new Control(category));
-                }
-                control.articleIds.add(id);
-            }
-
-            requests.add(createIndexRequest("test", "article", id, null, "category", categories, "randomized", true));
-        }
-
-        String[] commenters = new String[randomIntBetween(5, 50)];
-        for (int i = 0; i < commenters.length; i++) {
-            commenters[i] = Integer.toString(i);
-        }
-
-        int id = 0;
-        for (Control control : categoryToControl.values()) {
-            for (String articleId : control.articleIds) {
-                int numChildDocsPerParent = randomIntBetween(0, 5);
-                for (int i = 0; i < numChildDocsPerParent; i++) {
-                    String commenter = commenters[id % commenters.length];
-                    String idValue = "comment-" + id++;
-                    control.commentIds.add(idValue);
-                    Set<String> ids = control.commenterToCommentId.get(commenter);
-                    if (ids == null) {
-                        control.commenterToCommentId.put(commenter, ids = new HashSet<>());
-                    }
-                    ids.add(idValue);
-                    requests.add(createIndexRequest("test", "comment", idValue, articleId, "commenter", commenter));
-                }
-            }
-        }
-
-        requests.add(createIndexRequest("test", "article", "a", null, "category", new String[]{"a"}, "randomized", false));
-        requests.add(createIndexRequest("test", "article", "b", null, "category", new String[]{"a", "b"}, "randomized", false));
-        requests.add(createIndexRequest("test", "article", "c", null, "category", new String[]{"a", "b", "c"}, "randomized", false));
-        requests.add(createIndexRequest("test", "article", "d", null, "category", new String[]{"c"}, "randomized", false));
-        requests.add(createIndexRequest("test", "comment", "e", "a"));
-        requests.add(createIndexRequest("test", "comment", "f", "c"));
-
-        indexRandom(true, requests);
-        ensureSearchable("test");
-    }
+public class ChildrenIT extends AbstractParentChildTestCase {
 
     public void testChildrenAggs() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -180,7 +103,7 @@ public class ChildrenIT extends ParentChildTestCase {
                 .setQuery(matchQuery("randomized", false))
                 .addAggregation(
                         terms("category").field("category").size(10000).subAggregation(
-                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("_id", SortOrder.ASC))
+                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("id", SortOrder.ASC))
                         )
                 ).get();
         assertSearchResponse(searchResponse);
@@ -192,9 +115,9 @@ public class ChildrenIT extends ParentChildTestCase {
             logger.info("bucket={}", bucket.getKey());
             Children childrenBucket = bucket.getAggregations().get("to_comment");
             TopHits topHits = childrenBucket.getAggregations().get("top_comments");
-            logger.info("total_hits={}", topHits.getHits().getTotalHits());
+            logger.info("total_hits={}", topHits.getHits().getTotalHits().value);
             for (SearchHit searchHit : topHits.getHits()) {
-                logger.info("hit= {} {} {}", searchHit.getSortValues()[0], searchHit.getType(), searchHit.getId());
+                logger.info("hit= {} {}", searchHit.getSortValues()[0], searchHit.getId());
             }
         }
 
@@ -206,7 +129,7 @@ public class ChildrenIT extends ParentChildTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(2L));
         TopHits topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().getTotalHits(), equalTo(2L));
+        assertThat(topHits.getHits().getTotalHits().value, equalTo(2L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("e"));
         assertThat(topHits.getHits().getAt(1).getId(), equalTo("f"));
 
@@ -218,7 +141,7 @@ public class ChildrenIT extends ParentChildTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().getTotalHits(), equalTo(1L));
+        assertThat(topHits.getHits().getTotalHits().value, equalTo(1L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("f"));
 
         categoryBucket = categoryTerms.getBucketByKey("c");
@@ -229,7 +152,7 @@ public class ChildrenIT extends ParentChildTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().getTotalHits(), equalTo(1L));
+        assertThat(topHits.getHits().getTotalHits().value, equalTo(1L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("f"));
     }
 
@@ -237,7 +160,7 @@ public class ChildrenIT extends ParentChildTestCase {
         String indexName = "xyz";
         assertAcked(
                 prepareCreate(indexName)
-                    .addMapping("doc",
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
                             "name", "keyword"))
         );
@@ -269,7 +192,7 @@ public class ChildrenIT extends ParentChildTestCase {
              * the updates cause that.
              */
             UpdateResponse updateResponse;
-            updateResponse = client().prepareUpdate(indexName, "doc", idToUpdate)
+            updateResponse = client().prepareUpdate(indexName, idToUpdate)
                     .setRouting("1")
                     .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
                     .setDetectNoop(false)
@@ -299,7 +222,7 @@ public class ChildrenIT extends ParentChildTestCase {
                 prepareCreate(indexName)
                     .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .addMapping("doc",
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
                             masterType, childType),
                             "brand", "text", "name", "keyword", "material", "text", "color", "keyword", "size", "keyword"))
@@ -362,7 +285,7 @@ public class ChildrenIT extends ParentChildTestCase {
         String childType = "city";
         assertAcked(
                 prepareCreate(indexName)
-                    .addMapping("doc",
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
                             grandParentType, parentType, parentType, childType),
                             "name", "keyword"))
@@ -405,7 +328,7 @@ public class ChildrenIT extends ParentChildTestCase {
         // us to miss to evaluate child docs in segments we didn't have parent matches for.
         assertAcked(
                 prepareCreate("index")
-                    .addMapping("doc",
+                    .setMapping(
                         addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
                             "parentType", "childType"),
                             "name", "keyword", "town", "keyword", "age", "integer"))
@@ -454,17 +377,5 @@ public class ChildrenIT extends ParentChildTestCase {
         assertThat(parents.getBuckets().get(0).getDocCount(), equalTo(1L));
         children = parents.getBuckets().get(0).getAggregations().get("child_docs");
         assertThat(children.getDocCount(), equalTo(2L));
-    }
-
-    private static final class Control {
-
-        final String category;
-        final Set<String> articleIds = new HashSet<>();
-        final Set<String> commentIds = new HashSet<>();
-        final Map<String, Set<String>> commenterToCommentId = new HashMap<>();
-
-        private Control(String category) {
-            this.category = category;
-        }
     }
 }

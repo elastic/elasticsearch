@@ -83,6 +83,16 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 }
                 double val = value * boostFactor;
                 double result = modifier.apply(val);
+                if (result < 0f) {
+                    String message = "field value function must not produce negative scores, but got: " +
+                            "[" + result + "] for field value: [" + value + "]";
+                    if (modifier == Modifier.LN) {
+                        message += "; consider using ln1p or ln2p instead of ln to avoid negative scores";
+                    } else if (modifier == Modifier.LOG) {
+                        message += "; consider using log1p or log2p instead of log to avoid negative scores";
+                    }
+                    throw new IllegalArgumentException(message);
+                }
                 return result;
             }
 
@@ -90,7 +100,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 String modifierStr = modifier != null ? modifier.toString() : "";
                 String defaultStr = missing != null ? "?:" + missing : "";
-                double score = score(docId, subQueryScore.getValue());
+                double score = score(docId, subQueryScore.getValue().floatValue());
                 return Explanation.match(
                         (float) score,
                         String.format(Locale.ROOT,

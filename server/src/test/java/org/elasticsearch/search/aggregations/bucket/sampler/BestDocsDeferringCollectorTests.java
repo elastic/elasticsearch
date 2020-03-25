@@ -28,6 +28,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
@@ -43,6 +44,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
 
@@ -64,8 +66,10 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
         TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
+        final AtomicLong bytes = new AtomicLong(0);
+
         BestDocsDeferringCollector collector = new BestDocsDeferringCollector(numDocs,
-            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()));
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()), bytes::addAndGet);
         Set<Integer> deferredCollectedDocIds = new HashSet<>();
         collector.setDeferredCollector(Collections.singleton(testCollector(deferredCollectedDocIds)));
         collector.preCollection();
@@ -105,8 +109,8 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
             }
 
             @Override
-            public boolean needsScores() {
-                return false;
+            public ScoreMode scoreMode() {
+                return ScoreMode.COMPLETE_NO_SCORES;
             }
         };
     }

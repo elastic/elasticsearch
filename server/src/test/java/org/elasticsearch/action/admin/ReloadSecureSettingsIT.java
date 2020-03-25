@@ -19,9 +19,10 @@
 
 package org.elasticsearch.action.admin;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -50,44 +51,47 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     public void testMissingKeystoreFile() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-                .stream().findFirst().get();
+            .stream().findFirst().get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         // keystore file should be missing for this test case
         Files.deleteIfExists(KeyStoreWrapper.keystorePath(environment.configFile()));
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(new SecureString(new char[0])).execute(
-                new ActionListener<NodesReloadSecureSettingsResponse>() {
-                    @Override
-                    public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
-                        try {
-                            assertThat(nodesReloadResponse, notNullValue());
-                            final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
-                            assertThat(nodesMap.size(), equalTo(cluster().size()));
-                            for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
-                                assertThat(nodeResponse.reloadException(), notNullValue());
-                                assertThat(nodeResponse.reloadException(), instanceOf(IllegalStateException.class));
-                                assertThat(nodeResponse.reloadException().getMessage(), containsString("Keystore is missing"));
-                            }
-                        } catch (final AssertionError e) {
-                            reloadSettingsError.set(e);
-                        } finally {
-                            latch.countDown();
+        final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
+        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(emptyPassword)
+            .setNodesIds(Strings.EMPTY_ARRAY).execute(
+            new ActionListener<NodesReloadSecureSettingsResponse>() {
+                @Override
+                public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
+                    try {
+                        assertThat(nodesReloadResponse, notNullValue());
+                        final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
+                        assertThat(nodesMap.size(), equalTo(cluster().size()));
+                        for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
+                            assertThat(nodeResponse.reloadException(), notNullValue());
+                            assertThat(nodeResponse.reloadException(), instanceOf(IllegalStateException.class));
+                            assertThat(nodeResponse.reloadException().getMessage(), containsString("Keystore is missing"));
                         }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                    } catch (final AssertionError e) {
+                        reloadSettingsError.set(e);
+                    } finally {
                         latch.countDown();
                     }
-                });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                    latch.countDown();
+                }
+            });
         latch.await();
         if (reloadSettingsError.get() != null) {
             throw reloadSettingsError.get();
@@ -96,48 +100,10 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         assertThat(mockReloadablePlugin.getReloadCount(), equalTo(initialReloadCount));
     }
 
-    public void testNullKeystorePassword() throws Exception {
-        final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
-        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-                .stream().findFirst().get();
-        final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
-        final int initialReloadCount = mockReloadablePlugin.getReloadCount();
-        final CountDownLatch latch = new CountDownLatch(1);
-        client().admin().cluster().prepareReloadSecureSettings().execute(
-                new ActionListener<NodesReloadSecureSettingsResponse>() {
-                    @Override
-                    public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
-                        try {
-                            reloadSettingsError.set(new AssertionError("Null keystore password should fail"));
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            assertThat(e, instanceOf(ActionRequestValidationException.class));
-                            assertThat(e.getMessage(), containsString("secure settings password cannot be null"));
-                        } catch (final AssertionError ae) {
-                            reloadSettingsError.set(ae);
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-                });
-        latch.await();
-        if (reloadSettingsError.get() != null) {
-            throw reloadSettingsError.get();
-        }
-        // in the null password case no reload should be triggered
-        assertThat(mockReloadablePlugin.getReloadCount(), equalTo(initialReloadCount));
-    }
-
     public void testInvalidKeystoreFile() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-                .stream().findFirst().get();
+            .stream().findFirst().get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
@@ -149,30 +115,32 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
             Files.copy(keystore, KeyStoreWrapper.keystorePath(environment.configFile()), StandardCopyOption.REPLACE_EXISTING);
         }
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(new SecureString(new char[0])).execute(
-                new ActionListener<NodesReloadSecureSettingsResponse>() {
-                    @Override
-                    public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
-                        try {
-                            assertThat(nodesReloadResponse, notNullValue());
-                            final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
-                            assertThat(nodesMap.size(), equalTo(cluster().size()));
-                            for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
-                                assertThat(nodeResponse.reloadException(), notNullValue());
-                            }
-                        } catch (final AssertionError e) {
-                            reloadSettingsError.set(e);
-                        } finally {
-                            latch.countDown();
+        final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
+        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(emptyPassword)
+            .setNodesIds(Strings.EMPTY_ARRAY).execute(
+            new ActionListener<NodesReloadSecureSettingsResponse>() {
+                @Override
+                public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
+                    try {
+                        assertThat(nodesReloadResponse, notNullValue());
+                        final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
+                        assertThat(nodesMap.size(), equalTo(cluster().size()));
+                        for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
+                            assertThat(nodeResponse.reloadException(), notNullValue());
                         }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                    } catch (final AssertionError e) {
+                        reloadSettingsError.set(e);
+                    } finally {
                         latch.countDown();
                     }
-                });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                    latch.countDown();
+                }
+            });
         latch.await();
         if (reloadSettingsError.get() != null) {
             throw reloadSettingsError.get();
@@ -181,10 +149,89 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         assertThat(mockReloadablePlugin.getReloadCount(), equalTo(initialReloadCount));
     }
 
+    public void testReloadAllNodesWithPasswordWithoutTLSFails() throws Exception {
+        final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
+        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
+            .stream().findFirst().get();
+        final Environment environment = internalCluster().getInstance(Environment.class);
+        final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
+        final int initialReloadCount = mockReloadablePlugin.getReloadCount();
+        final char[] password = randomAlphaOfLength(12).toCharArray();
+        writeEmptyKeystore(environment, password);
+        final CountDownLatch latch = new CountDownLatch(1);
+        client().admin()
+            .cluster()
+            .prepareReloadSecureSettings()
+            // No filter should try to hit all nodes
+            .setNodesIds(Strings.EMPTY_ARRAY)
+            .setSecureStorePassword(new SecureString(password))
+            .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
+                @Override
+                public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
+                    reloadSettingsError.set(new AssertionError("Nodes request succeeded when it should have failed", null));
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(ElasticsearchException.class));
+                    assertThat(e.getMessage(),
+                        containsString("Secure settings cannot be updated cluster wide when TLS for the transport layer is not enabled"));
+                    latch.countDown();
+                }
+            });
+        latch.await();
+        if (reloadSettingsError.get() != null) {
+            throw reloadSettingsError.get();
+        }
+        //no reload should be triggered
+        assertThat(mockReloadablePlugin.getReloadCount(), equalTo(initialReloadCount));
+    }
+
+    public void testReloadLocalNodeWithPasswordWithoutTLSSucceeds() throws Exception {
+        final Environment environment = internalCluster().getInstance(Environment.class);
+        final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
+        final char[] password = randomAlphaOfLength(12).toCharArray();
+        writeEmptyKeystore(environment, password);
+        final CountDownLatch latch = new CountDownLatch(1);
+        client().admin()
+            .cluster()
+            .prepareReloadSecureSettings()
+            .setNodesIds("_local")
+            .setSecureStorePassword(new SecureString(password))
+            .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
+                @Override
+                public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
+                    try {
+                        assertThat(nodesReloadResponse, notNullValue());
+                        final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
+                        assertThat(nodesMap.size(), equalTo(1));
+                        assertThat(nodesReloadResponse.getNodes().size(), equalTo(1));
+                        final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse = nodesReloadResponse.getNodes().get(0);
+                        assertThat(nodeResponse.reloadException(), nullValue());
+                    } catch (final AssertionError e) {
+                        reloadSettingsError.set(e);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                    latch.countDown();
+                }
+            });
+        latch.await();
+        if (reloadSettingsError.get() != null) {
+            throw reloadSettingsError.get();
+        }
+    }
+
     public void testWrongKeystorePassword() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-                .stream().findFirst().get();
+            .stream().findFirst().get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
@@ -192,33 +239,34 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         writeEmptyKeystore(environment, new char[0]);
         final CountDownLatch latch = new CountDownLatch(1);
         client().admin()
-                .cluster()
-                .prepareReloadSecureSettings()
-                .setSecureStorePassword(new SecureString(new char[] { 'W', 'r', 'o', 'n', 'g' }))
-                .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
-                    @Override
-                    public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
-                        try {
-                            assertThat(nodesReloadResponse, notNullValue());
-                            final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
-                            assertThat(nodesMap.size(), equalTo(cluster().size()));
-                            for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
-                                assertThat(nodeResponse.reloadException(), notNullValue());
-                                    assertThat(nodeResponse.reloadException(), instanceOf(SecurityException.class));
-                            }
-                        } catch (final AssertionError e) {
-                            reloadSettingsError.set(e);
-                        } finally {
-                            latch.countDown();
+            .cluster()
+            .prepareReloadSecureSettings()
+            .setNodesIds("_local")
+            .setSecureStorePassword(new SecureString(new char[]{'W', 'r', 'o', 'n', 'g'}))
+            .execute(new ActionListener<NodesReloadSecureSettingsResponse>() {
+                @Override
+                public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
+                    try {
+                        assertThat(nodesReloadResponse, notNullValue());
+                        final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
+                        assertThat(nodesMap.size(), equalTo(1));
+                        for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
+                            assertThat(nodeResponse.reloadException(), notNullValue());
+                            assertThat(nodeResponse.reloadException(), instanceOf(SecurityException.class));
                         }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                    } catch (final AssertionError e) {
+                        reloadSettingsError.set(e);
+                    } finally {
                         latch.countDown();
                     }
-                });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                    latch.countDown();
+                }
+            });
         latch.await();
         if (reloadSettingsError.get() != null) {
             throw reloadSettingsError.get();
@@ -231,12 +279,12 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final Environment environment = internalCluster().getInstance(Environment.class);
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-                .stream().findFirst().get();
+            .stream().findFirst().get();
         // make plugins throw on reload
         for (final String nodeName : internalCluster().getNodeNames()) {
             internalCluster().getInstance(PluginsService.class, nodeName)
-                    .filterPlugins(MisbehavingReloadablePlugin.class)
-                    .stream().findFirst().get().setShouldThrow(true);
+                .filterPlugins(MisbehavingReloadablePlugin.class)
+                .stream().findFirst().get().setShouldThrow(true);
         }
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
@@ -244,34 +292,36 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final SecureSettings secureSettings = writeEmptyKeystore(environment, new char[0]);
         // read seed setting value from the test case (not from the node)
         final String seedValue = KeyStoreWrapper.SEED_SETTING
-                .get(Settings.builder().put(environment.settings()).setSecureSettings(secureSettings).build())
-                .toString();
+            .get(Settings.builder().put(environment.settings()).setSecureSettings(secureSettings).build())
+            .toString();
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(new SecureString(new char[0])).execute(
-                new ActionListener<NodesReloadSecureSettingsResponse>() {
-                    @Override
-                    public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
-                        try {
-                            assertThat(nodesReloadResponse, notNullValue());
-                            final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
-                            assertThat(nodesMap.size(), equalTo(cluster().size()));
-                            for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
-                                assertThat(nodeResponse.reloadException(), notNullValue());
-                                assertThat(nodeResponse.reloadException().getMessage(), containsString("If shouldThrow I throw"));
-                            }
-                        } catch (final AssertionError e) {
-                            reloadSettingsError.set(e);
-                        } finally {
-                            latch.countDown();
+        final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
+        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(emptyPassword)
+            .setNodesIds(Strings.EMPTY_ARRAY).execute(
+            new ActionListener<NodesReloadSecureSettingsResponse>() {
+                @Override
+                public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
+                    try {
+                        assertThat(nodesReloadResponse, notNullValue());
+                        final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
+                        assertThat(nodesMap.size(), equalTo(cluster().size()));
+                        for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
+                            assertThat(nodeResponse.reloadException(), notNullValue());
+                            assertThat(nodeResponse.reloadException().getMessage(), containsString("If shouldThrow I throw"));
                         }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                    } catch (final AssertionError e) {
+                        reloadSettingsError.set(e);
+                    } finally {
                         latch.countDown();
                     }
-                });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                    latch.countDown();
+                }
+            });
         latch.await();
         if (reloadSettingsError.get() != null) {
             throw reloadSettingsError.get();
@@ -286,7 +336,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
     public void testReloadWhileKeystoreChanged() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-                .stream().findFirst().get();
+            .stream().findFirst().get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         for (int i = 0; i < randomIntBetween(4, 8); i++) {
@@ -294,8 +344,8 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
             final SecureSettings secureSettings = writeEmptyKeystore(environment, new char[0]);
             // read seed setting value from the test case (not from the node)
             final String seedValue = KeyStoreWrapper.SEED_SETTING
-                    .get(Settings.builder().put(environment.settings()).setSecureSettings(secureSettings).build())
-                    .toString();
+                .get(Settings.builder().put(environment.settings()).setSecureSettings(secureSettings).build())
+                .toString();
             // reload call
             successfulReloadCall();
             assertThat(mockReloadablePlugin.getSeedValue(), equalTo(seedValue));
@@ -314,30 +364,32 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
     private void successfulReloadCall() throws InterruptedException {
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(new SecureString(new char[0])).execute(
-                new ActionListener<NodesReloadSecureSettingsResponse>() {
-                    @Override
-                    public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
-                        try {
-                            assertThat(nodesReloadResponse, notNullValue());
-                            final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
-                            assertThat(nodesMap.size(), equalTo(cluster().size()));
-                            for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
-                                assertThat(nodeResponse.reloadException(), nullValue());
-                            }
-                        } catch (final AssertionError e) {
-                            reloadSettingsError.set(e);
-                        } finally {
-                            latch.countDown();
+        final SecureString emptyPassword = randomBoolean() ? new SecureString(new char[0]) : null;
+        client().admin().cluster().prepareReloadSecureSettings().setSecureStorePassword(emptyPassword)
+            .setNodesIds(Strings.EMPTY_ARRAY).execute(
+            new ActionListener<NodesReloadSecureSettingsResponse>() {
+                @Override
+                public void onResponse(NodesReloadSecureSettingsResponse nodesReloadResponse) {
+                    try {
+                        assertThat(nodesReloadResponse, notNullValue());
+                        final Map<String, NodesReloadSecureSettingsResponse.NodeResponse> nodesMap = nodesReloadResponse.getNodesMap();
+                        assertThat(nodesMap.size(), equalTo(cluster().size()));
+                        for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
+                            assertThat(nodeResponse.reloadException(), nullValue());
                         }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                    } catch (final AssertionError e) {
+                        reloadSettingsError.set(e);
+                    } finally {
                         latch.countDown();
                     }
-                });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    reloadSettingsError.set(new AssertionError("Nodes request failed", e));
+                    latch.countDown();
+                }
+            });
         latch.await();
         if (reloadSettingsError.get() != null) {
             throw reloadSettingsError.get();

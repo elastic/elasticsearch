@@ -31,10 +31,6 @@ public class SnapshotRestoreException extends SnapshotException {
         super(repositoryName, snapshotName, message);
     }
 
-    public SnapshotRestoreException(final String repositoryName, final String snapshotName, final String message, final Throwable cause) {
-        super(repositoryName, snapshotName, message, cause);
-    }
-
     public SnapshotRestoreException(final Snapshot snapshot, final String message) {
         super(snapshot, message);
     }

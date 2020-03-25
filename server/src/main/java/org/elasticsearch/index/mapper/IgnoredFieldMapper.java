@@ -75,17 +75,17 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
                 ParserContext parserContext) throws MapperParsingException {
-            return new Builder(parserContext.mapperService().fullName(NAME));
+            return new Builder(parserContext.mapperService().fieldType(NAME));
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new IgnoredFieldMapper(indexSettings);
         }
     }
 
-    public static final class IgnoredFieldType extends TermBasedFieldType {
+    public static final class IgnoredFieldType extends StringFieldType {
 
         public IgnoredFieldType() {
         }
@@ -129,9 +129,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // done in post-parse
-        return null;
     }
 
     @Override

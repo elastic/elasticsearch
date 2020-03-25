@@ -7,8 +7,9 @@ package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -19,35 +20,39 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthFactory;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.INTERVAL_SETTING;
+import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.REPORT_WARNING_ENABLED_SETTING;
+import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.REPORT_WARNING_TEXT;
+import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.RETRIES_SETTING;
+import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.WARNINGS;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
@@ -69,20 +74,15 @@ public class ReportingAttachmentParserTests extends ESTestCase {
     private Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
     private EmailAttachmentsParser emailAttachmentsParser;
     private ReportingAttachmentParser reportingAttachmentParser;
-    private HttpAuthRegistry authRegistry;
     private MockTextTemplateEngine templateEngine = new MockTextTemplateEngine();
     private String dashboardUrl = "http://www.example.org/ovb/api/reporting/generate/dashboard/My-Dashboard";
+    private ClusterSettings clusterSettings;
 
     @Before
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
-
-        Map<String, HttpAuthFactory> factories = MapBuilder.<String, HttpAuthFactory>newMapBuilder()
-                .put("basic", new BasicAuthFactory(null))
-                .immutableMap();
-        authRegistry = new HttpAuthRegistry(factories);
-        reportingAttachmentParser = new ReportingAttachmentParser(Settings.EMPTY, httpClient, templateEngine, authRegistry);
-
+        clusterSettings = mockClusterService().getClusterSettings();
+        reportingAttachmentParser = new ReportingAttachmentParser(Settings.EMPTY, httpClient, templateEngine, clusterSettings);
         attachmentParsers.put(ReportingAttachmentParser.TYPE, reportingAttachmentParser);
         emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
     }
@@ -113,7 +113,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
             builder.field("inline", true);
         }
 
-        HttpAuth auth = null;
+        BasicAuth auth = null;
         boolean withAuth = randomBoolean();
         boolean isPasswordEncrypted = randomBoolean();
         if (withAuth) {
@@ -176,6 +176,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
                 new ReportingAttachment("foo", dashboardUrl, randomBoolean(), TimeValue.timeValueMillis(1), 10, null, null);
         Attachment attachment = reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, reportingAttachment);
         assertThat(attachment, instanceOf(Attachment.Bytes.class));
+        assertThat(attachment.getWarnings(), hasSize(0));
         Attachment.Bytes bytesAttachment = (Attachment.Bytes) attachment;
         assertThat(new String(bytesAttachment.bytes(), StandardCharsets.UTF_8), is(content));
         assertThat(bytesAttachment.contentType(), is(randomContentType));
@@ -318,9 +319,8 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         assertThat(allRequests, hasSize(3));
         for (HttpRequest request : allRequests) {
             assertThat(request.auth(), is(notNullValue()));
-            assertThat(request.auth().type(), is("basic"));
             assertThat(request.auth(), instanceOf(BasicAuth.class));
-            BasicAuth basicAuth = (BasicAuth) request.auth();
+            BasicAuth basicAuth = request.auth();
             assertThat(basicAuth.getUsername(), is("foo"));
         }
     }
@@ -331,11 +331,11 @@ public class ReportingAttachmentParserTests extends ESTestCase {
                 .thenReturn(new HttpResponse(503));
 
         ReportingAttachment attachment = new ReportingAttachment("foo", dashboardUrl, randomBoolean(), TimeValue.timeValueMillis(1),
-                ReportingAttachmentParser.RETRIES_SETTING.getDefault(Settings.EMPTY), new BasicAuth("foo", "bar".toCharArray()), null);
+                RETRIES_SETTING.getDefault(Settings.EMPTY), new BasicAuth("foo", "bar".toCharArray()), null);
         expectThrows(ElasticsearchException.class, () ->
                 reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment));
 
-        verify(httpClient, times(ReportingAttachmentParser.RETRIES_SETTING.getDefault(Settings.EMPTY) + 1)).execute(any());
+        verify(httpClient, times(RETRIES_SETTING.getDefault(Settings.EMPTY) + 1)).execute(any());
     }
 
     public void testPollingDefaultCanBeOverriddenBySettings() throws Exception {
@@ -347,11 +347,11 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         ReportingAttachment attachment = new ReportingAttachment("foo", dashboardUrl, randomBoolean(), null, null, null, null);
 
         Settings settings = Settings.builder()
-                .put(ReportingAttachmentParser.INTERVAL_SETTING.getKey(), "1ms")
-                .put(ReportingAttachmentParser.RETRIES_SETTING.getKey(), retries)
+                .put(INTERVAL_SETTING.getKey(), "1ms")
+                .put(RETRIES_SETTING.getKey(), retries)
                 .build();
 
-        reportingAttachmentParser = new ReportingAttachmentParser(settings, httpClient, templateEngine, authRegistry);
+        reportingAttachmentParser = new ReportingAttachmentParser(settings, httpClient, templateEngine, clusterSettings);
         expectThrows(ElasticsearchException.class, () ->
                 reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment));
 
@@ -364,7 +364,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
                 .thenReturn(new HttpResponse(503))
                 .thenReturn(new HttpResponse(200, randomAlphaOfLength(10)));
 
-        TextTemplateEngine replaceHttpWithHttpsTemplateEngine = new TextTemplateEngine(Settings.EMPTY, null) {
+        TextTemplateEngine replaceHttpWithHttpsTemplateEngine = new TextTemplateEngine(null) {
             @Override
             public String render(TextTemplate textTemplate, Map<String, Object> model) {
                 return textTemplate.getTemplate().replaceAll("REPLACEME", "REPLACED");
@@ -374,7 +374,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         ReportingAttachment attachment = new ReportingAttachment("foo", "http://www.example.org/REPLACEME", randomBoolean(),
                 TimeValue.timeValueMillis(1), 10, new BasicAuth("foo", "bar".toCharArray()), null);
         reportingAttachmentParser = new ReportingAttachmentParser(Settings.EMPTY, httpClient,
-                replaceHttpWithHttpsTemplateEngine, authRegistry);
+                replaceHttpWithHttpsTemplateEngine, clusterSettings);
         reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment);
 
         ArgumentCaptor<HttpRequest> requestArgumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
@@ -391,7 +391,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
 
         Settings invalidSettings = Settings.builder().put("xpack.notification.reporting.retries", -10).build();
         e = expectThrows(IllegalArgumentException.class,
-                () -> new ReportingAttachmentParser(invalidSettings, httpClient, templateEngine, authRegistry));
+                () -> new ReportingAttachmentParser(invalidSettings, httpClient, templateEngine, clusterSettings));
         assertThat(e.getMessage(), is("Failed to parse value [-10] for setting [xpack.notification.reporting.retries] must be >= 0"));
     }
 
@@ -417,13 +417,161 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         requestCaptor.getAllValues().forEach(req -> assertThat(req.proxy(), is(proxy)));
     }
 
+    public void testDefaultWarnings() throws Exception {
+        String content = randomAlphaOfLength(200);
+        String path = "/ovb/api/reporting/jobs/download/iu5zfzvk15oa8990bfas9wy2";
+        String randomContentType = randomAlphaOfLength(20);
+        String reportId = randomAlphaOfLength(5);
+        Map<String, String[]> headers = new HashMap<>();
+        headers.put("Content-Type", new String[] { randomContentType });
+        WARNINGS.keySet().forEach((k) -> headers.put(k, new String[]{"true"}));
+        when(httpClient.execute(any(HttpRequest.class)))
+            .thenReturn(new HttpResponse(200, "{\"path\":\""+ path +"\", \"other\":\"content\"}"))
+            .thenReturn(new HttpResponse(200, content, headers));
+
+        ReportingAttachment reportingAttachment =
+            new ReportingAttachment(reportId, dashboardUrl, randomBoolean(), TimeValue.timeValueMillis(1), 10, null, null);
+        Attachment attachment = reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, reportingAttachment);
+        assertThat(attachment, instanceOf(Attachment.Bytes.class));
+        assertThat(attachment.getWarnings(), hasSize(WARNINGS.keySet().size()));
+        //parameterize the messages
+        assertEquals(attachment.getWarnings(), WARNINGS.values().stream().
+            map(s -> String.format(Locale.ROOT, s, reportId)).collect(Collectors.toSet()));
+
+        Attachment.Bytes bytesAttachment = (Attachment.Bytes) attachment;
+        assertThat(new String(bytesAttachment.bytes(), StandardCharsets.UTF_8), is(content));
+        assertThat(bytesAttachment.contentType(), is(randomContentType));
+    }
+
+    public void testCustomWarningsNoParams() throws Exception {
+        String content = randomAlphaOfLength(200);
+        String path = "/ovb/api/reporting/jobs/download/iu5zfzvk15oa8990bfas9wy2";
+        String randomContentType = randomAlphaOfLength(20);
+        String reportId = randomAlphaOfLength(5);
+        Map<String, String[]> headers = new HashMap<>();
+        headers.put("Content-Type", new String[] { randomContentType });
+        Map<String, String> customWarnings = new HashMap<>(WARNINGS.size());
+        WARNINGS.keySet().forEach((k) ->
+        {
+            final String warning = randomAlphaOfLength(20);
+            customWarnings.put(k, warning);
+            reportingAttachmentParser.addWarningText(k, warning);
+            headers.put(k, new String[]{"true"});
+
+        });
+        when(httpClient.execute(any(HttpRequest.class)))
+            .thenReturn(new HttpResponse(200, "{\"path\":\""+ path +"\", \"other\":\"content\"}"))
+            .thenReturn(new HttpResponse(200, content, headers));
+
+        ReportingAttachment reportingAttachment =
+            new ReportingAttachment(reportId, dashboardUrl, randomBoolean(), TimeValue.timeValueMillis(1), 10, null, null);
+        Attachment attachment = reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, reportingAttachment);
+        assertThat(attachment, instanceOf(Attachment.Bytes.class));
+        assertThat(attachment.getWarnings(), hasSize(WARNINGS.keySet().size()));
+        assertEquals(attachment.getWarnings(), new HashSet<>(customWarnings.values()));
+
+        Attachment.Bytes bytesAttachment = (Attachment.Bytes) attachment;
+        assertThat(new String(bytesAttachment.bytes(), StandardCharsets.UTF_8), is(content));
+        assertThat(bytesAttachment.contentType(), is(randomContentType));
+    }
+
+    public void testCustomWarningsWithParams() throws Exception {
+        String content = randomAlphaOfLength(200);
+        String path = "/ovb/api/reporting/jobs/download/iu5zfzvk15oa8990bfas9wy2";
+        String randomContentType = randomAlphaOfLength(20);
+        String reportId = randomAlphaOfLength(5);
+        Map<String, String[]> headers = new HashMap<>();
+        headers.put("Content-Type", new String[]{randomContentType});
+        Map<String, String> customWarnings = new HashMap<>(WARNINGS.size());
+        WARNINGS.keySet().forEach((k) ->
+        {
+            //add a parameter
+            final String warning = randomAlphaOfLength(20) + " %s";
+            customWarnings.put(k, warning);
+            reportingAttachmentParser.addWarningText(k, warning);
+            headers.put(k, new String[]{"true"});
+
+        });
+        when(httpClient.execute(any(HttpRequest.class)))
+            .thenReturn(new HttpResponse(200, "{\"path\":\"" + path + "\", \"other\":\"content\"}"))
+            .thenReturn(new HttpResponse(200, content, headers));
+
+        ReportingAttachment reportingAttachment =
+            new ReportingAttachment(reportId, dashboardUrl, randomBoolean(), TimeValue.timeValueMillis(1), 10, null, null);
+        Attachment attachment = reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, reportingAttachment);
+        assertThat(attachment, instanceOf(Attachment.Bytes.class));
+        assertThat(attachment.getWarnings(), hasSize(WARNINGS.keySet().size()));
+        //parameterize the messages
+        assertEquals(attachment.getWarnings(), customWarnings.values().stream().
+            map(s -> String.format(Locale.ROOT, s, reportId)).collect(Collectors.toSet()));
+        //ensure the reportId is parameterized in
+        attachment.getWarnings().forEach(s -> {
+            assertThat(s, containsString(reportId));
+        });
+        Attachment.Bytes bytesAttachment = (Attachment.Bytes) attachment;
+        assertThat(new String(bytesAttachment.bytes(), StandardCharsets.UTF_8), is(content));
+        assertThat(bytesAttachment.contentType(), is(randomContentType));
+    }
+
+    public void testWarningsSuppress() throws Exception {
+        String content = randomAlphaOfLength(200);
+        String path = "/ovb/api/reporting/jobs/download/iu5zfzvk15oa8990bfas9wy2";
+        String randomContentType = randomAlphaOfLength(20);
+        String reportId = randomAlphaOfLength(5);
+        Map<String, String[]> headers = new HashMap<>();
+        headers.put("Content-Type", new String[]{randomContentType});
+        Map<String, String> customWarnings = new HashMap<>(WARNINGS.size());
+        WARNINGS.keySet().forEach((k) ->
+        {
+            final String warning = randomAlphaOfLength(20);
+            customWarnings.put(k, warning);
+            reportingAttachmentParser.addWarningText(k, warning);
+            reportingAttachmentParser.setWarningEnabled(false);
+            headers.put(k, new String[]{"true"});
+
+        });
+        when(httpClient.execute(any(HttpRequest.class)))
+            .thenReturn(new HttpResponse(200, "{\"path\":\"" + path + "\", \"other\":\"content\"}"))
+            .thenReturn(new HttpResponse(200, content, headers));
+
+        ReportingAttachment reportingAttachment =
+            new ReportingAttachment(reportId, dashboardUrl, randomBoolean(), TimeValue.timeValueMillis(1), 10, null, null);
+        Attachment attachment = reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, reportingAttachment);
+        assertThat(attachment, instanceOf(Attachment.Bytes.class));
+        assertThat(attachment.getWarnings(), hasSize(0));
+
+        Attachment.Bytes bytesAttachment = (Attachment.Bytes) attachment;
+        assertThat(new String(bytesAttachment.bytes(), StandardCharsets.UTF_8), is(content));
+        assertThat(bytesAttachment.contentType(), is(randomContentType));
+    }
+
+    public void testWarningValidation() {
+        WARNINGS.forEach((k, v) -> {
+            String keyName = randomAlphaOfLength(5) + "notavalidsettingname";
+            IllegalArgumentException expectedException = expectThrows(IllegalArgumentException.class,
+                () -> reportingAttachmentParser.warningValidator(keyName, randomAlphaOfLength(10)));
+            assertThat(expectedException.getMessage(), containsString(keyName));
+            assertThat(expectedException.getMessage(), containsString("is not supported"));
+        });
+    }
+
     private WatchExecutionContext createWatchExecutionContext() {
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         return mockExecutionContextBuilder("watch1")
-                .wid(new Wid(randomAlphaOfLength(5), now))
-                .payload(new Payload.Simple())
-                .time("watch1", now)
-                .metadata(Collections.emptyMap())
-                .buildMock();
+            .wid(new Wid(randomAlphaOfLength(5), now))
+            .payload(new Payload.Simple())
+            .time("watch1", now)
+            .metadata(Collections.emptyMap())
+            .buildMock();
+    }
+
+
+    private ClusterService mockClusterService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings =
+            new ClusterSettings(Settings.EMPTY,
+                Set.of(INTERVAL_SETTING, RETRIES_SETTING, REPORT_WARNING_ENABLED_SETTING, REPORT_WARNING_TEXT));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return clusterService;
     }
 }

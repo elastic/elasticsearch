@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
-
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SSLConfigurationSettingsTests extends ESTestCase {
 
@@ -21,7 +23,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix();
         assertThat(ssl.ciphers.match("cipher_suites"), is(true));
         assertThat(ssl.ciphers.match("ssl.cipher_suites"), is(false));
-        assertThat(ssl.ciphers.match("xpack.ssl.cipher_suites"), is(false));
+        assertThat(ssl.ciphers.match("xpack.transport.security.ssl.cipher_suites"), is(false));
 
         final Settings settings = Settings.builder()
                 .put("cipher_suites.0", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256")
@@ -89,6 +91,21 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
 
         assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.x509KeyPair.keystoreType, settings, null), is("jks"));
         assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.truststoreType, settings, null), is("jks"));
+    }
+
+    public void testRealmSettingPrefixes() {
+        SSLConfigurationSettings.getRealmSettings("_type").forEach(affix -> {
+            final String key = affix.getConcreteSettingForNamespace("_name").getKey();
+            assertThat(key, startsWith("xpack.security.authc.realms._type._name.ssl."));
+        });
+    }
+
+    public void testProfileSettingPrefixes() {
+        SSLConfigurationSettings.getProfileSettings().forEach(affix -> {
+            assertThat(affix, instanceOf(Setting.AffixSetting.class));
+            final String key = ((Setting.AffixSetting) affix).getConcreteSettingForNamespace("_name").getKey();
+            assertThat(key, startsWith("transport.profiles._name.xpack.security.ssl."));
+        });
     }
 
 }

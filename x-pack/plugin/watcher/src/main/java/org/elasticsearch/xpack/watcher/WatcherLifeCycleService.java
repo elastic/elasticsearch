@@ -5,55 +5,48 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
-public class WatcherLifeCycleService extends AbstractComponent implements ClusterStateListener {
+public class WatcherLifeCycleService implements ClusterStateListener {
 
-    // this option configures watcher not to start, unless the cluster state contains information to start watcher
-    // if you start with an empty cluster, you can delay starting watcher until you call the API manually
-    // if you start with a cluster containing data, this setting might have no effect, once you called the API yourself
-    // this is merely for testing, to make sure that watcher only starts when manually called
-    public static final Setting<Boolean> SETTING_REQUIRE_MANUAL_START =
-            Setting.boolSetting("xpack.watcher.require_manual_start", false, Property.NodeScope);
-
+    private static final Logger logger = LogManager.getLogger(WatcherLifeCycleService.class);
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
-    private final AtomicReference<List<String>> previousAllocationIds = new AtomicReference<>(Collections.emptyList());
-    private final boolean requireManualStart;
+    private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
     private volatile WatcherService watcherService;
+    private final EnumSet<WatcherState> stopStates = EnumSet.of(WatcherState.STOPPED, WatcherState.STOPPING);
 
-    WatcherLifeCycleService(Settings settings, ClusterService clusterService, WatcherService watcherService) {
-        super(settings);
+    WatcherLifeCycleService(ClusterService clusterService, WatcherService watcherService) {
         this.watcherService = watcherService;
-        this.requireManualStart = SETTING_REQUIRE_MANUAL_START.get(settings);
         clusterService.addListener(this);
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
         // happen because we're shutting down and an watch is scheduled.
@@ -69,8 +62,10 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         this.state.set(WatcherState.STOPPING);
         shutDown = true;
         clearAllocationIds();
-        watcherService.shutDown();
-        this.state.set(WatcherState.STOPPED);
+        watcherService.shutDown(() -> {
+            this.state.set(WatcherState.STOPPED);
+            logger.info("watcher has stopped and shutdown");
+        });
     }
 
     /**
@@ -89,27 +84,22 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             return;
         }
 
-        // if watcher should not be started immediately unless it is has been manually configured to do so
-        WatcherMetaData watcherMetaData = event.state().getMetaData().custom(WatcherMetaData.TYPE);
-        if (watcherMetaData == null && requireManualStart) {
-            clearAllocationIds();
-            return;
-        }
-
         if (Strings.isNullOrEmpty(event.state().nodes().getMasterNodeId())) {
             pauseExecution("no master node");
             return;
         }
 
-        if (event.state().getBlocks().hasGlobalBlock(ClusterBlockLevel.WRITE)) {
+        if (event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
             pauseExecution("write level cluster block");
             return;
         }
 
         boolean isWatcherStoppedManually = isWatcherStoppedManually(event.state());
+        boolean isStoppedOrStopping = stopStates.contains(this.state.get());
         // if this is not a data node, we need to start it ourselves possibly
         if (event.state().nodes().getLocalNode().isDataNode() == false &&
-            isWatcherStoppedManually == false && this.state.get() == WatcherState.STOPPED) {
+            isWatcherStoppedManually == false && isStoppedOrStopping) {
+            this.state.set(WatcherState.STARTING);
             watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
             return;
         }
@@ -117,8 +107,20 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         if (isWatcherStoppedManually) {
             if (this.state.get() == WatcherState.STARTED) {
                 clearAllocationIds();
-                watcherService.stop("watcher manually marked to shutdown by cluster state update");
-                this.state.set(WatcherState.STOPPED);
+                boolean stopping = this.state.compareAndSet(WatcherState.STARTED, WatcherState.STOPPING);
+                if (stopping) {
+                    //waiting to set state to stopped until after all currently running watches are finished
+                    watcherService.stop("watcher manually marked to shutdown by cluster state update", () -> {
+                        //only transition from stopping -> stopped (which may not be the case if restarted quickly)
+                        boolean stopped = state.compareAndSet(WatcherState.STOPPING, WatcherState.STOPPED);
+                        if (stopped) {
+                            logger.info("watcher has stopped");
+                        } else {
+                            logger.info("watcher has not been stopped. not currently in a stopping state, current state [{}]", state.get());
+                        }
+
+                    });
+                }
             }
             return;
         }
@@ -144,18 +146,23 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             return;
         }
 
-        List<String> currentAllocationIds = localShards.stream()
-            .map(ShardRouting::allocationId)
-            .map(AllocationId::getId)
-            .sorted()
+        // also check if non local shards have changed, as loosing a shard on a
+        // remote node or adding a replica on a remote node needs to trigger a reload too
+        Set<ShardId> localShardIds = localShards.stream().map(ShardRouting::shardId).collect(Collectors.toSet());
+        List<ShardRouting> allShards = event.state().routingTable().index(watchIndex).shardsWithState(STARTED);
+        allShards.addAll(event.state().routingTable().index(watchIndex).shardsWithState(RELOCATING));
+        List<ShardRouting> localAffectedShardRoutings = allShards.stream()
+            .filter(shardRouting -> localShardIds.contains(shardRouting.shardId()))
+            // shardrouting is not comparable, so we need some order mechanism
+            .sorted(Comparator.comparing(ShardRouting::hashCode))
             .collect(Collectors.toList());
 
-        if (previousAllocationIds.get().equals(currentAllocationIds) == false) {
+        if (previousShardRoutings.get().equals(localAffectedShardRoutings) == false) {
             if (watcherService.validate(event.state())) {
-                previousAllocationIds.set(Collections.unmodifiableList(currentAllocationIds));
+                previousShardRoutings.set(localAffectedShardRoutings);
                 if (state.get() == WatcherState.STARTED) {
                     watcherService.reload(event.state(), "new local watcher shard allocation ids");
-                } else if (state.get() == WatcherState.STOPPED) {
+                } else if (isStoppedOrStopping) {
                     this.state.set(WatcherState.STARTING);
                     watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
                 }
@@ -187,13 +194,13 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
      * @return true, if existing allocation ids were cleaned out, false otherwise
      */
     private boolean clearAllocationIds() {
-        List<String> previousIds = previousAllocationIds.getAndSet(Collections.emptyList());
-        return previousIds.equals(Collections.emptyList()) == false;
+        List<ShardRouting> previousIds = previousShardRoutings.getAndSet(Collections.emptyList());
+        return previousIds.isEmpty() == false;
     }
 
     // for testing purposes only
-    List<String> allocationIds() {
-        return previousAllocationIds.get();
+    List<ShardRouting> shardRoutings() {
+        return previousShardRoutings.get();
     }
 
     public WatcherState getState() {

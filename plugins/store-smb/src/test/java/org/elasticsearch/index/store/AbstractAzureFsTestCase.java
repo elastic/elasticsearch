@@ -40,10 +40,10 @@ public abstract  class AbstractAzureFsTestCase extends ESIntegTestCase {
         createIndex("test");
         long nbDocs = randomIntBetween(10, 1000);
         for (long i = 0; i < nbDocs; i++) {
-            index("test", "doc", "" + i, "foo", "bar");
+            indexDoc("test", "" + i, "foo", "bar");
         }
         refresh();
         SearchResponse response = client().prepareSearch("test").get();
-        assertThat(response.getHits().getTotalHits(), is(nbDocs));
+        assertThat(response.getHits().getTotalHits().value, is(nbDocs));
     }
 }

@@ -19,54 +19,33 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
 public class RestGetMappingAction extends BaseRestHandler {
 
-    public RestGetMappingAction(final Settings settings, final RestController controller) {
-        super(settings);
-        controller.registerHandler(GET, "/_mapping", this);
-        controller.registerHandler(GET, "/_mappings", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mapping", this);
-        controller.registerHandler(GET, "/{index}/_mappings", this);
-        controller.registerHandler(GET, "/{index}/_mapping", this);
-        controller.registerHandler(GET, "/{index}/_mappings/{type}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(HEAD, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(GET, "/_mapping/{type}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_mapping"),
+            new Route(GET, "/_mappings"),
+            new Route(GET, "/{index}/_mapping"),
+            new Route(GET, "/{index}/_mappings"));
     }
 
     @Override
@@ -76,64 +55,20 @@ public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
+
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
-        getMappingsRequest.indices(indices).types(types);
+        getMappingsRequest.indices(indices);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
+        return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(final GetMappingsResponse response, final XContentBuilder builder) throws Exception {
-                final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
-                if (mappingsByIndex.isEmpty() && types.length != 0) {
-                    builder.close();
-                    return new BytesRestResponse(channel, new TypeMissingException("_all", String.join(",", types)));
-                }
-
-                final Set<String> typeNames = new HashSet<>();
-                for (final ObjectCursor<ImmutableOpenMap<String, MappingMetaData>> cursor : mappingsByIndex.values()) {
-                    for (final ObjectCursor<String> inner : cursor.value.keys()) {
-                        typeNames.add(inner.value);
-                    }
-                }
-
-                final SortedSet<String> difference = Sets.sortedDifference(Arrays.stream(types).collect(Collectors.toSet()), typeNames);
-
-                // now remove requested aliases that contain wildcards that are simple matches
-                final List<String> matches = new ArrayList<>();
-                outer:
-                for (final String pattern : difference) {
-                    if (pattern.contains("*")) {
-                        for (final String typeName : typeNames) {
-                            if (Regex.simpleMatch(pattern, typeName)) {
-                                matches.add(pattern);
-                                continue outer;
-                            }
-                        }
-                    }
-                }
-                difference.removeAll(matches);
-
-                final RestStatus status;
                 builder.startObject();
-                {
-                    if (difference.isEmpty()) {
-                        status = RestStatus.OK;
-                    } else {
-                        status = RestStatus.NOT_FOUND;
-                        final String message = String.format(Locale.ROOT, "type" + (difference.size() == 1 ? "" : "s") +
-                            " [%s] missing", Strings.collectionToCommaDelimitedString(difference));
-                        builder.field("error", message);
-                        builder.field("status", status.getStatus());
-                    }
-                    response.toXContent(builder, ToXContent.EMPTY_PARAMS, includeTypeName);
-                }
+                response.toXContent(builder, request);
                 builder.endObject();
-
-                return new BytesRestResponse(status, builder);
+                return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
     }

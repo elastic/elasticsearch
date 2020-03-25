@@ -68,8 +68,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(NetworkModule.getNamedWriteables());
         StreamInput wrap = new NamedWriteableAwareStreamInput(bytes.streamInput(),
             namedWriteableRegistry);
-        ClusterRerouteRequest deserializedReq = new ClusterRerouteRequest();
-        deserializedReq.readFrom(wrap);
+        ClusterRerouteRequest deserializedReq = new ClusterRerouteRequest(wrap);
 
         assertEquals(req.isRetryFailed(), deserializedReq.isRetryFailed());
         assertEquals(req.dryRun(), deserializedReq.dryRun());
@@ -80,8 +79,8 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
     }
 
     public void testClusterStateUpdateTask() {
-        AllocationService allocationService = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService allocationService = new AllocationService(
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
         ClusterState clusterState = createInitialClusterState(allocationService);
         ClusterRerouteRequest req = new ClusterRerouteRequest();

@@ -23,7 +23,6 @@ import org.apache.lucene.index.FieldFilterLeafReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.IndexReader.CacheHelper;
 
 import java.io.IOException;
 import java.util.Collections;

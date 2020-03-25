@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -45,7 +44,7 @@ public class JobRenormalizedResultsPersisterTests extends ESTestCase {
     public void testBulkRequestExecutesWhenReachMaxDocs() {
         BulkResponse bulkResponse = mock(BulkResponse.class);
         Client client = new MockClientBuilder("cluster").bulk(bulkResponse).build();
-        JobRenormalizedResultsPersister persister = new JobRenormalizedResultsPersister("foo", Settings.EMPTY, client);
+        JobRenormalizedResultsPersister persister = new JobRenormalizedResultsPersister("foo", client);
 
         ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
         for (int i=0; i<=JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
@@ -62,7 +61,7 @@ public class JobRenormalizedResultsPersisterTests extends ESTestCase {
         when(bulkResponse.hasFailures()).thenReturn(false);
 
         Client client = new MockClientBuilder("cluster").bulk(bulkResponse).build();
-        return new JobRenormalizedResultsPersister("foo", Settings.EMPTY, client);
+        return new JobRenormalizedResultsPersister("foo", client);
     }
 
     private BucketNormalizable createBucketNormalizable() {

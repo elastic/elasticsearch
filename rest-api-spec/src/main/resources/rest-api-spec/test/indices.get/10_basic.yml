@@ -9,7 +9,9 @@ setup:
             test_alias: {}
             test_blias: {}
           mappings:
-            type_1: {}
+            properties:
+              foo:
+                type: keyword
           settings:
             number_of_shards:   1
             number_of_replicas: 1
@@ -163,4 +165,3 @@ setup:
      catch: bad_request
      indices.get:
        index: _foo
-

@@ -22,7 +22,9 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,19 +37,18 @@ public class HttpInfo implements Writeable, ToXContentFragment {
     private final long maxContentLength;
 
     public HttpInfo(StreamInput in) throws IOException {
-        address = BoundTransportAddress.readBoundTransportAddress(in);
-        maxContentLength = in.readLong();
+        this(new BoundTransportAddress(in), in.readLong());
+    }
+
+    public HttpInfo(BoundTransportAddress address, long maxContentLength) {
+        this.address = address;
+        this.maxContentLength = maxContentLength;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         address.writeTo(out);
         out.writeLong(maxContentLength);
-    }
-
-    public HttpInfo(BoundTransportAddress address, long maxContentLength) {
-        this.address = address;
-        this.maxContentLength = maxContentLength;
     }
 
     static final class Fields {
@@ -62,7 +63,13 @@ public class HttpInfo implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.HTTP);
         builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
-        builder.field(Fields.PUBLISH_ADDRESS, address.publishAddress().toString());
+        TransportAddress publishAddress = address.publishAddress();
+        String publishAddressString = publishAddress.toString();
+        String hostString = publishAddress.address().getHostString();
+        if (InetAddresses.isInetAddress(hostString) == false) {
+            publishAddressString = hostString + '/' + publishAddress.toString();
+        }
+        builder.field(Fields.PUBLISH_ADDRESS, publishAddressString);
         builder.humanReadableField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, maxContentLength());
         builder.endObject();
         return builder;

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.monitoring.action;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,7 +25,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -78,10 +76,8 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
     public void testAddRequestContent() throws IOException {
         final XContentType xContentType = XContentType.JSON;
-        final String defaultType = rarely() ? randomAlphaOfLength(4) : null;
 
         final int nbDocs = randomIntBetween(1, 20);
-        final String[] types = new String[nbDocs];
         final String[] ids = new String[nbDocs];
         final BytesReference[] sources = new BytesReference[nbDocs];
 
@@ -95,10 +91,9 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                         if (rarely()) {
                             builder.field("_index", "");
                         }
-                        if (defaultType == null || randomBoolean()) {
-                            types[i] = randomAlphaOfLength(5);
-                            builder.field("_type", types[i]);
-                        }
+
+                        builder.field("_type", "_doc");
+
                         if (randomBoolean()) {
                             ids[i] = randomAlphaOfLength(10);
                             builder.field("_id", ids[i]);
@@ -126,7 +121,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         final long interval = randomNonNegativeLong();
 
         final MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest();
-        bulkRequest.add(system, defaultType, content.bytes(), xContentType, timestamp, interval);
+        bulkRequest.add(system, content.bytes(), xContentType, timestamp, interval);
 
         final Collection<MonitoringBulkDoc> bulkDocs = bulkRequest.getDocs();
         assertNotNull(bulkDocs);
@@ -135,7 +130,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         int count = 0;
         for (final MonitoringBulkDoc bulkDoc : bulkDocs) {
             assertThat(bulkDoc.getSystem(), equalTo(system));
-            assertThat(bulkDoc.getType(), equalTo(types[count] != null ? types[count] : defaultType));
             assertThat(bulkDoc.getId(), equalTo(ids[count]));
             assertThat(bulkDoc.getTimestamp(), equalTo(timestamp));
             assertThat(bulkDoc.getIntervalMillis(), equalTo(interval));
@@ -161,7 +155,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                     builder.startObject("index");
                     {
                         builder.field("_index", "");
-                        builder.field("_type", "doc");
+                        builder.field("_type", "_doc");
                         builder.field("_id", String.valueOf(i));
                     }
                     builder.endObject();
@@ -186,10 +180,10 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
         final MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            bulkRequest.add(randomFrom(MonitoredSystem.values()), null, content.bytes(), xContentType, 0L, 0L)
+            bulkRequest.add(randomFrom(MonitoredSystem.values()), content.bytes(), xContentType, 0L, 0L)
         );
 
-        assertThat(e.getMessage(), containsString("source is missing for monitoring document [][doc][" + nbDocs + "]"));
+        assertThat(e.getMessage(), containsString("source is missing for monitoring document [][_doc][" + nbDocs + "]"));
     }
 
     public void testAddRequestContentWithUnrecognizedIndexName() throws IOException {
@@ -205,7 +199,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                 builder.startObject("index");
                 {
                     builder.field("_index", indexName);
-                    builder.field("_type", "doc");
                 }
                 builder.endObject();
             }
@@ -223,7 +216,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
         final MonitoringBulkRequest bulkRequest = new MonitoringBulkRequest();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-                bulkRequest.add(randomFrom(MonitoredSystem.values()), null, content.bytes(), xContentType, 0L, 0L)
+                bulkRequest.add(randomFrom(MonitoredSystem.values()), content.bytes(), xContentType, 0L, 0L)
         );
 
         assertThat(e.getMessage(), containsString("unrecognized index name [" + indexName + "]"));
@@ -243,8 +236,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         final StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
 
-        final MonitoringBulkRequest deserializedRequest = new MonitoringBulkRequest();
-        deserializedRequest.readFrom(in);
+        final MonitoringBulkRequest deserializedRequest = new MonitoringBulkRequest(in);
 
         assertThat(in.available(), equalTo(0));
 
@@ -252,52 +244,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         final MonitoringBulkDoc[] deserializedBulkDocs = deserializedRequest.getDocs().toArray(new MonitoringBulkDoc[]{});
 
         assertArrayEquals(originalBulkDocs, deserializedBulkDocs);
-    }
-
-    public void testSerializationBwc() throws IOException {
-        final MonitoringBulkRequest originalRequest = new MonitoringBulkRequest();
-
-        final int numDocs = iterations(10, 30);
-        for (int i = 0; i < numDocs; i++) {
-            originalRequest.add(randomMonitoringBulkDoc());
-        }
-
-        final Version version = randomVersionBetween(random(), Version.V_5_0_0, Version.V_6_0_0_rc1);
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(version);
-        originalRequest.writeTo(out);
-
-        final StreamInput in = out.bytes().streamInput();
-        in.setVersion(out.getVersion());
-
-        final MonitoringBulkRequest deserializedRequest = new MonitoringBulkRequest();
-        deserializedRequest.readFrom(in);
-
-        assertThat(in.available(), equalTo(0));
-
-        final MonitoringBulkDoc[] originalBulkDocs = originalRequest.getDocs().toArray(new MonitoringBulkDoc[]{});
-        final MonitoringBulkDoc[] deserializedBulkDocs = deserializedRequest.getDocs().toArray(new MonitoringBulkDoc[]{});
-
-        assertThat(originalBulkDocs.length, equalTo(deserializedBulkDocs.length));
-
-        for (int i = 0; i < originalBulkDocs.length; i++) {
-            final MonitoringBulkDoc original = originalBulkDocs[i];
-            final MonitoringBulkDoc deserialized = deserializedBulkDocs[i];
-
-            assertThat(deserialized.getSystem(), equalTo(original.getSystem()));
-            assertThat(deserialized.getType(), equalTo(original.getType()));
-            assertThat(deserialized.getId(), equalTo(original.getId()));
-            assertThat(deserialized.getTimestamp(), equalTo(original.getTimestamp()));
-            assertThat(deserialized.getSource(), equalTo(original.getSource()));
-            assertThat(deserialized.getXContentType(), equalTo(original.getXContentType()));
-
-            if (version.onOrAfter(Version.V_6_0_0_rc1)) {
-                assertThat(deserialized.getIntervalMillis(), equalTo(original.getIntervalMillis()));
-            } else {
-                assertThat(deserialized.getIntervalMillis(), equalTo(0L));
-            }
-        }
     }
 
     /**

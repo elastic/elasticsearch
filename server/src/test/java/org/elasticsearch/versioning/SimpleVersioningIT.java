@@ -20,12 +20,14 @@ package org.elasticsearch.versioning;
 
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
@@ -43,8 +45,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -53,18 +56,21 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        // Note - external version doesn't throw version conflicts on deletes of non existent records. This is different from internal versioning
+        // Note - external version doesn't throw version conflicts on deletes of non existent records.
+        // This is different from internal versioning
 
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").setVersion(17).setVersionType(VersionType.EXTERNAL)
+            .execute().actionGet();
         assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
 
         // this should conflict with the delete command transaction which told us that the object was deleted at version 17.
-        assertThrows(
-                client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(13).setVersionType(VersionType.EXTERNAL).execute(),
+        assertFutureThrows(
+                client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(13)
+                    .setVersionType(VersionType.EXTERNAL).execute(),
                 VersionConflictEngineException.class
         );
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(18).
+        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(18).
                 setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(18L));
     }
@@ -72,16 +78,20 @@ public class SimpleVersioningIT extends ESIntegTestCase {
     public void testExternalGTE() throws Exception {
         createIndex("test");
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(12).setVersionType(VersionType.EXTERNAL_GTE).get();
+        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(12)
+            .setVersionType(VersionType.EXTERNAL_GTE).get();
         assertThat(indexResponse.getVersion(), equalTo(12L));
 
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(12).setVersionType(VersionType.EXTERNAL_GTE).get();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").setVersion(12)
+            .setVersionType(VersionType.EXTERNAL_GTE).get();
         assertThat(indexResponse.getVersion(), equalTo(12L));
 
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(14).setVersionType(VersionType.EXTERNAL_GTE).get();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").setVersion(14)
+            .setVersionType(VersionType.EXTERNAL_GTE).get();
         assertThat(indexResponse.getVersion(), equalTo(14L));
 
-        assertThrows(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(13).setVersionType(VersionType.EXTERNAL_GTE),
+        assertRequestBuilderThrows(client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(13)
+                .setVersionType(VersionType.EXTERNAL_GTE),
                 VersionConflictEngineException.class);
 
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -89,28 +99,30 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             refresh();
         }
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(14L));
+            assertThat(client().prepareGet("test", "1").get().getVersion(), equalTo(14L));
         }
 
         // deleting with a lower version fails.
-        assertThrows(
-                client().prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE),
+        assertRequestBuilderThrows(
+                client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE),
                 VersionConflictEngineException.class);
 
         // Delete with a higher or equal version deletes all versions up to the given one.
         long v = randomIntBetween(14, 17);
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(v).setVersionType(VersionType.EXTERNAL_GTE).execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").setVersion(v)
+            .setVersionType(VersionType.EXTERNAL_GTE).execute().actionGet();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getVersion(), equalTo(v));
 
         // Deleting with a lower version keeps on failing after a delete.
-        assertThrows(
-                client().prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE).execute(),
+        assertFutureThrows(
+                client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL_GTE).execute(),
                 VersionConflictEngineException.class);
 
 
         // But delete with a higher version is OK.
-        deleteResponse = client().prepareDelete("test", "type", "1").setVersion(18).setVersionType(VersionType.EXTERNAL_GTE).execute().actionGet();
+        deleteResponse = client().prepareDelete("test", "1").setVersion(18).setVersionType(VersionType.EXTERNAL_GTE)
+            .execute().actionGet();
         assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
         assertThat(deleteResponse.getVersion(), equalTo(18L));
     }
@@ -119,50 +131,58 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(12).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(12)
+            .setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(12L));
 
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(14).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(14)
+            .setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(14L));
 
-        assertThrows(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(13).setVersionType(VersionType.EXTERNAL).execute(),
-                VersionConflictEngineException.class);
+        assertFutureThrows(client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(13)
+            .setVersionType(VersionType.EXTERNAL).execute(),
+            VersionConflictEngineException.class);
 
         if (randomBoolean()) {
             refresh();
         }
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(14L));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().getVersion(), equalTo(14L));
         }
 
         // deleting with a lower version fails.
-        assertThrows(
-                client().prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
+        assertFutureThrows(
+                client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
                 VersionConflictEngineException.class);
 
         // Delete with a higher version deletes all versions up to the given one.
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").setVersion(17)
+            .setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getVersion(), equalTo(17L));
 
         // Deleting with a lower version keeps on failing after a delete.
-        assertThrows(
-                client().prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
+        assertFutureThrows(
+                client().prepareDelete("test", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
                 VersionConflictEngineException.class);
 
 
         // But delete with a higher version is OK.
-        deleteResponse = client().prepareDelete("test", "type", "1").setVersion(18).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        deleteResponse = client().prepareDelete("test", "1").setVersion(18)
+            .setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
         assertThat(deleteResponse.getVersion(), equalTo(18L));
 
 
-        // TODO: This behavior breaks rest api returning http status 201, good news is that it this is only the case until deletes GC kicks in.
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(19).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        // TODO: This behavior breaks rest api returning http status 201
+        // good news is that it this is only the case until deletes GC kicks in.
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(19).
+            setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(19L));
 
 
-        deleteResponse = client().prepareDelete("test", "type", "1").setVersion(20).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        deleteResponse = client().prepareDelete("test", "1").setVersion(20).setVersionType(VersionType.EXTERNAL)
+            .execute().actionGet();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getVersion(), equalTo(20L));
 
@@ -174,7 +194,8 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         Thread.sleep(300); // gc works based on estimated sampled time. Give it a chance...
 
         // And now we have previous version return -1
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(20).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setVersion(20)
+            .setVersionType(VersionType.EXTERNAL).execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(20L));
     }
 
@@ -188,55 +209,65 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             fail("did not hit expected exception");
         } catch (IllegalArgumentException iae) {
             // expected
-            assertTrue(iae.getMessage().contains("failed to parse setting [index.gc_deletes] with value [42] as a time value: unit is missing or unrecognized"));
+            assertTrue(iae.getMessage().contains("failed to parse setting [index.gc_deletes] with value [42] as a time value: unit is " +
+                "missing or unrecognized"));
         }
     }
 
-    public void testInternalVersioningInitialDelete() throws Exception {
+    public void testCompareAndSetInitialDelete() throws Exception {
         createIndex("test");
         ensureGreen();
 
-        assertThrows(client().prepareDelete("test", "type", "1").setVersion(17).execute(),
+        assertFutureThrows(client().prepareDelete("test", "1").setIfSeqNo(17).setIfPrimaryTerm(10).execute(),
                 VersionConflictEngineException.class);
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1")
+        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1")
                 .setCreate(true).execute().actionGet();
         assertThat(indexResponse.getVersion(), equalTo(1L));
     }
 
-    public void testInternalVersioning() throws Exception {
+    public void testCompareAndSet() {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertThat(indexResponse.getVersion(), equalTo(1L));
+        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
+        assertThat(indexResponse.getSeqNo(), equalTo(0L));
+        assertThat(indexResponse.getPrimaryTerm(), equalTo(1L));
 
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(1).execute().actionGet();
-        assertThat(indexResponse.getVersion(), equalTo(2L));
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").setIfSeqNo(0L).setIfPrimaryTerm(1).get();
+        assertThat(indexResponse.getSeqNo(), equalTo(1L));
+        assertThat(indexResponse.getPrimaryTerm(), equalTo(1L));
 
-        assertThrows(
-                client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(1).execute(),
-                VersionConflictEngineException.class);
+        assertFutureThrows(
+            client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(1).execute(),
+            VersionConflictEngineException.class);
 
-        assertThrows(
-                client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(1).execute(),
-                VersionConflictEngineException.class);
+        assertFutureThrows(
+            client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(10).setIfPrimaryTerm(2).execute(),
+            VersionConflictEngineException.class);
 
-        assertThrows(
-                client().prepareIndex("test", "type", "1").setCreate(true).setSource("field1", "value1_1").execute(),
-                VersionConflictEngineException.class);
+        assertFutureThrows(
+            client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(1).setIfPrimaryTerm(2).execute(),
+            VersionConflictEngineException.class);
 
 
-        assertThrows(client().prepareDelete("test", "type", "1").setVersion(1).execute(), VersionConflictEngineException.class);
-        assertThrows(client().prepareDelete("test", "type", "1").setVersion(1).execute(), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(10).setIfPrimaryTerm(2), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(2L));
+            final GetResponse response = client().prepareGet("test", "1").get();
+            assertThat(response.getSeqNo(), equalTo(1L));
+            assertThat(response.getPrimaryTerm(), equalTo(1L));
         }
 
         // search with versioning
         for (int i = 0; i < 10; i++) {
+            // TODO: ADD SEQ NO!
             SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
             assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(2L));
         }
@@ -247,55 +278,57 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(Versions.NOT_FOUND));
         }
 
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(2).execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(1).get();
         assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-        assertThat(deleteResponse.getVersion(), equalTo(3L));
+        assertThat(deleteResponse.getSeqNo(), equalTo(2L));
+        assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
 
-        assertThrows(client().prepareDelete("test", "type", "1").setVersion(2).execute(), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(1), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(3).setIfPrimaryTerm(12), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(2), VersionConflictEngineException.class);
 
-
-        // This is intricate - the object was deleted but a delete transaction was with the right version. We add another one
-        // and thus the transaction is increased.
-        deleteResponse = client().prepareDelete("test", "type", "1").setVersion(3).execute().actionGet();
-        assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
-        assertThat(deleteResponse.getVersion(), equalTo(4L));
+        // the doc is deleted. Even when we hit the deleted seqNo, a conditional delete should fail.
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(2).setIfPrimaryTerm(1), VersionConflictEngineException.class);
     }
 
     public void testSimpleVersioningWithFlush() throws Exception {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertThat(indexResponse.getVersion(), equalTo(1L));
+        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").get();
+        assertThat(indexResponse.getSeqNo(), equalTo(0L));
 
         client().admin().indices().prepareFlush().execute().actionGet();
-        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(1).execute().actionGet();
-        assertThat(indexResponse.getVersion(), equalTo(2L));
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").setIfSeqNo(0).setIfPrimaryTerm(1).get();
+        assertThat(indexResponse.getSeqNo(), equalTo(1L));
 
         client().admin().indices().prepareFlush().execute().actionGet();
-        assertThrows(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(1).execute(),
+        assertRequestBuilderThrows(
+            client().prepareIndex("test").setId("1").setSource("field1", "value1_1").setIfSeqNo(0).setIfPrimaryTerm(1),
                 VersionConflictEngineException.class);
 
-        assertThrows(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(1).execute(),
+        assertRequestBuilderThrows(client().prepareIndex("test").setId("1").setCreate(true).setSource("field1", "value1_1"),
                 VersionConflictEngineException.class);
 
-        assertThrows(client().prepareIndex("test", "type", "1").setCreate(true).setSource("field1", "value1_1").execute(),
-                VersionConflictEngineException.class);
-
-        assertThrows(client().prepareDelete("test", "type", "1").setVersion(1).execute(), VersionConflictEngineException.class);
-        assertThrows(client().prepareDelete("test", "type", "1").setVersion(1).execute(), VersionConflictEngineException.class);
+        assertRequestBuilderThrows(
+            client().prepareDelete("test", "1").setIfSeqNo(0).setIfPrimaryTerm(1), VersionConflictEngineException.class);
 
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(2L));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().getVersion(), equalTo(2L));
         }
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setVersion(true).
+            SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setVersion(true).seqNoAndPrimaryTerm(true).
             execute().actionGet();
             assertHitCount(searchResponse, 1);
             assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(2L));
+            assertThat(searchResponse.getHits().getAt(0).getSeqNo(), equalTo(1L));
         }
     }
 
@@ -303,7 +336,8 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();
+        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("test").setId("1").setSource("field1", "value1_1"))
+            .execute().actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(1));
         IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
@@ -357,7 +391,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 // zero-pad sequential
                 logger.info("--> use zero-padded sequential ids");
                 ids = new IDSource() {
-                    final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
                     final String zeroPad = String.format(Locale.ROOT, "%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
                     int upto;
 
@@ -373,7 +406,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 logger.info("--> use random long ids");
                 ids = new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
-                    int upto;
 
                     @Override
                     public String next() {
@@ -386,8 +418,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 logger.info("--> use zero-padded random long ids");
                 ids = new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
-                    final String zeroPad = String.format(Locale.ROOT, "%015d", 0);
-                    int upto;
 
                     @Override
                     public String next() {
@@ -442,8 +472,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                     sb.append(deleteResponse.getIndex());
                     sb.append(" id=");
                     sb.append(deleteResponse.getId());
-                    sb.append(" type=");
-                    sb.append(deleteResponse.getType());
                     sb.append(" version=");
                     sb.append(deleteResponse.getVersion());
                     sb.append(" found=");
@@ -454,8 +482,6 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                     sb.append(indexResponse.getIndex());
                     sb.append(" id=");
                     sb.append(indexResponse.getId());
-                    sb.append(" type=");
-                    sb.append(indexResponse.getType());
                     sb.append(" version=");
                     sb.append(indexResponse.getVersion());
                     sb.append(" created=");
@@ -586,7 +612,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                             long version = idVersion.version;
                             if (idVersion.delete) {
                                 try {
-                                    idVersion.response = client().prepareDelete("test", "type", id)
+                                    idVersion.response = client().prepareDelete("test", id)
                                             .setVersion(version)
                                             .setVersionType(VersionType.EXTERNAL).execute().actionGet();
                                 } catch (VersionConflictEngineException vcee) {
@@ -596,7 +622,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                                 }
                             } else {
                                 try {
-                                    idVersion.response = client().prepareIndex("test", "type", id)
+                                    idVersion.response = client().prepareIndex("test").setId(id)
                                             .setSource("foo", "bar")
                                             .setVersion(version).setVersionType(VersionType.EXTERNAL).get();
 
@@ -642,7 +668,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             } else {
                 expected = -1;
             }
-            long actualVersion = client().prepareGet("test", "type", id).execute().actionGet().getVersion();
+            long actualVersion = client().prepareGet("test", id).execute().actionGet().getVersion();
             if (actualVersion != expected) {
                 logger.error("--> FAILED: idVersion={} actualVersion= {}", idVersion, actualVersion);
                 failed = true;
@@ -686,7 +712,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
         // Index a doc:
         client()
-                .prepareIndex("test", "type", "id")
+                .prepareIndex("test").setId("id")
                 .setSource("foo", "bar")
                 .setOpType(DocWriteRequest.OpType.INDEX)
                 .setVersion(10)
@@ -701,7 +727,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
         // Delete it
         client()
-                .prepareDelete("test", "type", "id")
+                .prepareDelete("test", "id")
                 .setVersion(11)
                 .setVersionType(VersionType.EXTERNAL)
                 .execute()
@@ -710,19 +736,19 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // Real-time get should reflect delete:
         assertThat("doc should have been deleted",
                 client()
-                        .prepareGet("test", "type", "id")
+                        .prepareGet("test", "id")
                         .execute()
                         .actionGet()
                         .getVersion(),
                 equalTo(-1L));
 
-        // ThreadPool.estimatedTimeInMillis has default granularity of 200 msec, so we must sleep at least that long; sleep much longer in
+        // ThreadPool.relativeTimeInMillis has default granularity of 200 msec, so we must sleep at least that long; sleep much longer in
         // case system is busy:
         Thread.sleep(1000);
 
         // Delete an unrelated doc (provokes pruning deletes from versionMap)
         client()
-                .prepareDelete("test", "type", "id2")
+                .prepareDelete("test", "id2")
                 .setVersion(11)
                 .setVersionType(VersionType.EXTERNAL)
                 .execute()
@@ -731,7 +757,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // Real-time get should still reflect delete:
         assertThat("doc should have been deleted",
                 client()
-                        .prepareGet("test", "type", "id")
+                        .prepareGet("test", "id")
                         .execute()
                         .actionGet()
                         .getVersion(),
@@ -755,7 +781,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
         // Index a doc:
         client()
-                .prepareIndex("test", "type", "id")
+                .prepareIndex("test").setId("id")
                 .setSource("foo", "bar")
                 .setOpType(DocWriteRequest.OpType.INDEX)
                 .setVersion(10)
@@ -770,7 +796,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
         // Delete it
         client()
-                .prepareDelete("test", "type", "id")
+                .prepareDelete("test", "id")
                 .setVersion(11)
                 .setVersionType(VersionType.EXTERNAL)
                 .execute()
@@ -779,10 +805,32 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // Real-time get should reflect delete even though index.gc_deletes is 0:
         assertThat("doc should have been deleted",
                 client()
-                        .prepareGet("test", "type", "id")
+                        .prepareGet("test", "id")
                         .execute()
                         .actionGet()
                         .getVersion(),
                 equalTo(-1L));
+    }
+
+    public void testSpecialVersioning() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build());
+        IndexResponse doc1 = client().prepareIndex("test").setId("1").setSource("field", "value1")
+            .setVersion(0).setVersionType(VersionType.EXTERNAL).execute().actionGet();
+        assertThat(doc1.getVersion(), equalTo(0L));
+        IndexResponse doc2 = client().prepareIndex("test").setId("1").setSource("field", "value2")
+            .setVersion(Versions.MATCH_ANY).setVersionType(VersionType.INTERNAL).execute().actionGet();
+        assertThat(doc2.getVersion(), equalTo(1L));
+        client().prepareDelete("test", "1").get(); //v2
+        IndexResponse doc3 = client().prepareIndex("test").setId("1").setSource("field", "value3")
+            .setVersion(Versions.MATCH_DELETED).setVersionType(VersionType.INTERNAL).execute().actionGet();
+        assertThat(doc3.getVersion(), equalTo(3L));
+        IndexResponse doc4 = client().prepareIndex("test").setId("1").setSource("field", "value4")
+            .setVersion(4L).setVersionType(VersionType.EXTERNAL_GTE).execute().actionGet();
+        assertThat(doc4.getVersion(), equalTo(4L));
+        // Make sure that these versions are replicated correctly
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+        ensureGreen("test");
     }
 }

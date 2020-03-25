@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -52,18 +51,16 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
     }
 
     @Override
-    boolean includedInVersion(Version version) {
-        return version.onOrAfter(Version.V_6_1_0);
-    }
-
-    @Override
     public String getWriteableName() {
         return NAME;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        //TODO here we should just use ByteSizeValue#writeTo and same for de-serialization in the constructor
+        // While we technically could serialize this with value.writeTo(...), that would
+        // require doing the song and dance around backwards compatibility for this value. Since
+        // in this case the deserialized version is not displayed to a user, it's okay to simply use
+        // bytes.
         out.writeVLong(value.getBytes());
     }
 

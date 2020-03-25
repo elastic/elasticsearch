@@ -19,9 +19,11 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -73,13 +75,13 @@ public abstract class AggregatorBase extends Aggregator {
         this.context = context;
         this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
-        this.subAggregators = factories.createSubAggregators(this);
+        this.subAggregators = factories.createSubAggregators(context, this);
         context.addReleasable(this, Lifetime.PHASE);
+        final SearchShardTarget shardTarget = context.shardTarget();
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
             void badState(){
-                throw new QueryPhaseExecutionException(AggregatorBase.this.context,
-                        "preCollection not called on new Aggregator before use", null);
+                throw new QueryPhaseExecutionException(shardTarget, "preCollection not called on new Aggregator before use", null);
             }
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {
@@ -98,9 +100,9 @@ public abstract class AggregatorBase extends Aggregator {
                 badState();
             }
             @Override
-            public boolean needsScores() {
+            public ScoreMode scoreMode() {
                 badState();
-                return false; // unreachable
+                return ScoreMode.COMPLETE; // unreachable
             }
         };
         addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
@@ -137,13 +139,13 @@ public abstract class AggregatorBase extends Aggregator {
      * your aggregator needs them.
      */
     @Override
-    public boolean needsScores() {
+    public ScoreMode scoreMode() {
         for (Aggregator agg : subAggregators) {
-            if (agg.needsScores()) {
-                return true;
+            if (agg.scoreMode().needsScores()) {
+                return ScoreMode.COMPLETE;
             }
         }
-        return false;
+        return ScoreMode.COMPLETE_NO_SCORES;
     }
 
     public Map<String, Object> metaData() {
@@ -183,7 +185,7 @@ public abstract class AggregatorBase extends Aggregator {
     @Override
     public final void preCollection() throws IOException {
         List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        collectableSubAggregators = BucketCollector.wrap(collectors);
+        collectableSubAggregators = MultiBucketCollector.wrap(collectors);
         doPreCollection();
         collectableSubAggregators.preCollection();
     }

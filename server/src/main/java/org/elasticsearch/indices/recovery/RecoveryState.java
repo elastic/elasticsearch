@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -26,18 +27,17 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -46,7 +46,7 @@ import java.util.Map;
 /**
  * Keeps track of state related to shard recovery.
  */
-public class RecoveryState implements ToXContentFragment, Streamable {
+public class RecoveryState implements ToXContentFragment, Writeable {
 
     public enum Stage {
         INIT((byte) 0),
@@ -102,20 +102,17 @@ public class RecoveryState implements ToXContentFragment, Streamable {
 
     private Stage stage;
 
-    private final Index index = new Index();
-    private final Translog translog = new Translog();
-    private final VerifyIndex verifyIndex = new VerifyIndex();
-    private final Timer timer = new Timer();
+    private final Index index;
+    private final Translog translog;
+    private final VerifyIndex verifyIndex;
+    private final Timer timer;
 
     private RecoverySource recoverySource;
     private ShardId shardId;
     @Nullable
     private DiscoveryNode sourceNode;
     private DiscoveryNode targetNode;
-    private boolean primary = false;
-
-    private RecoveryState() {
-    }
+    private boolean primary;
 
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
@@ -128,7 +125,38 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         stage = Stage.INIT;
+        index = new Index();
+        translog = new Translog();
+        verifyIndex = new VerifyIndex();
+        timer = new Timer();
         timer.start();
+    }
+
+    public RecoveryState(StreamInput in) throws IOException {
+        timer = new Timer(in);
+        stage = Stage.fromId(in.readByte());
+        shardId = new ShardId(in);
+        recoverySource = RecoverySource.readFrom(in);
+        targetNode = new DiscoveryNode(in);
+        sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
+        index = new Index(in);
+        translog = new Translog(in);
+        verifyIndex = new VerifyIndex(in);
+        primary = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        timer.writeTo(out);
+        out.writeByte(stage.id());
+        shardId.writeTo(out);
+        recoverySource.writeTo(out);
+        targetNode.writeTo(out);
+        out.writeOptionalWriteable(sourceNode);
+        index.writeTo(out);
+        translog.writeTo(out);
+        verifyIndex.writeTo(out);
+        out.writeBoolean(primary);
     }
 
     public ShardId getShardId() {
@@ -223,37 +251,7 @@ public class RecoveryState implements ToXContentFragment, Streamable {
     }
 
     public static RecoveryState readRecoveryState(StreamInput in) throws IOException {
-        RecoveryState recoveryState = new RecoveryState();
-        recoveryState.readFrom(in);
-        return recoveryState;
-    }
-
-    @Override
-    public synchronized void readFrom(StreamInput in) throws IOException {
-        timer.readFrom(in);
-        stage = Stage.fromId(in.readByte());
-        shardId = ShardId.readShardId(in);
-        recoverySource = RecoverySource.readFrom(in);
-        targetNode = new DiscoveryNode(in);
-        sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
-        index.readFrom(in);
-        translog.readFrom(in);
-        verifyIndex.readFrom(in);
-        primary = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        timer.writeTo(out);
-        out.writeByte(stage.id());
-        shardId.writeTo(out);
-        recoverySource.writeTo(out);
-        targetNode.writeTo(out);
-        out.writeOptionalWriteable(sourceNode);
-        index.writeTo(out);
-        translog.writeTo(out);
-        verifyIndex.writeTo(out);
-        out.writeBoolean(primary);
+        return new RecoveryState(in);
     }
 
     @Override
@@ -347,11 +345,30 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         static final String TARGET_THROTTLE_TIME_IN_MILLIS = "target_throttle_time_in_millis";
     }
 
-    public static class Timer implements Streamable {
+    public static class Timer implements Writeable {
         protected long startTime = 0;
         protected long startNanoTime = 0;
         protected long time = -1;
         protected long stopTime = 0;
+
+        public Timer() {
+        }
+
+        public Timer(StreamInput in) throws IOException {
+            startTime = in.readVLong();
+            startNanoTime = in.readVLong();
+            stopTime = in.readVLong();
+            time = in.readVLong();
+        }
+
+        @Override
+        public synchronized void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(startTime);
+            out.writeVLong(startNanoTime);
+            out.writeVLong(stopTime);
+            // write a snapshot of current time, which is not per se the time field
+            out.writeVLong(time());
+        }
 
         public synchronized void start() {
             assert startTime == 0 : "already started";
@@ -394,29 +411,28 @@ public class RecoveryState implements ToXContentFragment, Streamable {
             stopTime = 0;
         }
 
-
-        @Override
-        public synchronized void readFrom(StreamInput in) throws IOException {
-            startTime = in.readVLong();
-            startNanoTime = in.readVLong();
-            stopTime = in.readVLong();
-            time = in.readVLong();
+        // for tests
+        public long getStartNanoTime() {
+            return startNanoTime;
         }
-
-        @Override
-        public synchronized void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(startTime);
-            out.writeVLong(startNanoTime);
-            out.writeVLong(stopTime);
-            // write a snapshot of current time, which is not per se the time field
-            out.writeVLong(time());
-        }
-
     }
 
-    public static class VerifyIndex extends Timer implements ToXContentFragment, Streamable {
+    public static class VerifyIndex extends Timer implements ToXContentFragment, Writeable {
         private volatile long checkIndexTime;
 
+        public VerifyIndex() {
+        }
+
+        public VerifyIndex(StreamInput in) throws IOException {
+            super(in);
+            checkIndexTime = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeVLong(checkIndexTime);
+        }
 
         public void reset() {
             super.reset();
@@ -432,18 +448,6 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            checkIndexTime = in.readVLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVLong(checkIndexTime);
-        }
-
-        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.humanReadableField(Fields.CHECK_INDEX_TIME_IN_MILLIS, Fields.CHECK_INDEX_TIME, new TimeValue(checkIndexTime));
             builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
@@ -451,34 +455,64 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         }
     }
 
-    public static class Translog extends Timer implements ToXContentFragment, Streamable {
+    public static class Translog extends Timer implements ToXContentFragment, Writeable {
         public static final int UNKNOWN = -1;
 
         private int recovered;
         private int total = UNKNOWN;
         private int totalOnStart = UNKNOWN;
+        private int totalLocal = UNKNOWN;
+
+        public Translog() {
+        }
+
+        public Translog(StreamInput in) throws IOException {
+            super(in);
+            recovered = in.readVInt();
+            total = in.readVInt();
+            totalOnStart = in.readVInt();
+            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+                totalLocal = in.readVInt();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeVInt(recovered);
+            out.writeVInt(total);
+            out.writeVInt(totalOnStart);
+            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+                out.writeVInt(totalLocal);
+            }
+        }
 
         public synchronized void reset() {
             super.reset();
             recovered = 0;
             total = UNKNOWN;
             totalOnStart = UNKNOWN;
+            totalLocal = UNKNOWN;
         }
 
         public synchronized void incrementRecoveredOperations() {
             recovered++;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total +
+                "], recovered [" + recovered + "]";
         }
 
         public synchronized void incrementRecoveredOperations(int ops) {
             recovered += ops;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total +
+                "], recovered [" + recovered + "]";
         }
 
         public synchronized void decrementRecoveredOperations(int ops) {
             recovered -= ops;
-            assert recovered >= 0 : "recovered operations must be non-negative. Because [" + recovered + "] after decrementing [" + ops + "]";
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+            assert recovered >= 0 : "recovered operations must be non-negative. Because [" + recovered +
+                "] after decrementing [" + ops + "]";
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" +
+                total + "], recovered [" + recovered + "]";
         }
 
 
@@ -500,8 +534,9 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         }
 
         public synchronized void totalOperations(int total) {
-            this.total = total;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+            this.total = totalLocal == UNKNOWN ? total : totalLocal + total;
+            assert total == UNKNOWN || this.total >= recovered : "total, if known, should be > recovered. total [" + total +
+                "], recovered [" + recovered + "]";
         }
 
         /**
@@ -515,7 +550,20 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         }
 
         public synchronized void totalOperationsOnStart(int total) {
-            this.totalOnStart = total;
+            this.totalOnStart = totalLocal == UNKNOWN ? total : totalLocal + total;
+        }
+
+        /**
+         * Sets the total number of translog operations to be recovered locally before performing peer recovery
+         * @see IndexShard#recoverLocallyUpToGlobalCheckpoint()
+         */
+        public synchronized void totalLocal(int totalLocal) {
+            assert totalLocal >= recovered : totalLocal + " < " + recovered;
+            this.totalLocal = totalLocal;
+        }
+
+        public synchronized int totalLocal() {
+            return totalLocal;
         }
 
         public synchronized float recoveredPercent() {
@@ -529,22 +577,6 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            recovered = in.readVInt();
-            total = in.readVInt();
-            totalOnStart = in.readVInt();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(recovered);
-            out.writeVInt(total);
-            out.writeVInt(totalOnStart);
-        }
-
-        @Override
         public synchronized XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.RECOVERED, recovered);
             builder.field(Fields.TOTAL, total);
@@ -555,20 +587,32 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         }
     }
 
-    public static class File implements ToXContentObject, Streamable {
+    public static class File implements ToXContentObject, Writeable {
         private String name;
         private long length;
         private long recovered;
         private boolean reused;
-
-        public File() {
-        }
 
         public File(String name, long length, boolean reused) {
             assert name != null;
             this.name = name;
             this.length = length;
             this.reused = reused;
+        }
+
+        public File(StreamInput in) throws IOException {
+            name = in.readString();
+            length = in.readVLong();
+            recovered = in.readVLong();
+            reused = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeVLong(length);
+            out.writeVLong(recovered);
+            out.writeBoolean(reused);
         }
 
         void addRecoveredBytes(long bytes) {
@@ -609,28 +653,6 @@ public class RecoveryState implements ToXContentFragment, Streamable {
             return reused == false && length == recovered;
         }
 
-        public static File readFile(StreamInput in) throws IOException {
-            File file = new File();
-            file.readFrom(in);
-            return file;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            name = in.readString();
-            length = in.readVLong();
-            recovered = in.readVLong();
-            reused = in.readBoolean();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeVLong(length);
-            out.writeVLong(recovered);
-            out.writeBoolean(reused);
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -666,23 +688,47 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         }
     }
 
-    public static class Index extends Timer implements ToXContentFragment, Streamable {
+    public static class Index extends Timer implements ToXContentFragment, Writeable {
 
-        private Map<String, File> fileDetails = new HashMap<>();
+        private final Map<String, File> fileDetails = new HashMap<>();
 
         public static final long UNKNOWN = -1L;
 
-        private long version = UNKNOWN;
         private long sourceThrottlingInNanos = UNKNOWN;
         private long targetThrottleTimeInNanos = UNKNOWN;
 
+        public Index() {
+        }
+
+        public Index(StreamInput in) throws IOException {
+            super(in);
+            int size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                File file = new File(in);
+                fileDetails.put(file.name, file);
+            }
+            sourceThrottlingInNanos = in.readLong();
+            targetThrottleTimeInNanos = in.readLong();
+        }
+
+        @Override
+        public synchronized void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            final File[] files = fileDetails.values().toArray(new File[0]);
+            out.writeVInt(files.length);
+            for (File file : files) {
+                file.writeTo(out);
+            }
+            out.writeLong(sourceThrottlingInNanos);
+            out.writeLong(targetThrottleTimeInNanos);
+        }
+
         public synchronized List<File> fileDetails() {
-            return Collections.unmodifiableList(new ArrayList<>(fileDetails.values()));
+            return List.copyOf(fileDetails.values());
         }
 
         public synchronized void reset() {
             super.reset();
-            version = UNKNOWN;
             fileDetails.clear();
             sourceThrottlingInNanos = UNKNOWN;
             targetThrottleTimeInNanos = UNKNOWN;
@@ -697,10 +743,6 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         public synchronized void addRecoveredBytesToFile(String name, long bytes) {
             File file = fileDetails.get(name);
             file.addRecoveredBytes(bytes);
-        }
-
-        public synchronized long version() {
-            return this.version;
         }
 
         public synchronized void addSourceThrottling(long timeInNanos) {
@@ -821,16 +863,6 @@ public class RecoveryState implements ToXContentFragment, Streamable {
             return total;
         }
 
-        public synchronized long totalReuseBytes() {
-            long total = 0;
-            for (File file : fileDetails.values()) {
-                if (file.reused()) {
-                    total += file.length();
-                }
-            }
-            return total;
-        }
-
         /**
          * percent of bytes recovered out of total files bytes *to be* recovered
          */
@@ -874,34 +906,6 @@ public class RecoveryState implements ToXContentFragment, Streamable {
             return reused;
         }
 
-        public synchronized void updateVersion(long version) {
-            this.version = version;
-        }
-
-        @Override
-        public synchronized void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                File file = File.readFile(in);
-                fileDetails.put(file.name, file);
-            }
-            sourceThrottlingInNanos = in.readLong();
-            targetThrottleTimeInNanos = in.readLong();
-        }
-
-        @Override
-        public synchronized void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            final File[] files = fileDetails.values().toArray(new File[0]);
-            out.writeVInt(files.length);
-            for (File file : files) {
-                file.writeTo(out);
-            }
-            out.writeLong(sourceThrottlingInNanos);
-            out.writeLong(targetThrottleTimeInNanos);
-        }
-
         @Override
         public synchronized XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             // stream size first, as it matters more and the files section can be long
@@ -917,7 +921,7 @@ public class RecoveryState implements ToXContentFragment, Streamable {
             builder.field(Fields.REUSED, reusedFileCount());
             builder.field(Fields.RECOVERED, recoveredFileCount());
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredFilesPercent()));
-            if (params.paramAsBoolean("details", false)) {
+            if (params.paramAsBoolean("detailed", false)) {
                 builder.startArray(Fields.DETAILS);
                 for (File file : fileDetails.values()) {
                     file.toXContent(builder, params);
@@ -944,7 +948,7 @@ public class RecoveryState implements ToXContentFragment, Streamable {
             }
         }
 
-        public File getFileDetails(String dest) {
+        public synchronized File getFileDetails(String dest) {
             return fileDetails.get(dest);
         }
     }

@@ -252,7 +252,7 @@ public class RegexTests extends ScriptTestCase {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("Pattern.compile('aa')");
         });
-        assertEquals("Unknown call [compile] with [1] arguments on type [java.util.regex.Pattern].", e.getMessage());
+        assertTrue(e.getMessage().contains("[java.util.regex.Pattern, compile/1]"));
     }
 
     public void testBadRegexPattern() {
@@ -278,6 +278,6 @@ public class RegexTests extends ScriptTestCase {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("/asdf/b", false); // Not picky so we get a non-assertion error
         });
-        assertEquals("invalid sequence of tokens near ['b'].", e.getMessage());
+        assertEquals("unexpected token ['b'] was expecting one of [{<EOF>, ';'}].", e.getMessage());
     }
 }

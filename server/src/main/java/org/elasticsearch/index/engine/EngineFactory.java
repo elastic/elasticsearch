@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 /**
  * Simple Engine Factory
  */
+@FunctionalInterface
 public interface EngineFactory {
 
     Engine newReadWriteEngine(EngineConfig config);

@@ -22,12 +22,16 @@ package org.elasticsearch.search;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -38,6 +42,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -47,6 +52,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ScrollContext;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -62,7 +68,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-
 public class DefaultSearchContextTests extends ESTestCase {
 
     public void testPreProcess() throws Exception {
@@ -71,7 +76,6 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
         when(shardSearchRequest.shardId()).thenReturn(shardId);
-        when(shardSearchRequest.types()).thenReturn(new String[]{});
 
         IndexShard indexShard = mock(IndexShard.class);
         QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
@@ -110,10 +114,14 @@ public class DefaultSearchContextTests extends ESTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir);
              IndexReader reader = w.getReader();
-             Engine.Searcher searcher = new Engine.Searcher("test", new IndexSearcher(reader))) {
+             Engine.Searcher searcher = new Engine.Searcher("test", reader,
+                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
+                 IndexSearcher.getDefaultQueryCachingPolicy(), reader)) {
 
-            DefaultSearchContext context1 = new DefaultSearchContext(1L, shardSearchRequest, null, searcher, null, indexService,
-                indexShard, bigArrays, null, timeout, null, null, Version.CURRENT);
+            SearchShardTarget target = new SearchShardTarget("node", shardId, null, OriginalIndices.NONE);
+
+            DefaultSearchContext context1 = new DefaultSearchContext(new SearchContextId(UUIDs.randomBase64UUID(), 1L),
+                shardSearchRequest, target, searcher, null, indexService, indexShard, bigArrays, null, timeout, null, false);
             context1.from(300);
 
             // resultWindow greater than maxResultWindow and scrollContext is null
@@ -153,8 +161,8 @@ public class DefaultSearchContextTests extends ESTestCase {
                 + "] index level setting."));
 
             // rescore is null but sliceBuilder is not null
-            DefaultSearchContext context2 = new DefaultSearchContext(2L, shardSearchRequest, null, searcher,
-                null, indexService, indexShard, bigArrays, null, timeout, null, null, Version.CURRENT);
+            DefaultSearchContext context2 = new DefaultSearchContext(new SearchContextId(UUIDs.randomBase64UUID(), 2L),
+                shardSearchRequest, target, searcher, null, indexService, indexShard, bigArrays, null, timeout, null, false);
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
             int numSlices = maxSlicesPerScroll + randomIntBetween(1, 100);
@@ -170,11 +178,24 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(shardSearchRequest.getAliasFilter()).thenReturn(AliasFilter.EMPTY);
             when(shardSearchRequest.indexBoost()).thenReturn(AbstractQueryBuilder.DEFAULT_BOOST);
 
-            DefaultSearchContext context3 = new DefaultSearchContext(3L, shardSearchRequest, null, searcher, null,
-                indexService, indexShard, bigArrays, null, timeout, null, null, Version.CURRENT);
+            DefaultSearchContext context3 = new DefaultSearchContext(new SearchContextId(UUIDs.randomBase64UUID(), 3L),
+                shardSearchRequest, target, searcher, null, indexService, indexShard, bigArrays, null, timeout, null, false);
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
+
+            when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
+            when(queryShardContext.fieldMapper(anyString())).thenReturn(mock(MappedFieldType.class));
+            when(shardSearchRequest.indexRoutings()).thenReturn(new String[0]);
+
+            DefaultSearchContext context4 = new DefaultSearchContext(new SearchContextId(UUIDs.randomBase64UUID(), 4L),
+                shardSearchRequest, target, searcher, null, indexService, indexShard, bigArrays, null, timeout, null, false);
+            context4.sliceBuilder(new SliceBuilder(1,2)).parsedQuery(parsedQuery).preProcess(false);
+            Query query1 = context4.query();
+            context4.sliceBuilder(new SliceBuilder(0,2)).parsedQuery(parsedQuery).preProcess(false);
+            Query query2 = context4.query();
+            assertTrue(query1 instanceof MatchNoDocsQuery || query2 instanceof MatchNoDocsQuery);
+
         }
     }
 }

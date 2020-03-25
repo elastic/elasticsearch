@@ -3,18 +3,29 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.core.scheduler;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.time.Clock;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -61,6 +72,13 @@ public class SchedulerEngine {
         public long getScheduledTime() {
             return scheduledTime;
         }
+
+        @Override
+        public String toString() {
+            return "Event[jobName=" + jobName + "," +
+                "triggeredTime=" + triggeredTime + "," +
+                "scheduledTime=" + scheduledTime + "]";
+        }
     }
 
     public interface Listener {
@@ -88,13 +106,20 @@ public class SchedulerEngine {
     }
 
     private final Map<String, ActiveSchedule> schedules = ConcurrentCollections.newConcurrentMap();
-    private final ScheduledExecutorService scheduler;
     private final Clock clock;
+    private final ScheduledExecutorService scheduler;
+    private final Logger logger;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
 
-    public SchedulerEngine(Clock clock) {
-        this.clock = clock;
-        this.scheduler = Executors.newScheduledThreadPool(1,  EsExecutors.daemonThreadFactory("trigger_engine_scheduler"));
+    public SchedulerEngine(final Settings settings, final Clock clock) {
+        this(settings, clock, LogManager.getLogger(SchedulerEngine.class));
+    }
+
+    SchedulerEngine(final Settings settings, final Clock clock, final Logger logger) {
+        this.clock = Objects.requireNonNull(clock, "clock");
+        this.scheduler = Executors.newScheduledThreadPool(
+                1,  EsExecutors.daemonThreadFactory(Objects.requireNonNull(settings, "settings"), "trigger_engine_scheduler"));
+        this.logger = Objects.requireNonNull(logger, "logger");
     }
 
     public void register(Listener listener) {
@@ -112,10 +137,18 @@ public class SchedulerEngine {
     public void stop() {
         scheduler.shutdownNow();
         try {
-            scheduler.awaitTermination(5, TimeUnit.SECONDS);
+            final boolean terminated = scheduler.awaitTermination(5L, TimeUnit.SECONDS);
+            if (terminated == false) {
+                logger.warn("scheduler engine was not terminated after waiting 5s");
+            }
         } catch (InterruptedException e) {
+            logger.warn("interrupted while waiting for scheduler engine termination");
             Thread.currentThread().interrupt();
         }
+    }
+
+    public Set<String> scheduledJobIds() {
+        return Collections.unmodifiableSet(new HashSet<>(schedules.keySet()));
     }
 
     public void add(Job job) {
@@ -143,10 +176,15 @@ public class SchedulerEngine {
         return schedules.size();
     }
 
-    protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
+    protected void notifyListeners(final String name, final long triggeredTime, final long scheduledTime) {
         final Event event = new Event(name, triggeredTime, scheduledTime);
-        for (Listener listener : listeners) {
-            listener.triggered(event);
+        for (final Listener listener : listeners) {
+            try {
+                listener.triggered(event);
+            } catch (final Exception e) {
+                // do not allow exceptions to escape this method; we should continue to notify listeners and schedule the next run
+                logger.warn(new ParameterizedMessage("listener failed while handling triggered event [{}]", name), e);
+            }
         }
     }
 
@@ -168,8 +206,20 @@ public class SchedulerEngine {
 
         @Override
         public void run() {
-            long triggeredTime = clock.millis();
-            notifyListeners(name, triggeredTime, scheduledTime);
+            final long triggeredTime = clock.millis();
+            try {
+                notifyListeners(name, triggeredTime, scheduledTime);
+            } catch (final Throwable t) {
+                /*
+                 * Allowing the throwable to escape here will lead to be it being caught in FutureTask#run and set as the outcome of this
+                 * task; however, we never inspect the outcomes of these scheduled tasks and so allowing the throwable to escape
+                 * unhandled here could lead to us losing fatal errors. Instead, we rely on ExceptionsHelper#maybeDieOnAnotherThread to
+                 * appropriately dispatch any error to the uncaught exception handler. We should never see an exception here as these do
+                 * not escape from SchedulerEngine#notifyListeners.
+                 */
+                ExceptionsHelper.maybeDieOnAnotherThread(t);
+                throw t;
+            }
             scheduleNextRun(triggeredTime);
         }
 
@@ -177,7 +227,14 @@ public class SchedulerEngine {
             this.scheduledTime = schedule.nextScheduledTimeAfter(startTime, currentTime);
             if (scheduledTime != -1) {
                 long delay = Math.max(0, scheduledTime - currentTime);
-                future = scheduler.schedule(this, delay, TimeUnit.MILLISECONDS);
+                try {
+                    future = scheduler.schedule(this, delay, TimeUnit.MILLISECONDS);
+                } catch (RejectedExecutionException e) {
+                    // ignoring rejections if the scheduler has been shut down already
+                    if (scheduler.isShutdown() == false) {
+                        throw e;
+                    }
+                }
             }
         }
 

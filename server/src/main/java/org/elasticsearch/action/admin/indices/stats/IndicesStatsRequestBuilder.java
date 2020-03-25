@@ -31,7 +31,8 @@ import org.elasticsearch.client.ElasticsearchClient;
  * All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
  */
-public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
+public class IndicesStatsRequestBuilder
+        extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
 
     public IndicesStatsRequestBuilder(ElasticsearchClient client, IndicesStatsAction action) {
         super(client, action, new IndicesStatsRequest());
@@ -50,15 +51,6 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
      */
     public IndicesStatsRequestBuilder clear() {
         request.clear();
-        return this;
-    }
-
-    /**
-     * Document types to return stats for. Mainly affects {@link #setIndexing(boolean)} when
-     * enabled, returning specific indexing stats for those types.
-     */
-    public IndicesStatsRequestBuilder setTypes(String... types) {
-        request.types(types);
         return this;
     }
 

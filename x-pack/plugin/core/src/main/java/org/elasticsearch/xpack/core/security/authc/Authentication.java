@@ -11,31 +11,45 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
-public class Authentication {
+public class Authentication implements ToXContentObject {
 
     private final User user;
     private final RealmRef authenticatedBy;
     private final RealmRef lookedUpBy;
     private final Version version;
+    private final AuthenticationType type;
+    private final Map<String, Object> metadata;
 
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
         this(user, authenticatedBy, lookedUpBy, Version.CURRENT);
     }
 
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy, Version version) {
+        this(user, authenticatedBy, lookedUpBy, version, AuthenticationType.REALM, Collections.emptyMap());
+    }
+
+    public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy, Version version,
+                          AuthenticationType type, Map<String, Object> metadata) {
         this.user = Objects.requireNonNull(user);
         this.authenticatedBy = Objects.requireNonNull(authenticatedBy);
         this.lookedUpBy = lookedUpBy;
         this.version = version;
+        this.type = type;
+        this.metadata = metadata;
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -47,6 +61,8 @@ public class Authentication {
             this.lookedUpBy = null;
         }
         this.version = in.getVersion();
+        type = AuthenticationType.values()[in.readVInt()];
+        metadata = in.readMap();
     }
 
     public User getUser() {
@@ -61,65 +77,28 @@ public class Authentication {
         return lookedUpBy;
     }
 
+    public RealmRef getSourceRealm() {
+        return lookedUpBy == null ? authenticatedBy : lookedUpBy;
+    }
+
     public Version getVersion() {
         return version;
     }
 
-    public static Authentication readFromContext(ThreadContext ctx)
-            throws IOException, IllegalArgumentException {
-        Authentication authentication = ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY);
-        if (authentication != null) {
-            assert ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY) != null;
-            return authentication;
-        }
-
-        String authenticationHeader = ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY);
-        if (authenticationHeader == null) {
-            return null;
-        }
-        return deserializeHeaderAndPutInContext(authenticationHeader, ctx);
+    public AuthenticationType getAuthenticationType() {
+        return type;
     }
 
-    public static Authentication getAuthentication(ThreadContext context) {
-        return context.getTransient(AuthenticationField.AUTHENTICATION_KEY);
-    }
-
-    static Authentication deserializeHeaderAndPutInContext(String header, ThreadContext ctx)
-            throws IOException, IllegalArgumentException {
-        assert ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY) == null;
-
-        Authentication authentication = decode(header);
-        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        return authentication;
-    }
-
-    public static Authentication decode(String header) throws IOException {
-        byte[] bytes = Base64.getDecoder().decode(header);
-        StreamInput input = StreamInput.wrap(bytes);
-        Version version = Version.readVersion(input);
-        input.setVersion(version);
-        return new Authentication(input);
+    public Map<String, Object> getMetadata() {
+        return metadata;
     }
 
     /**
      * Writes the authentication to the context. There must not be an existing authentication in the context and if there is an
      * {@link IllegalStateException} will be thrown
      */
-    public void writeToContext(ThreadContext ctx)
-            throws IOException, IllegalArgumentException {
-        ensureContextDoesNotContainAuthentication(ctx);
-        String header = encode();
-        ctx.putTransient(AuthenticationField.AUTHENTICATION_KEY, this);
-        ctx.putHeader(AuthenticationField.AUTHENTICATION_KEY, header);
-    }
-
-    void ensureContextDoesNotContainAuthentication(ThreadContext ctx) {
-        if (ctx.getTransient(AuthenticationField.AUTHENTICATION_KEY) != null) {
-            if (ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY) == null) {
-                throw new IllegalStateException("authentication present as a transient but not a header");
-            }
-            throw new IllegalStateException("authentication is already present in the context");
-        }
+    public void writeToContext(ThreadContext ctx) throws IOException, IllegalArgumentException {
+        new AuthenticationContextSerializer().writeToContext(this, ctx);
     }
 
     public String encode() throws IOException {
@@ -139,28 +118,71 @@ public class Authentication {
         } else {
             out.writeBoolean(false);
         }
+        out.writeVInt(type.ordinal());
+        out.writeMap(metadata);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         Authentication that = (Authentication) o;
-
-        if (!user.equals(that.user)) return false;
-        if (!authenticatedBy.equals(that.authenticatedBy)) return false;
-        if (lookedUpBy != null ? !lookedUpBy.equals(that.lookedUpBy) : that.lookedUpBy != null) return false;
-        return version.equals(that.version);
+        return user.equals(that.user) &&
+            authenticatedBy.equals(that.authenticatedBy) &&
+            Objects.equals(lookedUpBy, that.lookedUpBy) &&
+            version.equals(that.version) &&
+            type == that.type &&
+            metadata.equals(that.metadata);
     }
 
     @Override
     public int hashCode() {
-        int result = user.hashCode();
-        result = 31 * result + authenticatedBy.hashCode();
-        result = 31 * result + (lookedUpBy != null ? lookedUpBy.hashCode() : 0);
-        result = 31 * result + version.hashCode();
-        return result;
+        return Objects.hash(user, authenticatedBy, lookedUpBy, version, type, metadata);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        toXContentFragment(builder);
+        return builder.endObject();
+    }
+
+    /**
+     * Generates XContent without the start/end object.
+     */
+    public void toXContentFragment(XContentBuilder builder) throws IOException {
+        builder.field(User.Fields.USERNAME.getPreferredName(), user.principal());
+        builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
+        builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
+        builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
+        builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
+        builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
+        builder.startObject(User.Fields.AUTHENTICATION_REALM.getPreferredName());
+        builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
+        builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        builder.endObject();
+        builder.startObject(User.Fields.LOOKUP_REALM.getPreferredName());
+        if (getLookedUpBy() != null) {
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), getLookedUpBy().getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getLookedUpBy().getType());
+        } else {
+            builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
+            builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
+        }
+        builder.endObject();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("Authentication[")
+            .append(user)
+            .append(",type=").append(type)
+            .append(",by=").append(authenticatedBy);
+        if (lookedUpBy != null) {
+            builder.append(",lookup=").append(lookedUpBy);
+        }
+        builder.append("]");
+        return builder.toString();
     }
 
     public static class RealmRef {
@@ -218,6 +240,19 @@ public class Authentication {
             result = 31 * result + type.hashCode();
             return result;
         }
+
+        @Override
+        public String toString() {
+            return "{Realm[" + type + "." + name + "] on Node[" + nodeName + "]}";
+        }
+    }
+
+    public enum AuthenticationType {
+        REALM,
+        API_KEY,
+        TOKEN,
+        ANONYMOUS,
+        INTERNAL
     }
 }
 

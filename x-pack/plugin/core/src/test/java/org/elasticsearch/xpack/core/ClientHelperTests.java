@@ -12,11 +12,13 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -42,32 +44,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ClientHelperTests extends ESTestCase {
-
-    public void testStashContext() {
-        final String origin = randomAlphaOfLengthBetween(4, 16);
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-
-        final boolean setOtherValues = randomBoolean();
-        if (setOtherValues) {
-            threadContext.putTransient("foo", "bar");
-            threadContext.putHeader("foo", "bar");
-        }
-
-        assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
-        ThreadContext.StoredContext storedContext = ClientHelper.stashWithOrigin(threadContext, origin);
-        assertEquals(origin, threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
-        assertNull(threadContext.getTransient("foo"));
-        assertNull(threadContext.getTransient("bar"));
-
-        storedContext.close();
-        assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
-
-        if (setOtherValues) {
-            assertEquals("bar", threadContext.getTransient("foo"));
-            assertEquals("bar", threadContext.getHeader("foo"));
-        }
-    }
-
     public void testExecuteAsyncWrapsListener() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String headerName = randomAlphaOfLengthBetween(4, 16);
@@ -258,7 +234,8 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse());
+        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY));
         when(client.search(any())).thenReturn(searchFuture);
         assertExecutionWithOrigin(Collections.emptyMap(), client);
     }
@@ -271,7 +248,8 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse());
+        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY));
         when(client.search(any())).thenReturn(searchFuture);
         Map<String, String> headers = MapBuilder.<String, String> newMapBuilder().put(AuthenticationField.AUTHENTICATION_KEY, "anything")
                 .put(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything").map();
@@ -291,7 +269,8 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        searchFuture.onResponse(new SearchResponse());
+        searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY));
         when(client.search(any())).thenReturn(searchFuture);
         Map<String, String> unrelatedHeaders = MapBuilder.<String, String> newMapBuilder().put(randomAlphaOfLength(10), "anything").map();
 

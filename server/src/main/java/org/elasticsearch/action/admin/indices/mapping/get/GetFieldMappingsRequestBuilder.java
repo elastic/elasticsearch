@@ -25,7 +25,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 
 /** A helper class to build {@link GetFieldMappingsRequest} objects */
-public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse> {
+public class GetFieldMappingsRequestBuilder
+        extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse> {
 
     public GetFieldMappingsRequestBuilder(ElasticsearchClient client, GetFieldMappingsAction action, String... indices) {
         super(client, action, new GetFieldMappingsRequest().indices(indices));
@@ -38,16 +39,6 @@ public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFiel
 
     public GetFieldMappingsRequestBuilder addIndices(String... indices) {
         request.indices(ArrayUtils.concat(request.indices(), indices));
-        return this;
-    }
-
-    public GetFieldMappingsRequestBuilder setTypes(String... types) {
-        request.types(types);
-        return this;
-    }
-
-    public GetFieldMappingsRequestBuilder addTypes(String... types) {
-        request.types(ArrayUtils.concat(request.types(), types));
         return this;
     }
 

@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -101,18 +101,34 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
             return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);
         }
 
-        final ShardRouting primaryShardRouting;
         try {
-            primaryShardRouting = allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
+            allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
         } catch (IndexNotFoundException | ShardNotFoundException e) {
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }
-        if (primaryShardRouting.unassigned()) {
+
+        ShardRouting primaryShardRouting = null;
+        for (RoutingNode node : allocation.routingNodes()) {
+            for (ShardRouting shard : node) {
+                if (shard.getIndexName().equals(index) && shard.getId() == shardId && shard.primary()) {
+                    primaryShardRouting = shard;
+                    break;
+                }
+            }
+        }
+        if (primaryShardRouting == null) {
             return explainOrThrowRejectedCommand(explain, allocation,
-                "trying to allocate a replica shard [" + index + "][" + shardId + "], while corresponding primary shard is still unassigned");
+                "trying to allocate a replica shard [" + index + "][" + shardId +
+                    "], while corresponding primary shard is still unassigned");
         }
 
-        List<ShardRouting> replicaShardRoutings = allocation.routingTable().shardRoutingTable(index, shardId).replicaShardsWithState(ShardRoutingState.UNASSIGNED);
+        List<ShardRouting> replicaShardRoutings = new ArrayList<>();
+        for (ShardRouting shard : allocation.routingNodes().unassigned()) {
+            if (shard.getIndexName().equals(index) && shard.getId() == shardId && shard.primary() == false) {
+                replicaShardRoutings.add(shard);
+            }
+        }
+
         ShardRouting shardRouting;
         if (replicaShardRoutings.isEmpty()) {
             return explainOrThrowRejectedCommand(explain, allocation,
@@ -127,7 +143,8 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
             if (explain) {
                 return new RerouteExplanation(this, decision);
             }
-            throw new IllegalArgumentException("[" + name() + "] allocation of [" + index + "][" + shardId + "] on node " + discoNode + " is not allowed, reason: " + decision);
+            throw new IllegalArgumentException("[" + name() + "] allocation of [" + index + "][" + shardId + "] on node " + discoNode +
+                " is not allowed, reason: " + decision);
         }
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting);

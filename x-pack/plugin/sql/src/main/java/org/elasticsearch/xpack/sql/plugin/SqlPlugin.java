@@ -31,11 +31,16 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.sql.SqlInfoTransportAction;
+import org.elasticsearch.xpack.sql.SqlUsageTransportAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -47,40 +52,45 @@ import static java.util.Collections.emptyList;
 public class SqlPlugin extends Plugin implements ActionPlugin {
 
     private final boolean enabled;
-    private final SqlLicenseChecker sqlLicenseChecker;
-
-    SqlPlugin(boolean enabled, SqlLicenseChecker sqlLicenseChecker) {
-        this.enabled = enabled;
-        this.sqlLicenseChecker = sqlLicenseChecker;
-    }
+    private final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker(
+        (mode) -> {
+            XPackLicenseState licenseState = getLicenseState();
+            switch (mode) {
+                case JDBC:
+                    if (licenseState.isJdbcAllowed() == false) {
+                        throw LicenseUtils.newComplianceException("jdbc");
+                    }
+                    break;
+                case ODBC:
+                    if (licenseState.isOdbcAllowed() == false) {
+                        throw LicenseUtils.newComplianceException("odbc");
+                    }
+                    break;
+                case PLAIN:
+                case CLI:
+                    if (licenseState.isSqlAllowed() == false) {
+                        throw LicenseUtils.newComplianceException(XPackField.SQL);
+                    }
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown SQL mode " + mode);
+            }
+        }
+    );
 
     public SqlPlugin(Settings settings) {
-        this(XPackSettings.SQL_ENABLED.get(settings), new SqlLicenseChecker(
-                (mode) -> {
-                    XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
-                    switch (mode) {
-                        case JDBC:
-                            if (licenseState.isJdbcAllowed() == false) {
-                                throw LicenseUtils.newComplianceException("jdbc");
-                            }
-                            break;
-                        case PLAIN:
-                            if (licenseState.isSqlAllowed() == false) {
-                                throw LicenseUtils.newComplianceException(XPackField.SQL);
-                            }
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unknown SQL mode " + mode);
-                    }
-                }
-        ));
+        this.enabled = XPackSettings.SQL_ENABLED.get(settings);
     }
+
+    // overridable by tests
+    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
 
         return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
     }
@@ -92,7 +102,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         if (false == enabled) {
             return emptyList();
         }
-        IndexResolver indexResolver = new IndexResolver(client, clusterName);
+        IndexResolver indexResolver = new IndexResolver(client, clusterName, SqlDataTypeRegistry.INSTANCE);
         return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver, namedWriteableRegistry));
     }
 
@@ -106,19 +116,25 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             return emptyList();
         }
 
-        return Arrays.asList(new RestSqlQueryAction(settings, restController),
-                new RestSqlTranslateAction(settings, restController),
-                new RestSqlClearCursorAction(settings, restController));
+        return Arrays.asList(new RestSqlQueryAction(),
+                new RestSqlTranslateAction(),
+                new RestSqlClearCursorAction(),
+                new RestSqlStatsAction());
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.SQL, SqlUsageTransportAction.class);
+        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.SQL, SqlInfoTransportAction.class);
         if (false == enabled) {
-            return emptyList();
+            return Arrays.asList(usageAction, infoAction);
         }
 
         return Arrays.asList(new ActionHandler<>(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
                 new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
-                new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class));
+                new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
+                new ActionHandler<>(SqlStatsAction.INSTANCE, TransportSqlStatsAction.class),
+                usageAction,
+                infoAction);
     }
 }

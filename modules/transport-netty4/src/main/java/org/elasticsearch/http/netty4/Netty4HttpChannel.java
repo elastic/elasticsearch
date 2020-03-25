@@ -20,12 +20,11 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelPromise;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
 
@@ -36,38 +35,12 @@ public class Netty4HttpChannel implements HttpChannel {
 
     Netty4HttpChannel(Channel channel) {
         this.channel = channel;
-        this.channel.closeFuture().addListener(f -> {
-            if (f.isSuccess()) {
-                closeContext.complete(null);
-            } else {
-                Throwable cause = f.cause();
-                if (cause instanceof Error) {
-                    Netty4Utils.maybeDie(cause);
-                    closeContext.completeExceptionally(new Exception(cause));
-                } else {
-                    closeContext.completeExceptionally((Exception) cause);
-                }
-            }
-        });
+        Netty4TcpChannel.addListener(this.channel.closeFuture(), closeContext);
     }
 
     @Override
     public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        ChannelPromise writePromise = channel.newPromise();
-        writePromise.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(null);
-            } else {
-                final Throwable cause = f.cause();
-                Netty4Utils.maybeDie(cause);
-                if (cause instanceof Error) {
-                    listener.onFailure(new Exception(cause));
-                } else {
-                    listener.onFailure((Exception) cause);
-                }
-            }
-        });
-        channel.writeAndFlush(response, writePromise);
+        channel.writeAndFlush(response, Netty4TcpChannel.addPromise(listener, channel));
     }
 
     @Override

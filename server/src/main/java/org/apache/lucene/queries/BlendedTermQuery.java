@@ -22,14 +22,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermContext;
 import org.apache.lucene.index.TermState;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
@@ -39,6 +38,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * BlendedTermQuery can be used to unify term statistics across
@@ -60,7 +61,6 @@ import java.util.Objects;
  * which is the minimum number of documents the terms occurs in.
  * </p>
  */
-// TODO maybe contribute to Lucene
 public abstract class BlendedTermQuery extends Query {
 
     private final Term[] terms;
@@ -84,10 +84,10 @@ public abstract class BlendedTermQuery extends Query {
             return rewritten;
         }
         IndexReaderContext context = reader.getContext();
-        TermContext[] ctx = new TermContext[terms.length];
+        TermStates[] ctx = new TermStates[terms.length];
         int[] docFreqs = new int[ctx.length];
         for (int i = 0; i < terms.length; i++) {
-            ctx[i] = TermContext.build(context, terms[i]);
+            ctx[i] = TermStates.build(context, terms[i], true);
             docFreqs[i] = ctx[i].docFreq();
         }
 
@@ -96,16 +96,16 @@ public abstract class BlendedTermQuery extends Query {
         return topLevelQuery(terms, ctx, docFreqs, maxDoc);
     }
 
-    protected abstract Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc);
+    protected abstract Query topLevelQuery(Term[] terms, TermStates[] ctx, int[] docFreqs, int maxDoc);
 
-    protected void blend(final TermContext[] contexts, int maxDoc, IndexReader reader) throws IOException {
+    protected void blend(final TermStates[] contexts, int maxDoc, IndexReader reader) throws IOException {
         if (contexts.length <= 1) {
             return;
         }
         int max = 0;
         long minSumTTF = Long.MAX_VALUE;
         for (int i = 0; i < contexts.length; i++) {
-            TermContext ctx = contexts[i];
+            TermStates ctx = contexts[i];
             int df = ctx.docFreq();
             // we use the max here since it's the only "true" estimation we can make here
             // at least max(df) documents have that term. Sum or Averages don't seem
@@ -113,23 +113,19 @@ public abstract class BlendedTermQuery extends Query {
             // TODO: Maybe it could also make sense to assume independent distributions of documents and eg. have:
             //   df = df1 + df2 - (df1 * df2 / maxDoc)?
             max = Math.max(df, max);
-            if (minSumTTF != -1 && ctx.totalTermFreq() != -1) {
+            if (ctx.totalTermFreq() > 0) {
                 // we need to find out the minimum sumTTF to adjust the statistics
                 // otherwise the statistics don't match
                 minSumTTF = Math.min(minSumTTF, reader.getSumTotalTermFreq(terms[i].field()));
-            } else {
-                minSumTTF = -1;
             }
-
         }
-        if (minSumTTF != -1 && maxDoc > minSumTTF) {
+        if (maxDoc > minSumTTF) {
             maxDoc = (int)minSumTTF;
         }
-
         if (max == 0) {
             return; // we are done that term doesn't exist at all
         }
-        long sumTTF = minSumTTF == -1 ? -1 : 0;
+        long sumTTF = 0;
         final int[] tieBreak = new int[contexts.length];
         for (int i = 0; i < tieBreak.length; ++i) {
             tieBreak[i] = i;
@@ -155,7 +151,7 @@ public abstract class BlendedTermQuery extends Query {
         // the more popular (more frequent) fields
         // that acts as a tie breaker
         for (int i : tieBreak) {
-            TermContext ctx = contexts[i];
+            TermStates ctx = contexts[i];
             if (ctx.docFreq() == 0) {
                 break;
             }
@@ -165,11 +161,7 @@ public abstract class BlendedTermQuery extends Query {
             }
             contexts[i] = ctx = adjustDF(reader.getContext(), ctx, Math.min(maxDoc, actualDf));
             prev = current;
-            if (sumTTF >= 0 && ctx.totalTermFreq() >= 0) {
-                sumTTF += ctx.totalTermFreq();
-            } else {
-                sumTTF = -1;  // omit once TF is omitted anywhere!
-            }
+            sumTTF += ctx.totalTermFreq();
         }
         sumTTF = Math.min(sumTTF, minSumTTF);
         for (int i = 0; i < contexts.length; i++) {
@@ -177,18 +169,13 @@ public abstract class BlendedTermQuery extends Query {
             if (df == 0) {
                 continue;
             }
-            // the blended sumTTF can't be greater than the sumTTTF on the field
-            final long fixedTTF = sumTTF == -1 ? -1 : sumTTF;
-            contexts[i] = adjustTTF(reader.getContext(), contexts[i], fixedTTF);
+            contexts[i] = adjustTTF(reader.getContext(), contexts[i], sumTTF);
         }
     }
 
-    private TermContext adjustTTF(IndexReaderContext readerContext, TermContext termContext, long sumTTF) {
+    private TermStates adjustTTF(IndexReaderContext readerContext, TermStates termContext, long sumTTF) throws IOException {
         assert termContext.wasBuiltFor(readerContext);
-        if (sumTTF == -1 && termContext.totalTermFreq() == -1) {
-            return termContext;
-        }
-        TermContext newTermContext = new TermContext(readerContext);
+        TermStates newTermContext = new TermStates(readerContext);
         List<LeafReaderContext> leaves = readerContext.leaves();
         final int len;
         if (leaves == null) {
@@ -199,7 +186,7 @@ public abstract class BlendedTermQuery extends Query {
         int df = termContext.docFreq();
         long ttf = sumTTF;
         for (int i = 0; i < len; i++) {
-            TermState termState = termContext.get(i);
+            TermState termState = termContext.get(leaves.get(i));
             if (termState == null) {
                 continue;
             }
@@ -210,15 +197,10 @@ public abstract class BlendedTermQuery extends Query {
         return newTermContext;
     }
 
-    private static TermContext adjustDF(IndexReaderContext readerContext, TermContext ctx, int newDocFreq) {
+    private static TermStates adjustDF(IndexReaderContext readerContext, TermStates ctx, int newDocFreq) throws IOException {
         assert ctx.wasBuiltFor(readerContext);
         // Use a value of ttf that is consistent with the doc freq (ie. gte)
-        long newTTF;
-        if (ctx.totalTermFreq() < 0) {
-            newTTF = -1;
-        } else {
-            newTTF = Math.max(ctx.totalTermFreq(), newDocFreq);
-        }
+        long newTTF = Math.max(ctx.totalTermFreq(), newDocFreq);
         List<LeafReaderContext> leaves = readerContext.leaves();
         final int len;
         if (leaves == null) {
@@ -226,9 +208,9 @@ public abstract class BlendedTermQuery extends Query {
         } else {
             len = leaves.size();
         }
-        TermContext newCtx = new TermContext(readerContext);
+        TermStates newCtx = new TermStates(readerContext);
         for (int i = 0; i < len; ++i) {
-            TermState termState = ctx.get(i);
+            TermState termState = ctx.get(leaves.get(i));
             if (termState == null) {
                 continue;
             }
@@ -264,75 +246,93 @@ public abstract class BlendedTermQuery extends Query {
         return builder.toString();
     }
 
-    private volatile Term[] equalTerms = null;
-
-    private Term[] equalsTerms() {
-        if (terms.length == 1) {
-            return terms;
+    @Override
+    public void visit(QueryVisitor visitor) {
+        Set<String> fields = Arrays.stream(terms).map(Term::field).collect(Collectors.toUnmodifiableSet());
+        for (String field : fields) {
+            if (visitor.acceptField(field) == false) {
+                return;
+            }
         }
-        if (equalTerms == null) {
+        visitor.getSubVisitor(BooleanClause.Occur.SHOULD, this).consumeTerms(this, terms);
+    }
+
+    private class TermAndBoost implements Comparable<TermAndBoost> {
+        protected final Term term;
+        protected float boost;
+
+        protected TermAndBoost(Term term, float boost) {
+            this.term = term;
+            this.boost = boost;
+        }
+
+        @Override
+        public int compareTo(TermAndBoost other) {
+            int compareTo = term.compareTo(other.term);
+            if (compareTo == 0) {
+                compareTo = Float.compare(boost, other.boost);
+            }
+            return compareTo;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o instanceof TermAndBoost == false) {
+                return false;
+            }
+
+            TermAndBoost that = (TermAndBoost) o;
+            return term.equals(that.term) && (Float.compare(boost, that.boost) == 0);
+        }
+
+        @Override
+        public int hashCode() {
+            return  31 * term.hashCode() + Float.hashCode(boost);
+        }
+    }
+
+    private volatile TermAndBoost[] equalTermsAndBoosts = null;
+
+    private TermAndBoost[] equalsTermsAndBoosts() {
+        if (equalTermsAndBoosts != null) {
+            return equalTermsAndBoosts;
+        }
+        if (terms.length == 1) {
+            float boost = (boosts != null ? boosts[0] : 1f);
+            equalTermsAndBoosts = new TermAndBoost[] {new TermAndBoost(terms[0], boost)};
+        } else {
             // sort the terms to make sure equals and hashCode are consistent
             // this should be a very small cost and equivalent to a HashSet but less object creation
-            final Term[] t = new Term[terms.length];
-            System.arraycopy(terms, 0, t, 0, terms.length);
-            ArrayUtil.timSort(t);
-            equalTerms = t;
+            equalTermsAndBoosts = new TermAndBoost[terms.length];
+            for (int i = 0; i < terms.length; i++) {
+                float boost = (boosts != null ? boosts[i] : 1f);
+                equalTermsAndBoosts[i] = new TermAndBoost(terms[i], boost);
+            }
+            ArrayUtil.timSort(equalTermsAndBoosts);
         }
-        return equalTerms;
-
+        return equalTermsAndBoosts;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (sameClassAs(o) == false) return false;
+        if (this == o) {
+            return true;
+        }
+        if (sameClassAs(o) == false) {
+            return false;
+        }
 
         BlendedTermQuery that = (BlendedTermQuery) o;
-        return Arrays.equals(equalsTerms(), that.equalsTerms());
+        return Arrays.equals(equalsTermsAndBoosts(), that.equalsTermsAndBoosts());
+
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), Arrays.hashCode(equalsTerms()));
-    }
-
-    public static BlendedTermQuery commonTermsBlendedQuery(Term[] terms, final float[] boosts, final float maxTermFrequency) {
-        return new BlendedTermQuery(terms, boosts) {
-            @Override
-            protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
-                BooleanQuery.Builder highBuilder = new BooleanQuery.Builder();
-                BooleanQuery.Builder lowBuilder = new BooleanQuery.Builder();
-                for (int i = 0; i < terms.length; i++) {
-                    Query query = new TermQuery(terms[i], ctx[i]);
-                    if (boosts != null && boosts[i] != 1f) {
-                        query = new BoostQuery(query, boosts[i]);
-                    }
-                    if ((maxTermFrequency >= 1f && docFreqs[i] > maxTermFrequency)
-                            || (docFreqs[i] > (int) Math.ceil(maxTermFrequency
-                            * maxDoc))) {
-                        highBuilder.add(query, BooleanClause.Occur.SHOULD);
-                    } else {
-                        lowBuilder.add(query, BooleanClause.Occur.SHOULD);
-                    }
-                }
-                BooleanQuery high = highBuilder.build();
-                BooleanQuery low = lowBuilder.build();
-                if (low.clauses().isEmpty()) {
-                    BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
-                    for (BooleanClause booleanClause : high) {
-                        queryBuilder.add(booleanClause.getQuery(), Occur.MUST);
-                    }
-                    return queryBuilder.build();
-                } else if (high.clauses().isEmpty()) {
-                    return low;
-                } else {
-                    return new BooleanQuery.Builder()
-                        .add(high, BooleanClause.Occur.SHOULD)
-                        .add(low, BooleanClause.Occur.MUST)
-                        .build();
-                }
-            }
-        };
+        return Objects.hash(classHash(), Arrays.hashCode(equalsTermsAndBoosts()));
     }
 
     public static BlendedTermQuery dismaxBlendedQuery(Term[] terms, final float tieBreakerMultiplier) {
@@ -342,7 +342,7 @@ public abstract class BlendedTermQuery extends Query {
     public static BlendedTermQuery dismaxBlendedQuery(Term[] terms, final float[] boosts, final float tieBreakerMultiplier) {
         return new BlendedTermQuery(terms, boosts) {
             @Override
-            protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
+            protected Query topLevelQuery(Term[] terms, TermStates[] ctx, int[] docFreqs, int maxDoc) {
                 List<Query> queries = new ArrayList<>(ctx.length);
                 for (int i = 0; i < terms.length; i++) {
                     Query query = new TermQuery(terms[i], ctx[i]);

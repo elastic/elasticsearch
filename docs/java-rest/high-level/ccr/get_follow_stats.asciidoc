@@ -1,0 +1,35 @@
+--
+:api: ccr-get-follow-stats
+:request: FollowStatsRequest
+:response: FollowStatsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get Follow Stats API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Get Follow Stats API allows you to get follow statistics for specific follower indices.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The follower index to get follow statistics for.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ includes follow statistics for the specified follower indices
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The follow stats for specified follower indices.
+
+include::../execution.asciidoc[]
+
+

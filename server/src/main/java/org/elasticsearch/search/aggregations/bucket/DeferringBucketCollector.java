@@ -20,13 +20,17 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 /**
  * A {@link BucketCollector} that records collected doc IDs and buckets and
@@ -62,8 +66,8 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public boolean needsScores() {
-            return in.needsScores();
+        public ScoreMode scoreMode() {
+            return in.scoreMode();
         }
 
         @Override
@@ -119,6 +123,15 @@ public abstract class DeferringBucketCollector extends BucketCollector {
                     "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
         }
 
+        @Override
+        public Aggregator resolveSortPath(PathElement next, Iterator<PathElement> path) {
+            return in.resolveSortPath(next, path);
+        }
+
+        @Override
+        public BucketComparator bucketComparator(String key, SortOrder order) {
+            throw new UnsupportedOperationException("Can't sort on deferred aggregations");
+        }
     }
 
 }

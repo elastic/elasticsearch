@@ -5,32 +5,31 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.entity.InputStreamEntity;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Map;
 
@@ -39,7 +38,7 @@ import java.util.Map;
  */
 class HttpExportBulk extends ExportBulk {
 
-    private static final Logger logger = Loggers.getLogger(HttpExportBulk.class);
+    private static final Logger logger = LogManager.getLogger(HttpExportBulk.class);
 
     /**
      * The {@link RestClient} managed by the {@link HttpExporter}.
@@ -54,15 +53,15 @@ class HttpExportBulk extends ExportBulk {
     /**
      * {@link DateTimeFormatter} used to resolve timestamped index name.
      */
-    private final DateTimeFormatter formatter;
+    private final DateFormatter formatter;
 
     /**
      * The bytes payload that represents the bulk body is created via {@link #doAdd(Collection)}.
      */
-    private byte[] payload = null;
+    private BytesReference payload = null;
 
     HttpExportBulk(final String name, final RestClient client, final Map<String, String> parameters,
-                   final DateTimeFormatter dateTimeFormatter, final ThreadContext threadContext) {
+                   final DateFormatter dateTimeFormatter, final ThreadContext threadContext) {
         super(name, threadContext);
 
         this.client = client;
@@ -76,12 +75,11 @@ class HttpExportBulk extends ExportBulk {
             if (docs != null && docs.isEmpty() == false) {
                 try (BytesStreamOutput payload = new BytesStreamOutput()) {
                     for (MonitoringDoc monitoringDoc : docs) {
-                        // any failure caused by an individual doc will be written as an empty byte[], thus not impacting the rest
-                        payload.write(toBulkBytes(monitoringDoc));
+                        writeDocument(monitoringDoc, payload);
                     }
 
                     // store the payload until we flush
-                    this.payload = BytesReference.toBytes(payload.bytes());
+                    this.payload = payload.bytes();
                 }
             }
         } catch (Exception e) {
@@ -93,10 +91,21 @@ class HttpExportBulk extends ExportBulk {
     public void doFlush(ActionListener<Void> listener) throws ExportException {
         if (payload == null) {
             listener.onFailure(new ExportException("unable to send documents because none were loaded for export bulk [{}]", name));
-        } else if (payload.length != 0) {
-            final HttpEntity body = new ByteArrayEntity(payload, ContentType.APPLICATION_JSON);
+        } else if (payload.length() != 0) {
+            final Request request = new Request("POST", "/_bulk");
+            for (Map.Entry<String, String> param : params.entrySet()) {
+                request.addParameter(param.getKey(), param.getValue());
+            }
+            try {
+                request.setEntity(new InputStreamEntity(payload.streamInput(), payload.length(), ContentType.APPLICATION_JSON));
+            } catch (IOException e) {
+                listener.onFailure(e);
+                return;
+            }
+            // null out serialized docs to make things easier on the GC
+            payload = null;
 
-            client.performRequestAsync("POST", "/_bulk", params, body, new ResponseListener() {
+            client.performRequestAsync(request, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     try {
@@ -118,54 +127,43 @@ class HttpExportBulk extends ExportBulk {
         }
     }
 
-    @Override
-    protected void doClose(ActionListener<Void> listener) {
-        listener.onResponse(null);
-    }
-
-    private byte[] toBulkBytes(final MonitoringDoc doc) throws IOException {
+    private void writeDocument(MonitoringDoc doc, StreamOutput out) throws IOException {
         final XContentType xContentType = XContentType.JSON;
         final XContent xContent = xContentType.xContent();
 
         final String index = MonitoringTemplateUtils.indexName(formatter, doc.getSystem(), doc.getTimestamp());
         final String id = doc.getId();
 
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            try (XContentBuilder builder = new XContentBuilder(xContent, out)) {
-                // Builds the bulk action metadata line
-                builder.startObject();
+        try (XContentBuilder builder = new XContentBuilder(xContent, out)) {
+            // Builds the bulk action metadata line
+            builder.startObject();
+            {
+                builder.startObject("index");
                 {
-                    builder.startObject("index");
-                    {
-                        builder.field("_index", index);
-                        builder.field("_type", "doc");
-                        if (id != null) {
-                            builder.field("_id", id);
-                        }
+                    builder.field("_index", index);
+                    if (id != null) {
+                        builder.field("_id", id);
                     }
-                    builder.endObject();
                 }
                 builder.endObject();
             }
-
-            // Adds action metadata line bulk separator
-            out.write(xContent.streamSeparator());
-
-            // Adds the source of the monitoring document
-            final BytesRef source = XContentHelper.toXContent(doc, xContentType, false).toBytesRef();
-            out.write(source.bytes, source.offset, source.length);
-
-            // Adds final bulk separator
-            out.write(xContent.streamSeparator());
-
-            logger.trace("added index request [index={}, type={}, id={}]", index, doc.getType(), id);
-
-            return BytesReference.toBytes(out.bytes());
-        } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to render document [{}], skipping it [{}]", doc, name), e);
-
-            return BytesRef.EMPTY_BYTES;
+            builder.endObject();
         }
-    }
 
+        // Adds action metadata line bulk separator
+        out.write(xContent.streamSeparator());
+
+        // Adds the source of the monitoring document
+        try (XContentBuilder builder = new XContentBuilder(xContent, out)) {
+            doc.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+
+        // Adds final bulk separator
+        out.write(xContent.streamSeparator());
+
+        logger.trace(
+            "http exporter [{}] - added index request [index={}, id={}, monitoring data type={}]",
+            name, index, id, doc.getType()
+        );
+    }
 }

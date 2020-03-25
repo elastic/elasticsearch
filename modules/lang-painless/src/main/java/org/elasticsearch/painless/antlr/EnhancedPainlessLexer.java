@@ -75,7 +75,7 @@ final class EnhancedPainlessLexer extends PainlessLexer {
 
     @Override
     protected boolean isType(String name) {
-        return painlessLookup.isSimplePainlessType(name);
+        return painlessLookup.isValidCanonicalClassName(name);
     }
 
     @Override

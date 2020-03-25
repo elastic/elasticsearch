@@ -75,7 +75,7 @@ public interface ValueSource {
             // This check is here because the DEFAULT_TEMPLATE_LANG(mustache) is not
             // installed for use by REST tests. `value` will not be
             // modified if templating is not available
-            if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG)) {
+            if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) && ((String) value).contains("{{")) {
                 Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, (String) value, Collections.emptyMap());
                 return new TemplatedValue(scriptService.compile(script, TemplateScript.CONTEXT));
             } else {

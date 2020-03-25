@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -28,22 +29,24 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction<DeleteStoredScriptRequest,
-        DeleteStoredScriptResponse> {
+import java.io.IOException;
+
+public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction<DeleteStoredScriptRequest, AcknowledgedResponse> {
 
     private final ScriptService scriptService;
 
     @Inject
-    public TransportDeleteStoredScriptAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                             ThreadPool threadPool, ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
-        super(settings, DeleteStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteStoredScriptRequest::new);
+    public TransportDeleteStoredScriptAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                             ScriptService scriptService) {
+        super(DeleteStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                DeleteStoredScriptRequest::new, indexNameExpressionResolver);
         this.scriptService = scriptService;
     }
 
@@ -53,13 +56,13 @@ public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction
     }
 
     @Override
-    protected DeleteStoredScriptResponse newResponse() {
-        return new DeleteStoredScriptResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(DeleteStoredScriptRequest request, ClusterState state,
-                                   ActionListener<DeleteStoredScriptResponse> listener) throws Exception {
+    protected void masterOperation(Task task, DeleteStoredScriptRequest request, ClusterState state,
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
         scriptService.deleteStoredScript(clusterService, request, listener);
     }
 

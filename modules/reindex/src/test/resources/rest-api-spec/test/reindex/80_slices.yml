@@ -3,25 +3,21 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      3
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      4
         body:    { "text": "test" }
   - do:
@@ -65,25 +61,21 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      3
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      4
         body:    { "text": "test" }
   - do:
@@ -171,6 +163,7 @@
       indices.refresh: {}
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .tasks
   - match: { hits.total: 1 }
 
@@ -180,37 +173,31 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      3
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      4
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      5
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      6
         body:    { "text": "test" }
   - do:
@@ -288,6 +275,7 @@
       indices.refresh: {}
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .tasks
   - match: { hits.total: 1 }
 
@@ -304,25 +292,21 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      3
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    foo
         id:      4
         body:    { "text": "test" }
   - do:

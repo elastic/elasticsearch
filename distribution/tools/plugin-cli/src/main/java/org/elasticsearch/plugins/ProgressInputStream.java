@@ -71,7 +71,7 @@ abstract class ProgressInputStream extends FilterInputStream {
             count += byteCount;
             // rounding up to 100% would mean we say we are done, before we are...
             // this also catches issues, when expectedTotalSize was guessed wrong
-            int percent = Math.min(99, (int) Math.floor(100.0*count/expectedTotalSize));
+            int percent = Math.min(99, (int) Math.floor(100.0 * count / expectedTotalSize));
             if (percent > currentPercent) {
                 currentPercent = percent;
                 onProgress(percent);

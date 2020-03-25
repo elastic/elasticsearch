@@ -10,7 +10,7 @@ The license can be added or updated using the `putLicense()` method:
 --------------------------------------------------
 include-tagged::{doc-tests}/LicensingDocumentationIT.java[put-license-execute]
 --------------------------------------------------
-<1> Set the categories of information to retrieve. The the default is to
+<1> Set the categories of information to retrieve. The default is to
 return no information which is useful for checking if {xpack} is installed
 but not much else.
 <2> A JSON document containing the license information.

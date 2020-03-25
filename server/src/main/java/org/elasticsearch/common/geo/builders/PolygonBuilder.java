@@ -19,12 +19,6 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.LinearRing;
-import org.locationtech.jts.geom.MultiPolygon;
-import org.locationtech.jts.geom.Polygon;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -32,6 +26,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LinearRing;
+import org.locationtech.jts.geom.MultiPolygon;
+import org.locationtech.jts.geom.Polygon;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
@@ -46,12 +46,14 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.apache.lucene.geo.GeoUtils.orient;
+
 /**
  * The {@link PolygonBuilder} implements the groundwork to create polygons. This contains
  * Methods to wrap polygons at the dateline and building shapes from the data held by the
  * builder.
  */
-public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
+public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geometry.Geometry, PolygonBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
 
@@ -224,8 +226,13 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
     }
 
     @Override
-    public JtsGeometry build() {
-        return jtsGeometry(buildGeometry(FACTORY, wrapdateline));
+    public JtsGeometry buildS4J() {
+        return jtsGeometry(buildS4JGeometry(FACTORY, wrapdateline));
+    }
+
+    @Override
+    public org.elasticsearch.geometry.Geometry buildGeometry() {
+        return toPolygonGeometry();
     }
 
     protected XContentBuilder coordinatesArray(XContentBuilder builder, Params params) throws IOException {
@@ -248,32 +255,46 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return builder;
     }
 
-    public Geometry buildGeometry(GeometryFactory factory, boolean fixDateline) {
+    public Geometry buildS4JGeometry(GeometryFactory factory, boolean fixDateline) {
         if(fixDateline) {
             Coordinate[][][] polygons = coordinates();
             return polygons.length == 1
-                    ? polygon(factory, polygons[0])
-                    : multipolygon(factory, polygons);
+                    ? polygonS4J(factory, polygons[0])
+                    : multipolygonS4J(factory, polygons);
         } else {
-            return toPolygon(factory);
+            return toPolygonS4J(factory);
         }
     }
 
-    public Polygon toPolygon() {
-        return toPolygon(FACTORY);
+    public Polygon toPolygonS4J() {
+        return toPolygonS4J(FACTORY);
     }
 
-    protected Polygon toPolygon(GeometryFactory factory) {
-        final LinearRing shell = linearRing(factory, this.shell.coordinates);
+    protected Polygon toPolygonS4J(GeometryFactory factory) {
+        final LinearRing shell = linearRingS4J(factory, this.shell.coordinates);
         final LinearRing[] holes = new LinearRing[this.holes.size()];
         Iterator<LineStringBuilder> iterator = this.holes.iterator();
         for (int i = 0; iterator.hasNext(); i++) {
-            holes[i] = linearRing(factory, iterator.next().coordinates);
+            holes[i] = linearRingS4J(factory, iterator.next().coordinates);
         }
         return factory.createPolygon(shell, holes);
     }
 
-    protected static LinearRing linearRing(GeometryFactory factory, List<Coordinate> coordinates) {
+    public org.elasticsearch.geometry.Polygon toPolygonGeometry() {
+        final List<org.elasticsearch.geometry.LinearRing> holes = new ArrayList<>(this.holes.size());
+        for (int i = 0; i < this.holes.size(); ++i) {
+            holes.add(linearRing(this.holes.get(i).coordinates));
+        }
+        return new org.elasticsearch.geometry.Polygon(linearRing(this.shell.coordinates), holes);
+    }
+
+    protected static org.elasticsearch.geometry.LinearRing linearRing(List<Coordinate> coordinates) {
+        return new org.elasticsearch.geometry.LinearRing(coordinates.stream().mapToDouble(i -> i.x).toArray(),
+            coordinates.stream().mapToDouble(i -> i.y).toArray()
+        );
+    }
+
+    protected static LinearRing linearRingS4J(GeometryFactory factory, List<Coordinate> coordinates) {
         return factory.createLinearRing(coordinates.toArray(new Coordinate[coordinates.size()]));
     }
 
@@ -291,7 +312,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return shell.numDimensions();
     }
 
-    protected static Polygon polygon(GeometryFactory factory, Coordinate[][] polygon) {
+    protected static Polygon polygonS4J(GeometryFactory factory, Coordinate[][] polygon) {
         LinearRing shell = factory.createLinearRing(polygon[0]);
         LinearRing[] holes;
 
@@ -316,10 +337,10 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
      * @param polygons definition of polygons
      * @return a new Multipolygon
      */
-    protected static MultiPolygon multipolygon(GeometryFactory factory, Coordinate[][][] polygons) {
+    protected static MultiPolygon multipolygonS4J(GeometryFactory factory, Coordinate[][][] polygons) {
         Polygon[] polygonSet = new Polygon[polygons.length];
         for (int i = 0; i < polygonSet.length; i++) {
-            polygonSet[i] = polygon(factory, polygons[i]);
+            polygonSet[i] = polygonS4J(factory, polygons[i]);
         }
         return factory.createMultiPolygon(polygonSet);
     }
@@ -333,7 +354,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
      * @param edges a list of edges to which all edges of the component will be added (could be <code>null</code>)
      * @return number of edges that belong to this component
      */
-    private static int component(final Edge edge, final int id, final ArrayList<Edge> edges) {
+    private static int component(final Edge edge, final int id, final ArrayList<Edge> edges, double[] partitionPoint) {
         // find a coordinate that is not part of the dateline
         Edge any = edge;
         while(any.coordinate.x == +DATELINE || any.coordinate.x == -DATELINE) {
@@ -365,6 +386,9 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
             if (edges != null) {
                 // found a closed loop - we have two connected components so we need to slice into two distinct components
                 if (visitedEdge.containsKey(current.coordinate)) {
+                    partitionPoint[0] = current.coordinate.x;
+                    partitionPoint[1] = current.coordinate.y;
+                    partitionPoint[2] = current.coordinate.z;
                     if (connectedComponents > 0 && current.next != edge) {
                         throw new InvalidShapeException("Shape contains more than one shared point");
                     }
@@ -406,9 +430,19 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
      * @param coordinates Array of coordinates to write the result to
      * @return the coordinates parameter
      */
-    private static Coordinate[] coordinates(Edge component, Coordinate[] coordinates) {
+    private static Coordinate[] coordinates(Edge component, Coordinate[] coordinates, double[] partitionPoint) {
         for (int i = 0; i < coordinates.length; i++) {
             coordinates[i] = (component = component.next).coordinate;
+        }
+        // First and last coordinates must be equal
+        if (coordinates[0].equals(coordinates[coordinates.length - 1]) == false) {
+            if (partitionPoint[2] == Double.NaN) {
+                throw new InvalidShapeException("Self-intersection at or near point ["
+                    + partitionPoint[0] + "," + partitionPoint[1] + "]");
+            } else {
+                throw new InvalidShapeException("Self-intersection at or near point ["
+                    + partitionPoint[0] + "," + partitionPoint[1] + "," + partitionPoint[2] + "]");
+            }
         }
         return coordinates;
     }
@@ -439,8 +473,9 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         final Coordinate[][] points = new Coordinate[numHoles][];
 
         for (int i = 0; i < numHoles; i++) {
-            int length = component(holes[i], -(i+1), null); // mark as visited by inverting the sign
-            points[i] = coordinates(holes[i], new Coordinate[length+1]);
+            double[]  partitionPoint = new double[3];
+            int length = component(holes[i], -(i+1), null, partitionPoint); // mark as visited by inverting the sign
+            points[i] = coordinates(holes[i], new Coordinate[length+1], partitionPoint);
         }
 
         return points;
@@ -451,9 +486,10 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
 
         for (int i = 0; i < edges.length; i++) {
             if (edges[i].component >= 0) {
-                int length = component(edges[i], -(components.size()+numHoles+1), mainEdges);
+                double[]  partitionPoint = new double[3];
+                int length = component(edges[i], -(components.size()+numHoles+1), mainEdges, partitionPoint);
                 List<Coordinate[]> component = new ArrayList<>();
-                component.add(coordinates(edges[i], new Coordinate[length+1]));
+                component.add(coordinates(edges[i], new Coordinate[length+1], partitionPoint));
                 components.add(component);
             }
         }
@@ -642,14 +678,8 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
      */
     private static Edge[] ring(int component, boolean direction, boolean handedness,
                                  Coordinate[] points, int offset, Edge[] edges, int toffset, int length, final AtomicBoolean translated) {
-        // calculate the direction of the points:
-        // find the point a the top of the set and check its
-        // neighbors orientation. So direction is equivalent
-        // to clockwise/counterclockwise
-        final int top = top(points, offset, length);
-        final int prev = (offset + ((top + length - 1) % length));
-        final int next = (offset + ((top + 1) % length));
-        boolean orientation = points[offset + prev].x > points[offset + next].x;
+
+        boolean orientation = getOrientation(points, offset, length);
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
@@ -678,6 +708,35 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
     }
 
+    /**
+     * @return whether the points are clockwise (true) or anticlockwise (false)
+     */
+    private static boolean getOrientation(Coordinate[] points, int offset, int length) {
+        // calculate the direction of the points: find the southernmost point
+        // and check its neighbors orientation.
+
+        final int top = top(points, offset, length);
+        final int prev = (top + length - 1) % length;
+        final int next = (top + 1) % length;
+
+        final int determinantSign = orient(
+            points[offset + prev].x, points[offset + prev].y,
+            points[offset + top].x, points[offset + top].y,
+            points[offset + next].x, points[offset + next].y);
+
+        if (determinantSign == 0) {
+            // Points are collinear, but `top` is not in the middle if so, so the edges either side of `top` are intersecting.
+            throw new InvalidShapeException("Cannot determine orientation: edges adjacent to ("
+                + points[offset + top].x + "," + points[offset +top].y + ") coincide");
+        }
+
+        return determinantSign < 0;
+    }
+
+    /**
+     * @return the (offset) index of the point that is furthest west amongst
+     * those points that are the furthest south in the set.
+     */
     private static int top(Coordinate[] points, int offset, int length) {
         int top = 0; // we start at 1 here since top points to 0
         for (int i = 1; i < length; i++) {

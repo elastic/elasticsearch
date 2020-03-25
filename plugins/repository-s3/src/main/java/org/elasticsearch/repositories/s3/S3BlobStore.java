@@ -20,28 +20,20 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.DeleteObjectsRequest;
-import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Locale;
 
-class S3BlobStore extends AbstractComponent implements BlobStore {
+class S3BlobStore implements BlobStore {
 
     private final S3Service service;
-
-    private final String clientName;
 
     private final String bucket;
 
@@ -53,30 +45,18 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final StorageClass storageClass;
 
-    S3BlobStore(Settings settings, S3Service service, String clientName, String bucket, boolean serverSideEncryption,
-                ByteSizeValue bufferSize, String cannedACL, String storageClass) {
-        super(settings);
+    private final RepositoryMetaData repositoryMetaData;
+
+    S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
+                ByteSizeValue bufferSize, String cannedACL, String storageClass,
+                RepositoryMetaData repositoryMetaData) {
         this.service = service;
-        this.clientName = clientName;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
-
-        // Note: the method client.doesBucketExist() may return 'true' is the bucket exists
-        // but we don't have access to it (ie, 403 Forbidden response code)
-        // Also, if invalid security credentials are used to execute this method, the
-        // client is not able to distinguish between bucket permission errors and
-        // invalid credential errors, and this method could return an incorrect result.
-        try (AmazonS3Reference clientReference = clientReference()) {
-            SocketAccess.doPrivilegedVoid(() -> {
-                if (clientReference.client().doesBucketExist(bucket) == false) {
-                    throw new IllegalArgumentException("The bucket [" + bucket + "] does not exist. Please create it before "
-                            + " creating an s3 snapshot repository backed by it.");
-                }
-            });
-        }
+        this.repositoryMetaData = repositoryMetaData;
     }
 
     @Override
@@ -85,7 +65,11 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
-        return service.client(clientName);
+        return service.client(repositoryMetaData);
+    }
+
+    int getMaxRetries() {
+        return service.settings(repositoryMetaData).maxRetries;
     }
 
     public String bucket() {
@@ -106,50 +90,6 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
     }
 
     @Override
-    public void delete(BlobPath path) {
-        try (AmazonS3Reference clientReference = clientReference()) {
-            ObjectListing prevListing = null;
-            // From
-            // http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
-            // we can do at most 1K objects per delete
-            // We don't know the bucket name until first object listing
-            DeleteObjectsRequest multiObjectDeleteRequest = null;
-            final ArrayList<KeyVersion> keys = new ArrayList<>();
-            while (true) {
-                ObjectListing list;
-                if (prevListing != null) {
-                    final ObjectListing finalPrevListing = prevListing;
-                    list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
-                } else {
-                    list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(bucket, path.buildAsString()));
-                    multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
-                }
-                for (final S3ObjectSummary summary : list.getObjectSummaries()) {
-                    keys.add(new KeyVersion(summary.getKey()));
-                    // Every 500 objects batch the delete request
-                    if (keys.size() > 500) {
-                        multiObjectDeleteRequest.setKeys(keys);
-                        final DeleteObjectsRequest finalMultiObjectDeleteRequest = multiObjectDeleteRequest;
-                        SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(finalMultiObjectDeleteRequest));
-                        multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
-                        keys.clear();
-                    }
-                }
-                if (list.isTruncated()) {
-                    prevListing = list;
-                } else {
-                    break;
-                }
-            }
-            if (!keys.isEmpty()) {
-                multiObjectDeleteRequest.setKeys(keys);
-                final DeleteObjectsRequest finalMultiObjectDeleteRequest = multiObjectDeleteRequest;
-                SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(finalMultiObjectDeleteRequest));
-            }
-        }
-    }
-
-    @Override
     public void close() throws IOException {
         this.service.close();
     }
@@ -158,7 +98,9 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         return cannedACL;
     }
 
-    public StorageClass getStorageClass() { return storageClass; }
+    public StorageClass getStorageClass() {
+        return storageClass;
+    }
 
     public static StorageClass initStorageClass(String storageClass) {
         if ((storageClass == null) || storageClass.equals("")) {

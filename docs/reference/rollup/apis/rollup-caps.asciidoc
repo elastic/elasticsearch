@@ -1,0 +1,190 @@
+[role="xpack"]
+[testenv="basic"]
+[[rollup-get-rollup-caps]]
+=== Get {rollup-job} capabilities API
+++++
+<titleabbrev>Get rollup caps</titleabbrev>
+++++
+
+Returns the capabilities of any {rollup-jobs} that have been configured for a
+specific index or index pattern.
+
+experimental[]
+
+[[rollup-get-rollup-caps-request]]
+==== {api-request-title}
+
+`GET _rollup/data/<index>`
+
+[[rollup-get-rollup-caps-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor`,
+`monitor_rollup`, `manage` or `manage_rollup` cluster privileges to use this API.
+For more information, see <<security-privileges>>.
+
+[[rollup-get-rollup-caps-desc]]
+==== {api-description-title}
+
+This API is useful because a {rollup-job} is often configured to rollup only a
+subset of fields from the source index. Furthermore, only certain aggregations
+can be configured for various fields, leading to a limited subset of
+functionality depending on that configuration.
+
+This API enables you to inspect an index and determine:
+
+1. Does this index have associated rollup data somewhere in the cluster?
+2. If yes to the first question, what fields were rolled up, what aggregations
+can be performed, and where does the data live?
+
+[[rollup-get-rollup-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+  (string) Index, indices or index-pattern to return rollup capabilities for. 
+  `_all` may be used to fetch rollup capabilities from all jobs.
+
+
+[[rollup-get-rollup-example]]
+==== {api-examples-title}
+
+Imagine we have an index named `sensor-1` full of raw data.  We know that the
+data will grow over time, so there will be a `sensor-2`, `sensor-3`, etc.  Let's
+create a {rollup-job} that targets the index pattern `sensor-*` to accommodate
+this future scaling:
+
+[source,console]
+--------------------------------------------------
+PUT _rollup/job/sensor
+{
+    "index_pattern": "sensor-*",
+    "rollup_index": "sensor_rollup",
+    "cron": "*/30 * * * * ?",
+    "page_size" :1000,
+    "groups" : {
+      "date_histogram": {
+        "field": "timestamp",
+        "fixed_interval": "1h",
+        "delay": "7d"
+      },
+      "terms": {
+        "fields": ["node"]
+      }
+    },
+    "metrics": [
+        {
+            "field": "temperature",
+            "metrics": ["min", "max", "sum"]
+        },
+        {
+            "field": "voltage",
+            "metrics": ["avg"]
+        }
+    ]
+}
+--------------------------------------------------
+// TEST[setup:sensor_index]
+
+We can then retrieve the rollup capabilities of that index pattern (`sensor-*`)
+via the following command:
+
+[source,console]
+--------------------------------------------------
+GET _rollup/data/sensor-*
+--------------------------------------------------
+// TEST[continued]
+
+Which will yield the following response:
+
+[source,console-result]
+----
+{
+  "sensor-*" : {
+    "rollup_jobs" : [
+      {
+        "job_id" : "sensor",
+        "rollup_index" : "sensor_rollup",
+        "index_pattern" : "sensor-*",
+        "fields" : {
+          "node" : [
+            {
+              "agg" : "terms"
+            }
+          ],
+          "temperature" : [
+            {
+              "agg" : "min"
+            },
+            {
+              "agg" : "max"
+            },
+            {
+              "agg" : "sum"
+            }
+          ],
+          "timestamp" : [
+            {
+              "agg" : "date_histogram",
+              "time_zone" : "UTC",
+              "fixed_interval" : "1h",
+              "delay": "7d"
+            }
+          ],
+          "voltage" : [
+            {
+              "agg" : "avg"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+
+The response that is returned contains information that is similar to the
+original rollup configuration, but formatted differently.  First, there are some
+house-keeping details: the {rollup-job} ID, the index that holds the rolled data,
+and the index pattern that the job was targeting.
+
+Next it shows a list of fields that contain data eligible for rollup searches.
+Here we see four fields: `node`, `temperature`, `timestamp` and `voltage`. Each
+of these fields list the aggregations that are possible. For example, you can
+use a min, max or sum aggregation on the `temperature` field, but only a
+`date_histogram` on `timestamp`.
+
+Note that the `rollup_jobs` element is an array; there can be multiple,
+independent jobs configured for a single index or index pattern. Each of these
+jobs may have different configurations, so the API returns a list of all the
+various configurations available.
+
+We could also retrieve the same information with a request to `_all`:
+
+[source,console]
+--------------------------------------------------
+GET _rollup/data/_all
+--------------------------------------------------
+// TEST[continued]
+
+But note that if we use the concrete index name (`sensor-1`), we'll retrieve no
+rollup capabilities:
+
+[source,console]
+--------------------------------------------------
+GET _rollup/data/sensor-1
+--------------------------------------------------
+// TEST[continued]
+
+[source,console-result]
+----
+{
+
+}
+----
+
+Why is this?  The original {rollup-job} was configured against a specific index
+pattern (`sensor-*`) not a concrete index (`sensor-1`).  So while the index
+belongs to the pattern, the {rollup-job} is only valid across the entirety of
+the pattern not just one of it's containing indices. So for that reason, the
+get rollup capabilities API only returns information based on the originally
+configured index name or pattern.

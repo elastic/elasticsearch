@@ -27,7 +27,6 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -59,14 +58,14 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanTermQuery.class));
         SpanTermQuery spanTermQuery = (SpanTermQuery) query;
 
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName);
         assertThat(spanTermQuery.getTerm().field(), equalTo(expectedFieldName));
 
-        MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
+        MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
         if (mapper != null) {
             Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
             assertThat(spanTermQuery.getTerm(), equalTo(term));
@@ -76,19 +75,16 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     }
 
     /**
-     * @param amount the number of clauses that will be returned
-     * @return an array of random {@link SpanTermQueryBuilder} with same field name
+     * @param amount a number of clauses that will be returned
+     * @return the array of random {@link SpanTermQueryBuilder} with same field name
      */
     public SpanTermQueryBuilder[] createSpanTermQueryBuilders(int amount) {
         SpanTermQueryBuilder[] clauses = new SpanTermQueryBuilder[amount];
-        SpanTermQueryBuilder first = createTestQueryBuilder();
+        SpanTermQueryBuilder first = createTestQueryBuilder(false, true);
         clauses[0] = first;
         for (int i = 1; i < amount; i++) {
             // we need same field name in all clauses, so we only randomize value
             SpanTermQueryBuilder spanTermQuery = new SpanTermQueryBuilder(first.fieldName(), getRandomValueForFieldName(first.fieldName()));
-            if (randomBoolean()) {
-                spanTermQuery.boost(2.0f / randomIntBetween(1, 20));
-            }
             if (randomBoolean()) {
                 spanTermQuery.queryName(randomAlphaOfLengthBetween(1, 10));
             }

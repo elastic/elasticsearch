@@ -20,15 +20,19 @@
 package org.elasticsearch.transport.netty4;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.TransportLogger;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
-@TestLogging(value = "org.elasticsearch.transport.netty4.ESLoggingHandler:trace")
+@TestLogging(
+    value = "org.elasticsearch.transport.netty4.ESLoggingHandler:trace,org.elasticsearch.transport.TransportLogger:trace",
+    reason = "to ensure we log network events on TRACE level")
 public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLogAppender appender;
@@ -36,12 +40,14 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        Loggers.addAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
+        Loggers.addAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
+        Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
         appender.start();
     }
 
     public void tearDown() throws Exception {
-        Loggers.removeAppender(Loggers.getLogger(ESLoggingHandler.class), appender);
+        Loggers.removeAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
+        Loggers.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
         appender.stop();
         super.tearDown();
     }
@@ -55,8 +61,8 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                         ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]" +
                         " WRITE: \\d+B";
         final MockLogAppender.LoggingExpectation writeExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
-                        "hot threads request", ESLoggingHandler.class.getCanonicalName(), Level.TRACE, writePattern);
+                new MockLogAppender.PatternSeenEventExpectation(
+                        "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, writePattern);
 
         final MockLogAppender.LoggingExpectation flushExpectation =
                 new MockLogAppender.SeenEventExpectation("flush", ESLoggingHandler.class.getCanonicalName(), Level.TRACE, "*FLUSH*");
@@ -70,8 +76,8 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                         " READ: \\d+B";
 
         final MockLogAppender.LoggingExpectation readExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
-                        "hot threads request", ESLoggingHandler.class.getCanonicalName(), Level.TRACE, readPattern);
+                new MockLogAppender.PatternSeenEventExpectation(
+                        "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, readPattern);
 
         appender.addExpectation(writeExpectation);
         appender.addExpectation(flushExpectation);

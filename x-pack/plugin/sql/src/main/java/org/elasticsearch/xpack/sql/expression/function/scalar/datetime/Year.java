@@ -5,30 +5,31 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo.NodeCtor2;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 /**
  * Extract the year from a datetime.
  */
 public class Year extends DateTimeHistogramFunction {
-    public Year(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+    
+    public Year(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.YEAR);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return Year::new;
     }
 
     @Override
     protected Year replaceChild(Expression newChild) {
-        return new Year(location(), newChild, timeZone());
+        return new Year(source(), newChild, zoneId());
     }
 
     @Override
@@ -37,22 +38,7 @@ public class Year extends DateTimeHistogramFunction {
     }
 
     @Override
-    public Expression orderBy() {
-        return field();
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.YEAR;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.YEAR;
-    }
-
-    @Override
-    public String interval() {
-        return "year";
+    public String calendarInterval() {
+        return Histogram.YEAR_INTERVAL;
     }
 }

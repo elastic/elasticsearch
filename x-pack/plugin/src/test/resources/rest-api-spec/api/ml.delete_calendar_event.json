@@ -1,0 +1,28 @@
+{
+  "ml.delete_calendar_event":{
+    "documentation":{
+      "url":null
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}/events/{event_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to modify"
+            },
+            "event_id":{
+              "type":"string",
+              "description":"The ID of the event to remove from the calendar"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

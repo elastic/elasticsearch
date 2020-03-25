@@ -1,0 +1,36 @@
+--
+:api: get-watch
+:request: GetWatchRequest
+:response: GetWatchResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get watch API
+
+[id="{upid}-{api}-request"]
+==== Execution
+
+A watch can be retrieved as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains `id`, `version`, `status` and `source`
+information.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `_id`, id of the watch
+<2> `found` is a boolean indicating whether the watch was found
+<3> `_version` returns the version of the watch
+<4> `status` contains status of the watch
+<5> `source` the source of the watch
+
+include::../execution.asciidoc[]

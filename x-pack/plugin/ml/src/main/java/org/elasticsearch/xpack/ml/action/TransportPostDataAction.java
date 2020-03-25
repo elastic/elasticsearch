@@ -9,8 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -19,7 +17,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 
-import java.io.IOException;
+import java.io.InputStream;
 import java.util.Optional;
 
 public class TransportPostDataAction extends TransportJobTaskAction<PostDataAction.Request, PostDataAction.Response> {
@@ -27,20 +25,12 @@ public class TransportPostDataAction extends TransportJobTaskAction<PostDataActi
     private final AnalysisRegistry analysisRegistry;
 
     @Inject
-    public TransportPostDataAction(Settings settings, TransportService transportService,
-                                   ClusterService clusterService, ActionFilters actionFilters,
+    public TransportPostDataAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters,
                                    AutodetectProcessManager processManager, AnalysisRegistry analysisRegistry) {
-        super(settings, PostDataAction.NAME, clusterService, transportService, actionFilters,
+        super(PostDataAction.NAME, clusterService, transportService, actionFilters,
             PostDataAction.Request::new, PostDataAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
         this.analysisRegistry = analysisRegistry;
-    }
-
-    @Override
-    protected PostDataAction.Response readTaskResponse(StreamInput in) throws IOException {
-        PostDataAction.Response response = new PostDataAction.Response();
-        response.readFrom(in);
-        return response;
     }
 
     @Override
@@ -48,8 +38,8 @@ public class TransportPostDataAction extends TransportJobTaskAction<PostDataActi
                                  ActionListener<PostDataAction.Response> listener) {
         TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
         DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
-        try {
-            processManager.processData(task, analysisRegistry, request.getContent().streamInput(), request.getXContentType(),
+        try (InputStream contentStream = request.getContent().streamInput()) {
+            processManager.processData(task, analysisRegistry, contentStream, request.getXContentType(),
                     params, (dataCounts, e) -> {
                 if (dataCounts != null) {
                     listener.onResponse(new PostDataAction.Response(dataCounts));

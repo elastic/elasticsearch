@@ -20,6 +20,8 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
@@ -41,6 +43,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     private volatile boolean done = false;
     private final List<Tuple<ActionListener<V>, ExecutorService>> listeners = new ArrayList<>();
 
+
     /**
      * Adds a listener to this future. If the future has not yet completed, the listener will be
      * notified of a response or exception in a runnable submitted to the ExecutorService provided.
@@ -48,6 +51,18 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
      * a different thread.
      */
     public void addListener(ActionListener<V> listener, ExecutorService executor) {
+        addListener(listener, executor, null);
+    }
+
+    /**
+     * Adds a listener to this future. If the future has not yet completed, the listener will be
+     * notified of a response or exception in a runnable submitted to the ExecutorService provided.
+     * If the future has completed, the listener will be notified immediately without forking to
+     * a different thread.
+     *
+     * It will apply the provided ThreadContext (if not null) when executing the listening.
+     */
+    public void addListener(ActionListener<V> listener, ExecutorService executor, ThreadContext threadContext) {
         if (done) {
             // run the callback directly, we don't hold the lock and don't need to fork!
             notifyListener(listener, EsExecutors.newDirectExecutorService());
@@ -59,7 +74,13 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
                 if (done) {
                     run = true;
                 } else {
-                    listeners.add(new Tuple<>(listener, executor));
+                    final ActionListener<V> wrappedListener;
+                    if (threadContext == null) {
+                        wrappedListener = listener;
+                    } else {
+                        wrappedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+                    }
+                    listeners.add(new Tuple<>(wrappedListener, executor));
                     run = false;
                 }
             }
@@ -82,14 +103,18 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
 
     private void notifyListener(ActionListener<V> listener, ExecutorService executorService) {
         try {
-            executorService.submit(() -> {
-                try {
+            executorService.execute(new ActionRunnable<>(listener) {
+                @Override
+                protected void doRun() {
                     // call get in a non-blocking fashion as we could be on a network thread
                     // or another thread like the scheduler, which we should never block!
-                    V value = FutureUtils.get(this, 0L, TimeUnit.NANOSECONDS);
+                    V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);
                     listener.onResponse(value);
-                } catch (Exception e) {
-                    listener.onFailure(e);
+                }
+
+                @Override
+                public String toString() {
+                    return "ListenableFuture notification";
                 }
             });
         } catch (Exception e) {

@@ -51,7 +51,7 @@ abstract class SortedDocsProducer {
      * composite buckets.
      */
     protected boolean processBucket(CompositeValuesCollectorQueue queue, LeafReaderContext context, DocIdSetIterator iterator,
-                                    Comparable<?> leadSourceBucket, @Nullable DocIdSetBuilder builder) throws IOException {
+                                    Comparable leadSourceBucket, @Nullable DocIdSetBuilder builder) throws IOException {
         final int[] topCompositeCollected = new int[1];
         final boolean[] hasCollected = new boolean[1];
         final LeafBucketCollector queueCollector = new LeafBucketCollector() {
@@ -66,8 +66,7 @@ abstract class SortedDocsProducer {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 hasCollected[0] = true;
-                int slot = queue.addIfCompetitive();
-                if (slot != -1) {
+                if (queue.addIfCompetitive()) {
                     topCompositeCollected[0]++;
                     if (adder != null && doc != lastDoc) {
                         if (remainingBits == 0) {

@@ -19,91 +19,88 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessClass;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.CallNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
+
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a method call and defers to a child subnode.
  */
-public final class PCallInvoke extends AExpression {
+public class PCallInvoke extends AExpression {
 
-    private final String name;
-    private final boolean nullSafe;
-    private final List<AExpression> arguments;
-
-    private AExpression sub = null;
+    protected final String name;
+    protected final boolean nullSafe;
+    protected final List<AExpression> arguments;
 
     public PCallInvoke(Location location, AExpression prefix, String name, boolean nullSafe, List<AExpression> arguments) {
         super(location, prefix);
 
         this.name = Objects.requireNonNull(name);
         this.nullSafe = nullSafe;
-        this.arguments = Objects.requireNonNull(arguments);
+        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-        for (AExpression argument : arguments) {
-            argument.extractVariables(variables);
-        }
-    }
+        Input prefixInput = new Input();
+        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
+        prefixInput.expected = prefixOutput.actual;
+        prefix.cast(prefixInput, prefixOutput);
 
-    @Override
-    void analyze(Locals locals) {
-        prefix.analyze(locals);
-        prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
+        AExpression sub;
 
-        if (prefix.actual.isArray()) {
-            throw createError(new IllegalArgumentException("Illegal call [" + name + "] on array type."));
-        }
-
-        PainlessClass struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(prefix.actual);
-
-        if (prefix.actual.isPrimitive()) {
-            struct = locals.getPainlessLookup().getPainlessStructFromJavaClass(PainlessLookupUtility.typeToBoxedType(prefix.actual));
-        }
-
-        String methodKey = PainlessLookupUtility.buildPainlessMethodKey(name, arguments.size());
-        PainlessMethod method = prefix instanceof EStatic ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
-
-        if (method != null) {
-            sub = new PSubCallInvoke(location, method, prefix.actual, arguments);
-        } else if (prefix.actual == def.class) {
+        if (prefixOutput.actual == def.class) {
             sub = new PSubDefCall(location, name, arguments);
         } else {
-            throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments " +
-                    "on type [" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
+            PainlessMethod method = scriptRoot.getPainlessLookup().lookupPainlessMethod(
+                    prefixOutput.actual, prefix instanceof EStatic, name, arguments.size());
+
+            if (method == null) {
+                throw createError(new IllegalArgumentException(
+                        "method [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " + name + "/" + arguments.size() + "] not found"));
+            }
+
+            scriptRoot.markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
+
+            sub = new PSubCallInvoke(location, method, prefixOutput.actual, arguments);
         }
 
         if (nullSafe) {
             sub = new PSubNullSafeCallInvoke(location, sub);
         }
 
-        sub.expected = expected;
-        sub.explicit = explicit;
-        sub.analyze(locals);
-        actual = sub.actual;
+        Input subInput = new Input();
+        subInput.expected = input.expected;
+        subInput.explicit = input.explicit;
+        Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
+        output.actual = subOutput.actual;
 
-        statement = true;
-    }
+        output.statement = true;
 
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.write(writer, globals);
+        CallNode callNode = new CallNode();
+
+        callNode.setLeftNode(prefix.cast(prefixOutput));
+        callNode.setRightNode(subOutput.expressionNode);
+
+        callNode.setLocation(location);
+        callNode.setExpressionType(output.actual);
+
+        output.expressionNode = callNode;
+
+        return output;
     }
 
     @Override

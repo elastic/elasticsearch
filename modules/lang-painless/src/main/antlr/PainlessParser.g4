@@ -22,7 +22,7 @@ parser grammar PainlessParser;
 options { tokenVocab=PainlessLexer; }
 
 source
-    : function* statement* dstatement? EOF
+    : function* statement* EOF
     ;
 
 function
@@ -35,7 +35,7 @@ parameters
 
 statement
     : rstatement
-    | dstatement SEMICOLON
+    | dstatement ( SEMICOLON | EOF )
     ;
 
 // Note we use a predicate on the if/else case here to prevent the
@@ -55,7 +55,7 @@ dstatement
     | declaration                     # decl
     | CONTINUE                        # continue
     | BREAK                           # break
-    | RETURN expression               # return
+    | RETURN expression?              # return
     | THROW expression                # throw
     | expression                      # expr
     ;
@@ -98,25 +98,29 @@ trap
     : CATCH LP TYPE ID RP block
     ;
 
+noncondexpression
+    :               unary                                                               # single
+    |               noncondexpression ( MUL | DIV | REM ) noncondexpression             # binary
+    |               noncondexpression ( ADD | SUB ) noncondexpression                   # binary
+    |               noncondexpression ( FIND | MATCH ) noncondexpression                # binary
+    |               noncondexpression ( LSH | RSH | USH ) noncondexpression             # binary
+    |               noncondexpression ( LT | LTE | GT | GTE ) noncondexpression         # comp
+    |               noncondexpression INSTANCEOF decltype                               # instanceof
+    |               noncondexpression ( EQ | EQR | NE | NER ) noncondexpression         # comp
+    |               noncondexpression BWAND noncondexpression                           # binary
+    |               noncondexpression XOR noncondexpression                             # binary
+    |               noncondexpression BWOR noncondexpression                            # binary
+    |               noncondexpression BOOLAND noncondexpression                         # bool
+    |               noncondexpression BOOLOR noncondexpression                          # bool
+    | <assoc=right> noncondexpression ELVIS noncondexpression                           # elvis
+    ;
+
 expression
-    :               unary                                                 # single
-    |               expression ( MUL | DIV | REM ) expression             # binary
-    |               expression ( ADD | SUB ) expression                   # binary
-    |               expression ( FIND | MATCH ) expression                # binary
-    |               expression ( LSH | RSH | USH ) expression             # binary
-    |               expression ( LT | LTE | GT | GTE ) expression         # comp
-    |               expression INSTANCEOF decltype                        # instanceof
-    |               expression ( EQ | EQR | NE | NER ) expression         # comp
-    |               expression BWAND expression                           # binary
-    |               expression XOR expression                             # binary
-    |               expression BWOR expression                            # binary
-    |               expression BOOLAND expression                         # bool
-    |               expression BOOLOR expression                          # bool
-    | <assoc=right> expression COND expression COLON expression           # conditional
-    | <assoc=right> expression ELVIS expression                           # elvis
-    | <assoc=right> expression ( ASSIGN | AADD | ASUB | AMUL |
-                                 ADIV   | AREM | AAND | AXOR |
-                                 AOR    | ALSH | ARSH | AUSH ) expression # assignment
+    :               noncondexpression                                            # nonconditional
+    | <assoc=right> noncondexpression COND expression COLON expression           # conditional
+    | <assoc=right> noncondexpression ( ASSIGN | AADD | ASUB | AMUL |
+                                        ADIV   | AREM | AAND | AXOR |
+                                        AOR    | ALSH | ARSH | AUSH ) expression # assignment
     ;
 
 unary

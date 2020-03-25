@@ -82,10 +82,6 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         @Override
         public SizeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            if (context.indexCreatedVersion().onOrBefore(Version.V_5_0_0_alpha4)) {
-                // Make sure that the doc_values are disabled on indices created before V_5_0_0_alpha4
-                fieldType.setHasDocValues(false);
-            }
             return new SizeFieldMapper(enabledState, fieldType, context.indexSettings());
         }
     }
@@ -94,7 +90,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node,
                                                        ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME),
+            Builder builder = new Builder(parserContext.mapperService().fieldType(NAME),
                 parserContext.indexVersionCreated());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -110,9 +106,9 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new SizeFieldMapper(indexSettings, fieldType);
+            return new SizeFieldMapper(indexSettings, defaultFieldType(Version.indexCreated(indexSettings)));
         }
     }
 
@@ -149,9 +145,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // nothing to do here, we call the parent in postParse
-        return null;
     }
 
     @Override

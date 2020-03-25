@@ -1,0 +1,23 @@
+// This file is auto-generated. Do not edit.
+
+
+[role="exclude",id="painless-api-reference-moving-function-org-elasticsearch-search-aggregations-pipeline"]
+=== Moving Function API for package org.elasticsearch.search.aggregations.pipeline
+See the <<painless-api-reference-moving-function, Moving Function API>> for a high-level overview of all packages and classes.
+
+[[painless-api-reference-moving-function-MovingFunctions]]
+==== MovingFunctions
+* static double ewma(double[], double)
+* static double holt(double[], double, double)
+* static double holtWinters(double[], double, double, double, int, boolean)
+* static double linearWeightedAvg(double[])
+* static double max(double[])
+* static double min(double[])
+* static double stdDev(double[], double)
+* static double sum(double[])
+* static double unweightedAvg(double[])
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

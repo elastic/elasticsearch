@@ -1,0 +1,37 @@
+--
+:api: put-calendar-job
+:request: PutCalendarJobRequest
+:response: PutCalendarResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Put {anomaly-jobs} in calendar API
+Adds {anomaly-jobs} jobs to an existing {ml} calendar.
+The API accepts a +{request}+ and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Put {anomaly-jobs} in calendar request
+
+A +{request}+ is constructed referencing a non-null
+calendar ID, and JobIDs to which to add to the calendar
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The ID of the calendar to which to add the jobs
+<2> The JobIds to add to the calendar
+
+[id="{upid}-{api}-response"]
+==== Put {anomaly-jobs} in calendar response
+
+The returned +{response}+ contains the updated calendar:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The updated calendar
+
+include::../execution.asciidoc[]

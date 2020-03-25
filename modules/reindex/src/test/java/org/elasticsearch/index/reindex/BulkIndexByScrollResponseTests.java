@@ -51,7 +51,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
             BulkByScrollTask.Status status = new BulkByScrollTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f,
                     thisReasonCancelled, timeValueMillis(0));
             List<BulkItemResponse.Failure> bulkFailures = frequently() ? emptyList()
-                    : IntStream.range(0, between(1, 3)).mapToObj(j -> new BulkItemResponse.Failure("idx", "type", "id", new Exception()))
+                    : IntStream.range(0, between(1, 3)).mapToObj(j -> new BulkItemResponse.Failure("idx", "id", new Exception()))
                             .collect(Collectors.toList());
             allBulkFailures.addAll(bulkFailures);
             List<SearchFailure> searchFailures = frequently() ? emptyList()

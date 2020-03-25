@@ -26,9 +26,9 @@ import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.support.ArrayObjectIterator;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -82,7 +82,6 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         indexRequest.index(getField(actionId, ctx.id().watchId(), "index", data, INDEX_FIELD, action.index));
-        indexRequest.type(getField(actionId, ctx.id().watchId(), "type",data, TYPE_FIELD, action.docType));
         indexRequest.id(getField(actionId, ctx.id().watchId(), "id",data, ID_FIELD, action.docId));
 
         data = addTimestampToDocument(data, ctx.executionTime());
@@ -92,8 +91,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         if (ctx.simulateAction(actionId)) {
-            return new IndexAction.Simulated(indexRequest.index(), indexRequest.type(), indexRequest.id(), action.refreshPolicy,
-                    new XContentSource(indexRequest.source(), XContentType.JSON));
+            return new IndexAction.Simulated(indexRequest.index(), indexRequest.id(),
+                action.refreshPolicy, new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 
         IndexResponse response = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
@@ -128,7 +127,6 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.index(getField(actionId, ctx.id().watchId(), "index", doc, INDEX_FIELD, action.index));
-            indexRequest.type(getField(actionId, ctx.id().watchId(), "type",doc, TYPE_FIELD, action.docType));
             indexRequest.id(getField(actionId, ctx.id().watchId(), "id",doc, ID_FIELD, action.docId));
 
             doc = addTimestampToDocument(doc, ctx.executionTime());
@@ -158,7 +156,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
     }
 
-    private Map<String, Object> addTimestampToDocument(Map<String, Object> data, DateTime executionTime) {
+    private Map<String, Object> addTimestampToDocument(Map<String, Object> data, ZonedDateTime executionTime) {
         if (action.executionTimeField != null) {
             data = mutableMap(data);
             data.put(action.executionTimeField, WatcherDateTimeUtils.formatDate(executionTime));
@@ -201,7 +199,6 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                     .field("failed", item.isFailed())
                     .field("message", item.getFailureMessage())
                     .field("id", item.getId())
-                    .field("type", item.getType())
                     .field("index", item.getIndex())
                     .endObject();
         } else {
@@ -215,7 +212,6 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 .field("result", response.getResult().getLowercase())
                 .field("id", response.getId())
                 .field("version", response.getVersion())
-                .field("type", response.getType())
                 .field("index", response.getIndex())
                 .endObject();
     }

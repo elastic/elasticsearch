@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.io.IOException;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 
@@ -32,11 +34,11 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
             indices[i] = randomSimpleString(random(), 1, 30);
         }
 
-        SearchRequest searchRequest = new SearchRequest(indices);
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-        searchRequest.indicesOptions(indicesOptions);
 
-        UpdateByQueryRequest request = new UpdateByQueryRequest(searchRequest);
+        UpdateByQueryRequest request = new UpdateByQueryRequest();
+        request.indices(indices);
+        request.setIndicesOptions(indicesOptions);
         for (int i = 0; i < numIndices; i++) {
             assertEquals(indices[i], request.indices()[i]);
         }
@@ -50,17 +52,17 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
             newIndices[i] = randomSimpleString(random(), 1, 30);
         }
         request.indices(newIndices);
-        for (int i = 0; i < numNewIndices; i++) {;
+        for (int i = 0; i < numNewIndices; i++) {
             assertEquals(newIndices[i], request.indices()[i]);
         }
-        for (int i = 0; i < numNewIndices; i++) {;
+        for (int i = 0; i < numNewIndices; i++) {
             assertEquals(newIndices[i], request.getSearchRequest().indices()[i]);
         }
     }
 
     @Override
     protected UpdateByQueryRequest newRequest() {
-        return new UpdateByQueryRequest(new SearchRequest(randomAlphaOfLength(5)));
+        return new UpdateByQueryRequest(randomAlphaOfLength(5));
     }
 
     @Override
@@ -77,5 +79,29 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
     protected void extraForSliceAssertions(UpdateByQueryRequest original, UpdateByQueryRequest forSliced) {
         assertEquals(original.getScript(), forSliced.getScript());
         assertEquals(original.getPipeline(), forSliced.getPipeline());
+    }
+
+    // TODO: Implement standard to/from x-content parsing tests
+
+    @Override
+    protected UpdateByQueryRequest createTestInstance() {
+        return newRequest();
+    }
+
+    @Override
+    protected UpdateByQueryRequest doParseInstance(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != null) {
+        }
+        return newRequest();
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
+    protected void assertEqualInstances(UpdateByQueryRequest expectedInstance, UpdateByQueryRequest newInstance) {
     }
 }

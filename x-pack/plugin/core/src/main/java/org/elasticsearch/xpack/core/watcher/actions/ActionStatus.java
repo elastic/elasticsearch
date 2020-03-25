@@ -10,13 +10,15 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -30,7 +32,7 @@ public class ActionStatus implements ToXContentObject {
     @Nullable private Execution lastSuccessfulExecution;
     @Nullable private Throttle lastThrottle;
 
-    public ActionStatus(DateTime now) {
+    public ActionStatus(ZonedDateTime now) {
         this(new AckStatus(now, AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION), null, null, null);
     }
 
@@ -76,7 +78,7 @@ public class ActionStatus implements ToXContentObject {
         return Objects.hash(ackStatus, lastExecution, lastSuccessfulExecution, lastThrottle);
     }
 
-    public void update(DateTime timestamp, Action.Result result) {
+    public void update(ZonedDateTime timestamp, Action.Result result) {
         switch (result.status()) {
 
             case FAILURE:
@@ -99,7 +101,7 @@ public class ActionStatus implements ToXContentObject {
         }
     }
 
-    public boolean onAck(DateTime timestamp) {
+    public boolean onAck(ZonedDateTime timestamp) {
         if (ackStatus.state == AckStatus.State.ACKABLE) {
             ackStatus = new AckStatus(timestamp, AckStatus.State.ACKED);
             return true;
@@ -107,7 +109,7 @@ public class ActionStatus implements ToXContentObject {
         return false;
     }
 
-    public boolean resetAckStatus(DateTime timestamp) {
+    public boolean resetAckStatus(ZonedDateTime timestamp) {
         if (ackStatus.state != AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION) {
             ackStatus = new AckStatus(timestamp, AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION);
             return true;
@@ -210,15 +212,15 @@ public class ActionStatus implements ToXContentObject {
             }
         }
 
-        private final DateTime timestamp;
+        private final ZonedDateTime timestamp;
         private final State state;
 
-        public AckStatus(DateTime timestamp, State state) {
-            this.timestamp = timestamp.toDateTime(DateTimeZone.UTC);
+        public AckStatus(ZonedDateTime timestamp, State state) {
+            this.timestamp = timestamp;
             this.state = state;
         }
 
-        public DateTime timestamp() {
+        public ZonedDateTime timestamp() {
             return timestamp;
         }
 
@@ -244,13 +246,13 @@ public class ActionStatus implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
-                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp))
+                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.format(timestamp))
                     .field(Field.ACK_STATUS_STATE.getPreferredName(), state.name().toLowerCase(Locale.ROOT))
                     .endObject();
         }
 
         public static AckStatus parse(String watchId, String actionId, XContentParser parser) throws IOException {
-            DateTime timestamp = null;
+            ZonedDateTime timestamp = null;
             State state = null;
 
             String currentFieldName = null;
@@ -259,7 +261,7 @@ public class ActionStatus implements ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
+                    timestamp = DateFormatters.from(dateTimeFormatter.parse(parser.text()));
                 } else if (Field.ACK_STATUS_STATE.match(currentFieldName, parser.getDeprecationHandler())) {
                     state = State.valueOf(parser.text().toUpperCase(Locale.ROOT));
                 } else {
@@ -279,12 +281,12 @@ public class ActionStatus implements ToXContentObject {
         }
 
         static void writeTo(AckStatus status, StreamOutput out) throws IOException {
-            out.writeLong(status.timestamp.getMillis());
+            out.writeLong(status.timestamp.toInstant().toEpochMilli());
             out.writeByte(status.state.value);
         }
 
         static AckStatus readFrom(StreamInput in) throws IOException {
-            DateTime timestamp = new DateTime(in.readLong(), DateTimeZone.UTC);
+            ZonedDateTime timestamp = Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC);
             State state = State.resolve(in.readByte());
             return new AckStatus(timestamp, state);
         }
@@ -292,25 +294,25 @@ public class ActionStatus implements ToXContentObject {
 
     public static class Execution implements ToXContentObject {
 
-        public static Execution successful(DateTime timestamp) {
+        public static Execution successful(ZonedDateTime timestamp) {
             return new Execution(timestamp, true, null);
         }
 
-        public static Execution failure(DateTime timestamp, String reason) {
+        public static Execution failure(ZonedDateTime timestamp, String reason) {
             return new Execution(timestamp, false, reason);
         }
 
-        private final DateTime timestamp;
+        private final ZonedDateTime timestamp;
         private final boolean successful;
         private final String reason;
 
-        private Execution(DateTime timestamp, boolean successful, String reason) {
-            this.timestamp = timestamp.toDateTime(DateTimeZone.UTC);
+        private Execution(ZonedDateTime timestamp, boolean successful, String reason) {
+            this.timestamp = timestamp.withZoneSameInstant(ZoneOffset.UTC);
             this.successful = successful;
             this.reason = reason;
         }
 
-        public DateTime timestamp() {
+        public ZonedDateTime timestamp() {
             return timestamp;
         }
 
@@ -342,7 +344,7 @@ public class ActionStatus implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp));
+            builder.field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.format(timestamp));
             builder.field(Field.EXECUTION_SUCCESSFUL.getPreferredName(), successful);
             if (reason != null) {
                 builder.field(Field.REASON.getPreferredName(), reason);
@@ -351,7 +353,7 @@ public class ActionStatus implements ToXContentObject {
         }
 
         public static Execution parse(String watchId, String actionId, XContentParser parser) throws IOException {
-            DateTime timestamp = null;
+            ZonedDateTime timestamp = null;
             Boolean successful = null;
             String reason = null;
 
@@ -361,7 +363,7 @@ public class ActionStatus implements ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
+                    timestamp = DateFormatters.from(dateTimeFormatter.parse(parser.text()));
                 } else if (Field.EXECUTION_SUCCESSFUL.match(currentFieldName, parser.getDeprecationHandler())) {
                     successful = parser.booleanValue();
                 } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -390,7 +392,7 @@ public class ActionStatus implements ToXContentObject {
         }
 
         public static void writeTo(Execution execution, StreamOutput out) throws IOException {
-            out.writeLong(execution.timestamp.getMillis());
+            out.writeLong(execution.timestamp.toInstant().toEpochMilli());
             out.writeBoolean(execution.successful);
             if (!execution.successful) {
                 out.writeString(execution.reason);
@@ -398,7 +400,7 @@ public class ActionStatus implements ToXContentObject {
         }
 
         public static Execution readFrom(StreamInput in) throws IOException {
-            DateTime timestamp = new DateTime(in.readLong(), DateTimeZone.UTC);
+            ZonedDateTime timestamp = Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC);
             boolean successful = in.readBoolean();
             if (successful) {
                 return successful(timestamp);
@@ -409,15 +411,15 @@ public class ActionStatus implements ToXContentObject {
 
     public static class Throttle implements ToXContentObject {
 
-        private final DateTime timestamp;
+        private final ZonedDateTime timestamp;
         private final String reason;
 
-        public Throttle(DateTime timestamp, String reason) {
-            this.timestamp = timestamp.toDateTime(DateTimeZone.UTC);
+        public Throttle(ZonedDateTime timestamp, String reason) {
+            this.timestamp = timestamp.withZoneSameInstant(ZoneOffset.UTC);
             this.reason = reason;
         }
 
-        public DateTime timestamp() {
+        public ZonedDateTime timestamp() {
             return timestamp;
         }
 
@@ -442,13 +444,13 @@ public class ActionStatus implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
-                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp))
+                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.format(timestamp))
                     .field(Field.REASON.getPreferredName(), reason)
                     .endObject();
         }
 
         public static Throttle parse(String watchId, String actionId, XContentParser parser) throws IOException {
-            DateTime timestamp = null;
+            ZonedDateTime timestamp = null;
             String reason = null;
 
             String currentFieldName = null;
@@ -457,7 +459,7 @@ public class ActionStatus implements ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
+                    timestamp = DateFormatters.from(dateTimeFormatter.parse(parser.text()));
                 } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
                     reason = parser.text();
                 } else {
@@ -477,12 +479,12 @@ public class ActionStatus implements ToXContentObject {
         }
 
         static void writeTo(Throttle throttle, StreamOutput out) throws IOException {
-            out.writeLong(throttle.timestamp.getMillis());
+            out.writeLong(throttle.timestamp.toInstant().toEpochMilli());
             out.writeString(throttle.reason);
         }
 
         static Throttle readFrom(StreamInput in) throws IOException {
-            DateTime timestamp = new DateTime(in.readLong(), DateTimeZone.UTC);
+            ZonedDateTime timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readLong()), ZoneOffset.UTC);
             return new Throttle(timestamp, in.readString());
         }
     }

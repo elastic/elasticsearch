@@ -20,7 +20,7 @@ package org.elasticsearch.analysis.common;
  */
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.core.StopAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
@@ -44,7 +44,7 @@ public class PatternAnalyzerTests extends ESTokenStreamTestCase {
 
     // split on non-letter pattern, lowercase, english stopwords
     PatternAnalyzer b = new PatternAnalyzer(Pattern.compile("\\W+"), true,
-                                            StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+            EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
     assertAnalyzesTo(b, "The quick brown Fox,the abcd1234 (56.78) dc.",
                          new String[] { "quick", "brown", "fox", "abcd1234", "56", "78", "dc" });
   }
@@ -61,7 +61,7 @@ public class PatternAnalyzerTests extends ESTokenStreamTestCase {
 
     // Split on whitespace patterns, lowercase, english stopwords
     PatternAnalyzer b = new PatternAnalyzer(Pattern.compile("\\s+"), true,
-                                            StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+                                            EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
     assertAnalyzesTo(b, "The quick brown Fox,the abcd1234 (56.78) dc.",
                          new String[] { "quick", "brown", "fox,the", "abcd1234", "(56.78)", "dc." });
   }
@@ -78,7 +78,7 @@ public class PatternAnalyzerTests extends ESTokenStreamTestCase {
 
     // split on comma, lowercase, english stopwords
     PatternAnalyzer b = new PatternAnalyzer(Pattern.compile(","), true,
-                                             StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+            EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
     assertAnalyzesTo(b, "Here,Are,some,Comma,separated,words,",
                          new String[] { "here", "some", "comma", "separated", "words" });
   }
@@ -109,7 +109,7 @@ public class PatternAnalyzerTests extends ESTokenStreamTestCase {
 
   /** blast some random strings through the analyzer */
   public void testRandomStrings() throws Exception {
-    Analyzer a = new PatternAnalyzer(Pattern.compile(","), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+    Analyzer a = new PatternAnalyzer(Pattern.compile(","), true, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
     checkRandomData(random(), a, 10000*RANDOM_MULTIPLIER);
   }
 

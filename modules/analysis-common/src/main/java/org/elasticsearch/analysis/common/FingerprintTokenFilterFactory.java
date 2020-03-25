@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import static org.elasticsearch.analysis.common.FingerprintAnalyzerProvider.DEFAULT_MAX_OUTPUT_SIZE;
 import static org.elasticsearch.analysis.common.FingerprintAnalyzerProvider.MAX_OUTPUT_SIZE;
@@ -45,6 +46,11 @@ public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
         TokenStream result = tokenStream;
         result = new FingerprintFilter(result, maxOutputSize, separator);
         return result;
+    }
+
+    @Override
+    public TokenFilterFactory getSynonymFilter() {
+        throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 
 }

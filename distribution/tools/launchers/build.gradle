@@ -16,29 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.JavaVersion
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-    compile parent.project('java-version-checker')
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  compile parent.project('java-version-checker')
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 archivesBaseName = 'elasticsearch-launchers'
 
-// java_version_checker do not depend on core so only JDK signatures should be checked
-List jdkSignatures = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
-forbiddenApisMain.signaturesURLs = jdkSignatures
-forbiddenApisTest.signaturesURLs = jdkSignatures
+tasks.withType(CheckForbiddenApis) {
+  replaceSignatureFiles 'jdk-signatures'
+}
 
-namingConventions {
-    testClass = 'org.elasticsearch.tools.launchers.LaunchersTestCase'
-    skipIntegTestInDisguise = true
+testingConventions {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'org.elasticsearch.tools.launchers.LaunchersTestCase'
+    }
+  }
 }
 
 javadoc.enabled = false

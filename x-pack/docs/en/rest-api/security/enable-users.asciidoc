@@ -1,0 +1,47 @@
+[role="xpack"]
+[[security-api-enable-user]]
+=== Enable users API
+++++
+<titleabbrev>Enable users</titleabbrev>
+++++
+
+Enables users in the native realm. 
+
+
+[[security-api-enable-user-request]]
+==== {api-request-title}
+
+`PUT /_security/user/<username>/_enable` 
+
+
+[[security-api-enable-user-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+[[security-api-enable-user-desc]]
+==== {api-description-title}
+
+By default, when you create users, they are enabled. You can use this enable 
+users API and the <<security-api-disable-user,disable users API>> to change that attribute. 
+
+For more information about the native realm, see 
+<<realms>> and <<native-realm>>. 
+
+[[security-api-enable-user-path-params]]
+==== {api-path-parms-title}
+
+`username`::
+  (Required, string) An identifier for the user.
+
+
+[[security-api-enable-user-example]]
+==== {api-examples-title}
+
+The following example enables the user `jacknich`:
+
+[source,console]
+--------------------------------------------------
+PUT /_security/user/jacknich/_enable
+--------------------------------------------------
+// TEST[setup:jacknich_user]

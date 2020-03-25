@@ -12,10 +12,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.TimeZone;
 
 /**
  * Sql query request for JDBC/CLI client
@@ -24,37 +24,42 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     @Nullable
     private final String cursor;
     private final String query;
-    private final TimeZone timeZone;
+    private final ZoneId zoneId;
     private final int fetchSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
     @Nullable
     private final ToXContent filter;
+    private final Boolean columnar;
     private final List<SqlTypedParamValue> params;
+    private final boolean fieldMultiValueLeniency;
+    private final boolean indexIncludeFrozen;
+    private final Boolean binaryCommunication;
 
-
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, TimeZone timeZone,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, String cursor) {
-        super(mode);
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
+                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
+                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
+                           Boolean binaryCommunication) {
+        super(requestInfo);
         this.query = query;
         this.params = params;
-        this.timeZone = timeZone;
+        this.zoneId = zoneId;
         this.fetchSize = fetchSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
         this.filter = filter;
+        this.columnar = columnar;
         this.cursor = cursor;
+        this.fieldMultiValueLeniency = fieldMultiValueLeniency;
+        this.indexIncludeFrozen = indexIncludeFrozen;
+        this.binaryCommunication = binaryCommunication;
     }
 
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, ToXContent filter, TimeZone timeZone,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(mode, query, params, timeZone, fetchSize, requestTimeout, pageTimeout, filter, null);
+    public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo,
+                           boolean binaryCommunication) {
+        this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
+                null, false, cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, binaryCommunication);
     }
-
-    public SqlQueryRequest(Mode mode, String cursor, TimeValue requestTimeout, TimeValue pageTimeout) {
-        this(mode, "", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout, null, cursor);
-    }
-
 
     /**
      * The key that must be sent back to SQL to access the next page of
@@ -81,8 +86,8 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     /**
      * The client's time zone
      */
-    public TimeZone timeZone() {
-        return timeZone;
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
 
@@ -113,26 +118,57 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     public ToXContent filter() {
         return filter;
     }
+    
+    /**
+     * Optional setting for returning the result values in a columnar fashion (as opposed to rows of values).
+     * Each column will have all its values in a list. Defaults to false.
+     */
+    public Boolean columnar() {
+        return columnar;
+    }
 
+    public boolean fieldMultiValueLeniency() {
+        return fieldMultiValueLeniency;
+    }
+    
+    public boolean indexIncludeFrozen() {
+        return indexIncludeFrozen;
+    }
+    
+    public Boolean binaryCommunication() {
+        return binaryCommunication;
+    }
+    
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
         SqlQueryRequest that = (SqlQueryRequest) o;
-        return fetchSize == that.fetchSize &&
-            Objects.equals(query, that.query) &&
-            Objects.equals(params, that.params) &&
-            Objects.equals(timeZone, that.timeZone) &&
-            Objects.equals(requestTimeout, that.requestTimeout) &&
-            Objects.equals(pageTimeout, that.pageTimeout) &&
-            Objects.equals(filter, that.filter) &&
-            Objects.equals(cursor, that.cursor);
+        return fetchSize == that.fetchSize
+                && Objects.equals(query, that.query)
+                && Objects.equals(params, that.params)
+                && Objects.equals(zoneId, that.zoneId)
+                && Objects.equals(requestTimeout, that.requestTimeout)
+                && Objects.equals(pageTimeout, that.pageTimeout)
+                && Objects.equals(filter, that.filter)
+                && Objects.equals(columnar,  that.columnar)
+                && Objects.equals(cursor, that.cursor)
+                && fieldMultiValueLeniency == that.fieldMultiValueLeniency
+                && indexIncludeFrozen == that.indexIncludeFrozen
+                && Objects.equals(binaryCommunication,  that.binaryCommunication);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, timeZone, fetchSize, requestTimeout, pageTimeout, filter, cursor);
+        return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout,
+                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication);
     }
 
     @Override
@@ -140,15 +176,22 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         if (query != null) {
             builder.field("query", query);
         }
-        if (this.params.isEmpty() == false) {
+        builder.field("mode", mode().toString());
+        if (clientId() != null) {
+            builder.field("client_id", clientId());
+        }
+        if (version() != null) {
+            builder.field("version", version().toString());
+        }
+        if (this.params != null && this.params.isEmpty() == false) {
             builder.startArray("params");
             for (SqlTypedParamValue val : this.params) {
                 val.toXContent(builder, params);
             }
             builder.endArray();
         }
-        if (timeZone != null) {
-            builder.field("time_zone", timeZone.getID());
+        if (zoneId != null) {
+            builder.field("time_zone", zoneId.getId());
         }
         if (fetchSize != Protocol.FETCH_SIZE) {
             builder.field("fetch_size", fetchSize);
@@ -163,10 +206,21 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             builder.field("filter");
             filter.toXContent(builder, params);
         }
+        if (columnar != null) {
+            builder.field("columnar", columnar);
+        }
+        if (fieldMultiValueLeniency) {
+            builder.field("field_multi_value_leniency", fieldMultiValueLeniency);
+        }
+        if (indexIncludeFrozen) {
+            builder.field("index_include_frozen", indexIncludeFrozen);
+        }
+        if (binaryCommunication != null) {
+            builder.field("binary_format", binaryCommunication);
+        }
         if (cursor != null) {
             builder.field("cursor", cursor);
         }
         return builder;
     }
-
 }

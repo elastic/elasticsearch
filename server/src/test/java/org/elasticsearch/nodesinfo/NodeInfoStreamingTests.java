@@ -64,7 +64,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             nodeInfo.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                NodeInfo readNodeInfo = NodeInfo.readNodeInfo(in);
+                NodeInfo readNodeInfo = new NodeInfo(in);
                 assertExpectedUnchanged(nodeInfo, readNodeInfo);
             }
         }
@@ -118,7 +118,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
             String name = randomAlphaOfLengthBetween(3, 10);
             String arch = randomAlphaOfLengthBetween(3, 10);
             String version = randomAlphaOfLengthBetween(3, 10);
-            osInfo = new OsInfo(refreshInterval, availableProcessors, allocatedProcessors, name, arch, version);
+            osInfo = new OsInfo(refreshInterval, availableProcessors, allocatedProcessors, name, name, arch, version);
         }
         ProcessInfo process = randomBoolean() ? null : new ProcessInfo(randomInt(), randomBoolean(), randomNonNegativeLong());
         JvmInfo jvm = randomBoolean() ? null : JvmInfo.jvmInfo();

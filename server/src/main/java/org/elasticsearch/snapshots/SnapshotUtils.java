@@ -23,9 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexNotFoundException;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -116,8 +114,8 @@ public class SnapshotUtils {
             }
         }
         if (result == null) {
-            return Collections.unmodifiableList(new ArrayList<>(Arrays.asList(selectedIndices)));
+            return List.of(selectedIndices);
         }
-        return Collections.unmodifiableList(new ArrayList<>(result));
+        return List.copyOf(result);
     }
 }

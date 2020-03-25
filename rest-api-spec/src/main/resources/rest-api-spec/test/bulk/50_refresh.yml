@@ -1,12 +1,14 @@
 ---
 "refresh=true immediately makes changes are visible in search":
+
+
   - do:
       bulk:
         refresh: true
         body: |
-          {"index": {"_index": "bulk_50_refresh_1", "_type": "test_type", "_id": "bulk_50_refresh_id1"}}
+          {"index": {"_index": "bulk_50_refresh_1", "_id": "bulk_50_refresh_id1"}}
           {"f1": "v1", "f2": 42}
-          {"index": {"_index": "bulk_50_refresh_1", "_type": "test_type", "_id": "bulk_50_refresh_id2"}}
+          {"index": {"_index": "bulk_50_refresh_1", "_id": "bulk_50_refresh_id2"}}
           {"f1": "v2", "f2": 47}
 
   - do:
@@ -16,13 +18,15 @@
 
 ---
 "refresh=empty string immediately makes changes are visible in search":
+
+
   - do:
       bulk:
         refresh: ""
         body: |
-          {"index": {"_index": "bulk_50_refresh_2", "_type": "test_type", "_id": "bulk_50_refresh_id3"}}
+          {"index": {"_index": "bulk_50_refresh_2", "_id": "bulk_50_refresh_id3"}}
           {"f1": "v1", "f2": 42}
-          {"index": {"_index": "bulk_50_refresh_2", "_type": "test_type", "_id": "bulk_50_refresh_id4"}}
+          {"index": {"_index": "bulk_50_refresh_2", "_id": "bulk_50_refresh_id4"}}
           {"f1": "v2", "f2": 47}
 
   - do:
@@ -33,13 +37,15 @@
 
 ---
 "refresh=wait_for waits until changes are visible in search":
+
+
   - do:
       bulk:
         refresh: wait_for
         body: |
-          {"index": {"_index": "bulk_50_refresh_3", "_type": "test_type", "_id": "bulk_50_refresh_id5"}}
+          {"index": {"_index": "bulk_50_refresh_3", "_id": "bulk_50_refresh_id5"}}
           {"f1": "v1", "f2": 42}
-          {"index": {"_index": "bulk_50_refresh_3", "_type": "test_type", "_id": "bulk_50_refresh_id6"}}
+          {"index": {"_index": "bulk_50_refresh_3", "_id": "bulk_50_refresh_id6"}}
           {"f1": "v2", "f2": 47}
 
   - do:

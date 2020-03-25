@@ -1,0 +1,46 @@
+--
+:api: get-user-privileges
+:request: GetUserPrivilegesRequest
+:response: GetUserPrivilegesResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get User Privileges API
+
+include::../execution-no-req.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get User Privileges Response
+
+The returned +{response}+ contains the following properties
+
+`clusterPrivileges`::
+A `Set` of all _cluster_ privileges that are held by the user.
+This will be the union of all the _cluster_ privileges from the user's roles.
+
+`globalPrivileges`::
+A `Set` of all _global_ privileges that are held by the user.
+This will be the union of all the _global_ privileges from the user's roles.
+Because this a union of multiple roles, it may contain multiple privileges for
+the same `category` and `operation` (which is why is is represented as a `Set`
+rather than a single object).
+
+`indicesPrivileges`::
+A `Set` of all _index_ privileges that are held by the user.
+This will be the union of all the _index_ privileges from the user's roles.
+Because this a union of multiple roles, it may contain multiple privileges for
+the same `index`, and those privileges may have independent field level security
+access grants and/or multiple document level security queries.
+
+`applicationPrivileges`::
+A `Set` of all _application_ privileges that are held by the user.
+This will be the union of all the _application_ privileges from the user's roles.
+
+`runAsPrivilege`::
+A `Set` representation of the _run-as_ privilege that is held by the user.
+This will be the union of the _run-as_ privilege from each of the user's roles.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

@@ -5,23 +5,29 @@
  */
 package org.elasticsearch.xpack.rollup;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig.CALENDAR_INTERVAL;
+import static org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig.FIXED_INTERVAL;
+import static org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig.INTERVAL;
 
 /**
  * This class contains utilities to identify which jobs are the "best" for a given aggregation tree.
@@ -30,7 +36,7 @@ import java.util.Set;
  */
 public class RollupJobIdentifierUtils {
 
-    private static final Comparator<RollupJobCaps> COMPARATOR = RollupJobIdentifierUtils.getComparator();
+    static final Comparator<RollupJobCaps> COMPARATOR = RollupJobIdentifierUtils.getComparator();
 
     /**
      * Given the aggregation tree and a list of available job capabilities, this method will return a set
@@ -85,34 +91,120 @@ public class RollupJobIdentifierUtils {
     /**
      * Find the set of date_histo's with the largest granularity interval
      */
-    private static void checkDateHisto(DateHistogramAggregationBuilder source, List<RollupJobCaps> jobCaps,
-                                       Set<RollupJobCaps> bestCaps) {
+    private static void checkDateHisto(DateHistogramAggregationBuilder source, List<RollupJobCaps> jobCaps, Set<RollupJobCaps> bestCaps) {
         ArrayList<RollupJobCaps> localCaps = new ArrayList<>();
         for (RollupJobCaps cap : jobCaps) {
             RollupJobCaps.RollupFieldCaps fieldCaps = cap.getFieldCaps().get(source.field());
             if (fieldCaps != null) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        TimeValue interval = TimeValue.parseTimeValue((String)agg.get(RollupField.INTERVAL), "date_histogram.interval");
-                        String thisTimezone  = (String)agg.get(DateHistoGroupConfig.TIME_ZONE.getPreferredName());
-                        String sourceTimeZone = source.timeZone() == null ? DateTimeZone.UTC.toString() : source.timeZone().toString();
+                        DateHistogramInterval interval = new DateHistogramInterval((String)agg.get(RollupField.INTERVAL));
+
+                        ZoneId thisTimezone = ZoneId.of(((String) agg.get(DateHistogramGroupConfig.TIME_ZONE)), ZoneId.SHORT_IDS);
+                        ZoneId sourceTimeZone = source.timeZone() == null
+                            ? DateHistogramGroupConfig.DEFAULT_ZONEID_TIMEZONE
+                            : ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
 
                         // Ensure we are working on the same timezone
-                        if (thisTimezone.equalsIgnoreCase(sourceTimeZone) == false) {
+                        if (thisTimezone.getRules().equals(sourceTimeZone.getRules()) == false) {
                             continue;
                         }
-                        if (source.dateHistogramInterval() != null) {
-                            TimeValue sourceInterval = TimeValue.parseTimeValue(source.dateHistogramInterval().toString(),
-                                    "source.date_histogram.interval");
-                            //TODO should be divisor of interval
-                            if (interval.compareTo(sourceInterval) <= 0) {
+
+                        /*
+                          This is convoluted, but new + legacy intervals makes for a big pattern match.
+                          We have to match up date_histo [interval, fixed_interval, calendar_interval] with
+                          rollup config [interval, fixed_interval, calendar_interval]
+
+                          To keep rightward drift to a minimum we break out of the loop if a successful match is found
+                        */
+
+                        DateHistogramInterval configCalendarInterval = agg.get(CALENDAR_INTERVAL) != null
+                            ? new DateHistogramInterval((String) agg.get(CALENDAR_INTERVAL)) : null;
+                        DateHistogramInterval configFixedInterval = agg.get(FIXED_INTERVAL) != null
+                            ? new DateHistogramInterval((String) agg.get(FIXED_INTERVAL)) : null;
+                        DateHistogramInterval configLegacyInterval = agg.get(INTERVAL) != null
+                            ? new DateHistogramInterval((String) agg.get(INTERVAL)) : null;
+
+                        // If histo used calendar_interval explicitly
+                        if (source.getCalendarInterval() != null) {
+                            DateHistogramInterval requestInterval = source.getCalendarInterval();
+
+                            // Try to use explicit calendar_interval on config if it exists
+                            if (validateCalendarInterval(requestInterval, configCalendarInterval)) {
                                 localCaps.add(cap);
+                                break;
+                            }
+
+                            // Otherwise fall back to old style where we prefer calendar over fixed (e.g. `1h` == calendar)
+                            if (validateCalendarInterval(requestInterval, configLegacyInterval)) {
+                                localCaps.add(cap);
+                                break;
+                            }
+
+                            // Note that this ignores FIXED_INTERVAL on purpose, it would not be compatible
+
+                        } else if (source.getFixedInterval() != null) {
+                            // If histo used fixed_interval explicitly
+
+                            DateHistogramInterval requestInterval = source.getFixedInterval();
+
+                            // Try to use explicit fixed_interval on config if it exists
+                            if (validateFixedInterval(requestInterval, configFixedInterval)) {
+                                localCaps.add(cap);
+                                break;
+                            }
+
+                            // Otherwise fall back to old style
+                            if (validateFixedInterval(requestInterval, configLegacyInterval)) {
+                                localCaps.add(cap);
+                                break;
+                            }
+
+                            // Note that this ignores CALENDER_INTERVAL on purpose, it would not be compatible
+
+                        } else if (source.dateHistogramInterval() != null) {
+                            // The histo used a deprecated interval method, so meaning is ambiguous.
+                            // Use legacy method of preferring calendar over fixed
+                            final DateHistogramInterval requestInterval = source.dateHistogramInterval();
+
+                            // Try to use explicit calendar_interval on config if it exists
+                            // Both must be calendar intervals
+                            if (validateCalendarInterval(requestInterval, configCalendarInterval)) {
+                                localCaps.add(cap);
+                                break;
+                            }
+
+                            // Otherwise fall back to old style where we prefer calendar over fixed (e.g. `1h` == calendar)
+                            // Need to verify that the config interval is in fact calendar here
+                            if (isCalendarInterval(configLegacyInterval)
+                                && validateCalendarInterval(requestInterval, configLegacyInterval)) {
+
+                                localCaps.add(cap);
+                                break;
+                            }
+
+                            // The histo's interval couldn't be parsed as a calendar, so it is assumed fixed.
+                            // Try to use explicit fixed_interval on config if it exists
+                            if (validateFixedInterval(requestInterval, configFixedInterval)) {
+                                localCaps.add(cap);
+                                break;
+                            }
+
+                        } else if (source.interval() != 0) {
+                            // Otherwise fall back to old style interval millis
+                            // Need to verify that the config interval is not calendar here
+                            if (isCalendarInterval(configLegacyInterval) == false
+                                && validateFixedInterval(new DateHistogramInterval(source.interval() + "ms"), configLegacyInterval)) {
+
+                                localCaps.add(cap);
+                                break;
                             }
                         } else {
-                            if (interval.getMillis() <= source.interval()) {
-                                localCaps.add(cap);
-                            }
+                            // This _should not_ happen, but if miraculously it does we need to just quit
+                            throw new IllegalArgumentException("An interval of some variety must be configured on " +
+                                "the date_histogram aggregation.");
                         }
+                        // If we get here nothing matched, and we can break out
                         break;
                     }
                 }
@@ -133,6 +225,63 @@ public class RollupJobIdentifierUtils {
         }
     }
 
+    static String retrieveInterval(Map<String, Object> agg) {
+        String interval = (String) agg.get(RollupField.INTERVAL);
+        if (interval == null) {
+            interval = (String) agg.get(CALENDAR_INTERVAL);
+        }
+        if (interval == null) {
+            interval = (String) agg.get(FIXED_INTERVAL);
+        }
+        if (interval == null) {
+            throw new IllegalStateException("Could not find interval in agg cap: " + agg.toString());
+        }
+        return interval;
+    }
+
+    private static boolean isCalendarInterval(DateHistogramInterval interval) {
+        return interval != null && DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(interval.toString());
+    }
+
+    static boolean validateCalendarInterval(DateHistogramInterval requestInterval,
+                                                    DateHistogramInterval configInterval) {
+        if (requestInterval == null || configInterval == null) {
+            return false;
+        }
+
+        // The request must be gte the config.  The CALENDAR_ORDERING map values are integers representing
+        // relative orders between the calendar units
+        Rounding.DateTimeUnit requestUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(requestInterval.toString());
+        if (requestUnit == null) {
+            return false;
+        }
+        Rounding.DateTimeUnit configUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(configInterval.toString());
+        if (configUnit == null) {
+            return false;
+        }
+
+        long requestOrder = requestUnit.getField().getBaseUnit().getDuration().toMillis();
+        long configOrder = configUnit.getField().getBaseUnit().getDuration().toMillis();
+
+        // All calendar units are multiples naturally, so we just care about gte
+        return requestOrder >= configOrder;
+    }
+
+    static boolean validateFixedInterval(DateHistogramInterval requestInterval, DateHistogramInterval configInterval) {
+        if (requestInterval == null || configInterval == null) {
+            return false;
+        }
+
+        // Both are fixed, good to convert to millis now
+        long configIntervalMillis = TimeValue.parseTimeValue(configInterval.toString(),
+            "date_histo.config.interval").getMillis();
+        long requestIntervalMillis = TimeValue.parseTimeValue(requestInterval.toString(),
+            "date_histo.request.interval").getMillis();
+
+        // Must be a multiple and gte the config
+        return requestIntervalMillis >= configIntervalMillis && requestIntervalMillis % configIntervalMillis == 0;
+    }
+
     /**
      * Find the set of histo's with the largest interval
      */
@@ -143,9 +292,9 @@ public class RollupJobIdentifierUtils {
             if (fieldCaps != null) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
-                        Long interval = (long)agg.get(RollupField.INTERVAL);
-                        // TODO should be divisor of interval
-                        if (interval <= source.interval()) {
+                        long interval = (long) agg.get(RollupField.INTERVAL);
+                        // query interval must be gte the configured interval, and a whole multiple
+                        if (interval <= source.interval() && source.interval() % interval == 0) {
                             localCaps.add(cap);
                         }
                         break;
@@ -155,8 +304,8 @@ public class RollupJobIdentifierUtils {
         }
 
         if (localCaps.isEmpty()) {
-            throw new IllegalArgumentException("There is not a rollup job that has a [" + source.getWriteableName() + "] agg on field [" +
-                    source.field() + "] which also satisfies all requirements of query.");
+            throw new IllegalArgumentException("There is not a rollup job that has a [" + source.getWriteableName()
+                + "] agg on field [" + source.field() + "] which also satisfies all requirements of query.");
         }
 
         // We are a leaf, save our best caps
@@ -247,8 +396,8 @@ public class RollupJobIdentifierUtils {
                 return 0;
             }
 
-            TimeValue thisTime = null;
-            TimeValue thatTime = null;
+            long thisTime = Long.MAX_VALUE;
+            long thatTime = Long.MAX_VALUE;
 
             // histogram intervals are averaged and compared, with the idea that
             // a larger average == better, because it will generate fewer documents
@@ -265,7 +414,7 @@ public class RollupJobIdentifierUtils {
             for (RollupJobCaps.RollupFieldCaps fieldCaps : o1.getFieldCaps().values()) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        thisTime = TimeValue.parseTimeValue((String) agg.get(RollupField.INTERVAL), RollupField.INTERVAL);
+                        thisTime = new DateHistogramInterval(retrieveInterval(agg)).estimateMillis();
                     } else if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         thisHistoWeights += (long) agg.get(RollupField.INTERVAL);
                         counter += 1;
@@ -281,7 +430,7 @@ public class RollupJobIdentifierUtils {
             for (RollupJobCaps.RollupFieldCaps fieldCaps : o2.getFieldCaps().values()) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        thatTime = TimeValue.parseTimeValue((String) agg.get(RollupField.INTERVAL), RollupField.INTERVAL);
+                        thatTime = new DateHistogramInterval(retrieveInterval(agg)).estimateMillis();
                     } else if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         thatHistoWeights += (long) agg.get(RollupField.INTERVAL);
                         counter += 1;
@@ -292,13 +441,9 @@ public class RollupJobIdentifierUtils {
             }
             thatHistoWeights = counter == 0 ? 0 : thatHistoWeights / counter;
 
-            // DateHistos are mandatory so these should always be present no matter what
-            assert thisTime != null;
-            assert thatTime != null;
-
             // Compare on date interval first
             // The "smaller" job is the one with the larger interval
-            int timeCompare = thisTime.compareTo(thatTime);
+            int timeCompare = Long.compare(thisTime, thatTime);
             if (timeCompare != 0) {
                 return -timeCompare;
             }

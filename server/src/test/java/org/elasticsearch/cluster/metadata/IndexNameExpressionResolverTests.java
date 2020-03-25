@@ -35,21 +35,28 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,7 +64,17 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexNameExpressionResolverTests extends ESTestCase {
-    private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+    private IndexNameExpressionResolver indexNameExpressionResolver;
+
+    protected IndexNameExpressionResolver getIndexNameExpressionResolver() {
+        return new IndexNameExpressionResolver();
+    }
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        indexNameExpressionResolver = getIndexNameExpressionResolver();
+    }
 
     public void testIndexOptionsStrict() {
         MetaData.Builder mdBuilder = MetaData.builder()
@@ -152,8 +169,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
-        IndicesOptions lenientExpand = IndicesOptions.fromOptions(true, true, true, true);
-        IndicesOptions[] indicesOptions = new IndicesOptions[]{ IndicesOptions.lenientExpandOpen(), lenientExpand};
+        IndicesOptions[] indicesOptions = new IndicesOptions[]{IndicesOptions.lenientExpandOpen(), IndicesOptions.lenientExpand()};
         for (IndicesOptions options : indicesOptions) {
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options);
             String[] results = indexNameExpressionResolver.concreteIndexNames(context, "foo");
@@ -196,7 +212,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         String[] results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(3, results.length);
 
-        context = new IndexNameExpressionResolver.Context(state, lenientExpand);
+        context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpand());
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(Arrays.toString(results), 4, results.length);
 
@@ -205,7 +221,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(3, results.length);
         assertThat(results, arrayContainingInAnyOrder("foo", "foobar", "foofoo"));
 
-        context = new IndexNameExpressionResolver.Context(state, lenientExpand);
+        context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpand());
         results = indexNameExpressionResolver.concreteIndexNames(context, "foofoo*");
         assertEquals(4, results.length);
         assertThat(results, arrayContainingInAnyOrder("foo", "foobar", "foofoo", "foofoo-closed"));
@@ -259,11 +275,15 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo").state(IndexMetaData.State.CLOSE))
                 .put(indexBuilder("bar"))
-                .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("barbaz")));
+                .put(indexBuilder("foobar").putAlias(AliasMetaData.builder("barbaz")))
+                .put(indexBuilder("hidden", Settings.builder().put("index.hidden", true).build()))
+                .put(indexBuilder(".hidden", Settings.builder().put("index.hidden", true).build()))
+                .put(indexBuilder(".hidden-closed", Settings.builder().put("index.hidden", true).build()).state(IndexMetaData.State.CLOSE))
+                .put(indexBuilder("hidden-closed", Settings.builder().put("index.hidden", true).build()).state(IndexMetaData.State.CLOSE));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
         // Only closed
-        IndicesOptions options = IndicesOptions.fromOptions(false, true, false, true);
+        IndicesOptions options = IndicesOptions.fromOptions(false, true, false, true, false);
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options);
         String[] results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(1, results.length);
@@ -278,8 +298,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
 
+        // implicit hidden for dot indices based on wildcard starting with .
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".hidd*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden-closed"));
+
         // Only open
-        options = IndicesOptions.fromOptions(false, true, true, false);
+        options = IndicesOptions.fromOptions(false, true, true, false, false);
         context = new IndexNameExpressionResolver.Context(state, options);
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(2, results.length);
@@ -293,8 +322,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
 
+        // implicit hidden for dot indices based on wildcard starting with .
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".hidd*");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden"));
+
         // Open and closed
-        options = IndicesOptions.fromOptions(false, true, true, true);
+        options = IndicesOptions.fromOptions(false, true, true, true, false);
         context = new IndexNameExpressionResolver.Context(state, options);
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(3, results.length);
@@ -316,10 +354,118 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
 
+        results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo", "*");
+        assertEquals(3, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "foo"));
+
         results = indexNameExpressionResolver.concreteIndexNames(context, "-*");
         assertEquals(0, results.length);
 
-        options = IndicesOptions.fromOptions(false, false, true, true);
+        // implicit hidden for dot indices based on wildcard starting with .
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".*");
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, ".hidd*");
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder(".hidden", ".hidden-closed"));
+
+        // open closed and hidden
+        options = IndicesOptions.fromOptions(false, true, true, true, true);
+        context = new IndexNameExpressionResolver.Context(state, options);
+        results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
+        assertEquals(7, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "foo", "hidden", "hidden-closed", ".hidden", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder("foobar", "foo"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "bar");
+        assertEquals(1, results.length);
+        assertEquals("bar", results[0]);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo*");
+        assertEquals(5, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "hidden", "hidden-closed", ".hidden", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo", "-foobar");
+        assertEquals(5, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "hidden", "hidden-closed", ".hidden", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo", "-foobar", "-hidden*");
+        assertEquals(3, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", ".hidden", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden*");
+        assertEquals(2, results.length);
+        assertThat(results, arrayContainingInAnyOrder("hidden", "hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder("hidden"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden-closed");
+        assertEquals(1, results.length);
+        assertThat(results, arrayContainingInAnyOrder("hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "-*");
+        assertEquals(0, results.length);
+
+        // open and hidden
+        options = IndicesOptions.fromOptions(false, true, true, false, true);
+        context = new IndexNameExpressionResolver.Context(state, options);
+        results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
+        assertEquals(4, results.length);
+        assertThat(results, arrayContainingInAnyOrder("bar", "foobar", "hidden", ".hidden"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
+        assertEquals(1, results.length);
+        assertEquals("foobar", results[0]);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "bar");
+        assertEquals(1, results.length);
+        assertEquals("bar", results[0]);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "h*");
+        assertEquals(1, results.length);
+        assertEquals("hidden", results[0]);
+
+        // closed and hidden
+        options = IndicesOptions.fromOptions(false, true, false, true, true);
+        context = new IndexNameExpressionResolver.Context(state, options);
+        results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
+        assertEquals(3, results.length);
+        assertThat(results, arrayContainingInAnyOrder("foo", "hidden-closed", ".hidden-closed"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
+        assertEquals(1, results.length);
+        assertEquals("foo", results[0]);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "bar");
+        assertEquals(1, results.length);
+        assertEquals("bar", results[0]);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "h*");
+        assertEquals(1, results.length);
+        assertEquals("hidden-closed", results[0]);
+
+        // only hidden
+        options = IndicesOptions.fromOptions(false, true, false, false, true);
+        context = new IndexNameExpressionResolver.Context(state, options);
+        results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
+        assertThat(results, emptyArray());
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "h*");
+        assertThat(results, emptyArray());
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden");
+        assertThat(results, arrayContainingInAnyOrder("hidden"));
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "hidden-closed");
+        assertThat(results, arrayContainingInAnyOrder("hidden-closed"));
+
+        options = IndicesOptions.fromOptions(false, false, true, true, true);
         IndexNameExpressionResolver.Context context2 = new IndexNameExpressionResolver.Context(state, options);
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context2, "-*"));
@@ -336,7 +482,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         //ignore unavailable and allow no indices
         {
-            IndicesOptions noExpandLenient = IndicesOptions.fromOptions(true, true, false, false);
+            IndicesOptions noExpandLenient = IndicesOptions.fromOptions(true, true, false, false, randomBoolean());
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, noExpandLenient);
             String[] results = indexNameExpressionResolver.concreteIndexNames(context, "baz*");
             assertThat(results, emptyArray());
@@ -358,7 +504,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         //ignore unavailable but don't allow no indices
         {
-            IndicesOptions noExpandDisallowEmpty = IndicesOptions.fromOptions(true, false, false, false);
+            IndicesOptions noExpandDisallowEmpty = IndicesOptions.fromOptions(true, false, false, false, randomBoolean());
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, noExpandDisallowEmpty);
 
             {
@@ -383,7 +529,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         //error on unavailable but allow no indices
         {
-            IndicesOptions noExpandErrorUnavailable = IndicesOptions.fromOptions(false, true, false, false);
+            IndicesOptions noExpandErrorUnavailable = IndicesOptions.fromOptions(false, true, false, false, randomBoolean());
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, noExpandErrorUnavailable);
             {
                 String[] results = indexNameExpressionResolver.concreteIndexNames(context, "baz*");
@@ -409,7 +555,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         //error on both unavailable and no indices
         {
-            IndicesOptions noExpandStrict = IndicesOptions.fromOptions(false, false, false, false);
+            IndicesOptions noExpandStrict = IndicesOptions.fromOptions(false, false, false, false, randomBoolean());
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, noExpandStrict);
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "baz*"));
@@ -436,42 +582,48 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         //error on both unavailable and no indices + every alias needs to expand to a single index
 
         {
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+            IndexNameExpressionResolver.Context context =
+                new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "baz*"));
             assertThat(infe.getIndex().getName(), equalTo("baz*"));
         }
 
         {
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+            IndexNameExpressionResolver.Context context =
+                new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foo", "baz*"));
             assertThat(infe.getIndex().getName(), equalTo("baz*"));
         }
 
         {
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+            IndexNameExpressionResolver.Context context =
+                new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foofoobar"));
             assertThat(e.getMessage(), containsString("Alias [foofoobar] has more than one indices associated with it"));
         }
 
         {
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+            IndexNameExpressionResolver.Context context =
+                new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foo", "foofoobar"));
             assertThat(e.getMessage(), containsString("Alias [foofoobar] has more than one indices associated with it"));
         }
 
         {
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+            IndexNameExpressionResolver.Context context =
+                new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
             IndexClosedException ince = expectThrows(IndexClosedException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foofoo-closed", "foofoobar"));
             assertThat(ince.getMessage(), equalTo("closed"));
             assertEquals(ince.getIndex().getName(), "foofoo-closed");
         }
 
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+        IndexNameExpressionResolver.Context context =
+            new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
         String[] results = indexNameExpressionResolver.concreteIndexNames(context, "foo", "barbaz");
         assertEquals(2, results.length);
         assertThat(results, arrayContainingInAnyOrder("foo", "foofoo"));
@@ -501,7 +653,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
 
 
-        final IndexNameExpressionResolver.Context context2 = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
+        final IndexNameExpressionResolver.Context context2 =
+            new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
         results = indexNameExpressionResolver.concreteIndexNames(context2, Strings.EMPTY_ARRAY);
         assertThat(results, emptyArray());
         results = indexNameExpressionResolver.concreteIndexNames(context2, "foo");
@@ -511,14 +664,25 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         results = indexNameExpressionResolver.concreteIndexNames(context2, "foo*", "bar");
         assertThat(results, emptyArray());
 
-        final IndexNameExpressionResolver.Context context3 = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, false, true, false));
+        final IndexNameExpressionResolver.Context context3 =
+            new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, false, true, false));
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context3, Strings.EMPTY_ARRAY));
         assertThat(infe.getResourceId().toString(), equalTo("[_all]"));
     }
 
     private static IndexMetaData.Builder indexBuilder(String index) {
-        return IndexMetaData.builder(index).settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        return indexBuilder(index, Settings.EMPTY);
+    }
+
+    private static IndexMetaData.Builder indexBuilder(String index, Settings additionalSettings) {
+        return IndexMetaData.builder(index).settings(settings(additionalSettings));
+    }
+
+    private static Settings.Builder settings(Settings additionalSettings) {
+        return settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(additionalSettings);
     }
 
     public void testConcreteIndicesIgnoreIndicesOneMissingIndex() {
@@ -530,7 +694,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context, "testZZZ"));
-        assertThat(infe.getMessage(), is("no such index"));
+        assertThat(infe.getMessage(), is("no such index [testZZZ]"));
     }
 
     public void testConcreteIndicesIgnoreIndicesOneMissingIndexOtherFound() {
@@ -540,7 +704,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
 
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testXXX", "testZZZ")), equalTo(newHashSet("testXXX")));
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testXXX", "testZZZ")),
+            equalTo(newHashSet("testXXX")));
     }
 
     public void testConcreteIndicesIgnoreIndicesAllMissing() {
@@ -552,7 +717,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context, "testMo", "testMahdy"));
-        assertThat(infe.getMessage(), is("no such index"));
+        assertThat(infe.getMessage(), is("no such index [testMo]"));
     }
 
     public void testConcreteIndicesIgnoreIndicesEmptyRequest() {
@@ -561,7 +726,27 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(indexBuilder("kuku"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, new String[]{})), equalTo(newHashSet("kuku", "testXXX")));
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, new String[]{})),
+            equalTo(newHashSet("kuku", "testXXX")));
+    }
+    public void testConcreteIndicesNoIndicesErrorMessage() {
+        MetaData.Builder mdBuilder = MetaData.builder();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
+            IndicesOptions.fromOptions(false, false, true, true));
+        IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndices(context, new String[]{}));
+        assertThat(infe.getMessage(), is("no such index [null] and no indices exist"));
+    }
+
+    public void testConcreteIndicesNoIndicesErrorMessageNoExpand() {
+        MetaData.Builder mdBuilder = MetaData.builder();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
+            IndicesOptions.fromOptions(false, false, false, false));
+        IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndices(context, new String[]{}));
+        assertThat(infe.getMessage(), is("no such index [_all] and no indices exist"));
     }
 
     public void testConcreteIndicesWildcardExpansion() {
@@ -573,14 +758,19 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(indexBuilder("testYYX").state(State.OPEN));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, false, false));
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testX*")), equalTo(new HashSet<String>()));
+        IndexNameExpressionResolver.Context context =
+            new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, false, false));
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testX*")),
+            equalTo(new HashSet<String>()));
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, true, false));
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testX*")), equalTo(newHashSet("testXXX", "testXXY")));
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testX*")),
+            equalTo(newHashSet("testXXX", "testXXY")));
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, false, true));
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testX*")), equalTo(newHashSet("testXYY")));
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testX*")),
+            equalTo(newHashSet("testXYY")));
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, true, true));
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testX*")), equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testX*")),
+            equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
     }
 
     public void testConcreteIndicesWildcardWithNegation() {
@@ -649,7 +839,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         // when ignoreAliases option is set, concreteIndexNames resolves the provided expressions
         // only against the defined indices
-        IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
+        IndicesOptions ignoreAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
 
         String[] indexNamesIndexWildcard = indexNameExpressionResolver.concreteIndexNames(state, ignoreAliasesOptions, "foo*");
 
@@ -673,7 +863,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         // when ignoreAliases option is not set, concreteIndexNames resolves the provided
         // expressions against the defined indices and aliases
-        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false);
+        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false, false);
 
         List<String> indexNames = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state, indicesAndAliasesOptions, "foo*"));
         assertEquals(2, indexNames.size());
@@ -694,6 +884,170 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(2, indexNames.size());
         assertTrue(indexNames.contains("foo_foo"));
         assertTrue(indexNames.contains("bar_bar"));
+    }
+
+    public void testHiddenAliasAndHiddenIndexResolution() {
+        final String visibleIndex = "visible_index";
+        final String hiddenIndex = "hidden_index";
+        final String visibleAlias = "visible_alias";
+        final String hiddenAlias = "hidden_alias";
+        final String dottedHiddenAlias = ".hidden_alias";
+        final String dottedHiddenIndex = ".hidden_index";
+
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, false, true, false, false, false);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, true, true, false, false, false);
+
+        {
+            // A visible index with a visible alias and a hidden index with a hidden alias
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetaData.builder(visibleAlias)))
+                .put(indexBuilder(hiddenIndex,  Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            // A total wildcard should only be resolved to visible indices
+            String[] indexNames;
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+
+            // Unless hidden is specified in the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // Both hidden indices and hidden aliases should not be included in wildcard resolution
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "hidden*", "visible*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+
+            // unless it's specified in the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "hidden*", "visible*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // Only visible aliases should be included in wildcard resolution
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+
+            // unless, again, it's specified in the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // If we specify a hidden alias by name, the options shouldn't matter.
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(hiddenIndex));
+
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(hiddenIndex));
+        }
+
+        {
+            // A visible alias that points to one hidden and one visible index
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetaData.builder(visibleAlias)))
+                .put(indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(visibleAlias)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            // If the alias is resolved to concrete indices, it should resolve to all the indices it points to, hidden or not.
+            String[] indexNames;
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, visibleAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, visibleAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // A total wildcards does not resolve the hidden index in this case
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+        }
+
+        {
+            // A hidden alias that points to one hidden and one visible index
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true)))
+                .put(indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            String[] indexNames;
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // A query that only matches the hidden alias should throw
+            expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias"));
+
+            // But if we include hidden it should be resolved to both indices
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+
+            // If we specify the alias by name it should resolve to both indices, regardless of if the options specify hidden
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, hiddenAlias);
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
+        }
+
+        {
+            // A hidden alias with a dot-prefixed name that points to one hidden index with a dot prefix, and one hidden index without
+            MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder(dottedHiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(dottedHiddenAlias).isHidden(true)))
+                .put(indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                    .state(State.OPEN)
+                    .putAlias(AliasMetaData.builder(dottedHiddenAlias).isHidden(true)));
+            ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+            String[] indexNames;
+            // A dot-prefixed pattern that includes only the hidden alias should resolve to both, regardless of the options
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, ".hidden_a*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(dottedHiddenIndex, hiddenIndex));
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, ".hidden_a*");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(dottedHiddenIndex, hiddenIndex));
+
+            // A query that doesn't include the dot should fail if the options don't include hidden
+            expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*_alias"));
+
+            // But should include both indices if the options do include hidden
+            indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "*_alias");
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(dottedHiddenIndex, hiddenIndex));
+
+        }
+    }
+
+    public void testHiddenIndexWithVisibleAliasOverlappingNameResolution() {
+        final String hiddenIndex = "my-hidden-index";
+        final String hiddenAlias = "my-hidden-alias";
+        final String visibleAlias = "my-visible-alias";
+
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, false, true, false, false, false);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, true, true, false, false, false);
+
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder(hiddenIndex,  Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
+                .state(State.OPEN)
+                .putAlias(AliasMetaData.builder(hiddenAlias).isHidden(true))
+                .putAlias(AliasMetaData.builder(visibleAlias).build()));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        String[] indexNames;
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "my-*");
+        assertThat(Arrays.asList(indexNames), containsInAnyOrder(hiddenIndex));
+
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "my-hidden*");
+        assertThat(Arrays.asList(indexNames), empty());
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "my-*", "-my-visible*");
+        assertThat(Arrays.asList(indexNames), empty());
+        indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, "my-hidden*", "-my-hidden-a*");
+        assertThat(Arrays.asList(indexNames), empty());
     }
 
     /**
@@ -891,17 +1245,20 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
     public void testIndexOptionsFailClosedIndicesAndAliases() {
         MetaData.Builder mdBuilder = MetaData.builder()
-                .put(indexBuilder("foo1-closed").state(IndexMetaData.State.CLOSE).putAlias(AliasMetaData.builder("foobar1-closed")).putAlias(AliasMetaData.builder("foobar2-closed")))
+                .put(indexBuilder("foo1-closed").state(IndexMetaData.State.CLOSE)
+                    .putAlias(AliasMetaData.builder("foobar1-closed")).putAlias(AliasMetaData.builder("foobar2-closed")))
                 .put(indexBuilder("foo2-closed").state(IndexMetaData.State.CLOSE).putAlias(AliasMetaData.builder("foobar2-closed")))
                 .put(indexBuilder("foo3").putAlias(AliasMetaData.builder("foobar2-closed")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
-        IndexNameExpressionResolver.Context contextICE = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictExpandOpenAndForbidClosed());
+        IndexNameExpressionResolver.Context contextICE =
+            new IndexNameExpressionResolver.Context(state, IndicesOptions.strictExpandOpenAndForbidClosed());
         expectThrows(IndexClosedException.class, () -> indexNameExpressionResolver.concreteIndexNames(contextICE, "foo1-closed"));
         expectThrows(IndexClosedException.class, () -> indexNameExpressionResolver.concreteIndexNames(contextICE, "foobar1-closed"));
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true,
-                contextICE.getOptions().allowNoIndices(), contextICE.getOptions().expandWildcardsOpen(), contextICE.getOptions().expandWildcardsClosed(), contextICE.getOptions()));
+                contextICE.getOptions().allowNoIndices(), contextICE.getOptions().expandWildcardsOpen(),
+            contextICE.getOptions().expandWildcardsClosed(), contextICE.getOptions()));
         String[] results = indexNameExpressionResolver.concreteIndexNames(context, "foo1-closed");
         assertThat(results, emptyArray());
 
@@ -926,7 +1283,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             // expected
         }
 
-        context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, context.getOptions().allowNoIndices(), context.getOptions().expandWildcardsOpen(), context.getOptions().expandWildcardsClosed(), context.getOptions()));
+        context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true,
+            context.getOptions().allowNoIndices(), context.getOptions().expandWildcardsOpen(),
+            context.getOptions().expandWildcardsClosed(), context.getOptions()));
         results = indexNameExpressionResolver.concreteIndexNames(context, "foobar2-closed");
         assertThat(results, arrayWithSize(1));
         assertThat(results, arrayContaining("foo3"));
@@ -974,20 +1333,39 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertArrayEquals(new String[] {"test-0"}, strings);
     }
 
+    public void testResolveExpressions() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetaData.builder("alias-0").filter("{ \"term\": \"foo\"}")))
+                .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetaData.builder("alias-1")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        assertEquals(new HashSet<>(Arrays.asList("alias-0", "alias-1")),
+                indexNameExpressionResolver.resolveExpressions(state, "alias-*"));
+        assertEquals(new HashSet<>(Arrays.asList("test-0", "alias-0", "alias-1")),
+                indexNameExpressionResolver.resolveExpressions(state, "test-0", "alias-*"));
+        assertEquals(new HashSet<>(Arrays.asList("test-0", "test-1", "alias-0", "alias-1")),
+                indexNameExpressionResolver.resolveExpressions(state, "test-*", "alias-*"));
+        assertEquals(new HashSet<>(Arrays.asList("test-1", "alias-1")),
+                indexNameExpressionResolver.resolveExpressions(state, "*-1"));
+    }
+
     public void testFilteringAliases() {
         MetaData.Builder mdBuilder = MetaData.builder()
             .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetaData.builder("alias-0").filter("{ \"term\": \"foo\"}")))
             .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetaData.builder("alias-1")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
-        String[] strings = indexNameExpressionResolver.filteringAliases(state, "test-0", "alias-*");
+        Set<String> resolvedExpressions = new HashSet<>(Arrays.asList("alias-0", "alias-1"));
+        String[] strings = indexNameExpressionResolver.filteringAliases(state, "test-0", resolvedExpressions);
         assertArrayEquals(new String[] {"alias-0"}, strings);
 
         // concrete index supersedes filtering alias
-        strings = indexNameExpressionResolver.filteringAliases(state, "test-0", "test-0,alias-*");
+        resolvedExpressions = new HashSet<>(Arrays.asList("test-0", "alias-0", "alias-1"));
+        strings = indexNameExpressionResolver.filteringAliases(state, "test-0", resolvedExpressions);
         assertNull(strings);
 
-        strings = indexNameExpressionResolver.filteringAliases(state, "test-0", "test-*,alias-*");
+        resolvedExpressions = new HashSet<>(Arrays.asList("test-0", "test-1", "alias-0", "alias-1"));
+        strings = indexNameExpressionResolver.filteringAliases(state, "test-0", resolvedExpressions);
         assertNull(strings);
     }
 
@@ -999,9 +1377,36 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .putAlias(AliasMetaData.builder("test-alias-non-filtering"))
             );
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        String[] strings = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, true, "test-*");
+        Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "test-*");
+
+        String[] strings = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, true, resolvedExpressions);
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias-0", "test-alias-1", "test-alias-non-filtering"}, strings);
+
+        strings = indexNameExpressionResolver.indexAliases(state, "test-0", x -> x.alias().equals("test-alias-1"), true,
+                resolvedExpressions);
+        assertArrayEquals(null, strings);
+    }
+
+    public void testIndexAliasesSkipIdentity() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("test-0").state(State.OPEN)
+                    .putAlias(AliasMetaData.builder("test-alias"))
+                    .putAlias(AliasMetaData.builder("other-alias"))
+                );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        Set<String> resolvedExpressions = new HashSet<>(Arrays.asList("test-0", "test-alias"));
+        String[] aliases = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, false, resolvedExpressions);
+        assertNull(aliases);
+        aliases = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, true, resolvedExpressions);
+        assertArrayEquals(new String[] {"test-alias"}, aliases);
+
+        resolvedExpressions = Collections.singleton("other-alias");
+        aliases = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, false, resolvedExpressions);
+        assertArrayEquals(new String[] {"other-alias"}, aliases);
+        aliases = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, true, resolvedExpressions);
+        assertArrayEquals(new String[] {"other-alias"}, aliases);
     }
 
     public void testConcreteWriteIndexSuccessful() {
@@ -1011,7 +1416,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .putAlias(AliasMetaData.builder("test-alias").writeIndex(testZeroWriteIndex ? true : null)));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         String[] strings = indexNameExpressionResolver
-            .indexAliases(state, "test-0", x -> true, true, "test-*");
+            .indexAliases(state, "test-0", x -> true, true, new HashSet<>(Arrays.asList("test-0", "test-alias")));
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
         IndicesRequest request =  new IndicesRequest()  {
@@ -1072,7 +1477,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .putAlias(AliasMetaData.builder("test-alias").writeIndex(testZeroWriteIndex ? randomFrom(false, null) : true)));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         String[] strings = indexNameExpressionResolver
-            .indexAliases(state, "test-0", x -> true, true, "test-*");
+            .indexAliases(state, "test-0", x -> true, true, new HashSet<>(Arrays.asList("test-0", "test-1", "test-alias")));
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
         IndicesRequest request =  new IndicesRequest()  {
@@ -1100,11 +1505,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .putAlias(AliasMetaData.builder("test-alias").writeIndex(false)));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         String[] strings = indexNameExpressionResolver
-            .indexAliases(state, "test-0", x -> true, true, "test-*");
+            .indexAliases(state, "test-0", x -> true, true, new HashSet<>(Arrays.asList("test-0", "test-alias")));
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
         DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
-            new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
+            new UpdateRequest("test-alias", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
         assertThat(exception.getMessage(), equalTo("no write index is defined for alias [test-alias]." +
@@ -1120,11 +1525,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .putAlias(AliasMetaData.builder("test-alias").writeIndex(randomFrom(false, null))));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         String[] strings = indexNameExpressionResolver
-            .indexAliases(state, "test-0", x -> true, true, "test-*");
+            .indexAliases(state, "test-0", x -> true, true, new HashSet<>(Arrays.asList("test-0", "test-1", "test-alias")));
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
         DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
-            new UpdateRequest("test-alias", "_type", "_id"), new DeleteRequest("test-alias"));
+            new UpdateRequest("test-alias", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
         assertThat(exception.getMessage(), equalTo("no write index is defined for alias [test-alias]." +
@@ -1141,7 +1546,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .putAlias(AliasMetaData.builder("test-alias").writeIndex(randomFrom(!test0WriteIndex, null))));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         String[] strings = indexNameExpressionResolver
-            .indexAliases(state, "test-0", x -> true, true, "test-*");
+            .indexAliases(state, "test-0", x -> true, true, new HashSet<>(Arrays.asList("test-0", "test-1", "test-alias")));
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias"}, strings);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
@@ -1161,7 +1566,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(state, new DeleteIndexRequest("does_not_exist")));
             assertEquals("does_not_exist", infe.getIndex().getName());
-            assertEquals("no such index", infe.getMessage());
+            assertEquals("no such index [does_not_exist]", infe.getMessage());
         }
         {
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
@@ -1171,13 +1576,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("test-alias");
-            deleteIndexRequest.indicesOptions(IndicesOptions.fromOptions(true, true, true, true, false, false, true));
+            deleteIndexRequest.indicesOptions(IndicesOptions.fromOptions(true, true, true, true, false, false, true, false));
             String[] indices = indexNameExpressionResolver.concreteIndexNames(state, deleteIndexRequest);
             assertEquals(0, indices.length);
         }
         {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("test-a*");
-            deleteIndexRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, true, false, false, true));
+            deleteIndexRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, true, false, false, true, false));
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(state, deleteIndexRequest));
             assertEquals(infe.getIndex().getName(), "test-a*");
@@ -1290,5 +1695,68 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         InvalidIndexNameException iine = expectThrows(InvalidIndexNameException.class,
             () -> indexNameExpressionResolver.concreteIndexNames(context, "_foo"));
         assertEquals("Invalid index name [_foo], must not start with '_'.", iine.getMessage());
+    }
+
+    public void testIgnoreThrottled() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-index", Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true).build())
+                .state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias")))
+            .put(indexBuilder("index").state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias2")))
+            .put(indexBuilder("index-closed", Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true).build())
+                .state(State.CLOSE)
+                .putAlias(AliasMetaData.builder("test-alias-closed")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "*");
+            assertEquals(1, indices.length);
+            assertEquals("index", indices[0].getName());
+        }
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED, "test-alias");
+            assertEquals(1, indices.length);
+            assertEquals("test-index", indices[0].getName());
+        }
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-alias");
+            assertEquals(0, indices.length);
+        }
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-*");
+            assertEquals(1, indices.length);
+            assertEquals("index", indices[0].getName());
+        }
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "ind*", "test-index");
+            assertEquals(1, indices.length);
+            Arrays.sort(indices, Comparator.comparing(Index::getName));
+            assertEquals("index", indices[0].getName());
+        }
+
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
+                    IndicesOptions.Option.IGNORE_THROTTLED),
+                    EnumSet.of(IndicesOptions.WildcardStates.OPEN)), "ind*", "test-index");
+            assertEquals(1, indices.length);
+            Arrays.sort(indices, Comparator.comparing(Index::getName));
+            assertEquals("index", indices[0].getName());
+        }
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
+                    EnumSet.of(IndicesOptions.WildcardStates.OPEN, IndicesOptions.WildcardStates.CLOSED)), "ind*", "test-index");
+            assertEquals(3, indices.length);
+            Arrays.sort(indices, Comparator.comparing(Index::getName));
+            assertEquals("index", indices[0].getName());
+            assertEquals("index-closed", indices[1].getName());
+            assertEquals("test-index", indices[2].getName());
+        }
     }
 }

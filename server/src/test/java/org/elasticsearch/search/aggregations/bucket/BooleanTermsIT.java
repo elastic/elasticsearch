@@ -66,13 +66,14 @@ public class BooleanTermsIT extends ESIntegTestCase {
                     multiValue = new boolean[] {true};
                     break;
                 case 3:
-                    numMultiFalses++; numMultiTrues++;
+                    numMultiFalses++;
+                    numMultiTrues++;
                     multiValue = new boolean[] {false, true};
                     break;
                 default:
                     throw new AssertionError();
             }
-            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+            builders[i] = client().prepareIndex("idx").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, singleValue)
                     .array(MULTI_VALUED_FIELD_NAME, multiValue)
@@ -82,11 +83,11 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testSingleValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -116,11 +117,11 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testMultiValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 
@@ -150,12 +151,12 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped").setTypes("type")
+        SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .size(between(1, 5))
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
-                .execute().actionGet();
+                .get();
 
         assertSearchResponse(response);
 

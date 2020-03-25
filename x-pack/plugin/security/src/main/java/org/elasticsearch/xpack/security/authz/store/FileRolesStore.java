@@ -5,13 +5,16 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,6 +29,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 
@@ -34,51 +39,67 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
-public class FileRolesStore extends AbstractComponent {
+public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
     private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
+    private static final Logger logger = LogManager.getLogger(FileRolesStore.class);
 
+    private final Settings settings;
     private final Path file;
     private final XPackLicenseState licenseState;
-    private final List<Runnable> listeners = new ArrayList<>();
+    private final NamedXContentRegistry xContentRegistry;
+    private final List<Consumer<Set<String>>> listeners = new ArrayList<>();
 
     private volatile Map<String, RoleDescriptor> permissions;
 
-    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, XPackLicenseState licenseState)
+    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, XPackLicenseState licenseState,
+                          NamedXContentRegistry xContentRegistry)
             throws IOException {
-        this(settings, env, watcherService, () -> {}, licenseState);
+        this(settings, env, watcherService, null, licenseState, xContentRegistry);
     }
 
-    FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Runnable listener,
-                   XPackLicenseState licenseState) throws IOException {
-        super(settings);
+    FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Consumer<Set<String>> listener,
+                   XPackLicenseState licenseState, NamedXContentRegistry xContentRegistry) throws IOException {
+        this.settings = settings;
         this.file = resolveFile(env);
         if (listener != null) {
             listeners.add(listener);
         }
         this.licenseState = licenseState;
+        this.xContentRegistry = xContentRegistry;
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
-        permissions = parseFile(file, logger, settings, licenseState);
+        permissions = parseFile(file, logger, settings, licenseState, xContentRegistry);
     }
 
-    public Set<RoleDescriptor> roleDescriptors(Set<String> roleNames) {
+
+    @Override
+    public void accept(Set<String> names, ActionListener<RoleRetrievalResult> listener) {
+        listener.onResponse(RoleRetrievalResult.success(roleDescriptors(names)));
+    }
+
+    Set<RoleDescriptor> roleDescriptors(Set<String> roleNames) {
+        final Map<String, RoleDescriptor> localPermissions = permissions;
         Set<RoleDescriptor> descriptors = new HashSet<>();
         roleNames.forEach((name) -> {
-            RoleDescriptor descriptor = permissions.get(name);
+            RoleDescriptor descriptor = localPermissions.get(name);
             if (descriptor != null) {
                 descriptors.add(descriptor);
             }
@@ -87,12 +108,13 @@ public class FileRolesStore extends AbstractComponent {
     }
 
     public Map<String, Object> usageStats() {
+        final Map<String, RoleDescriptor> localPermissions = permissions;
         Map<String, Object> usageStats = new HashMap<>(3);
-        usageStats.put("size", permissions.size());
+        usageStats.put("size", localPermissions.size());
 
         boolean dls = false;
         boolean fls = false;
-        for (RoleDescriptor descriptor : permissions.values()) {
+        for (RoleDescriptor descriptor : localPermissions.values()) {
             for (IndicesPrivileges indicesPrivileges : descriptor.getIndicesPrivileges()) {
                 fls = fls || indicesPrivileges.getGrantedFields() != null || indicesPrivileges.getDeniedFields() != null;
                 dls = dls || indicesPrivileges.getQuery() != null;
@@ -107,10 +129,10 @@ public class FileRolesStore extends AbstractComponent {
         return usageStats;
     }
 
-    public void addListener(Runnable runnable) {
-        Objects.requireNonNull(runnable);
+    public void addListener(Consumer<Set<String>> consumer) {
+        Objects.requireNonNull(consumer);
         synchronized (this) {
-            listeners.add(runnable);
+            listeners.add(consumer);
         }
     }
 
@@ -118,20 +140,32 @@ public class FileRolesStore extends AbstractComponent {
         return file;
     }
 
+    // package private for testing
+    Set<String> getAllRoleNames() {
+        return permissions.keySet();
+    }
+
+    @Override
+    public String toString() {
+        return "file roles store (" + file + ")";
+    }
+
     public static Path resolveFile(Environment env) {
         return XPackPlugin.resolveConfigFile(env, "roles.yml");
     }
 
     public static Set<String> parseFileForRoleNames(Path path, Logger logger) {
-        return parseRoleDescriptors(path, logger, false, Settings.EMPTY).keySet();
+        // EMPTY is safe here because we never use namedObject as we are just parsing role names
+        return parseRoleDescriptors(path, logger, false, Settings.EMPTY, NamedXContentRegistry.EMPTY).keySet();
     }
 
-    public static Map<String, RoleDescriptor> parseFile(Path path, Logger logger, Settings settings, XPackLicenseState licenseState) {
-        return parseFile(path, logger, true, settings, licenseState);
+    public static Map<String, RoleDescriptor> parseFile(Path path, Logger logger, Settings settings, XPackLicenseState licenseState,
+                                                        NamedXContentRegistry xContentRegistry) {
+        return parseFile(path, logger, true, settings, licenseState, xContentRegistry);
     }
 
-    public static Map<String, RoleDescriptor> parseFile(Path path, Logger logger, boolean resolvePermission,
-                                                                     Settings settings, XPackLicenseState licenseState) {
+    public static Map<String, RoleDescriptor> parseFile(Path path, Logger logger, boolean resolvePermission, Settings settings,
+                                                        XPackLicenseState licenseState, NamedXContentRegistry xContentRegistry) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
@@ -143,7 +177,7 @@ public class FileRolesStore extends AbstractComponent {
                 List<String> roleSegments = roleSegments(path);
                 final boolean flsDlsLicensed = licenseState.isDocumentAndFieldLevelSecurityAllowed();
                 for (String segment : roleSegments) {
-                    RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings);
+                    RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings, xContentRegistry);
                     if (descriptor != null) {
                         if (ReservedRolesStore.isReserved(descriptor.getName())) {
                             logger.warn("role [{}] is reserved. the relevant role definition in the mapping file will be ignored",
@@ -175,7 +209,8 @@ public class FileRolesStore extends AbstractComponent {
         return unmodifiableMap(roles);
     }
 
-    public static Map<String, RoleDescriptor> parseRoleDescriptors(Path path, Logger logger, boolean resolvePermission, Settings settings) {
+    public static Map<String, RoleDescriptor> parseRoleDescriptors(Path path, Logger logger, boolean resolvePermission, Settings settings,
+                                                                   NamedXContentRegistry xContentRegistry) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
@@ -186,7 +221,7 @@ public class FileRolesStore extends AbstractComponent {
             try {
                 List<String> roleSegments = roleSegments(path);
                 for (String segment : roleSegments) {
-                    RoleDescriptor rd = parseRoleDescriptor(segment, path, logger, resolvePermission, settings);
+                    RoleDescriptor rd = parseRoleDescriptor(segment, path, logger, resolvePermission, settings, xContentRegistry);
                     if (rd != null) {
                         roles.put(rd.getName(), rd);
                     }
@@ -204,12 +239,12 @@ public class FileRolesStore extends AbstractComponent {
     }
 
     @Nullable
-    static RoleDescriptor parseRoleDescriptor(String segment, Path path, Logger logger, boolean resolvePermissions, Settings settings) {
+    static RoleDescriptor parseRoleDescriptor(String segment, Path path, Logger logger, boolean resolvePermissions, Settings settings,
+                                              NamedXContentRegistry xContentRegistry) {
         String roleName = null;
         try {
-            // EMPTY is safe here because we never use namedObject
             XContentParser parser = YamlXContent.yamlXContent
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, segment);
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, segment);
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();
@@ -231,7 +266,7 @@ public class FileRolesStore extends AbstractComponent {
                         // we pass true as last parameter because we do not want to reject files if field permissions
                         // are given in 2.x syntax
                         RoleDescriptor descriptor = RoleDescriptor.parse(roleName, parser, true);
-                        return checkDescriptor(descriptor, path, logger, settings);
+                        return checkDescriptor(descriptor, path, logger, settings, xContentRegistry);
                     } else {
                         logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path.toAbsolutePath());
                         return null;
@@ -268,16 +303,25 @@ public class FileRolesStore extends AbstractComponent {
     }
 
     @Nullable
-    private static RoleDescriptor checkDescriptor(RoleDescriptor descriptor, Path path, Logger logger, Settings settings) {
+    private static RoleDescriptor checkDescriptor(RoleDescriptor descriptor, Path path, Logger logger, Settings settings,
+                                                  NamedXContentRegistry xContentRegistry) {
         String roleName = descriptor.getName();
         // first check if FLS/DLS is enabled on the role...
-        for (RoleDescriptor.IndicesPrivileges privilege : descriptor.getIndicesPrivileges()) {
-            if ((privilege.getQuery() != null || privilege.getGrantedFields() != null || privilege.getDeniedFields() != null)
-                    && XPackSettings.DLS_FLS_ENABLED.get(settings) == false) {
+        if (descriptor.isUsingDocumentOrFieldLevelSecurity()) {
+            if (XPackSettings.DLS_FLS_ENABLED.get(settings) == false) {
                 logger.error("invalid role definition [{}] in roles file [{}]. document and field level security is not " +
-                        "enabled. set [{}] to [true] in the configuration file. skipping role...", roleName, path
-                        .toAbsolutePath(), XPackSettings.DLS_FLS_ENABLED.getKey());
+                    "enabled. set [{}] to [true] in the configuration file. skipping role...", roleName, path
+                    .toAbsolutePath(), XPackSettings.DLS_FLS_ENABLED.getKey());
                 return null;
+            } else {
+                try {
+                    DLSRoleQueryValidator.validateQueryField(descriptor.getIndicesPrivileges(), xContentRegistry);
+                } catch (ElasticsearchException | IllegalArgumentException e) {
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage(
+                        "invalid role definition [{}] in roles file [{}]. failed to validate query field. skipping role...", roleName,
+                        path.toAbsolutePath()), e);
+                    return null;
+                }
             }
         }
         return descriptor;
@@ -319,11 +363,11 @@ public class FileRolesStore extends AbstractComponent {
         }
 
         @Override
-        public void onFileChanged(Path file) {
+        public synchronized void onFileChanged(Path file) {
             if (file.equals(FileRolesStore.this.file)) {
+                final Map<String, RoleDescriptor> previousPermissions = permissions;
                 try {
-                    permissions = parseFile(file, logger, settings, licenseState);
-                    logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(), Files.exists(file) ? "changed" : "removed");
+                    permissions = parseFile(file, logger, settings, licenseState, xContentRegistry);
                 } catch (Exception e) {
                     logger.error(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -331,8 +375,16 @@ public class FileRolesStore extends AbstractComponent {
                     return;
                 }
 
-                synchronized (FileRolesStore.this) {
-                    listeners.forEach(Runnable::run);
+                final Set<String> changedOrMissingRoles = Sets.difference(previousPermissions.entrySet(), permissions.entrySet())
+                        .stream()
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toSet());
+                final Set<String> addedRoles = Sets.difference(permissions.keySet(), previousPermissions.keySet());
+                final Set<String> changedRoles = Collections.unmodifiableSet(Sets.union(changedOrMissingRoles, addedRoles));
+                if (changedRoles.isEmpty() == false) {
+                    logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(),
+                            Files.exists(file) ? "changed" : "removed");
+                    listeners.forEach(c -> c.accept(changedRoles));
                 }
             }
         }

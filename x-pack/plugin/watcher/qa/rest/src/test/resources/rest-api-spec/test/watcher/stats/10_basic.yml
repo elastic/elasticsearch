@@ -1,0 +1,57 @@
+---
+"Test watcher stats output":
+  - do: {watcher.stats: {}}
+  - match: { "manually_stopped": false }
+  - match: { "stats.0.watcher_state": "started" }
+
+---
+"Test watcher stats supports emit_stacktraces parameter":
+  - do:
+      watcher.stats:
+        metric: "all"
+        emit_stacktraces: "true"
+  - match: { "manually_stopped": false }
+  - match: { "stats.0.watcher_state": "started" }
+
+---
+"Test watcher stats current watches":
+  - do:
+      watcher.stats:
+        metric: "current_watches"
+
+  - is_false: stats.0.queued_watches
+  - is_true: stats.0.current_watches
+
+---
+"Test watcher stats queued watches":
+  - do:
+      watcher.stats:
+        metric: "queued_watches"
+
+  - is_false: stats.0.current_watches
+  - is_true: stats.0.queued_watches
+
+---
+"Test watcher stats queued watches using pending_watches":
+  - skip:
+      reason:  metrics were fixed in 7.0.0
+      features: warnings
+
+  - do:
+      warnings:
+        - 'The pending_watches parameter is deprecated, use queued_watches instead'
+
+      watcher.stats:
+        metric: "pending_watches"
+
+  - is_false: stats.0.current_watches
+  - is_true: stats.0.queued_watches
+
+---
+"Test watcher stats all watches":
+  - do:
+      watcher.stats:
+        metric: "_all"
+
+  - is_true: stats.0.current_watches
+  - is_true: stats.0.queued_watches

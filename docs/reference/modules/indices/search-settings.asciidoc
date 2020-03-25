@@ -1,0 +1,17 @@
+[[search-settings]]
+=== Search Settings
+
+The following _expert_ setting can be set to manage global search limits.
+
+[[indices-query-bool-max-clause-count]]
+`indices.query.bool.max_clause_count`::
+    Defaults to `1024`.
+
+This setting limits the number of clauses a Lucene BooleanQuery can have. The
+default of 1024 is quite high and should normally be sufficient. This limit does
+not only affect Elasticsearchs `bool` query, but many other queries are rewritten to Lucene's
+BooleanQuery internally. The limit is in place to prevent searches from becoming too large
+and taking up too much CPU and memory. In case you're considering increasing this setting,
+make sure you've exhausted all other options to avoid having to do this. Higher values can lead 
+to performance degradations and memory issues, especially in clusters with a high load or 
+few resources.

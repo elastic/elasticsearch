@@ -19,6 +19,9 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DiversifiedTopDocsCollector;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -54,6 +57,8 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
     public static final ParseField SHARD_SIZE_FIELD = new ParseField("shard_size");
     public static final ParseField MAX_DOCS_PER_VALUE_FIELD = new ParseField("max_docs_per_value");
     public static final ParseField EXECUTION_HINT_FIELD = new ParseField("execution_hint");
+
+    static final long SCOREDOCKEY_SIZE = RamUsageEstimator.shallowSizeOfInstance(DiversifiedTopDocsCollector.ScoreDocKey.class);
 
     public enum ExecutionMode {
 
@@ -145,17 +150,18 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
     SamplerAggregator(String name, int shardSize, AggregatorFactories factories, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
-        this.shardSize = shardSize;
+        // Make sure we do not allow size > maxDoc, to prevent accidental OOM
+        this.shardSize = Math.min(shardSize, context.searcher().getIndexReader().maxDoc());
     }
 
     @Override
-    public boolean needsScores() {
-        return true;
+    public ScoreMode scoreMode() {
+        return ScoreMode.COMPLETE;
     }
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        bdd = new BestDocsDeferringCollector(shardSize, context.bigArrays());
+        bdd = new BestDocsDeferringCollector(shardSize, context.bigArrays(), this::addRequestCircuitBreakerBytes);
         return bdd;
     }
 

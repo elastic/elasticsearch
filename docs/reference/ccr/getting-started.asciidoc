@@ -1,0 +1,319 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-getting-started]]
+=== Getting started with {ccr}
+
+This getting-started guide for {ccr} shows you how to:
+
+* <<ccr-getting-started-remote-cluster,Connect a local cluster to a remote
+  cluster>>
+* <<ccr-getting-started-leader-index,Create a leader index>> in a remote cluster
+* <<ccr-getting-started-follower-index,Create a follower index>> that replicates
+  a leader index
+* <<ccr-getting-started-auto-follow,Automatically create follower indices>>
+
+
+[[ccr-getting-started-before-you-begin]]
+==== Before you begin
+. {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[Install {es}]
+  on your local and remote clusters.
+
+. Obtain a license that includes the {ccr} features. See
+  https://www.elastic.co/subscriptions[subscriptions] and
+  {stack-ov}/license-management.html[License-management].
+
+. If the Elastic {security-features} are enabled in your local and remote
+  clusters, you need a user that has appropriate authority to perform the steps
+  in this tutorial.
++
+--
+[[ccr-getting-started-security]]
+The {ccr} features use cluster privileges and built-in roles to make it easier
+to control which users have authority to manage {ccr}.
+
+By default, you can perform all of the steps in this tutorial by
+using the built-in `elastic` user. However, a password must be set for this user
+before the user can do anything. For information about how to set that password,
+see <<security-getting-started>>.
+
+If you are performing these steps in a production environment, take extra care
+because the `elastic` user has the `superuser` role and you could inadvertently
+make significant changes.
+
+Alternatively, you can assign the appropriate privileges to a user ID of your
+choice. On the remote cluster that contains the leader index, a user will need
+the `read_ccr` cluster privilege and `monitor` and `read` privileges on the
+leader index.
+
+[source,yml]
+--------------------------------------------------
+ccr_user:
+  cluster:
+    - read_ccr
+  indices:
+    - names: [ 'leader-index' ]
+      privileges:
+        - monitor
+        - read
+--------------------------------------------------
+
+On the local cluster that contains the follower index, the same user will need
+the `manage_ccr` cluster privilege and `monitor`, `read`, `write` and
+`manage_follow_index` privileges on the follower index.
+
+[source,yml]
+--------------------------------------------------
+ccr_user:
+  cluster:
+    - manage_ccr
+  indices:
+    - names: [ 'follower-index' ]
+      privileges:
+        - monitor
+        - read
+        - write
+        - manage_follow_index
+--------------------------------------------------
+
+If you are managing
+<<ccr-getting-started-remote-cluster,connecting to the remote cluster>> via the
+cluster update settings API, you will also need a user with the `all` cluster
+privilege.
+--
+
+
+[[ccr-getting-started-remote-cluster]]
+==== Connecting to a remote cluster
+
+The {ccr} features require that you
+{ref}/modules-remote-clusters.html[connect your local cluster to a remote
+cluster]. In this tutorial, we will connect our local cluster to a remote
+cluster with the cluster alias `leader`.
+
+[source,console]
+--------------------------------------------------
+PUT /_cluster/settings
+{
+  "persistent" : {
+    "cluster" : {
+      "remote" : {
+        "leader" : {
+          "seeds" : [
+            "127.0.0.1:9300" <1>
+          ]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:host]
+// TEST[s/127.0.0.1:9300/\${transport_host}/]
+<1> Specifies the hostname and transport port of a seed node in the remote
+    cluster.
+
+You can verify that the local cluster is successfully connected to the remote
+cluster.
+
+[source,console]
+--------------------------------------------------
+GET /_remote/info
+--------------------------------------------------
+// TEST[continued]
+
+The API will respond by showing that the local cluster is connected to the
+remote cluster.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "leader" : {
+    "seeds" : [
+      "127.0.0.1:9300"
+    ],
+    "connected" : true, <1>
+    "num_nodes_connected" : 1, <2>
+    "max_connections_per_cluster" : 3,
+    "initial_connect_timeout" : "30s",
+    "skip_unavailable" : false,
+    "mode" : "sniff"
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/127.0.0.1:9300/$body.leader.seeds.0/]
+// TEST[s/"connected" : true/"connected" : $body.leader.connected/]
+// TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.leader.num_nodes_connected/]
+<1> This shows the local cluster is connected to the remote cluster with cluster
+    alias `leader`
+<2> This shows the number of nodes in the remote cluster the local cluster is
+    connected to.
+
+Alternatively, you can manage remote clusters on the
+*Management / Elasticsearch / Remote Clusters* page in {kib}:
+
+[role="screenshot"]
+image::images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
+
+
+
+[[ccr-getting-started-leader-index]]
+==== Creating a leader index
+
+In the following example, we will create a leader index in the remote cluster:
+
+[source,console]
+--------------------------------------------------
+PUT /server-metrics
+{
+  "settings" : {
+    "index" : {
+      "number_of_shards" : 1,
+      "number_of_replicas" : 0
+    }
+  },
+  "mappings" : {
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "accept" : {
+        "type" : "long"
+      },
+      "deny" : {
+        "type" : "long"
+      },
+      "host" : {
+        "type" : "keyword"
+      },
+      "response" : {
+        "type" : "float"
+      },
+      "service" : {
+        "type" : "keyword"
+      },
+      "total" : {
+        "type" : "long"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+
+[[ccr-getting-started-follower-index]]
+==== Creating a follower index
+
+Follower indices are created with the {ref}/ccr-put-follow.html[create follower
+API]. When you create a follower index, you must reference the
+<<ccr-getting-started-remote-cluster,remote cluster>> and the
+<<ccr-getting-started-leader-index,leader index>> that you created in the remote
+cluster.
+
+[source,console]
+--------------------------------------------------
+PUT /server-metrics-copy/_ccr/follow?wait_for_active_shards=1
+{
+  "remote_cluster" : "leader",
+  "leader_index" : "server-metrics"
+}
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+[source,console-result]
+--------------------------------------------------
+{
+  "follow_index_created" : true,
+  "follow_index_shards_acked" : true,
+  "index_following_started" : true
+}
+--------------------------------------------------
+
+//////////////////////////
+
+The follower index is initialized using the <<remote-recovery, remote recovery>>
+process. The remote recovery process transfers the existing Lucene segment files
+from the leader to the follower. When the remote recovery process is complete,
+the index following begins.
+
+Now when you index documents into your leader index, you will see these
+documents replicated in the follower index. You can
+inspect the status of replication using the
+{ref}/ccr-get-follow-stats.html[get follower stats API].
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+POST /server-metrics-copy/_ccr/pause_follow
+
+POST /server-metrics-copy/_close
+
+POST /server-metrics-copy/_ccr/unfollow
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+
+[[ccr-getting-started-auto-follow]]
+==== Automatically create follower indices
+
+The <<ccr-auto-follow,auto-follow>> feature in {ccr} helps for time series use
+cases where you want to follow new indices that are periodically created in the
+remote cluster (such as daily Beats indices). Auto-following is configured using
+the {ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API]. With
+an auto-follow pattern, you reference the
+<<ccr-getting-started-remote-cluster,remote cluster>> that you connected your
+local cluster to. You must also specify a collection of  patterns that match the
+indices you want to automatically follow.
+
+For example:
+
+[source,console]
+--------------------------------------------------
+PUT /_ccr/auto_follow/beats
+{
+  "remote_cluster" : "leader",
+  "leader_index_patterns" :
+  [
+    "metricbeat-*", <1>
+    "packetbeat-*" <2>
+  ],
+  "follow_index_pattern" : "{{leader_index}}-copy" <3>
+}
+--------------------------------------------------
+// TEST[continued]
+<1> Automatically follow new {metricbeat} indices.
+<2> Automatically follow new {packetbeat} indices.
+<3> The name of the follower index is derived from the name of the leader index
+    by adding the suffix `-copy` to the name of the leader index.
+
+//////////////////////////
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged" : true
+}
+--------------------------------------------------
+
+//////////////////////////
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_ccr/auto_follow/beats
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+Alternatively, you can manage auto-follow patterns on the
+*Management / Elasticsearch / Cross Cluster Replication* page in {kib}:
+
+[role="screenshot"]
+image::images/auto-follow-patterns.jpg["The Auto-follow patterns page in {kib}"]

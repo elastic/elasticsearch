@@ -21,17 +21,17 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
 public class IndexStorePluginTests extends ESTestCase {
@@ -39,8 +39,8 @@ public class IndexStorePluginTests extends ESTestCase {
     public static class BarStorePlugin extends Plugin implements IndexStorePlugin {
 
         @Override
-        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
-            return Collections.singletonMap("store", IndexStore::new);
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.singletonMap("store", new FsDirectoryFactory());
         }
 
     }
@@ -48,24 +48,47 @@ public class IndexStorePluginTests extends ESTestCase {
     public static class FooStorePlugin extends Plugin implements IndexStorePlugin {
 
         @Override
-        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
-            return Collections.singletonMap("store", IndexStore::new);
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.singletonMap("store", new FsDirectoryFactory());
         }
 
     }
 
-    public void testDuplicateIndexStoreProviders() {
+    public static class ConflictingStorePlugin extends Plugin implements IndexStorePlugin {
+
+        public static final String TYPE;
+
+        static {
+            TYPE = randomFrom(Arrays.asList(IndexModule.Type.values())).getSettingsKey();
+        }
+
+        @Override
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.singletonMap(TYPE, new FsDirectoryFactory());
+        }
+
+    }
+
+    public void testIndexStoreFactoryConflictsWithBuiltInIndexStoreType() {
+        final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        final IllegalStateException e = expectThrows(
+                IllegalStateException.class, () -> new MockNode(settings, Collections.singletonList(ConflictingStorePlugin.class)));
+        assertThat(e, hasToString(containsString(
+                "registered index store type [" + ConflictingStorePlugin.TYPE + "] conflicts with a built-in type")));
+    }
+
+    public void testDuplicateIndexStoreFactories() {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class, () -> new MockNode(settings, Arrays.asList(BarStorePlugin.class, FooStorePlugin.class)));
         if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
             assertThat(e, hasToString(matches(
                     "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values " +
-                            "org.elasticsearch.plugins.IndexStorePluginTests\\$BarStorePlugin.* " +
-                            "and org.elasticsearch.plugins.IndexStorePluginTests\\$FooStorePlugin.*\\)")));
+                            "org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+ " +
+                            "and org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)")));
         } else {
             assertThat(e, hasToString(matches(
-                    "java.lang.IllegalStateException: Duplicate key org.elasticsearch.plugins.IndexStorePluginTests\\$BarStorePlugin.*")));
+                    "java.lang.IllegalStateException: Duplicate key org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+")));
         }
     }
 

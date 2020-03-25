@@ -55,7 +55,7 @@ public class EvilCommandTests extends ESTestCase {
         command.getShutdownHookThread().run();
         command.getShutdownHookThread().join();
         assertTrue(closed.get());
-        final String output = terminal.getOutput();
+        final String output = terminal.getErrorOutput();
         if (shouldThrow) {
             // ensure that we dump the exception
             assertThat(output, containsString("java.io.IOException: fail"));

@@ -1,0 +1,11 @@
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+}
+
+test {
+  systemProperty 'tests.security.manager', 'false'
+  include '**/*Tests.class'
+}

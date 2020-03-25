@@ -1,10 +1,10 @@
 ---
 "Source filtering":
 
+
   - do:
       update:
           index:  test_1
-          type:   test
           id:     1
           _source: [foo, bar]
           body:

@@ -1,0 +1,151 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-job]]
+=== Get {anomaly-jobs} API
+++++
+<titleabbrev>Get jobs</titleabbrev>
+++++
+
+Retrieves configuration information for {anomaly-jobs}.
+
+[[ml-get-job-request]]
+==== {api-request-title}
+
+`GET _ml/anomaly_detectors/<job_id>` +
+
+`GET _ml/anomaly_detectors/<job_id>,<job_id>` +
+
+`GET _ml/anomaly_detectors/` +
+
+`GET _ml/anomaly_detectors/_all`
+
+[[ml-get-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
+<<security-privileges>>.
+
+[[ml-get-job-desc]]
+==== {api-description-title}
+
+You can get information for multiple {anomaly-jobs} in a single API request by
+using a group name, a comma-separated list of jobs, or a wildcard expression.
+You can get information for all {anomaly-jobs} by using `_all`, by specifying
+`*` as the `<job_id>`, or by omitting the `<job_id>`.
+
+IMPORTANT: This API returns a maximum of 10,000 jobs. 
+
+[[ml-get-job-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-default]
+
+[[ml-get-job-query-parms]]
+==== {api-query-parms-title}
+
+`allow_no_jobs`::
+(Optional, boolean)
+include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
+
+
+[[ml-get-job-results]]
+==== {api-response-body-title}
+
+The API returns an array of {anomaly-job} resources. For the full list of
+properties, see <<ml-put-job-request-body,create {anomaly-jobs} API>>.
+
+`create_time`::
+(string) The time the job was created. For example, `1491007356077`. This
+property is informational; you cannot change its value.
+  
+`finished_time`::
+(string) If the job closed or failed, this is the time the job finished,
+otherwise it is `null`. This property is informational; you cannot change its
+value.
+
+`job_type`::
+(string) Reserved for future use, currently set to `anomaly_detector`.
+
+`job_version`::
+(string) The version of {es} that existed on the node when the job was created.
+
+`model_snapshot_id`::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=model-snapshot-id]
+
+[[ml-get-job-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_jobs` is `false`, this code indicates that there are no 
+  resources that match the request or only partial matches for the request.
+
+[[ml-get-job-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _ml/anomaly_detectors/high_sum_total_sales
+--------------------------------------------------
+// TEST[skip:Kibana sample data]
+
+The API returns the following results:
+
+[source,js]
+----
+{
+  "count": 1,
+  "jobs": [
+    {
+      "job_id" : "high_sum_total_sales",
+      "job_type" : "anomaly_detector",
+      "job_version" : "8.0.0",
+      "groups" : [
+        "kibana_sample_data",
+        "kibana_sample_ecommerce"
+      ],
+      "description" : "Find customers spending an unusually high amount in an hour",
+      "create_time" : 1575402224732,
+      "finished_time" : 1575402238311,
+      "analysis_config" : {
+        "bucket_span" : "1h",
+        "detectors" : [
+          {
+            "detector_description" : "High total sales",
+            "function" : "high_sum",
+            "field_name" : "taxful_total_price",
+            "over_field_name" : "customer_full_name.keyword",
+            "detector_index" : 0
+          }
+        ],
+        "influencers" : [
+          "customer_full_name.keyword",
+          "category.keyword"
+        ]
+      },
+      "analysis_limits" : {
+        "model_memory_limit" : "10mb",
+        "categorization_examples_limit" : 4
+      },
+      "data_description" : {
+        "time_field" : "order_date",
+        "time_format" : "epoch_ms"
+      },
+      "model_plot_config" : {
+        "enabled" : true
+      },
+      "model_snapshot_retention_days" : 1,
+      "custom_settings" : {
+        "created_by" : "ml-module-sample",
+        ...
+      },
+      "model_snapshot_id" : "1575402237",
+      "results_index_name" : "shared",
+      "allow_lazy_open" : false
+    }
+  ]
+}
+----

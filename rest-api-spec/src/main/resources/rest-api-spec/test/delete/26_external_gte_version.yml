@@ -1,10 +1,11 @@
 ---
 "External GTE version":
 
+
+
  - do:
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external_gte
@@ -16,7 +17,6 @@
       catch:             conflict
       delete:
           index:          test_1
-          type:           test
           id:             1
           version_type:   external_gte
           version:        4
@@ -24,7 +24,6 @@
  - do:
       delete:
           index:          test_1
-          type:           test
           id:             1
           version_type:   external_gte
           version:        6
@@ -34,7 +33,6 @@
  - do:
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external_gte
@@ -45,7 +43,6 @@
  - do:
       delete:
           index:          test_1
-          type:           test
           id:             1
           version_type:   external_gte
           version:        6

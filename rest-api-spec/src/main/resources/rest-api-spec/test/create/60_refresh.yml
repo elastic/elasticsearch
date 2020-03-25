@@ -11,12 +11,12 @@
  - do:
       create:
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 1 }}
@@ -26,7 +26,6 @@
  - do:
       create:
           index:   test_1
-          type:    test
           id:      2
           refresh: true
           body:    { foo: bar }
@@ -34,6 +33,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 2 }}
@@ -42,10 +42,10 @@
 
 ---
 "When refresh url parameter is an empty string that means \"refresh immediately\"":
+
  - do:
       create:
           index:   test_1
-          type:    test
           id:      1
           refresh: ""
           body:    { foo: bar }
@@ -53,6 +53,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:   { term: { _id: 1 }}
@@ -61,10 +62,10 @@
 
 ---
 "refresh=wait_for waits until changes are visible in search":
+
  - do:
       index:
           index:   create_60_refresh_1
-          type:    test
           id:      create_60_refresh_id1
           body:    { foo: bar }
           refresh: wait_for
@@ -72,6 +73,7 @@
 
  - do:
       search:
+          rest_total_hits_as_int: true
           index:   create_60_refresh_1
           body:
             query:   { term: { _id: create_60_refresh_id1 }}

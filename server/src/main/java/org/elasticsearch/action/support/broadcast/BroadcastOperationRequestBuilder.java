@@ -19,15 +19,18 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public abstract class BroadcastOperationRequestBuilder<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse, RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response> {
+public abstract class BroadcastOperationRequestBuilder<
+            Request extends BroadcastRequest<Request>,
+            Response extends BroadcastResponse,
+            RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder>
+        > extends ActionRequestBuilder<Request, Response> {
 
-    protected BroadcastOperationRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {
+    protected BroadcastOperationRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

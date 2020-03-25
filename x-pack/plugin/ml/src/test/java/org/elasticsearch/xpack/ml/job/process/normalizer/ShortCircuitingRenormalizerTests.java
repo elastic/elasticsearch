@@ -18,7 +18,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -43,10 +42,7 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
     public void testNormalize() throws InterruptedException {
         ExecutorService threadpool = Executors.newScheduledThreadPool(10);
         try {
-            boolean isPerPartitionNormalization = randomBoolean();
-
-            ShortCircuitingRenormalizer renormalizer = new ShortCircuitingRenormalizer(JOB_ID, scoresUpdater, threadpool,
-                    isPerPartitionNormalization);
+            ShortCircuitingRenormalizer renormalizer = new ShortCircuitingRenormalizer(JOB_ID, scoresUpdater, threadpool);
 
             // Blast through many sets of quantiles in quick succession, faster than the normalizer can process them
             for (int i = 1; i < TEST_SIZE / 2; ++i) {
@@ -61,7 +57,7 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
             renormalizer.waitUntilIdle();
 
             ArgumentCaptor<String> stateCaptor = ArgumentCaptor.forClass(String.class);
-            verify(scoresUpdater, atLeastOnce()).update(stateCaptor.capture(), anyLong(), anyLong(), eq(isPerPartitionNormalization));
+            verify(scoresUpdater, atLeastOnce()).update(stateCaptor.capture(), anyLong(), anyLong());
 
             List<String> quantilesUsed = stateCaptor.getAllValues();
             assertFalse(quantilesUsed.isEmpty());
@@ -91,7 +87,7 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
     public void testIsEnabled_GivenNormalizationWindowIsZero() {
         ScoresUpdater scoresUpdater = mock(ScoresUpdater.class);
         when(scoresUpdater.getNormalizationWindow()).thenReturn(0L);
-        ShortCircuitingRenormalizer renormalizer = new ShortCircuitingRenormalizer(JOB_ID, scoresUpdater, null, randomBoolean());
+        ShortCircuitingRenormalizer renormalizer = new ShortCircuitingRenormalizer(JOB_ID, scoresUpdater, null);
 
         assertThat(renormalizer.isEnabled(), is(false));
     }
@@ -99,7 +95,7 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
     public void testIsEnabled_GivenNormalizationWindowGreaterThanZero() {
         ScoresUpdater scoresUpdater = mock(ScoresUpdater.class);
         when(scoresUpdater.getNormalizationWindow()).thenReturn(1L);
-        ShortCircuitingRenormalizer renormalizer = new ShortCircuitingRenormalizer(JOB_ID, scoresUpdater, null, randomBoolean());
+        ShortCircuitingRenormalizer renormalizer = new ShortCircuitingRenormalizer(JOB_ID, scoresUpdater, null);
 
         assertThat(renormalizer.isEnabled(), is(true));
     }

@@ -25,9 +25,10 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -43,7 +44,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         store = mock(NativeRoleMappingStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        action = new TransportPutRoleMappingAction(Settings.EMPTY, mock(ActionFilters.class), transportService, store);
+        action = new TransportPutRoleMappingAction(mock(ActionFilters.class), transportService, store);
 
         requestRef = new AtomicReference<>(null);
 
@@ -72,7 +73,8 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         assertThat(mapping.getExpression(), is(expression));
         assertThat(mapping.isEnabled(), equalTo(true));
         assertThat(mapping.getName(), equalTo("anarchy"));
-        assertThat(mapping.getRoles(), containsInAnyOrder("superuser"));
+        assertThat(mapping.getRoles(), iterableWithSize(1));
+        assertThat(mapping.getRoles(), contains("superuser"));
         assertThat(mapping.getMetadata().size(), equalTo(1));
         assertThat(mapping.getMetadata().get("dumb"), equalTo(true));
     }

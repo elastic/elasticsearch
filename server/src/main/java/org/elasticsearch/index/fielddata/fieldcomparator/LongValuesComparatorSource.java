@@ -26,12 +26,19 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 /**
  * Comparator source for long values.
@@ -39,10 +46,19 @@ import java.io.IOException;
 public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     private final IndexNumericFieldData indexFieldData;
+    private final Function<SortedNumericDocValues, SortedNumericDocValues> converter;
 
-    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue,
+                                      MultiValueMode sortMode, Nested nested) {
+        this(indexFieldData, missingValue, sortMode, nested, null);
+    }
+
+    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue,
+                                      MultiValueMode sortMode, Nested nested,
+                                      Function<SortedNumericDocValues, SortedNumericDocValues> converter) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
+        this.converter = converter;
     }
 
     @Override
@@ -50,28 +66,70 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return SortField.Type.LONG;
     }
 
+    private SortedNumericDocValues loadDocValues(LeafReaderContext context) {
+        final LeafNumericFieldData data = indexFieldData.load(context);
+        SortedNumericDocValues values;
+        if (data instanceof SortedNumericDVIndexFieldData.NanoSecondFieldData) {
+            values = ((SortedNumericDVIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
+        } else {
+            values = data.getLongValues();
+        }
+        return converter != null ? converter.apply(values) : values;
+    }
+
+    private NumericDocValues getNumericDocValues(LeafReaderContext context, long missingValue) throws IOException {
+        final SortedNumericDocValues values = loadDocValues(context);
+        if (nested == null) {
+            return FieldData.replaceMissing(sortMode.select(values), missingValue);
+        }
+        final BitSet rootDocs = nested.rootDocs(context);
+        final DocIdSetIterator innerDocs = nested.innerDocs(context);
+        final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
+        return sortMode.select(values, missingValue, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
+    }
+
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
-        final Long dMissingValue = (Long) missingObject(missingValue, reversed);
+        final long lMissingValue = (Long) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
         return new FieldComparator.LongComparator(numHits, null, null) {
             @Override
             protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                final SortedNumericDocValues values = indexFieldData.load(context).getLongValues();
-                final NumericDocValues selectedValues;
-                if (nested == null) {
-                    selectedValues = FieldData.replaceMissing(sortMode.select(values), dMissingValue);
-                } else {
-                    final BitSet rootDocs = nested.rootDocs(context);
-                    final DocIdSetIterator innerDocs = nested.innerDocs(context);
-                    selectedValues = sortMode.select(values, dMissingValue, rootDocs, innerDocs, context.reader().maxDoc());
-                }
-                return selectedValues;
+                return LongValuesComparatorSource.this.getNumericDocValues(context, lMissingValue);
             }
+        };
+    }
 
+    @Override
+    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+            int bucketSize, BucketedSort.ExtraData extra) {
+        return new BucketedSort.ForLongs(bigArrays, sortOrder, format, bucketSize, extra) {
+            private final long lMissingValue = (Long) missingObject(missingValue, sortOrder == SortOrder.DESC);
+
+            @Override
+            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
+                return new Leaf(ctx) {
+                    private final NumericDocValues docValues = getNumericDocValues(ctx, lMissingValue);
+                    private long docValue;
+
+                    @Override
+                    protected boolean advanceExact(int doc) throws IOException {
+                        if (docValues.advanceExact(doc)) {
+                            docValue = docValues.longValue();
+                            return true;
+                        }
+                        return false;
+                    }
+
+                    @Override
+                    protected long docValue() {
+                        return docValue;
+                    }
+                };
+            }
         };
     }
 }

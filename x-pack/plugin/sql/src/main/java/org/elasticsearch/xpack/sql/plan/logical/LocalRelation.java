@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.sql.plan.logical;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Executable;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
-import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.session.Session;
 
 import java.util.List;
 import java.util.Objects;
@@ -22,8 +23,8 @@ public class LocalRelation extends LogicalPlan implements Executable {
 
     private final Executable executable;
 
-    public LocalRelation(Location location, Executable executable) {
-        super(location, emptyList());
+    public LocalRelation(Source source, Executable executable) {
+        super(source, emptyList());
         this.executable = executable;
     }
 
@@ -52,7 +53,7 @@ public class LocalRelation extends LogicalPlan implements Executable {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public void execute(Session session, ActionListener<Page> listener) {
         executable.execute(session, listener);
     }
 

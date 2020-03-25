@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -29,7 +30,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -69,7 +69,10 @@ public class SearchCancellationIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         boolean lowLevelCancellation = randomBoolean();
         logger.info("Using lowLevelCancellation: {}", lowLevelCancellation);
-        return Settings.builder().put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), lowLevelCancellation).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), lowLevelCancellation)
+            .build();
     }
 
     private void indexTestData() {
@@ -77,7 +80,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
             // Make sure we have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < 20; j++) {
-                bulkRequestBuilder.add(client().prepareIndex("test", "type", Integer.toString(i * 5 + j)).setSource("field", "value"));
+                bulkRequestBuilder.add(client().prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
             }
             assertNoFailures(bulkRequestBuilder.get());
         }
@@ -266,10 +269,10 @@ public class SearchCancellationIT extends ESIntegTestCase {
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap(SCRIPT_NAME, params -> {
                 LeafFieldsLookup fieldsLookup = (LeafFieldsLookup) params.get("_fields");
-                Loggers.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
+                LogManager.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
                 hits.incrementAndGet();
                 try {
-                    awaitBusy(() -> shouldBlock.get() == false);
+                    assertBusy(() -> assertFalse(shouldBlock.get()));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

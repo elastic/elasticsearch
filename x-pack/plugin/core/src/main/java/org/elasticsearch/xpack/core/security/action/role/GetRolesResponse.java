@@ -19,6 +19,15 @@ public class GetRolesResponse extends ActionResponse {
 
     private RoleDescriptor[] roles;
 
+    public GetRolesResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        roles = new RoleDescriptor[size];
+        for (int i = 0; i < size; i++) {
+            roles[i] = new RoleDescriptor(in);
+        }
+    }
+
     public GetRolesResponse(RoleDescriptor... roles) {
         this.roles = roles;
     }
@@ -32,21 +41,10 @@ public class GetRolesResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        roles = new RoleDescriptor[size];
-        for (int i = 0; i < size; i++) {
-            roles[i] = RoleDescriptor.readFrom(in);
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(roles.length);
         for (RoleDescriptor role : roles) {
-            RoleDescriptor.writeTo(role, out);
+            role.writeTo(out);
         }
     }
 }

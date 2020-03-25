@@ -134,10 +134,21 @@ public abstract class DiscoveryNodeRole {
 
     };
 
+    public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r") {
+
+        @Override
+        protected Setting<Boolean> roleSetting() {
+            return Node.NODE_REMOTE_CLUSTER_CLIENT;
+        }
+
+    };
+
     /**
      * The built-in node roles.
      */
-    public static Set<DiscoveryNodeRole> BUILT_IN_ROLES = Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE);
+    public static Set<DiscoveryNodeRole> BUILT_IN_ROLES = Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE);
+
+    static Set<DiscoveryNodeRole> LEGACY_ROLES = Set.of(DATA_ROLE, INGEST_ROLE, MASTER_ROLE);
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer

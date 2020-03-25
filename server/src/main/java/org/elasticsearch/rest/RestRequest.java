@@ -102,6 +102,7 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
+        addCompatibleParameter();
     }
 
     protected RestRequest(RestRequest restRequest) {
@@ -131,9 +132,29 @@ public class RestRequest implements ToXContent.Params {
     public static RestRequest request(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, HttpChannel httpChannel) {
         Map<String, String> params = params(httpRequest.uri());
         String path = path(httpRequest.uri());
-        return new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel,
+        RestRequest restRequest = new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel,
             requestIdGenerator.incrementAndGet());
+        return restRequest;
     }
+
+    private void addCompatibleParameter() {
+        if (isRequestCompatible()) {
+            String compatibleVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_HEADER));
+            params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, compatibleVersion);
+            //use it so it won't fail request validation with unused parameter
+            param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
+        }
+    }
+
+    private boolean isRequestCompatible() {
+        return isHeaderCompatible(header(CompatibleConstants.COMPATIBLE_HEADER));
+    }
+
+    private boolean isHeaderCompatible(String headerValue) {
+        String version = XContentType.parseVersion(headerValue);
+        return CompatibleConstants.COMPATIBLE_VERSION.equals(version);
+    }
+
 
     private static Map<String, String> params(final String uri) {
         final Map<String, String> params = new HashMap<>();

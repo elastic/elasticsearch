@@ -84,4 +84,41 @@ public class XContentTypeTests extends ESTestCase {
         assertThat(XContentType.fromMediaTypeOrFormat("text/plain"), nullValue());
         assertThat(XContentType.fromMediaTypeOrFormat("gobbly;goop"), nullValue());
     }
+
+    public void testMediaType() {
+        byte version = randomByte();
+        assertThat(XContentType.parseMediaType("application/vnd.elasticsearch+json;compatible-with=" + version),
+            equalTo("application/json"));
+        assertThat(XContentType.parseMediaType("application/vnd.elasticsearch+cbor;compatible-with=" + version),
+            equalTo("application/cbor"));
+        assertThat(XContentType.parseMediaType("application/vnd.elasticsearch+smile;compatible-with=" + version),
+            equalTo("application/smile"));
+        assertThat(XContentType.parseMediaType("application/json"),
+            equalTo("application/json"));
+
+
+        assertThat(XContentType.parseMediaType("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version),
+            equalTo("application/json"));
+        assertThat(XContentType.parseMediaType("APPLICATION/JSON"),
+            equalTo("application/json"));
+    }
+
+
+    public void testVersionParsing() {
+        String version = String.valueOf(Math.abs(randomByte()));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+json;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+cbor;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+smile;compatible-with=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("application/json"),
+            nullValue());
+
+
+        assertThat(XContentType.parseVersion("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version),
+            equalTo(version));
+        assertThat(XContentType.parseVersion("APPLICATION/JSON"),
+            nullValue());
+    }
 }

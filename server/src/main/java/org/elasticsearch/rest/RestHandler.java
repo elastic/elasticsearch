@@ -89,6 +89,10 @@ public interface RestHandler {
         return Collections.emptyList();
     }
 
+    default boolean compatibilityRequired(){
+        return false;
+    }
+
     class Route {
 
         private final String path;

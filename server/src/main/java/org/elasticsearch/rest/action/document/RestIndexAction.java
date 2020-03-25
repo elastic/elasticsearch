@@ -39,7 +39,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
-
     @Override
     public List<Route> routes() {
         return List.of(
@@ -52,7 +51,7 @@ public class RestIndexAction extends BaseRestHandler {
         return "document_index_action";
     }
 
-    public static final class CreateHandler extends RestIndexAction {
+    public static class CreateHandler extends RestIndexAction {
 
         @Override
         public String getName() {
@@ -80,7 +79,7 @@ public class RestIndexAction extends BaseRestHandler {
         }
     }
 
-    public static final class AutoIdHandler extends RestIndexAction {
+    public static class AutoIdHandler extends RestIndexAction {
 
         private final Supplier<DiscoveryNodes> nodesInCluster;
 

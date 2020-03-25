@@ -77,7 +77,6 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.versionType(VersionType.fromString(request.param("version_type"), getRequest.versionType()));
 
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
-
         return channel -> client.get(getRequest, new RestToXContentListener<GetResponse>(channel) {
             @Override
             protected RestStatus getStatus(final GetResponse response) {
@@ -85,5 +84,4 @@ public class RestGetAction extends BaseRestHandler {
             }
         });
     }
-
 }

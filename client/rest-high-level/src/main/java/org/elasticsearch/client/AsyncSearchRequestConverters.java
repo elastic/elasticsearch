@@ -47,14 +47,14 @@ final class AsyncSearchRequestConverters {
             request.setEntity(RequestConverters.createEntity(asyncSearchRequest.getSearchSource(), REQUEST_BODY_CONTENT_TYPE));
         }
         // set async search submit specific parameters
-        if (asyncSearchRequest.isCleanOnCompletion() != null) {
-            params.putParam("clean_on_completion", asyncSearchRequest.isCleanOnCompletion().toString());
+        if (asyncSearchRequest.isKeepOnCompletion() != null) {
+            params.putParam("keep_on_completion", asyncSearchRequest.isKeepOnCompletion().toString());
         }
         if (asyncSearchRequest.getKeepAlive() != null) {
             params.putParam("keep_alive", asyncSearchRequest.getKeepAlive().getStringRep());
         }
-        if (asyncSearchRequest.getWaitForCompletion() != null) {
-            params.putParam("wait_for_completion", asyncSearchRequest.getWaitForCompletion().getStringRep());
+        if (asyncSearchRequest.getWaitForCompletionTimeout() != null) {
+            params.putParam("wait_for_completion_timeout", asyncSearchRequest.getWaitForCompletionTimeout().getStringRep());
         }
         request.addParameters(params.asMap());
         return request;

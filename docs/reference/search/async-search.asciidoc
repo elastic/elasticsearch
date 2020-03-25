@@ -31,7 +31,7 @@ POST /sales*/_async_search?size=0
 }
 --------------------------------------------------
 // TEST[setup:sales]
-// TEST[s/size=0/size=0&wait_for_completion=10s&clean_on_completion=false/]
+// TEST[s/size=0/size=0&wait_for_completion=10s&keep_on_completion=true/]
 
 The response contains an identifier of the search being executed.
 You can use this ID to later retrieve the search's final results.

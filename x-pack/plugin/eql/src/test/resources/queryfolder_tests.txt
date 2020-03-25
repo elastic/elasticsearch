@@ -72,3 +72,20 @@ process where substring(file_name, -4) == '.exe'
 InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
 "params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}
 
+
+cidrMatchFunctionOne
+process where cidrMatch(source_address, "10.0.0.0/8")
+"term":{"source_address":{"value":"10.0.0.0/8"
+
+
+cidrMatchFunctionTwo
+process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16")
+"term":{"source_address":{"value":"10.0.0.0/8"
+"term":{"source_address":{"value":"192.168.0.0/16"
+
+
+cidrMatchFunctionThree
+process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db8::/32")
+"term":{"source_address":{"value":"10.0.0.0/8"
+"term":{"source_address":{"value":"192.168.0.0/16"
+"term":{"source_address":{"value":"2001:db8::/32"

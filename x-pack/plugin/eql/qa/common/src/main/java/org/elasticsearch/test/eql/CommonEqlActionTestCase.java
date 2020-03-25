@@ -16,7 +16,9 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -54,6 +56,12 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         if (isSetUp) {
             return;
         }
+
+        CreateIndexRequest request = new CreateIndexRequest(testIndexName)
+                .mapping(Streams.readFully(CommonEqlActionTestCase.class.getResourceAsStream("/mapping-default.json")),
+                        XContentType.JSON);
+
+        tc.highLevelClient().indices().create(request, RequestOptions.DEFAULT);
 
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

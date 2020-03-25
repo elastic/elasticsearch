@@ -116,8 +116,7 @@ public class QuerySearchResultTests extends ESTestCase {
             assertTrue(querySearchResult.hasAggs());
             InternalAggregations aggs = querySearchResult.consumeAggs().get();
             assertEquals(1, aggs.asList().size());
-            //top-level pipeline aggs are retrieved as part of InternalAggregations although they were serialized separately
-            assertEquals(1, aggs.getTopLevelPipelineAggregators().size());
+            // We deserialize and throw away top level pipeline aggs
         }
     }
 

@@ -402,6 +402,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             Node.NODE_DATA_SETTING,
             Node.NODE_MASTER_SETTING,
             Node.NODE_INGEST_SETTING,
+            Node.NODE_REMOTE_CLUSTER_CLIENT,
             Node.NODE_ATTRIBUTES,
             Node.NODE_LOCAL_STORAGE_SETTING,
             AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,

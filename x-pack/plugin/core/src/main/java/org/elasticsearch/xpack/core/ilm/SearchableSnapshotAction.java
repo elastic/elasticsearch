@@ -99,6 +99,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
             client, RESTORED_INDEX_PREFIX);
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(waitForGreenRestoredIndexKey,
             copyMetadataKey, ClusterHealthStatus.GREEN, RESTORED_INDEX_PREFIX);
+        // a policy with only the cold phase will have a null "nextStepKey", hence the "null" nextStepKey passed in below when that's the
+        // case
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(copyMetadataKey, copyLifecyclePolicySettingKey,
             RESTORED_INDEX_PREFIX, nextStepKey != null ? nextStepKey.getName() : "null");
         CopySettingsStep copySettingsStep = new CopySettingsStep(copyLifecyclePolicySettingKey, swapAliasesKey, RESTORED_INDEX_PREFIX,

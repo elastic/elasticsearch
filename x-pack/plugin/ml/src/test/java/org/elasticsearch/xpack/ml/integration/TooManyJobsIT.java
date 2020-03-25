@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitFix;
 
 public class TooManyJobsIT extends BaseMlIntegTestCase {
 

@@ -35,27 +35,6 @@ tasks.register('configureIdeaGradleJvm') {
   }
 }
 
-tasks.register('configureIdeaRunConfigs') {
-  group = 'ide'
-  description = 'Configures default run configuration settings'
-
-  doLast {
-    modifyXml('.idea/workspace.xml') { xml ->
-      def runManager = xml.component.find { it.'@name' == 'RunManager' }
-      if (runManager == null) {
-        throw new GradleException("IntelliJ 'RunManager' configuration is missing from workspace.xml. You may need to refresh your Gradle project.")
-      }
-
-      def debugConfig = runManager.configuration.find { it.'@name' == 'Debug Elasticsearch' }
-      // Enable "auto restart" on remote debug run configuration
-      if (debugConfig.option.any { it.'@name' == 'AUTO_RESTART' && it.'@value' == 'true'} == false) {
-        def restart = new NodeBuilder().option(name: 'AUTO_RESTART', value: 'true')
-        debugConfig.append(restart)
-      }
-    }
-  }
-}
-
 idea {
   project {
     vcs = 'Git'
@@ -67,7 +46,7 @@ idea {
         testRunner = 'choose_per_test'
       }
       taskTriggers {
-        afterSync tasks.named('configureIdeaGradleJvm'), tasks.named('configureIdeaRunConfigs')
+        afterSync tasks.named('configureIdeaGradleJvm')
       }
       codeStyle {
         java {

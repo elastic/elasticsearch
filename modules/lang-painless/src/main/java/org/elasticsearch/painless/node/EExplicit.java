@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -30,10 +29,10 @@ import java.util.Objects;
 /**
  * Represents an explicit cast.
  */
-public final class EExplicit extends AExpression {
+public class EExplicit extends AExpression {
 
-    private final String type;
-    private AExpression child;
+    protected final String type;
+    protected final AExpression child;
 
     public EExplicit(Location location, String type, AExpression child) {
         super(location);
@@ -43,9 +42,8 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
 
@@ -56,15 +54,12 @@ public final class EExplicit extends AExpression {
         Input childInput = new Input();
         childInput.expected = output.actual;
         childInput.explicit = true;
-        child.analyze(scriptRoot, scope, childInput);
-        child.cast();
+        Output childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
+        child.cast(childInput, childOutput);
+
+        output.expressionNode = child.cast(childOutput);
 
         return output;
-    }
-
-    @Override
-    ExpressionNode write(ClassNode classNode) {
-        return child.cast(child.write(classNode));
     }
 
     @Override

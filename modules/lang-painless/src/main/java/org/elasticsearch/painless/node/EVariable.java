@@ -31,9 +31,9 @@ import java.util.Objects;
 /**
  * Represents a variable load/store.
  */
-public final class EVariable extends AStoreable {
+public class EVariable extends AStoreable {
 
-    private final String name;
+    protected final String name;
 
     public EVariable(Location location, String name) {
         super(location);
@@ -42,20 +42,19 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
         AStoreable.Input storeableInput = new AStoreable.Input();
         storeableInput.read = input.read;
         storeableInput.expected = input.expected;
         storeableInput.explicit = input.explicit;
         storeableInput.internal = input.internal;
 
-        return analyze(scriptRoot, scope, storeableInput);
+        return analyze(classNode, scriptRoot, scope, storeableInput);
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
         Variable variable = scope.getVariable(location, name);
 
@@ -65,28 +64,20 @@ public final class EVariable extends AStoreable {
 
         output.actual = variable.getType();
 
-        return output;
-    }
-
-    @Override
-    VariableNode write(ClassNode classNode) {
         VariableNode variableNode = new VariableNode();
 
         variableNode.setLocation(location);
         variableNode.setExpressionType(output.actual);
         variableNode.setName(name);
 
-        return variableNode;
+        output.expressionNode = variableNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
         return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
     }
 
     @Override

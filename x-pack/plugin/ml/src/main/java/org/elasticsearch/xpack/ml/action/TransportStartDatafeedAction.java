@@ -477,7 +477,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private class DatafeedPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+    private static class DatafeedPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
         private volatile Exception exception;
 
@@ -487,12 +487,17 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 return false;
             }
             PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
-            if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
-                    assignment.isAssigned() == false) {
-                // Assignment has failed despite passing our "fast fail" validation
-                exception = new ElasticsearchStatusException("Could not start datafeed, allocation explanation [" +
+            if (assignment != null) {
+                // This means we are awaiting the datafeed's job to be assigned to a node
+                if (assignment.equals(DatafeedNodeSelector.AWAITING_JOB_ASSIGNMENT)) {
+                    return true;
+                }
+                if (assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false && assignment.isAssigned() == false) {
+                    // Assignment has failed despite passing our "fast fail" validation
+                    exception = new ElasticsearchStatusException("Could not start datafeed, allocation explanation [" +
                         assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
-                return true;
+                    return true;
+                }
             }
             DatafeedState datafeedState = (DatafeedState) persistentTask.getState();
             return datafeedState == DatafeedState.STARTED;

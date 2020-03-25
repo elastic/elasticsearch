@@ -208,11 +208,6 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
         }
 
         @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.GEOPOINT;
-        }
-
-        @Override
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
@@ -296,7 +291,7 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
     }
 
     /**
-     * Parses point represented as an object or an array, ignores malformed geopoints if needed
+     * Parses point represented as an object or an array, ignores malformed points if needed
      */
     private void parsePointIgnoringMalformed(ParseContext context, CartesianPoint sparse) throws IOException {
         try {

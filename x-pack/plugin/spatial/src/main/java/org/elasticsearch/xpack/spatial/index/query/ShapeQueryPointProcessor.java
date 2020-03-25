@@ -39,12 +39,12 @@ public class ShapeQueryPointProcessor implements AbstractSearchableGeometryField
     @Override
     public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         validateIsPointFieldType(fieldName, context);
-        // geo points only support intersects
+        // only the intersects relation is supported for indexed cartesian point types
         if (relation != ShapeRelation.INTERSECTS) {
             throw new QueryShardException(context,
                 relation+ " query relation not supported for Field [" + fieldName + "].");
         }
-        // wrap geoQuery as a ConstantScoreQuery
+        // wrap XYPoint query as a ConstantScoreQuery
         return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 

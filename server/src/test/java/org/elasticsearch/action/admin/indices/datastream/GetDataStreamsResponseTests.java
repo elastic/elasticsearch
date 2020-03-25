@@ -29,6 +29,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.DataStreamTests.randomIndexInstances;
+
 public class GetDataStreamsResponseTests extends AbstractSerializingTestCase<Response> {
 
     @Override
@@ -52,8 +54,7 @@ public class GetDataStreamsResponseTests extends AbstractSerializingTestCase<Res
         int numDataStreams = randomIntBetween(0, 8);
         List<DataStream> dataStreams = new ArrayList<>();
         for (int i = 0; i < numDataStreams; i++) {
-            dataStreams.add(new DataStream(randomAlphaOfLength(4), randomAlphaOfLength(4),
-                List.of(generateRandomStringArray(8, 4, false))));
+            dataStreams.add(new DataStream(randomAlphaOfLength(4), randomAlphaOfLength(4), randomIndexInstances()));
         }
         return new Response(dataStreams);
     }

@@ -122,11 +122,11 @@ public class NodesInfoRequestTests extends ESTestCase {
         exception = expectThrows(IllegalStateException.class, () -> request.removeMetric(unknownMetric1));
         assertThat(exception.getMessage(), equalTo("Used an illegal metric: " + unknownMetric1));
 
-        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
+        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.stream().toArray(String[]::new)));
         assertThat(exception.getMessage(), equalTo("Used illegal metric: [" + unknownMetric1 + "]"));
 
         unknownMetrics.add(unknownMetric2);
-        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.toArray(String[]::new)));
+        exception = expectThrows(IllegalStateException.class, () -> request.addMetrics(unknownMetrics.stream().toArray(String[]::new)));
         assertThat(exception.getMessage(), equalTo("Used illegal metrics: [" + unknownMetric1 + ", " + unknownMetric2 + "]"));
     }
 

@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
@@ -852,13 +853,28 @@ public class BytesStreamsTests extends ESTestCase {
         assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
 
-    public void testWriteCircularReferenceException() {
+    public void testWriteCircularReferenceException() throws IOException {
         IOException rootEx = new IOException("disk broken");
         AlreadyClosedException ace = new AlreadyClosedException("closed", rootEx);
         rootEx.addSuppressed(ace); // circular reference
-        BytesStreamOutput out = new BytesStreamOutput();
-        AssertionError error = expectThrows(AssertionError.class, () -> out.writeException(rootEx));
-        assertThat(error.getMessage(), containsString("write a circular reference exception"));
+
+        BytesStreamOutput testOut = new BytesStreamOutput();
+        AssertionError error = expectThrows(AssertionError.class, () -> testOut.writeException(rootEx));
+        assertThat(error.getMessage(), containsString("too many nested exceptions"));
         assertThat(error.getCause(), equalTo(rootEx));
+
+        BytesStreamOutput prodOut = new BytesStreamOutput() {
+            @Override
+            boolean failOnTooManyNestedExceptions(Throwable throwable) {
+                assertThat(throwable, sameInstance(rootEx));
+                return true;
+            }
+        };
+        prodOut.writeException(rootEx);
+        StreamInput in = prodOut.bytes().streamInput();
+        Exception newEx = in.readException();
+        assertThat(newEx, instanceOf(IOException.class));
+        assertThat(newEx.getMessage(), equalTo("disk broken"));
+        assertArrayEquals(newEx.getStackTrace(), rootEx.getStackTrace());
     }
 }

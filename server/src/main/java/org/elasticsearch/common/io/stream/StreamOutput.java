@@ -27,7 +27,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CharArrays;
@@ -931,6 +930,9 @@ public abstract class StreamOutput extends OutputStream {
     private void writeException(Throwable rootException, Throwable throwable, int nestedLevel) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
+        } else if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
+            assert failOnTooManyNestedExceptions(rootException);
+            writeException(new IllegalStateException("too many nested exceptions"));
         } else {
             writeBoolean(true);
             boolean writeCause = true;
@@ -1038,17 +1040,15 @@ public abstract class StreamOutput extends OutputStream {
             if (writeMessage) {
                 writeOptionalString(throwable.getMessage());
             }
-            if (nestedLevel < MAX_NESTED_EXCEPTION_LEVEL) {
-                if (writeCause) {
-                    writeException(rootException, throwable.getCause(), nestedLevel + 1);
-                }
-                ElasticsearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
-            } else {
-                if (Assertions.ENABLED) {
-                    throw new AssertionError("write a circular reference exception", rootException);
-                }
+            if (writeCause) {
+                writeException(rootException, throwable.getCause(), nestedLevel + 1);
             }
+            ElasticsearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
         }
+    }
+
+    boolean failOnTooManyNestedExceptions(Throwable throwable) {
+        throw new AssertionError("too many nested exceptions", throwable);
     }
 
     /**

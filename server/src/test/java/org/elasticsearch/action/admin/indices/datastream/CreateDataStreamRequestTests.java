@@ -18,14 +18,11 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction.Request;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -92,58 +89,6 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
         CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> CreateDataStreamAction.TransportAction.createDataStream(cs, req));
-        assertThat(e.getMessage(), containsString("name must not contain a space"));
-        assertThat(e.getMessage(), containsString("name must not contain a ','"));
-        assertThat(e.getMessage(), containsString("name must not contain a '#'"));
-        assertThat(e.getMessage(), containsString("name must not start with '_'"));
-        assertThat(e.getMessage(), containsString("name must not end with '-'"));
-        assertThat(e.getMessage(), containsString("name must be lower cased"));
-    }
-
-    public void testCreateDataStreamThatConflictsWithIndex() {
-        final String dataStreamName = "my-data-stream";
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().put(IndexMetaData.builder(dataStreamName)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build(), false).build()).build();
-        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> CreateDataStreamAction.TransportAction.createDataStream(cs, req));
-        assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] conflicts with existing index"));
-    }
-
-    public void testCreateDataStreamThatConflictsWithAlias() {
-        final String dataStreamName = "my-data-stream";
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().put(IndexMetaData.builder(dataStreamName + "z")
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .putAlias(AliasMetaData.builder(dataStreamName).build())
-                .build(), false).build()).build();
-        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> CreateDataStreamAction.TransportAction.createDataStream(cs, req));
-        assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] conflicts with existing alias"));
-    }
-
-    public void testCreateDataStreamWithConflictingBackingIndices() {
-        final String dataStreamName = "my-data-stream";
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().put(IndexMetaData.builder("." + dataStreamName + "-00001")
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build(), false).build()).build();
-        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> CreateDataStreamAction.TransportAction.createDataStream(cs, req));
-        assertThat(e.getMessage(),
-            containsString("data_stream [" + dataStreamName + "] could create backing indices that conflict with existing indices"));
+        assertThat(e.getMessage(), containsString("must not contain the following characters"));
     }
 }

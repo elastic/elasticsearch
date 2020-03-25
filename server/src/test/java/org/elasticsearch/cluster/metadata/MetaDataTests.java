@@ -45,6 +45,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -906,6 +907,50 @@ public class MetaDataTests extends ESTestCase {
         mapBuilder.put(key, null);
         final ImmutableOpenMap<String, MetaData.Custom> map = mapBuilder.build();
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+    }
+
+    public void testBuilderRejectsDataStreamThatConflictsWithIndex() {
+        final String dataStreamName = "my-data-stream";
+        MetaData.Builder b = MetaData.builder()
+            .put(IndexMetaData.builder(dataStreamName)
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build(), false)
+            .put(new DataStream(dataStreamName, "ts", Collections.emptyList()));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "] conflicts with existing index or alias"));
+    }
+
+    public void testBuilderRejectsDataStreamThatConflictsWithAlias() {
+        final String dataStreamName = "my-data-stream";
+        MetaData.Builder b = MetaData.builder()
+            .put(IndexMetaData.builder(dataStreamName + "z")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .putAlias(AliasMetaData.builder(dataStreamName).build())
+                .build(), false)
+            .put(new DataStream(dataStreamName, "ts", Collections.emptyList()));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "] conflicts with existing index or alias"));
+    }
+
+    public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
+        final String dataStreamName = "my-data-stream";
+        MetaData.Builder b = MetaData.builder()
+            .put(IndexMetaData.builder("." + dataStreamName + "-00001")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build(), false)
+            .put(new DataStream(dataStreamName, "ts", Collections.emptyList()));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(),
+            containsString("data stream [" + dataStreamName + "] could create backing indices that conflict with existing indices"));
     }
 
     public void testSerialization() throws IOException {

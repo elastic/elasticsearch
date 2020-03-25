@@ -51,8 +51,17 @@ public class TransportGetReindexTaskAction extends HandledTransportAction<GetRei
 
     private static GetReindexTaskAction.Response toResponse(String id, ReindexTaskState taskState) {
         ReindexTaskStateDoc stateDoc = taskState.getStateDoc();
-        final GetReindexTaskAction.ReindexTaskWrapper taskResponse = new GetReindexTaskAction.ReindexTaskWrapper(id,
-            stateDoc.getStartTimeMillis(), stateDoc.getEndTimeMillis(), stateDoc.getReindexResponse(), stateDoc.getException());
+        final GetReindexTaskAction.ReindexTaskWrapper taskResponse;
+        if (stateDoc.getReindexResponse() != null) {
+            taskResponse = GetReindexTaskAction.ReindexTaskWrapper.fromResponse(id, stateDoc.getStartTimeMillis(),
+                stateDoc.getEndTimeMillis(), stateDoc.getReindexResponse());
+        } else if (stateDoc.getException() != null) {
+            taskResponse = GetReindexTaskAction.ReindexTaskWrapper.fromException(id, stateDoc.getStartTimeMillis(),
+                stateDoc.getEndTimeMillis(), stateDoc.getException());
+        } else {
+            taskResponse = GetReindexTaskAction.ReindexTaskWrapper.fromInProgress(id, stateDoc.getStartTimeMillis(),
+                stateDoc.getEndTimeMillis());
+        }
         return new GetReindexTaskAction.Response(Collections.singletonList(taskResponse));
     }
 }

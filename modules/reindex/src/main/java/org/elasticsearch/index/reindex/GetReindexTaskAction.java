@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -95,7 +98,7 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
         private static final String TASKS = "tasks";
 
         static {
-            PARSER.declareObjectArray(constructorArg(), ReindexTaskWrapper.PARSER::apply, new ParseField(TASKS));
+            PARSER.declareObjectArray(constructorArg(), (p, c) -> ReindexTaskWrapper.fromXContent(p), new ParseField(TASKS));
         }
 
         private List<ReindexTaskWrapper> responses;
@@ -133,14 +136,12 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
 
     public static class ReindexTaskWrapper implements ToXContentObject, Writeable {
 
-        public static final ConstructingObjectParser<ReindexTaskWrapper, Void> PARSER =
-            new ConstructingObjectParser<>("reindex/get_task_wrapper", a -> new ReindexTaskWrapper(
-                (String) a[0],
-                (String) a[1],
-                (Long) a[2],
-                (Long) a[3],
-                (BulkByScrollResponse) a[4],
-                (ElasticsearchException) a[5]));
+        private static final ObjectParser<ReindexTaskWrapperBuilder, Void> PARSER =
+            new ObjectParser<>(
+                "reindex/get_task_wrapper",
+                true,
+                ReindexTaskWrapperBuilder::new
+            );
 
         private static final String ID = "id";
         private static final String STATE = "state";
@@ -148,61 +149,86 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
         private static final String END_TIME = "end_time";
         private static final String DURATION = "duration";
         private static final String DURATION_IN_MILLIS = "duration_in_millis";
-        private static final String REINDEX_RESULT = "result";
-        private static final String REINDEX_FAILURE = "failure";
+        private static final String FATAL_FAILURE = "fatal_failure";
+        private static final String FAILURES = "failures";
 
         private static final String RUNNING_STATE = "running";
         private static final String DONE_STATE = "done";
+        private static final String TIMED_OUT_STATE = "timed_out";
         private static final String FAILED_STATE = "failed";
 
         static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(ID));
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(STATE));
-            PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField(START_TIME));
-            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField(END_TIME));
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> BulkByScrollResponse.fromXContent(p),
-                new ParseField(REINDEX_RESULT));
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
-                new ParseField(REINDEX_FAILURE));
+            PARSER.declareString(ReindexTaskWrapperBuilder::setId, new ParseField(ID));
+            PARSER.declareString(ReindexTaskWrapperBuilder::setState, new ParseField(STATE));
+            PARSER.declareLong(ReindexTaskWrapperBuilder::setStartMillis, new ParseField(START_TIME));
+            PARSER.declareLong(ReindexTaskWrapperBuilder::setEndMillis, new ParseField(END_TIME));
+            PARSER.declareObject(ReindexTaskWrapperBuilder::setFatalFailure, (p, c) -> ElasticsearchException.fromXContent(p),
+                new ParseField(FATAL_FAILURE));
+            PARSER.declareObjectArray(
+                ReindexTaskWrapperBuilder::setFailures, (p, c) -> BulkByScrollResponse.parseFailure(p), new ParseField(FAILURES)
+            );
+            // since the result of BulkByScrollResponse.Status are mixed we also parse that in this
+            BulkByScrollTask.Status.declareFields(PARSER);
         }
 
         private final String id;
         private final String state;
         private final long startMillis;
         private final Long endMillis;
-        private final BulkByScrollResponse reindexResponse;
-        private final ElasticsearchException exception;
+        private final BulkByScrollTask.Status status;
+        private final List<BulkItemResponse.Failure> bulkFailures;
+        private final List<ScrollableHitSource.SearchFailure> searchFailures;
+        private final ElasticsearchException fatalFailure;
 
         public ReindexTaskWrapper(StreamInput in) throws IOException {
             this.id = in.readString();
             this.state = in.readString();
             this.startMillis = in.readLong();
             this.endMillis = in.readOptionalLong();
-            this.reindexResponse = in.readOptionalWriteable(BulkByScrollResponse::new);
-            this.exception = in.readOptionalWriteable(ElasticsearchException::new);
-        }
-
-        public ReindexTaskWrapper(String id, long startMillis, @Nullable Long endMillis, @Nullable BulkByScrollResponse reindexResponse,
-                                  @Nullable ElasticsearchException exception) {
-            this(id, getState(reindexResponse, exception), startMillis, endMillis, reindexResponse, exception);
+            this.status = in.readOptionalWriteable(BulkByScrollTask.Status::new);
+            this.bulkFailures = in.readList(BulkItemResponse.Failure::new);
+            this.searchFailures = in.readList(ScrollableHitSource.SearchFailure::new);
+            this.fatalFailure = in.readOptionalWriteable(ElasticsearchException::new);
         }
 
         public ReindexTaskWrapper(String id, String state, long startMillis, @Nullable Long endMillis,
-                                  @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
-            assert (reindexResponse == null) || (exception == null) : "Either response or exception must be null";
+                                  @Nullable BulkByScrollTask.Status status, @Nullable List<BulkItemResponse.Failure> bulkFailures,
+                                  @Nullable List<ScrollableHitSource.SearchFailure> searchFailures,
+                                  @Nullable ElasticsearchException fatalFailure) {
             this.id = id;
             this.state = state;
             this.startMillis = startMillis;
             this.endMillis = endMillis;
-            this.reindexResponse = reindexResponse;
-            this.exception = exception;
+            this.status = status;
+            this.bulkFailures = bulkFailures;
+            this.searchFailures = searchFailures;
+            this.fatalFailure = fatalFailure;
         }
 
-        private static String getState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
-            assert reindexResponse == null || exception == null;
+        public static ReindexTaskWrapper fromResponse(String id, long startMillis, Long endMillis, BulkByScrollResponse response) {
+            return new ReindexTaskWrapper(id, getState(response, null), startMillis, endMillis, response.getStatus(),
+                response.getBulkFailures(), response.getSearchFailures(), null);
+        }
+
+        public static ReindexTaskWrapper fromException(String id, long startMillis, Long endMillis, ElasticsearchException exception) {
+            return new ReindexTaskWrapper(id, getState(null, exception), startMillis, endMillis, null,
+                null, null, exception);
+        }
+
+        public static ReindexTaskWrapper fromInProgress(String id, long startMillis, Long endMillis) {
+            return new ReindexTaskWrapper(id, getState(null, null), startMillis, endMillis, null,
+                null, null, null);
+        }
+
+        private static String getState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException fatalException) {
+            assert reindexResponse == null || fatalException == null;
             if (reindexResponse != null) {
-                return DONE_STATE;
-            } else if (exception != null) {
+                if (reindexResponse.isTimedOut()) {
+                    return TIMED_OUT_STATE;
+                } else {
+                    return DONE_STATE;
+                }
+            } else if (fatalException != null) {
                 return FAILED_STATE;
             } else {
                 return RUNNING_STATE;
@@ -215,33 +241,101 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             out.writeString(state);
             out.writeLong(startMillis);
             out.writeOptionalLong(endMillis);
-            out.writeOptionalWriteable(reindexResponse);
-            out.writeOptionalWriteable(exception);
+            out.writeOptionalWriteable(status);
+            out.writeOptionalWriteable(fatalFailure);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            assert reindexResponse == null || exception == null;
             builder.field(STATE, state);
             builder.field(START_TIME, Instant.ofEpochMilli(startMillis).atZone(ZoneOffset.UTC));
             if (endMillis != null) {
                 builder.field(END_TIME, Instant.ofEpochMilli(endMillis).atZone(ZoneOffset.UTC));
                 builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(endMillis - startMillis, TimeUnit.MILLISECONDS));
             }
-            if (reindexResponse != null) {
-                builder.field(REINDEX_RESULT);
+            if (status != null) {
+                status.innerXContent(builder, params);
+            }
+            if (fatalFailure != null) {
+                builder.field(FATAL_FAILURE);
                 builder.startObject();
-                reindexResponse.toXContent(builder, params);
-                builder.endObject();
-            } else if (exception != null) {
-                builder.field(REINDEX_FAILURE);
-                builder.startObject();
-                ElasticsearchException.generateThrowableXContent(builder, params, exception);
+                ElasticsearchException.generateThrowableXContent(builder, params, fatalFailure);
                 builder.endObject();
             }
+            builder.startArray("failures");
+            for (BulkItemResponse.Failure failure: bulkFailures) {
+                builder.startObject();
+                failure.toXContent(builder, params);
+                builder.endObject();
+            }
+            for (ScrollableHitSource.SearchFailure failure: searchFailures) {
+                failure.toXContent(builder, params);
+            }
+            builder.endArray();
 
             return builder.endObject();
+        }
+
+        public static ReindexTaskWrapper fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null).buildWrapper();
+        }
+    }
+
+    private static class ReindexTaskWrapperBuilder extends BulkByScrollTask.StatusBuilder {
+
+        private String id;
+        private String state;
+        private long startMillis;
+        private Long endMillis;
+        private ElasticsearchException fatalFailure;
+        private BulkByScrollTask.Status status;
+        private List<BulkItemResponse.Failure> bulkFailures = new ArrayList<>();
+        private List<ScrollableHitSource.SearchFailure> searchFailures = new ArrayList<>();
+
+        ReindexTaskWrapperBuilder() {
+        }
+
+
+        public void setId(String id) {
+            this.id = id;
+        }
+
+        public void setState(String state) {
+            this.state = state;
+        }
+
+        public void setStartMillis(long startMillis) {
+            this.startMillis = startMillis;
+        }
+
+        public void setEndMillis(Long endMillis) {
+            this.endMillis = endMillis;
+        }
+
+        public void setFatalFailure(ElasticsearchException fatalFailure) {
+            this.fatalFailure = fatalFailure;
+        }
+
+        public void setStatus(BulkByScrollTask.Status status) {
+            this.status = status;
+        }
+
+        public void setFailures(List<Object> failures) {
+            if (failures != null) {
+                for (Object object : failures) {
+                    if (object instanceof BulkItemResponse.Failure) {
+                        bulkFailures.add((BulkItemResponse.Failure) object);
+                    } else if (object instanceof ScrollableHitSource.SearchFailure) {
+                        searchFailures.add((ScrollableHitSource.SearchFailure) object);
+                    }
+                }
+            }
+        }
+
+        public ReindexTaskWrapper buildWrapper() {
+            status = super.buildStatus();
+            return new ReindexTaskWrapper(id, state, startMillis, endMillis, status, bulkFailures, searchFailures, fatalFailure);
         }
     }
 }

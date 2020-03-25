@@ -186,11 +186,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "setting [cluster.remote.connect] is deprecated and will be removed in the next major version",
+            "setting [cluster.remote.connect] is deprecated in favor of setting [node.remote_cluster_client]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-cluster-remote-connect",
             String.format(
                 Locale.ROOT,
-                "the setting [%s] is currently set to [%b], instead set [%s] to [%1$b]",
+                "the setting [%s] is currently set to [%b], instead set [%s] to [%2$b]",
                 RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(),
                 value,
                 Node.NODE_REMOTE_CLUSTER_CLIENT.getKey()

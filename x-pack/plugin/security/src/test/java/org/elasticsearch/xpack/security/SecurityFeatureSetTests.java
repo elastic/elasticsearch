@@ -79,9 +79,10 @@ public class SecurityFeatureSetTests extends ESTestCase {
     public void testEnabled() {
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
                 rolesStore, roleMappingStore, ipFilter);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         assertThat(featureSet.enabled(), is(true));
 
-        when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         featureSet = new SecurityFeatureSet(settings, licenseState, realms,
                 rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(false));
@@ -89,13 +90,16 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
     public void testUsage() throws Exception {
         final boolean authcAuthzAvailable = randomBoolean();
+        final boolean explicitlyDisabled = randomBoolean();
+        final boolean enabled = explicitlyDisabled == false && randomBoolean();
         when(licenseState.isSecurityAvailable()).thenReturn(authcAuthzAvailable);
+        when(licenseState.isSecurityEnabled()).thenReturn(enabled);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 
-        boolean enabled = randomBoolean();
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), enabled);
-
+        if (explicitlyDisabled) {
+            settings.put("xpack.security.enabled", "false");
+        }
         final boolean httpSSLEnabled = randomBoolean();
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
         final boolean transportSSLEnabled = randomBoolean();
@@ -224,8 +228,13 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 // FIPS 140
                 assertThat(source.getValue("fips_140.enabled"), is(fips140Enabled));
             } else {
+                if (explicitlyDisabled) {
+                    assertThat(source.getValue("ssl"), is(nullValue()));
+                } else {
+                    assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
+                    assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
+                }
                 assertThat(source.getValue("realms"), is(nullValue()));
-                assertThat(source.getValue("ssl"), is(nullValue()));
                 assertThat(source.getValue("token_service"), is(nullValue()));
                 assertThat(source.getValue("api_key_service"), is(nullValue()));
                 assertThat(source.getValue("audit"), is(nullValue()));
@@ -252,7 +261,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
     public void testUsageOnTrialLicenseWithSecurityDisabledByDefault() throws Exception {
         when(licenseState.isSecurityAvailable()).thenReturn(true);
-        when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 

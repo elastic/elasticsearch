@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -33,6 +34,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -43,7 +45,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -320,7 +321,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 logger.error("Error creating transform index template", e);
             }
             try {
-                templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
+                // Template upgraders are only ever called on the master nodes, so we can use the current node version as the compatibility
+                // version here because we can be sure that this node, if elected master, will be compatible with itself.
+                templates.put(TransformInternalIndexConstants.AUDIT_INDEX,
+                    TransformInternalIndex.getAuditIndexTemplateMetaData(Version.CURRENT));
             } catch (IOException e) {
                 logger.warn("Error creating transform audit index", e);
             }
@@ -378,7 +382,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Settings.Builder additionalSettings = Settings.builder();
 
         additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED_NODE.get(settings));
-        additionalSettings.put(transformRemoteEnabledNodeAttribute, RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings));
+        additionalSettings.put(transformRemoteEnabledNodeAttribute, Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings));
 
         return additionalSettings.build();
     }

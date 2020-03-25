@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-import java.util.List;
+import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
@@ -41,7 +41,7 @@ public abstract class SecurityInBasicRestTestCase extends ESRestTestCase {
                 adminClient(),
                 ignore -> {
                 },
-                List.of()) {
+                Collections.emptyList()) {
             };
         }
         return highLevelAdminClient;

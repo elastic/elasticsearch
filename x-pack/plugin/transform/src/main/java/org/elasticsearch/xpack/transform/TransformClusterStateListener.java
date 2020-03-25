@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.transform.persistence.TransformInternalIndex.HIDDEN_INTRODUCED_VERSION;
 
 class TransformClusterStateListener implements ClusterStateListener {
 
@@ -77,11 +78,16 @@ class TransformClusterStateListener implements ClusterStateListener {
             return;
         }
 
+        final IndicesAliasesRequest.AliasActions aliasAction = IndicesAliasesRequest.AliasActions.add()
+            .index(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED)
+            .alias(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS);
+
+        if (state.nodes().getMinNodeVersion().onOrAfter(HIDDEN_INTRODUCED_VERSION)) {
+            aliasAction.isHidden(true);
+        }
+
         final IndicesAliasesRequest request = client.admin().indices().prepareAliases()
-                .addAliasAction(IndicesAliasesRequest.AliasActions.add()
-                    .index(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED)
-                    .alias(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS)
-                    .isHidden(true))
+                .addAliasAction(aliasAction)
                 .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), TRANSFORM_ORIGIN, request,

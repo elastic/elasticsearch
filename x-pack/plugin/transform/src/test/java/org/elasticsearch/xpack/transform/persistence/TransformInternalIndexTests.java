@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.transform.persistence;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
@@ -55,7 +56,8 @@ public class TransformInternalIndexTests extends ESTestCase {
 
         mapBuilder = ImmutableOpenMap.builder();
         try {
-            mapBuilder.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
+            mapBuilder.put(TransformInternalIndexConstants.AUDIT_INDEX,
+                TransformInternalIndex.getAuditIndexTemplateMetaData(Version.CURRENT));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

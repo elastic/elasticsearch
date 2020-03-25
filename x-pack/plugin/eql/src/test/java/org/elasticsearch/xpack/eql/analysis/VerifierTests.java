@@ -113,26 +113,24 @@ public class VerifierTests extends ESTestCase {
 
     // Some functions fail with "Unsupported" message at the parse stage
     public void testArrayFunctionsUnsupported() {
-        assertEquals("1:16: Unsupported function [arrayContains]",
-                errorParsing("registry where arrayContains(bytes_written_string_list, 'En')"));
-        assertEquals("1:16: Unsupported function [arraySearch]",
-                errorParsing("registry where arraySearch(bytes_written_string_list, a, a == 'en-us')"));
-        assertEquals("1:16: Unsupported function [arrayCount]",
-                errorParsing("registry where arrayCount(bytes_written_string_list, s, s == '*-us') == 1"));
+        assertEquals("1:16: Unknown function [arrayContains]",
+                error("registry where arrayContains(bytes_written_string_list, 'En')"));
+        assertEquals("1:16: Unknown function [arraySearch]",
+            error("registry where arraySearch(bytes_written_string_list, bytes_written_string, true)"));
+        assertEquals("1:16: Unknown function [arrayCount]",
+            error("registry where arrayCount(bytes_written_string_list, bytes_written_string, true) == 1"));
     }
 
     // Some functions fail with "Unknown" message at the parse stage
     public void testFunctionParsingUnknown() {
         assertEquals("1:15: Unknown function [matchLite]",
-                errorParsing("process where matchLite(?'.*?net1\\s+localgroup\\s+.*?', command_line)"));
+                error("process where matchLite(?'.*?net1\\s+localgroup\\s+.*?', command_line)"));
         assertEquals("1:15: Unknown function [safe]",
-                errorParsing("network where safe(divide(process_name, process_name))"));
+                error("network where safe(process_name)"));
     }
 
     // Test the known EQL functions that are not supported
     public void testFunctionVerificationUnknown() {
-        assertEquals("1:26: Unknown function [substring]",
-                error("foo where user_domain == substring('abcdfeg', 0, 5)"));
         assertEquals("1:25: Unknown function [endsWith]",
                 error("file where opcode=0 and endsWith(file_name, 'loREr.exe')"));
         assertEquals("1:25: Unknown function [startsWith]",
@@ -143,7 +141,7 @@ public class VerifierTests extends ESTestCase {
                 error("file where opcode=0 and indexOf(file_name, 'plore') == 2"));
         assertEquals("1:15: Unknown function [add]",
                 error("process where add(serial_event_id, 0) == 1"));
-        assertEquals("1:15: Unknown function [subtract]",
+        assertEquals("1:15: Unknown function [subtract], did you mean [substring]?",
                 error("process where subtract(serial_event_id, -5) == 6"));
         assertEquals("1:15: Unknown function [multiply]",
                 error("process where multiply(6, serial_event_id) == 30"));

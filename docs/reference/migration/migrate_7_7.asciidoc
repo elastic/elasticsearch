@@ -37,6 +37,22 @@ pre-7.7 default behaviour by adjusting your <<logging>>.
 === Settings changes
 
 [discrete]
+[[deprecate-listener-thread-pool]]
+==== `thread_pool.listener.size` and `thread_pool.listener.queue_size` have been deprecated
+The listener thread pool is no longer used internally by Elasticsearch.
+Therefore, these settings have been deprecated. You can safely remove these
+settings from the configuration of your nodes.
+
+[discrete]
+[[deprecate-cluster-remote-connect]]
+==== `cluster.remote.connect` is deprecated in favor of `node.remote_cluster_client`
+Previously the setting `cluster.remote.connect` was used to configure whether or
+not the local node is capable of acting as a remote cluster client in
+cross-cluster search and cross-cluster replication. This setting is deprecated
+in favor of `node.remote_cluster_client` serves the same purpose and identifies
+the local node as having the `remote_cluster_client` role.
+
+[discrete]
 [[deprecate-missing-realm-order]]
 ==== Authentication realm `order` will be a required config in version 8.0.0.
 
@@ -71,14 +87,6 @@ millisecond. While queries on `date` field round up to the latest millisecond
 for `gt` and `lte` boundaries, the same queries on `date_range` fields didn't
 do this. The behavior is now the same for both field types like documented in
 <<range-query-date-math-rounding>>.
-
-[float]
-[[deprecate-listener-thread-pool]]
-==== `thread_pool.listener.size` and `thread_pool.listener.queue_size` have been deprecated
-
-The listener thread pool is no longer used internally by Elasticsearch.
-Therefore, these settings have been deprecated. You can safely remove these
-settings from the configuration of your nodes.
 
 [discrete]
 [[breaking_77_highlighters_changes]]

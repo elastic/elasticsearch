@@ -118,6 +118,8 @@ include::delete-job.asciidoc[]
 include::delete-calendar-job.asciidoc[]
 include::delete-snapshot.asciidoc[]
 include::delete-expired-data.asciidoc[]
+//ESTIMATE
+include::estimate-model-memory.asciidoc[]
 //FIND
 include::find-file-structure.asciidoc[]
 //FLUSH

@@ -1329,22 +1329,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup());
 
-            DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
-            if (dsMetadata != null) {
-                for (DataStream ds : dsMetadata.dataStreams().values()) {
-                    if (aliasAndIndexLookup.containsKey(ds.getName())) {
-                        throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
-                    }
-
-                    final String backingIndexPrefix = (ds.getName().startsWith(".") ? "" : ".") + ds.getName() + "-";
-                    for (String indexName : allIndices) {
-                        if (indexName.startsWith(backingIndexPrefix)) {
-                            throw new IllegalStateException(
-                                "data stream [" + ds.getName() + "] could create backing indices that conflict with existing indices");
-                        }
-                    }
-                }
-            }
+            validateDataStreams(aliasAndIndexLookup);
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
@@ -1385,6 +1370,25 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             aliasAndIndexLookup.values().stream().filter(AliasOrIndex::isAlias)
                 .forEach(alias -> ((AliasOrIndex.Alias) alias).computeAndValidateAliasProperties());
             return aliasAndIndexLookup;
+        }
+
+        private void validateDataStreams(SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
+            DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
+            if (dsMetadata != null) {
+                for (DataStream ds : dsMetadata.dataStreams().values()) {
+                    if (aliasAndIndexLookup.containsKey(ds.getName())) {
+                        throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
+                    }
+
+                    final String backingIndexPrefixFrom = (ds.getName().startsWith(".") ? "" : ".") + ds.getName() + "-";
+                    final String backingIndexPrefixTo = (ds.getName().startsWith(".") ? "" : ".") + ds.getName() + ".";
+                    SortedMap<?, ?> map = aliasAndIndexLookup.subMap(backingIndexPrefixFrom, backingIndexPrefixTo);
+                    if (map.size() != 0) {
+                        throw new IllegalStateException(
+                            "data stream [" + ds.getName() + "] could create backing indices that conflict with existing indices");
+                    }
+                }
+            }
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {

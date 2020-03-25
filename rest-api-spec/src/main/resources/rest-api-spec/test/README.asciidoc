@@ -163,7 +163,7 @@ perform the `do` operation on.
 
 === `stash_in_key`
 
-Allows you use a stashed value in the any key of an object during a `match` operation
+Allows you to use a stashed value in any key of an object during a `match` assertion
 
 ....
 - set: {nodes.$master.http.publish_address: host}
@@ -188,14 +188,14 @@ path.$stash.value
 
 === `embedded_stash_key`
 
-Allows a stashed key to appear anywhere in the path:
+Allows a stashed key to appear anywhere in the path (note the placeholder needs to be within curly brackets too in this case):
 
 ....
 field1.e${placeholder}ments.element1
 ....
 
 === `stash_path_replace`
-Used only in the doc snippet tests. Allow you to do easie replacements using a special `$_path` marker.
+Used only in the doc snippet tests. Allow you to do ease replacements using a special `$_path` marker.
 
 ....
 // TESTRESPONSEs/somevalue/$body.${_path}/ to mean "replace
@@ -471,4 +471,3 @@ This depends on the datatype of the value being examined, eg:
     - length: { _tokens: 3 }   # the `_tokens` array has 3 elements
     - length: { _source: 5 }   # the `_source` hash has 5 keys
 ....
-

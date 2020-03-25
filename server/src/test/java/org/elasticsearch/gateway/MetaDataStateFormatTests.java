@@ -27,23 +27,12 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -55,19 +44,12 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to work with ExtrasFS
@@ -85,7 +67,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
             @Override
             public MetaData fromXContent(XContentParser parser) throws IOException {
-                return MetaData.Builder.fromXContent(parser, false);
+                return MetaData.Builder.fromXContent(parser);
             }
         };
         Path tmp = createTempDir();
@@ -238,99 +220,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public void testLoadStateWithoutMissingCustoms() throws IOException {
-        runLoadStateTest(false, false);
-    }
-
-    public void testLoadStateWithoutMissingCustomsButPreserved() throws IOException {
-        runLoadStateTest(false, true);
-    }
-
-    public void testLoadStateWithMissingCustomsButPreserved() throws IOException {
-        runLoadStateTest(true, true);
-    }
-
-    public void testLoadStateWithMissingCustomsAndNotPreserved() throws IOException {
-        runLoadStateTest(true, false);
-    }
-
-    private void runLoadStateTest(boolean hasMissingCustoms, boolean preserveUnknownCustoms) throws IOException {
-        final Path[] dirs = new Path[randomIntBetween(1, 5)];
-        int numStates = randomIntBetween(1, 5);
-        List<MetaData> meta = new ArrayList<>();
-        for (int i = 0; i < numStates; i++) {
-            meta.add(randomMeta());
-        }
-        Set<Path> corruptedFiles = new HashSet<>();
-        MetaDataStateFormat<MetaData> format = metaDataFormat(preserveUnknownCustoms);
-        for (int i = 0; i < dirs.length; i++) {
-            dirs[i] = createTempDir();
-            Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
-            for (int j = 0; j < numStates; j++) {
-                format.writeAndCleanup(meta.get(j), dirs[i]);
-                if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily
-                                                                                            // need here....
-                    Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j + ".st");
-                    corruptedFiles.add(file);
-                    MetaDataStateFormatTests.corruptFile(file, logger);
-                }
-            }
-
-        }
-        List<Path> dirList = Arrays.asList(dirs);
-        Collections.shuffle(dirList, random());
-        MetaData loadedMetaData = format.loadLatestState(logger, hasMissingCustoms ?
-            xContentRegistryWithMissingCustoms() : xContentRegistry(), dirList.toArray(new Path[0]));
-        MetaData latestMetaData = meta.get(numStates-1);
-        assertThat(loadedMetaData.clusterUUID(), not(equalTo("_na_")));
-        assertThat(loadedMetaData.clusterUUID(), equalTo(latestMetaData.clusterUUID()));
-        ImmutableOpenMap<String, IndexMetaData> indices = loadedMetaData.indices();
-        assertThat(indices.size(), equalTo(latestMetaData.indices().size()));
-        for (IndexMetaData original : latestMetaData) {
-            IndexMetaData deserialized = indices.get(original.getIndex().getName());
-            assertThat(deserialized, notNullValue());
-            assertThat(deserialized.getVersion(), equalTo(original.getVersion()));
-            assertThat(deserialized.getMappingVersion(), equalTo(original.getMappingVersion()));
-            assertThat(deserialized.getSettingsVersion(), equalTo(original.getSettingsVersion()));
-            assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
-            assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
-        }
-
-        // make sure the index tombstones are the same too
-        if (hasMissingCustoms) {
-            if (preserveUnknownCustoms) {
-                assertNotNull(loadedMetaData.custom(IndexGraveyard.TYPE));
-                assertThat(loadedMetaData.custom(IndexGraveyard.TYPE), instanceOf(MetaData.UnknownGatewayOnlyCustom.class));
-
-                // check that we reserialize unknown metadata correctly again
-                final Path tempdir = createTempDir();
-                metaDataFormat(randomBoolean()).write(loadedMetaData, tempdir);
-                final MetaData reloadedMetaData = metaDataFormat(randomBoolean()).loadLatestState(logger, xContentRegistry(), tempdir);
-                assertThat(reloadedMetaData.indexGraveyard(), equalTo(latestMetaData.indexGraveyard()));
-            } else {
-                assertNotNull(loadedMetaData.indexGraveyard());
-                assertThat(loadedMetaData.indexGraveyard().getTombstones(), hasSize(0));
-            }
-        }  else {
-            assertThat(loadedMetaData.indexGraveyard(), equalTo(latestMetaData.indexGraveyard()));
-        }
-
-        // now corrupt all the latest ones and make sure we fail to load the state
-        for (int i = 0; i < dirs.length; i++) {
-            Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + (numStates-1) + ".st");
-            if (corruptedFiles.contains(file)) {
-                continue;
-            }
-            MetaDataStateFormatTests.corruptFile(file, logger);
-        }
-        try {
-            format.loadLatestState(logger, xContentRegistry(), dirList.toArray(new Path[0]));
-            fail("latest version can not be read");
-        } catch (ElasticsearchException ex) {
-            assertThat(ExceptionsHelper.unwrap(ex, CorruptStateException.class), notNullValue());
-        }
-    }
-
     private DummyState writeAndReadStateSuccessfully(Format format, Path... paths) throws IOException {
         format.noFailures();
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
@@ -456,43 +345,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
         writeAndReadStateSuccessfully(format, paths);
     }
-
-    private static MetaDataStateFormat<MetaData> metaDataFormat(boolean preserveUnknownCustoms) {
-        return new MetaDataStateFormat<MetaData>(MetaData.GLOBAL_STATE_FILE_PREFIX) {
-            @Override
-            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
-                MetaData.Builder.toXContent(state, builder, ToXContent.EMPTY_PARAMS);
-            }
-
-            @Override
-            public MetaData fromXContent(XContentParser parser) throws IOException {
-                return MetaData.Builder.fromXContent(parser, preserveUnknownCustoms);
-            }
-        };
-    }
-
-    private MetaData randomMeta() throws IOException {
-        int numIndices = randomIntBetween(1, 10);
-        MetaData.Builder mdBuilder = MetaData.builder();
-        mdBuilder.generateClusterUuidIfNeeded();
-        for (int i = 0; i < numIndices; i++) {
-            mdBuilder.put(indexBuilder(randomAlphaOfLength(10) + "idx-"+i));
-        }
-        int numDelIndices = randomIntBetween(0, 5);
-        final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
-        for (int i = 0; i < numDelIndices; i++) {
-            graveyard.addTombstone(new Index(randomAlphaOfLength(10) + "del-idx-" + i, UUIDs.randomBase64UUID()));
-        }
-        mdBuilder.indexGraveyard(graveyard.build());
-        return mdBuilder.build();
-    }
-
-    private IndexMetaData.Builder indexBuilder(String index) throws IOException {
-        return IndexMetaData.builder(index)
-                .settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
-    }
-
 
     private static class Format extends MetaDataStateFormat<DummyState> {
         private enum FailureMode {
@@ -715,14 +567,5 @@ public class MetaDataStateFormatTests extends ESTestCase {
      */
     protected final NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
-    }
-
-    /**
-     * The {@link NamedXContentRegistry} to use for {@link XContentParser}s that should be
-     * missing all of the normal cluster state parsers.
-     */
-    protected NamedXContentRegistry xContentRegistryWithMissingCustoms() {
-        return new NamedXContentRegistry(Arrays.asList(
-                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("garbage"), RepositoriesMetaData::fromXContent)));
     }
 }

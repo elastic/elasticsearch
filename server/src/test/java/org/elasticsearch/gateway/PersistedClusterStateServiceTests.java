@@ -229,7 +229,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final String message = expectThrows(IllegalStateException.class,
             () -> new PersistedClusterStateService(combinedPaths, nodeIds[0], xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L, randomBoolean()).loadBestOnDiskState()).getMessage();
+                () -> 0L).loadBestOnDiskState()).getMessage();
         assertThat(message,
             allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
         assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),

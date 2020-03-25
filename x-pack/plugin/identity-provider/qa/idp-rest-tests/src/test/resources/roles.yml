@@ -3,7 +3,6 @@ idp_admin:
   cluster:
     - monitor
     - "cluster:admin/idp/*"
-    - "cluster:admin/xpack/security/saml/*"
 
 idp_user:
   applications:

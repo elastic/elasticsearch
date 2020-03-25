@@ -65,6 +65,7 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -73,6 +74,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_PARAM;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
@@ -1187,6 +1189,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            MetaData.XContentContext context = MetaData.XContentContext.valueOf(
+                params.param(CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_API));
+
             builder.startObject(indexMetaData.getIndex().getName());
 
             builder.field(KEY_VERSION, indexMetaData.getVersion());
@@ -1194,41 +1199,76 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             builder.field(KEY_SETTINGS_VERSION, indexMetaData.getSettingsVersion());
             builder.field(KEY_ALIASES_VERSION, indexMetaData.getAliasesVersion());
             builder.field(KEY_ROUTING_NUM_SHARDS, indexMetaData.getRoutingNumShards());
+
             builder.field(KEY_STATE, indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
             boolean binary = params.paramAsBoolean("binary", false);
 
             builder.startObject(KEY_SETTINGS);
-            indexMetaData.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+            if (context != MetaData.XContentContext.API) {
+                indexMetaData.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+            } else {
+                indexMetaData.getSettings().toXContent(builder, params);
+            }
             builder.endObject();
 
-            builder.startArray(KEY_MAPPINGS);
-            MappingMetaData mmd = indexMetaData.mapping();
-            if (mmd != null) {
-                if (binary) {
-                    builder.value(mmd.source().compressed());
-                } else {
-                    builder.map(XContentHelper.convertToMap(new BytesArray(mmd.source().uncompressed()), true).v2());
+            if (context != MetaData.XContentContext.API) {
+                builder.startArray(KEY_MAPPINGS);
+                MappingMetaData mmd = indexMetaData.mapping();
+                if (mmd != null) {
+                    if (binary) {
+                        builder.value(mmd.source().compressed());
+                    } else {
+                        builder.map(XContentHelper.convertToMap(new BytesArray(mmd.source().uncompressed()), true).v2());
+                    }
                 }
+                builder.endArray();
+            } else {
+                builder.startObject(KEY_MAPPINGS);
+                MappingMetaData mmd = indexMetaData.mapping();
+                if (mmd != null) {
+                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(mmd.source().uncompressed()), false).v2();
+                    if (mapping.size() == 1 && mapping.containsKey(mmd.type())) {
+                        // the type name is the root value, reduce it
+                        mapping = (Map<String, Object>) mapping.get(mmd.type());
+                    }
+                    builder.field(mmd.type());
+                    builder.map(mapping);
+                }
+                builder.endObject();
             }
-            builder.endArray();
 
             for (ObjectObjectCursor<String, DiffableStringMap> cursor : indexMetaData.customData) {
                 builder.field(cursor.key);
                 builder.map(cursor.value);
             }
 
-            builder.startObject(KEY_ALIASES);
-            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
-                AliasMetaData.Builder.toXContent(cursor.value, builder, params);
-            }
-            builder.endObject();
+            if (context != MetaData.XContentContext.API) {
+                builder.startObject(KEY_ALIASES);
+                for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
+                    AliasMetaData.Builder.toXContent(cursor.value, builder, params);
+                }
+                builder.endObject();
 
-            builder.startArray(KEY_PRIMARY_TERMS);
-            for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
-                builder.value(indexMetaData.primaryTerm(i));
+                builder.startArray(KEY_PRIMARY_TERMS);
+                for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
+                    builder.value(indexMetaData.primaryTerm(i));
+                }
+                builder.endArray();
+            } else {
+                builder.startArray(KEY_ALIASES);
+                for (ObjectCursor<String> cursor : indexMetaData.getAliases().keys()) {
+                    builder.value(cursor.value);
+                }
+                builder.endArray();
+
+                builder.startObject(IndexMetaData.KEY_PRIMARY_TERMS);
+                for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
+                    builder.field(Integer.toString(shard), indexMetaData.primaryTerm(shard));
+                }
+                builder.endObject();
             }
-            builder.endArray();
+
 
             builder.startObject(KEY_IN_SYNC_ALLOCATIONS);
             for (IntObjectCursor<Set<String>> cursor : indexMetaData.inSyncAllocationIds) {
@@ -1414,7 +1454,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         return builder.build();
     }
 
-    private static final ToXContent.Params FORMAT_PARAMS = new MapParams(Collections.singletonMap("binary", "true"));
+    private static final ToXContent.Params FORMAT_PARAMS;
+    static {
+        Map<String, String> params = new HashMap<>(2);
+        params.put("binary", "true");
+        params.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
+        FORMAT_PARAMS = new MapParams(params);
+    }
 
     /**
      * State format for {@link IndexMetaData} to write to and load from disk

@@ -34,12 +34,12 @@ import javax.inject.Inject;
  * The task which executes the reports.<br>
  * For example:
  * <pre>
- *  Provider<Task> reportTask = p.tasks.register('restTestsSourceReport', RestResourcesReportsTask) {
+ *  Provider&lt;Task&gt; reportTask = p.tasks.register('restTestsSourceReport', RestResourcesReportsTask) {
  *         reports {
  *           source_report {
  *             destination new File("/tmp/report.txt")
  *             projects ':modules', ':plugins', ':rest-api-spec', ':x-pack:plugin'  //includes subprojects
- *             excludes '&#42&#42/watcher/qa/&#42&#42/mustache/&#42&#42', '&#42&#42/watcher/qa/&#42&#42/painless/&#42&#42'
+ *             excludes '&#42;&#42;/watcher/qa/&#42;&#42;/mustache/&#42;&#42;', '&#42;&#42;/watcher/qa/&#42;&#42;/painless/&#42;&#42;'
  *             outputs.upToDateWhen { false }
  *             enabled true
  *           }

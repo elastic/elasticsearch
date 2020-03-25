@@ -101,7 +101,7 @@ If the request succeeds, the body of the response contains the policy definition
           "min_age": "30d",
           "actions": {
             "delete": {
-              "delete_generated_snapshot": true
+              "delete_searchable_snapshot": true
             }
           }
         }

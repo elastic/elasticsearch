@@ -114,7 +114,7 @@ with its version bumped to 2.
           "min_age": "10d",
           "actions": {
             "delete": {
-              "delete_generated_snapshot": true
+              "delete_searchable_snapshot": true
             }
           }
         }

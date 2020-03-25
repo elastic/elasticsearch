@@ -36,10 +36,7 @@ import java.util.Optional;
  */
 public class SubmitAsyncSearchRequest implements Validatable {
 
-    public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 1;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 5;
-    private static final boolean DEFAULT_CCS_MINIMIZE_ROUNDTRIPS = false;
-    private static final boolean DEFAULT_REQUEST_CACHE_VALUE = true;
 
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
 
@@ -53,10 +50,7 @@ public class SubmitAsyncSearchRequest implements Validatable {
      */
     public SubmitAsyncSearchRequest(SearchSourceBuilder source, String... indices) {
         this.searchRequest = new SearchRequest(indices, source);
-        searchRequest.setCcsMinimizeRoundtrips(DEFAULT_CCS_MINIMIZE_ROUNDTRIPS);
-        searchRequest.setPreFilterShardSize(DEFAULT_PRE_FILTER_SHARD_SIZE);
         searchRequest.setBatchedReduceSize(DEFAULT_BATCHED_REDUCE_SIZE);
-        searchRequest.requestCache(DEFAULT_REQUEST_CACHE_VALUE);
     }
 
     /**
@@ -192,8 +186,10 @@ public class SubmitAsyncSearchRequest implements Validatable {
     }
 
     /**
-     * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
-     * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
+     * Sets the number of shard results that should be reduced at once on the coordinating node.
+     * This value should be used as a protection mechanism to reduce the memory overhead per search
+     * request if the potential number of shards in the request can be large.
+     * This defaults to 5 for {@link SubmitAsyncSearchRequest}.
      */
     public void setBatchedReduceSize(int batchedReduceSize) {
         this.searchRequest.setBatchedReduceSize(batchedReduceSize);
@@ -209,16 +205,16 @@ public class SubmitAsyncSearchRequest implements Validatable {
 
     /**
      * Sets if this request should use the request cache or not, assuming that it can (for
-     * example, if "now" is used, it will never be cached). By default (not set, or null,
-     * will default to the index level setting if request cache is enabled or not).
+     * example, if "now" is used, it will never be cached).
+     * By default (if not set) this is turned on for {@link SubmitAsyncSearchRequest}.
      */
     public void setRequestCache(Boolean requestCache) {
         this.searchRequest.requestCache(requestCache);
     }
 
     /**
-     * Gets if this request should use the request cache or not.
-     * Defaults to `true` for {@link SubmitAsyncSearchRequest}.
+     * Gets if this request should use the request cache or not, if set.
+     * This defaults to `true` on the server side if unset in the client.
      */
     public Boolean getRequestCache() {
         return this.searchRequest.requestCache();

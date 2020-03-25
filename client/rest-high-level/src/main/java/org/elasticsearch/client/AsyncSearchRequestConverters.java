@@ -73,7 +73,9 @@ final class AsyncSearchRequestConverters {
         if (request.getAllowPartialSearchResults() != null) {
             params.withAllowPartialResults(request.getAllowPartialSearchResults());
         }
-        params.withBatchedReduceSize(request.getBatchedReduceSize());
+        if (request.getBatchedReduceSize() != SubmitAsyncSearchRequest.DEFAULT_BATCHED_REDUCE_SIZE) {
+            params.withBatchedReduceSize(request.getBatchedReduceSize());
+        }
     }
 
     static Request getAsyncSearch(GetAsyncSearchRequest asyncSearchRequest) throws IOException {

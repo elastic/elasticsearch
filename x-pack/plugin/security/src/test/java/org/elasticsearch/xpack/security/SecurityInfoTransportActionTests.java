@@ -99,6 +99,9 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 
+        if (explicitlyDisabled) {
+            settings.put("xpack.security.enabled", "false");
+        }
         final boolean httpSSLEnabled = randomBoolean();
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
         final boolean transportSSLEnabled = randomBoolean();

@@ -302,26 +302,7 @@ public class MetaDataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    Set<String> templateNames = new HashSet<>();
-                    for (String templateName : currentState.metaData().templatesV2().keySet()) {
-                        if (Regex.simpleMatch(name, templateName)) {
-                            templateNames.add(templateName);
-                        }
-                    }
-                    if (templateNames.isEmpty()) {
-                        // if its a match all pattern, and no templates are found (we have none), don't
-                        // fail with index missing...
-                        if (Regex.isMatchAllPattern(name)) {
-                            return currentState;
-                        }
-                        throw new IndexTemplateMissingException(name);
-                    }
-                    MetaData.Builder metaData = MetaData.builder(currentState.metaData());
-                    for (String templateName : templateNames) {
-                        logger.info("removing index template [{}]", templateName);
-                        metaData.removeIndexTemplate(templateName);
-                    }
-                    return ClusterState.builder(currentState).metaData(metaData).build();
+                    return innerRemoveIndexTemplateV2(currentState, name);
                 }
 
                 @Override
@@ -329,6 +310,30 @@ public class MetaDataIndexTemplateService {
                     listener.onResponse(new AcknowledgedResponse(true));
                 }
             });
+    }
+
+    // Package visible for testing
+    static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String name) {
+        Set<String> templateNames = new HashSet<>();
+        for (String templateName : currentState.metaData().templatesV2().keySet()) {
+            if (Regex.simpleMatch(name, templateName)) {
+                templateNames.add(templateName);
+            }
+        }
+        if (templateNames.isEmpty()) {
+            // if its a match all pattern, and no templates are found (we have none), don't
+            // fail with index missing...
+            if (Regex.isMatchAllPattern(name)) {
+                return currentState;
+            }
+            throw new IndexTemplateMissingException(name);
+        }
+        MetaData.Builder metaData = MetaData.builder(currentState.metaData());
+        for (String templateName : templateNames) {
+            logger.info("removing index template [{}]", templateName);
+            metaData.removeIndexTemplate(templateName);
+        }
+        return ClusterState.builder(currentState).metaData(metaData).build();
     }
 
     public void putTemplate(final PutRequest request, final PutListener listener) {

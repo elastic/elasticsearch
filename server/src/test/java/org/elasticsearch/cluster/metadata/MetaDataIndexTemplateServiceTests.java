@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -252,6 +253,20 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         state = MetaDataIndexTemplateService.addIndexTemplateV2(state, randomBoolean(), "bar", template);
         assertNotNull(state.metaData().templatesV2().get("bar"));
+    }
+
+    public void testRemoveIndexTemplateV2() {
+        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        IndexTemplateMissingException e = expectThrows(IndexTemplateMissingException.class,
+            () -> MetaDataIndexTemplateService.innerRemoveIndexTemplateV2(ClusterState.EMPTY_STATE, "foo"));
+        assertThat(e.getMessage(), equalTo("index_template [foo] missing"));
+
+        final ClusterState state = MetaDataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
+        assertNotNull(state.metaData().templatesV2().get("foo"));
+        assertThat(state.metaData().templatesV2().get("foo"), equalTo(template));
+
+        ClusterState updatedState = MetaDataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo");
+        assertNull(updatedState.metaData().templatesV2().get("foo"));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

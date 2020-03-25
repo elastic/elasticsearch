@@ -149,4 +149,4 @@ The mapping field name for {feat-imp} is compounded as follows:
 `ml.<inference.target_field>`.`<inference.tag>`.`feature_importance`
 
 If `inference.tag` is not provided in the processor definition, it is not part 
-of the field path. The `<inference.target_field>` defaults to `ml.inference`.
+of the field path. The `<inference.target_field>` defaults to `inference`.

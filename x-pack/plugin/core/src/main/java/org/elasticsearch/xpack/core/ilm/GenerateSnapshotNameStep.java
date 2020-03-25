@@ -69,7 +69,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         String snapshotName = generateSnapshotName(snapshotNamePrefix);
         ActionRequestValidationException validationException = validateGeneratedSnapshotName(snapshotNamePrefix, snapshotName);
         if (validationException != null) {
-            logger.debug("unable to generate a snapshot name as part of policy [{}] for index [{}] due to [{}]",
+            logger.warn("unable to generate a snapshot name as part of policy [{}] for index [{}] due to [{}]",
                 policy, index.getName(), validationException.getMessage());
             throw validationException;
         }

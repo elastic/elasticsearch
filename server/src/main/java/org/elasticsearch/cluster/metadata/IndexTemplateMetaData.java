@@ -45,6 +45,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -390,16 +391,35 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         PARSER.declareObject(Builder::settings,
             (p, c) -> Settings.builder().put(Settings.fromXContent(p)).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build(),
             new ParseField("settings"));
-        PARSER.declareObject((builder, map) -> {
+        PARSER.declareField((builder, map) -> {
             if (map.isEmpty() == false) {
-                String type = map.keySet().iterator().next();
-                builder.putMapping(type, map.get(type));
+                for (String type : map.keySet()) {
+                    builder.putMapping(type, map.get(type));
+                }
             }
-        }, (p, c) -> parseMappings(p), new ParseField("mappings"));
+        }, (p, c) -> parsePossibleMappingArray(p), new ParseField("mappings"), ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareNamedObjects(Builder::putAliases, (p, c, n) -> AliasMetaData.Builder.fromXContent(p), new ParseField("aliases"));
         PARSER.declareStringArray(Builder::patterns, new ParseField("index_patterns"));
         PARSER.declareInt(Builder::order, new ParseField("order"));
         PARSER.declareInt(Builder::version, new ParseField("version"));
+    }
+
+    /**
+     * Before the removal of mapping types (eg in {@link org.elasticsearch.Version#V_7_0_0})
+     * multiple mappings could be emitted in an array.  This will no longer apply when BWC with
+     * 7x nodes is not required.
+     */
+    private static Map<String, CompressedXContent> parsePossibleMappingArray(XContentParser parser) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            Map<String, CompressedXContent> mappings = new HashMap<>();
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                mappings.putAll(parseMappings(parser));
+            }
+            return mappings;
+        }
+        else {
+            return parseMappings(parser);
+        }
     }
 
     // TODO it would be really nice if we could just copy bytes here, there's no need to parse and then

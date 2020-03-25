@@ -131,6 +131,15 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
         }
     }
 
+    public void testXContentFromV7Nodes() throws Exception {
+        String json = "{\"mappings\":[{\"_doc\":{}}], \"index_patterns\": [\"pattern-1\"]}";
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new BytesArray(json), XContentType.JSON)) {
+            IndexTemplateMetaData template = IndexTemplateMetaData.fromXContent(parser, "");
+            assertNotNull(template.mappings());
+        }
+    }
+
     public void testFromToXContent() throws Exception {
         String templateName = randomUnicodeOfCodepointLengthBetween(1, 10);
         IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(templateName);

@@ -53,7 +53,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     /**
      * The remote address for the proxy. The connections will be opened to the configured address.
      */
-    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_ADDRESSES = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<String> PROXY_ADDRESS = Setting.affixKeySetting(
         "cluster.remote.",
         "proxy_address",
         (ns, key) -> Setting.simpleString(key, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY, s -> {
@@ -99,7 +99,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             transportService,
             connectionManager,
             REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(settings),
+            PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings));
     }
 
@@ -141,7 +141,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
-        return Stream.of(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES);
+        return Stream.of(ProxyConnectionStrategy.PROXY_ADDRESS);
     }
 
     static Writeable.Reader<RemoteConnectionInfo.ModeInfo> infoReader() {
@@ -155,9 +155,11 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustBeRebuilt(Settings newSettings) {
-        String address = REMOTE_CLUSTER_ADDRESSES.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        String address = PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         int numOfSockets = REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        return numOfSockets != maxNumConnections || configuredAddress.equals(address) == false;
+        String serverName = SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        return numOfSockets != maxNumConnections || configuredAddress.equals(address) == false ||
+            Objects.equals(serverName, configuredServerName) == false;
     }
 
     @Override
@@ -172,7 +174,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     public RemoteConnectionInfo.ModeInfo getModeInfo() {
-        return new ProxyModeInfo(configuredAddress, maxNumConnections, connectionManager.size());
+        return new ProxyModeInfo(configuredAddress, configuredServerName, maxNumConnections, connectionManager.size());
     }
 
     private void performProxyConnectionProcess(ActionListener<Void> listener) {
@@ -255,32 +257,43 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     public static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
 
         private final String address;
+        private final String serverName;
         private final int maxSocketConnections;
         private final int numSocketsConnected;
 
-        public ProxyModeInfo(String address, int maxSocketConnections, int numSocketsConnected) {
+        public ProxyModeInfo(String address, String serverName, int maxSocketConnections, int numSocketsConnected) {
             this.address = address;
+            this.serverName = serverName;
             this.maxSocketConnections = maxSocketConnections;
             this.numSocketsConnected = numSocketsConnected;
         }
 
         private ProxyModeInfo(StreamInput input) throws IOException {
             address = input.readString();
+            if (input.getVersion().onOrAfter(Version.V_7_7_0)) {
+                serverName = input.readString();
+            } else {
+                serverName = null;
+            }
             maxSocketConnections = input.readVInt();
             numSocketsConnected = input.readVInt();
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("address", address);
-            builder.field("num_sockets_connected", numSocketsConnected);
-            builder.field("max_socket_connections", maxSocketConnections);
+            builder.field("proxy_address", address);
+            builder.field("server_name", serverName);
+            builder.field("num_proxy_sockets_connected", numSocketsConnected);
+            builder.field("max_proxy_socket_connections", maxSocketConnections);
             return builder;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(address);
+            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                out.writeString(serverName);
+            }
             out.writeVInt(maxSocketConnections);
             out.writeVInt(numSocketsConnected);
         }
@@ -297,6 +310,10 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         public String getAddress() {
             return address;
+        }
+
+        public String getServerName() {
+            return serverName;
         }
 
         public int getMaxSocketConnections() {
@@ -319,12 +336,13 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
             ProxyModeInfo otherProxy = (ProxyModeInfo) o;
             return maxSocketConnections == otherProxy.maxSocketConnections &&
                 numSocketsConnected == otherProxy.numSocketsConnected &&
-                Objects.equals(address, otherProxy.address);
+                Objects.equals(address, otherProxy.address) &&
+                Objects.equals(serverName, otherProxy.serverName);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(address, maxSocketConnections, numSocketsConnected);
+            return Objects.hash(address, serverName, maxSocketConnections, numSocketsConnected);
         }
     }
 }

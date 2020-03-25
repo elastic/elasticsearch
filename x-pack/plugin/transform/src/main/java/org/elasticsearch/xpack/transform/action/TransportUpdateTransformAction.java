@@ -27,11 +27,11 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Reque
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
@@ -125,7 +126,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+            Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
             clusterService.getNodeName(),
@@ -350,14 +351,20 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
     }
 
     private void createDestination(Pivot pivot, TransformConfig config, ActionListener<Void> listener) {
-        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> TransformIndex.createDestinationIndex(
-                client,
-                Clock.systemUTC(),
-                config,
+        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(mappings -> {
+            TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
                 mappings,
+                config.getId(),
+                Clock.systemUTC()
+            );
+            TransformIndex.createDestinationIndex(
+                client,
+                config,
+                generateddestIndexSettings,
                 ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
-            ),
+            );
+        },
+
             deduceTargetMappingsException -> listener.onFailure(
                 new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
             )

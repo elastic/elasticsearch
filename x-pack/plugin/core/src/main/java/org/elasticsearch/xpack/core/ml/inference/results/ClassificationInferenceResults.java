@@ -35,13 +35,13 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
                                           String classificationLabel,
                                           List<TopClassEntry> topClasses,
                                           InferenceConfig config) {
-        this(value, classificationLabel, topClasses, Collections.emptyMap(), (ClassificationConfig)config);
+        this(value, classificationLabel, topClasses, Collections.emptyList(), (ClassificationConfig)config);
     }
 
     public ClassificationInferenceResults(double value,
                                           String classificationLabel,
                                           List<TopClassEntry> topClasses,
-                                          Map<String, Double> featureImportance,
+                                          List<FeatureImportance> featureImportance,
                                           InferenceConfig config) {
         this(value, classificationLabel, topClasses, featureImportance, (ClassificationConfig)config);
     }
@@ -49,7 +49,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     private ClassificationInferenceResults(double value,
                                            String classificationLabel,
                                            List<TopClassEntry> topClasses,
-                                           Map<String, Double> featureImportance,
+                                           List<FeatureImportance> featureImportance,
                                            ClassificationConfig classificationConfig) {
         super(value,
             SingleValueInferenceResults.takeTopFeatureImportances(featureImportance,
@@ -118,7 +118,10 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
                 topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
         }
         if (getFeatureImportance().size() > 0) {
-            document.setFieldValue(parentResultField + ".feature_importance", getFeatureImportance());
+            document.setFieldValue(parentResultField + ".feature_importance", getFeatureImportance()
+                .stream()
+                .map(FeatureImportance::toMap)
+                .collect(Collectors.toList()));
         }
     }
 

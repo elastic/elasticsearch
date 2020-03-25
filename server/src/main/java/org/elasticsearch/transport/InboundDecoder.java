@@ -42,16 +42,21 @@ public class InboundDecoder implements Releasable {
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
 
-    public InboundDecoder() {
-        this(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
-    }
-
     public InboundDecoder(Version version, PageCacheRecycler recycler) {
         this.version = version;
         this.recycler = recycler;
     }
 
-    public int handle(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+    public int decode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+        try {
+            return internalDecode(reference, fragmentConsumer);
+        } catch (IOException e) {
+            cleanDecodeState();
+            throw e;
+        }
+    }
+
+    public int internalDecode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
         if (isOnHeader()) {
             int messageLength = TcpTransport.readMessageLength(reference);
             if (messageLength == -1) {
@@ -118,11 +123,7 @@ public class InboundDecoder implements Releasable {
 
     @Override
     public void close() {
-        IOUtils.closeWhileHandlingException(decompressor);
-        decodingException = null;
-        decompressor = null;
-        totalNetworkSize = -1;
-        bytesConsumed = 0;
+        cleanDecodeState();
     }
 
     private void forwardNonEmptyContent(ReleasableBytesReference content, Consumer<Object> fragmentConsumer) {
@@ -141,11 +142,16 @@ public class InboundDecoder implements Releasable {
         } else {
             finishMarker = END_CONTENT;
         }
+        cleanDecodeState();
+        fragmentConsumer.accept(finishMarker);
+    }
+
+    private void cleanDecodeState() {
+        IOUtils.closeWhileHandlingException(decompressor);
         decodingException = null;
         decompressor = null;
         totalNetworkSize = -1;
         bytesConsumed = 0;
-        fragmentConsumer.accept(finishMarker);
     }
 
     private void decompress(ReleasableBytesReference content) throws IOException {

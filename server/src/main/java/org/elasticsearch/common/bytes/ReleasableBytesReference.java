@@ -36,7 +36,7 @@ import java.io.OutputStream;
  */
 public final class ReleasableBytesReference extends AbstractRefCounted implements Releasable, BytesReference {
 
-    public static final Releasable NOOP = () -> {};
+    public static final Releasable NO_OP = () -> {};
     private final BytesReference delegate;
     private final Releasable releasable;
 
@@ -47,7 +47,7 @@ public final class ReleasableBytesReference extends AbstractRefCounted implement
     }
 
     public static ReleasableBytesReference wrap(BytesReference reference) {
-        return new ReleasableBytesReference(reference, NOOP);
+        return new ReleasableBytesReference(reference, NO_OP);
     }
 
     @Override

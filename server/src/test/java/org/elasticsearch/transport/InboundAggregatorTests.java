@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -62,7 +63,7 @@ public class InboundAggregatorTests extends ESTestCase {
             streamOutput.writeString("action_name");
             streamOutput.write(randomByteArrayOfLength(10));
             expectThrows(IllegalStateException.class, () -> {
-                ReleasableBytesReference content = new ReleasableBytesReference(streamOutput.bytes(), () -> {});
+                ReleasableBytesReference content = ReleasableBytesReference.wrap(streamOutput.bytes());
                 aggregator.aggregate(content);
             });
         }
@@ -76,17 +77,78 @@ public class InboundAggregatorTests extends ESTestCase {
         aggregator.headerReceived(header);
 
         BytesArray bytes = new BytesArray(randomByteArrayOfLength(10));
-        InboundMessage aggregated = aggregator.aggregate(new ReleasableBytesReference(bytes, () -> {}));
-        assertNull(aggregated);
+        ArrayList<ReleasableBytesReference> references = new ArrayList<>();
+        if (randomBoolean()) {
+            final ReleasableBytesReference content = ReleasableBytesReference.wrap(bytes);
+            references.add(content);
+            aggregator.aggregate(content);
+            content.close();
+        } else {
+            final ReleasableBytesReference content1 = ReleasableBytesReference.wrap(bytes.slice(0, 3));
+            references.add(content1);
+            aggregator.aggregate(content1);
+            content1.close();
+            final ReleasableBytesReference content2 = ReleasableBytesReference.wrap(bytes.slice(3, 3));
+            references.add(content2);
+            aggregator.aggregate(content2);
+            content2.close();
+            final ReleasableBytesReference content3 = ReleasableBytesReference.wrap(bytes.slice(6, 4));
+            references.add(content3);
+            aggregator.aggregate(content3);
+            content3.close();
+        }
 
         // Signal EOS
-        aggregated = aggregator.finishAggregation();
+        InboundMessage aggregated = aggregator.finishAggregation();
 
         assertThat(aggregated, notNullValue());
         assertFalse(aggregated.isPing());
         assertTrue(aggregated.getHeader().isRequest());
         assertThat(aggregated.getHeader().getRequestId(), equalTo(requestId));
         assertThat(aggregated.getHeader().getVersion(), equalTo(Version.CURRENT));
+        for (ReleasableBytesReference reference : references) {
+            assertEquals(1, reference.refCount());
+        }
+        aggregated.close();
+        for (ReleasableBytesReference reference : references) {
+            assertEquals(0, reference.refCount());
+        }
+    }
+
+    public void testCancelAndCloseWillCloseContent() {
+        long requestId = randomNonNegativeLong();
+        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        header.setHeaders(new Tuple<>(Collections.emptyMap(), Collections.emptyMap()));
+        // Initiate Message
+        aggregator.headerReceived(header);
+
+        BytesArray bytes = new BytesArray(randomByteArrayOfLength(10));
+        ArrayList<ReleasableBytesReference> references = new ArrayList<>();
+        if (randomBoolean()) {
+            final ReleasableBytesReference content = ReleasableBytesReference.wrap(bytes);
+            references.add(content);
+            aggregator.aggregate(content);
+            content.close();
+        } else {
+            final ReleasableBytesReference content1 = ReleasableBytesReference.wrap(bytes.slice(0, 5));
+            references.add(content1);
+            aggregator.aggregate(content1);
+            content1.close();
+            final ReleasableBytesReference content2 = ReleasableBytesReference.wrap(bytes.slice(5, 5));
+            references.add(content2);
+            aggregator.aggregate(content2);
+            content2.close();
+        }
+
+        if (randomBoolean()) {
+            aggregator.cancelAggregation();
+        } else {
+            aggregator.close();
+        }
+
+        for (ReleasableBytesReference reference : references) {
+            assertEquals(0, reference.refCount());
+        }
     }
 
     public void testFinishAggregationWillFinishHeader() throws IOException {
@@ -100,11 +162,10 @@ public class InboundAggregatorTests extends ESTestCase {
             streamOutput.writeString("action_name");
             streamOutput.write(randomByteArrayOfLength(10));
 
-            InboundMessage aggregated = aggregator.aggregate(new ReleasableBytesReference(streamOutput.bytes(), () -> {}));
-            assertNull(aggregated);
+            aggregator.aggregate(ReleasableBytesReference.wrap(streamOutput.bytes()));
 
             // Signal EOS
-            aggregated = aggregator.finishAggregation();
+            InboundMessage aggregated = aggregator.finishAggregation();
 
             assertThat(aggregated, notNullValue());
             assertFalse(header.needsToReadVariableHeader());

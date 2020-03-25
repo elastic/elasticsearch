@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
@@ -29,7 +30,8 @@ import java.util.ArrayList;
 
 public class InboundAggregator implements Releasable {
 
-    private final ArrayList<ReleasableBytesReference> contentAggregation = new ArrayList<>();
+    private ReleasableBytesReference firstContent;
+    private ArrayList<ReleasableBytesReference> contentAggregation;
     private Header currentHeader;
 
     public void headerReceived(Header header) {
@@ -41,13 +43,21 @@ public class InboundAggregator implements Releasable {
         currentHeader = header;
     }
 
-    public InboundMessage aggregate(ReleasableBytesReference content) {
+    public void aggregate(ReleasableBytesReference content) {
         if (currentHeader == null) {
             content.close();
             throw new IllegalStateException("Received content without header");
         } else {
-            contentAggregation.add(content.retain());
-            return null;
+            if (isFirstContent()) {
+                firstContent = content.retain();
+            } else {
+                if (contentAggregation == null) {
+                    contentAggregation = new ArrayList<>(4);
+                    contentAggregation.add(firstContent);
+                    firstContent = null;
+                }
+                contentAggregation.add(content.retain());
+            }
         }
     }
 
@@ -56,20 +66,24 @@ public class InboundAggregator implements Releasable {
             throw new IllegalStateException("Aggregation cancelled, but no aggregation had begun");
         } else {
             final Header header = this.currentHeader;
-            Releasables.close(contentAggregation);
-            contentAggregation.clear();
-            currentHeader = null;
+            closeAggregation();
             return header;
         }
     }
 
     public InboundMessage finishAggregation() throws IOException {
-        final ReleasableBytesReference[] references = contentAggregation.toArray(new ReleasableBytesReference[0]);
-        final CompositeBytesReference content = new CompositeBytesReference(references);
-        final ReleasableBytesReference releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
+        final ReleasableBytesReference releasableContent;
+        if (isFirstContent()) {
+            releasableContent = ReleasableBytesReference.wrap(BytesArray.EMPTY);
+        } else if (contentAggregation == null) {
+            releasableContent = firstContent;
+        } else {
+            final ReleasableBytesReference[] references = contentAggregation.toArray(new ReleasableBytesReference[0]);
+            final CompositeBytesReference content = new CompositeBytesReference(references);
+            releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
+        }
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent);
-        contentAggregation.clear();
-        currentHeader = null;
+        clearAggregation();
         boolean success = false;
         try {
             if (aggregated.getHeader().needsToReadVariableHeader()) {
@@ -88,10 +102,27 @@ public class InboundAggregator implements Releasable {
         return currentHeader != null;
     }
 
+    private boolean isFirstContent() {
+        return firstContent == null && contentAggregation == null;
+    }
+
     @Override
     public void close() {
-        Releasables.close(contentAggregation);
-        contentAggregation.clear();
+        closeAggregation();
+    }
+
+    private void closeAggregation() {
+        if (contentAggregation == null) {
+            Releasables.close(firstContent);
+        } else {
+            Releasables.close(contentAggregation);
+        }
+        clearAggregation();
+    }
+
+    private void clearAggregation() {
+        firstContent = null;
+        contentAggregation = null;
         currentHeader = null;
     }
 }

@@ -126,7 +126,7 @@ public class InboundHandler {
             threadContext.setHeaders(header.getHeaders());
             threadContext.putTransient("_remote_address", remoteAddress);
             if (header.isRequest()) {
-                handleRequest(channel, header, streamInput, message.getContent().length());
+                handleRequest(channel, header, streamInput, message.getContentLength());
             } else {
                 final TransportResponseHandler<?> handler;
                 long requestId = header.getRequestId();

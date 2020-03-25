@@ -83,11 +83,11 @@ public class InboundPipeline implements Releasable {
 
         while (continueHandling && isClosed == false) {
             boolean continueDecoding = true;
-            while (continueDecoding && isClosed == false) {
+            while (continueDecoding) {
                 final int remaining = composite.length() - bytesConsumed;
                 if (remaining != 0) {
                     try (ReleasableBytesReference slice = composite.retainedSlice(bytesConsumed, remaining)) {
-                        final int bytesDecoded = decoder.handle(slice, fragments::add);
+                        final int bytesDecoded = decoder.decode(slice, fragments::add);
                         if (bytesDecoded != 0) {
                             bytesConsumed += bytesDecoded;
                             if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
@@ -135,8 +135,12 @@ public class InboundPipeline implements Releasable {
                     messageHandler.accept(channel, aggregated);
                 }
             } else if (fragment instanceof Exception) {
-                assert aggregator.isAggregating();
-                final Header header = aggregator.cancelAggregation();
+                final Header header;
+                if (aggregator.isAggregating()) {
+                    header = aggregator.cancelAggregation();
+                } else {
+                    header = null;
+                }
                 errorHandler.accept(channel, new Tuple<>(header, (Exception) fragment));
             } else {
                 assert aggregator.isAggregating();

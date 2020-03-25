@@ -1576,7 +1576,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(explainIndex(restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30, TimeUnit.SECONDS);
     }
 
-    public void testDeleteActionDeletesGeneratedSnapshot() throws Exception {
+    public void testDeleteActionDeletesSearchableSnapshot() throws Exception {
         String snapshotRepo = createSnapshotRepo();
 
         // create policy with cold and delete phases
@@ -1607,13 +1607,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertTrue(waitUntil(() -> {
             try {
                 Map<String, Object> explainIndex = explainIndex(restoredIndexName);
-                String action = (String) explainIndex.get("action");
                 snapshotName[0] = (String) explainIndex.get("snapshot_name");
-                return DeleteAction.NAME.equals(action);
+                return snapshotName[0] != null;
             } catch (IOException e) {
                 return false;
             }
         }, 60, TimeUnit.SECONDS));
+        assertBusy(() -> assertFalse(indexExists(restoredIndexName)));
 
         assertTrue("the snapshot we generate in the cold phase should be deleted by the delete phase", waitUntil(() -> {
             try {
@@ -1626,7 +1626,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
     }
 
-    public void testDeleteActionDoesntDeleteGeneratedSnapshot() throws Exception {
+    public void testDeleteActionDoesntDeleteSearchableSnapshot() throws Exception {
         String snapshotRepo = createSnapshotRepo();
 
         // create policy with cold and delete phases
@@ -1657,13 +1657,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertTrue(waitUntil(() -> {
             try {
                 Map<String, Object> explainIndex = explainIndex(restoredIndexName);
-                String action = (String) explainIndex.get("action");
                 snapshotName[0] = (String) explainIndex.get("snapshot_name");
-                return DeleteAction.NAME.equals(action);
+                return snapshotName[0] != null;
             } catch (IOException e) {
                 return false;
             }
         }, 60, TimeUnit.SECONDS));
+        assertBusy(() -> assertFalse(indexExists(restoredIndexName)));
 
         assertTrue("the snapshot we generate in the cold phase should not be deleted by the delete phase", waitUntil(() -> {
             try {

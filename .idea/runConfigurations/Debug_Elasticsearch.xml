@@ -5,7 +5,7 @@
     <option name="SHMEM_ADDRESS" />
     <option name="HOST" value="localhost" />
     <option name="PORT" value="5005" />
-    <option name="AUTO_RESTART" value="false" />
+    <option name="AUTO_RESTART" value="true" />
     <method v="2" />
   </configuration>
 </component>

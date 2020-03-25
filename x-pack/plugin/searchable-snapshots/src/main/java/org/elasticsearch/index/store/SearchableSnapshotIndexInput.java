@@ -261,6 +261,7 @@ public class SearchableSnapshotIndexInput extends BaseSearchableSnapshotIndexInp
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {
         final InputStream stream;
         if (fileInfo.metadata().hashEqualsContents() == false) {
+            assert assertCurrentThreadMayAccessBlobStore();
             stream = blobContainer.readBlob(fileInfo.partName(part), pos, length);
         } else {
             // extract blob content from metadata hash

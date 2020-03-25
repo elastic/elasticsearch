@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -54,6 +55,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             return new ByteArrayInputStream(data.bytes, Math.toIntExact(position), Math.toIntExact(length));
         }
 
+        assert assertCurrentThreadMayAccessBlobStore();
+
         final long startPart = getPartNumberForPosition(position);
         final long endPart = getPartNumberForPosition(position + length);
         if ((startPart == endPart) || fileInfo.numberOfParts() == 1L) {
@@ -71,6 +74,24 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
                 }
             };
         }
+    }
+
+    protected final boolean assertCurrentThreadMayAccessBlobStore() {
+        final String threadName = Thread.currentThread().getName();
+        assert threadName.contains('[' + ThreadPool.Names.SNAPSHOT + ']')
+            || threadName.contains('[' + ThreadPool.Names.GENERIC + ']')
+            || threadName.contains('[' + ThreadPool.Names.SEARCH + ']')
+            || threadName.contains('[' + ThreadPool.Names.SEARCH_THROTTLED + ']')
+
+            // Today processExistingRecoveries considers all shards and constructs a shard store snapshot on this thread, this needs
+            // addressing. TODO NORELEASE
+            || threadName.contains('[' + ThreadPool.Names.FETCH_SHARD_STORE + ']')
+
+            // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
+            // method somehow.
+            || threadName.startsWith("TEST-")
+            : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
+        return true;
     }
 
     private long getPartNumberForPosition(long position) {

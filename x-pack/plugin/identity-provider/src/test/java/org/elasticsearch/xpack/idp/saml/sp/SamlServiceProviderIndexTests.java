@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProviderBuilder.IDP_ENTITY_ID;
@@ -160,12 +161,16 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(readDocument(document.docId), equalTo(document));
     }
 
-    public void testInstallTemplateAutomaticallyOnClusterChange() {
+    public void testInstallTemplateAutomaticallyOnClusterChange() throws Exception {
         // Create an index that will trigger a cluster state change
-        client().admin().indices().create(new CreateIndexRequest(randomAlphaOfLength(7).toLowerCase(Locale.ROOT))).actionGet();
+        final String indexName = randomAlphaOfLength(7).toLowerCase(Locale.ROOT);
+        client().admin().indices().create(new CreateIndexRequest(indexName)).actionGet();
+
+        ensureGreen(indexName);
 
         IndexTemplateMetaData templateMeta = clusterService.state().metaData().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
-        assertNotNull(templateMeta);
+
+        assertBusy(() -> assertThat("template should have been installed", templateMeta, notNullValue()));
 
         final PlainActionFuture<Boolean> installTemplate = new PlainActionFuture<>();
         serviceProviderIndex.installIndexTemplate(installTemplate);
@@ -179,7 +184,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(readDocument(doc.docId), equalTo(doc));
 
         IndexTemplateMetaData templateMeta = clusterService.state().metaData().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
-        assertNotNull(templateMeta);
+        assertThat("template should have been installed", templateMeta, notNullValue());
 
         final PlainActionFuture<Boolean> installTemplate = new PlainActionFuture<>();
         serviceProviderIndex.installIndexTemplate(installTemplate);

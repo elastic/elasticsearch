@@ -141,7 +141,12 @@ class S3Service implements Closeable {
         builder.withCredentials(buildCredentials(logger, clientSettings));
         builder.withClientConfiguration(buildConfiguration(clientSettings));
 
-        final String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
+        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
+        if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
+            // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
+            // TODO: Remove this once fixed in the AWS SDK
+            endpoint = clientSettings.protocol.toString() + "://" + endpoint;
+        }
         final String region = Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
         logger.debug("using endpoint [{}] and region [{}]", endpoint, region);
 
@@ -160,7 +165,7 @@ class S3Service implements Closeable {
         if (clientSettings.disableChunkedEncoding) {
             builder.disableChunkedEncoding();
         }
-        return builder.build();
+        return SocketAccess.doPrivileged(builder::build);
     }
 
     // pkg private for tests

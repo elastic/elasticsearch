@@ -42,11 +42,10 @@ import java.util.regex.PatternSyntaxException;
 /**
  * Represents a regex constant. All regexes are constants.
  */
-public final class ERegex extends AExpression {
+public class ERegex extends AExpression {
 
-    private final String pattern;
-    private final int flags;
-    private String name;
+    protected final String pattern;
+    protected final int flags;
 
     public ERegex(Location location, String pattern, String flagsString) {
         super(location);
@@ -63,14 +62,16 @@ public final class ERegex extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
         if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {
             throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));
         }
 
-        if (!read) {
+        if (input.read == false) {
             throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
         }
 
@@ -81,12 +82,9 @@ public final class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        name = scriptRoot.getNextSyntheticName("regex");
-        actual = Pattern.class;
-    }
+        String name = scriptRoot.getNextSyntheticName("regex");
+        output.actual = Pattern.class;
 
-    @Override
-    MemberFieldLoadNode write(ClassNode classNode) {
         FieldNode fieldNode = new FieldNode();
         fieldNode.setLocation(location);
         fieldNode.setModifiers(Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE);
@@ -163,7 +161,9 @@ public final class ERegex extends AExpression {
         memberFieldLoadNode.setName(name);
         memberFieldLoadNode.setStatic(true);
 
-        return memberFieldLoadNode;
+        output.expressionNode = memberFieldLoadNode;
+
+        return output;
     }
 
     private int flagForChar(char c) {

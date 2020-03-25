@@ -959,8 +959,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Create a shallow copy of this builder with a new slice configuration.
      */
-    public SearchSourceBuilder copyWithNewSlice(SliceBuilder slice) {
-        return shallowCopy(queryBuilder, postQueryBuilder, aggregations, slice, sorts, rescoreBuilders, highlightBuilder);
+    public SearchSourceBuilder shallowCopy() {
+        return shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
     }
 
     /**
@@ -972,7 +972,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     /**
      * Create a shallow copy of this source replaced {@link #queryBuilder}, {@link #postQueryBuilder}, and {@link #sliceBuilder}. Used by
-     * {@link #rewrite(QueryRewriteContext)} and {@link #copyWithNewSlice(SliceBuilder)}.
+     * {@link #rewrite(QueryRewriteContext)}}.
      */
     @SuppressWarnings("rawtypes")
     private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder,

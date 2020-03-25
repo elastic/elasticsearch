@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -241,7 +240,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         for (int i = 0; i < numSame; i++) {
             toReduce.add(result);
         }
-        InternalComposite finalReduce = (InternalComposite) result.reduce(toReduce, reduceContext());
+        InternalComposite finalReduce = (InternalComposite) result.reduce(toReduce, emptyReduceContextBuilder().forFinalReduction());
         assertThat(finalReduce.getBuckets().size(), equalTo(result.getBuckets().size()));
         Iterator<InternalComposite.InternalBucket> expectedIt = result.getBuckets().iterator();
         for (InternalComposite.InternalBucket bucket : finalReduce.getBuckets()) {
@@ -261,7 +260,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                 rawFormats, emptyList(), null, reverseMuls, true, emptyList(), emptyMap());
         List<InternalAggregation> toReduce = Arrays.asList(unmapped, mapped);
         Collections.shuffle(toReduce, random());
-        InternalComposite finalReduce = (InternalComposite) unmapped.reduce(toReduce, reduceContext());
+        InternalComposite finalReduce = (InternalComposite) unmapped.reduce(toReduce, emptyReduceContextBuilder().forFinalReduction());
         assertThat(finalReduce.getBuckets().size(), equalTo(mapped.getBuckets().size()));
         if (false == mapped.getBuckets().isEmpty()) {
             assertThat(finalReduce.getFormats(), equalTo(mapped.getFormats()));
@@ -406,9 +405,5 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             formats,
             values
         );
-    }
-
-    private InternalAggregation.ReduceContext reduceContext() {
-        return new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, true);
     }
 }

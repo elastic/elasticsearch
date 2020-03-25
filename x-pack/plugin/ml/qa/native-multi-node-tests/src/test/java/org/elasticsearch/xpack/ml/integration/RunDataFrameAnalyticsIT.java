@@ -85,6 +85,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
+        GetDataFrameAnalyticsStatsAction.Response.Stats stats = getAnalyticsStats(id);
+        assertThat(stats.getDataCounts().getJobId(), equalTo(id));
+        assertThat(stats.getDataCounts().getTrainingDocsCount(), equalTo(5L));
+        assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
+        assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
         SearchResponse sourceData = client().prepareSearch(sourceIndex).get();
         double scoreOfOutlier = 0.0;
@@ -126,7 +131,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-few-docs-results]",
+            "Started reindexing to destination index [test-outlier-detection-with-few-docs-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-few-docs-results]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
@@ -181,7 +190,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
+            "Started reindexing to destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
@@ -262,11 +275,14 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-more-fields-than-docvalue-limit-results]",
+            "Started reindexing to destination index [test-outlier-detection-with-more-fields-than-docvalue-limit-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-more-fields-than-docvalue-limit-results]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53007")
     public void testStopOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
         String sourceIndex = "test-stop-outlier-detection-with-enough-docs-to-scroll";
 
@@ -388,7 +404,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-multiple-source-indices-results]",
+            "Started reindexing to destination index [test-outlier-detection-with-multiple-source-indices-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-multiple-source-indices-results]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
@@ -446,7 +466,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Starting analytics on node",
             "Started analytics",
             "Using existing destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
+            "Started reindexing to destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 
@@ -700,7 +724,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-custom-params-results]",
+            "Started reindexing to destination index [test-outlier-detection-with-custom-params-results]",
             "Finished reindexing to destination index [test-outlier-detection-with-custom-params-results]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
             "Finished analysis");
     }
 }

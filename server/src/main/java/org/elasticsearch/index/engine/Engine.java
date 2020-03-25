@@ -104,6 +104,7 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id"; // TODO: Remove sync_id in 9.0
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
 
@@ -1036,17 +1037,11 @@ public abstract class Engine implements Closeable {
     public abstract void rollTranslogGeneration() throws EngineException;
 
     /**
-     * Force merges to 1 segment
-     */
-    public void forceMerge(boolean flush) throws IOException {
-        forceMerge(flush, 1, false, false, false);
-    }
-
-    /**
      * Triggers a forced merge on this engine
      */
     public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                                        boolean upgrade, boolean upgradeOnlyAncientSegments) throws EngineException, IOException;
+                                    boolean upgrade, boolean upgradeOnlyAncientSegments,
+                                    @Nullable String forceMergeUUID) throws EngineException, IOException;
 
     /**
      * Snapshots the most recent index and returns a handle to it. If needed will try and "commit" the

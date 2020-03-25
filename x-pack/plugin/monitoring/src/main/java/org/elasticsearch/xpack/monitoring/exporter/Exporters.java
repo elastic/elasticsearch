@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
@@ -51,7 +52,7 @@ public class Exporters extends AbstractLifecycleComponent {
 
     public Exporters(Settings settings, Map<String, Exporter.Factory> factories,
                      ClusterService clusterService, XPackLicenseState licenseState,
-                     ThreadContext threadContext) {
+                     ThreadContext threadContext, SSLService sslService) {
         this.settings = settings;
         this.factories = factories;
         this.exporters = new AtomicReference<>(emptyMap());
@@ -62,7 +63,7 @@ public class Exporters extends AbstractLifecycleComponent {
         final List<Setting.AffixSetting<?>> dynamicSettings =
             getSettings().stream().filter(Setting::isDynamic).collect(Collectors.toList());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(this::setExportersSetting, dynamicSettings);
-        HttpExporter.registerSettingValidators(clusterService);
+        HttpExporter.registerSettingValidators(clusterService, sslService);
         // this ensures that logging is happening by adding an empty consumer per affix setting
         for (Setting.AffixSetting<?> affixSetting : dynamicSettings) {
             clusterService.getClusterSettings().addAffixUpdateConsumer(affixSetting, (s, o) -> {}, (s, o) -> {});

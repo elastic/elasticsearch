@@ -30,7 +30,7 @@ public class AzureHttpFixture {
 
     private AzureHttpFixture(final String address, final int port, final String container) throws IOException {
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(address), port), 0);
-        server.createContext("/", new AzureHttpHandler(container));
+        server.createContext("/" + container, new AzureHttpHandler(container));
     }
 
     private void start() throws Exception {

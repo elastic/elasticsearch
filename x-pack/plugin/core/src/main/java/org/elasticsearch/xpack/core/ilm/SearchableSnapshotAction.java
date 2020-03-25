@@ -195,7 +195,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                         if (getClass() != o.getClass()) {
                             return false;
                         }
-                        WaitForIndexColorStep.Info info = (WaitForIndexColorStep.Info) o;
+                        Info info = (Info) o;
                         return Objects.equals(getMessage(), info.getMessage());
                     }
 

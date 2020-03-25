@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesReference;
-
 import java.io.IOException;
 import java.util.function.Supplier;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * A holder for {@link Writeable}s that can delays reading the underlying
@@ -60,6 +60,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Supplie
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             try (BytesStreamOutput buffer = new BytesStreamOutput()) {
+                buffer.setVersion(out.getVersion());
                 reference.writeTo(buffer);
                 out.writeBytesReference(buffer.bytes());
             }

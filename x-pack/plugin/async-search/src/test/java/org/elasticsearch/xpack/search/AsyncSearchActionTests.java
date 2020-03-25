@@ -253,4 +253,28 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
         ElasticsearchException exc = response.getFailure();
         assertThat(exc.getMessage(), containsString("no such index"));
     }
+
+    public void testCancellation() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
+        request.getSearchRequest().source(
+            new SearchSourceBuilder().aggregation(new CancellingAggregationBuilder("test"))
+        );
+        request.setWaitForCompletion(TimeValue.timeValueMillis(1));
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertNotNull(response.getSearchResponse());
+        assertTrue(response.isRunning());
+        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
+        assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
+
+        response = getAsyncSearch(response.getId());
+        assertNotNull(response.getSearchResponse());
+        assertTrue(response.isRunning());
+        assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
+        assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
+        assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
+
+        deleteAsyncSearch(response.getId());
+        ensureTaskRemoval(response.getId());
+    }
 }

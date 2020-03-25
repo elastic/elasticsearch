@@ -20,16 +20,13 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.AccessCondition;
-import com.microsoft.azure.storage.BatchException;
 import com.microsoft.azure.storage.CloudStorageAccount;
-import com.microsoft.azure.storage.Constants;
 import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
 import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.BlobDeleteBatchOperation;
 import com.microsoft.azure.storage.blob.BlobInputStream;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
 import com.microsoft.azure.storage.blob.BlobProperties;
@@ -44,6 +41,7 @@ import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
@@ -53,6 +51,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,13 +62,13 @@ import java.nio.file.FileAlreadyExistsException;
 import java.security.InvalidKeyException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -188,61 +187,72 @@ public class AzureStorageService {
         });
     }
 
-    public void deleteBlobsIgnoringIfNotExists(String account, String container, Collection<String> blobs)
-            throws URISyntaxException, StorageException {
-        logger.trace(() -> new ParameterizedMessage("delete blobs for container [{}], blob [{}]", container, blobs));
+    public void deleteBlob(String account, String container, String blob) throws URISyntaxException, StorageException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         // Container name must be lower case.
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
-        final Iterator<String> blobIterator = blobs.iterator();
-        int currentBatchSize = 0;
-        while (blobIterator.hasNext()) {
-            final BlobDeleteBatchOperation batchDeleteOp = new BlobDeleteBatchOperation();
-            do {
-                batchDeleteOp.addSubOperation(blobContainer.getBlockBlobReference(blobIterator.next()),
-                    DeleteSnapshotsOption.NONE, null, null);
-                ++currentBatchSize;
-            } while (blobIterator.hasNext() && currentBatchSize < Constants.BATCH_MAX_REQUESTS);
-            currentBatchSize = 0;
-            try {
-                SocketAccess.doPrivilegedVoidException(() -> blobContainer.getServiceClient().executeBatch(batchDeleteOp));
-            } catch (BatchException e) {
-                for (StorageException ex : e.getExceptions().values()) {
-                    if (ex.getHttpStatusCode() != HttpURLConnection.HTTP_NOT_FOUND) {
-                        logger.error("Batch exceptions [{}]", e.getExceptions());
-                        throw e;
-                    }
-                }
-            }
-        }
+        logger.trace(() -> new ParameterizedMessage("delete blob for container [{}], blob [{}]", container, blob));
+        SocketAccess.doPrivilegedVoidException(() -> {
+            final CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
+            logger.trace(() -> new ParameterizedMessage("container [{}]: blob [{}] found. removing.", container, blob));
+            azureBlob.delete(DeleteSnapshotsOption.NONE, null, null, client.v2().get());
+        });
     }
 
-    DeleteResult deleteBlobDirectory(String account, String container, String path)
+    DeleteResult deleteBlobDirectory(String account, String container, String path, Executor executor)
             throws URISyntaxException, StorageException, IOException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+        final Collection<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
+        final AtomicLong outstanding = new AtomicLong(1L);
+        final PlainActionFuture<Void> result = PlainActionFuture.newFuture();
         final AtomicLong blobsDeleted = new AtomicLong();
         final AtomicLong bytesDeleted = new AtomicLong();
-        final List<String> blobsToDelete = new ArrayList<>();
         SocketAccess.doPrivilegedVoidException(() -> {
-            for (ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
+            for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                 // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                 final String blobPath = blobItem.getUri().getPath().substring(1 + container.length() + 1);
-                final long len;
-                if (blobItem instanceof CloudBlob) {
-                    len = ((CloudBlob) blobItem).getProperties().getLength();
-                } else {
-                    len = -1L;
-                }
-                blobsToDelete.add(blobPath);
-                blobsDeleted.incrementAndGet();
-                if (len >= 0) {
-                    bytesDeleted.addAndGet(len);
-                }
+                outstanding.incrementAndGet();
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() throws Exception {
+                        final long len;
+                        if (blobItem instanceof CloudBlob) {
+                            len = ((CloudBlob) blobItem).getProperties().getLength();
+                        } else {
+                            len = -1L;
+                        }
+                        deleteBlob(account, container, blobPath);
+                        blobsDeleted.incrementAndGet();
+                        if (len >= 0) {
+                            bytesDeleted.addAndGet(len);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        exceptions.add(e);
+                    }
+
+                    @Override
+                    public void onAfter() {
+                        if (outstanding.decrementAndGet() == 0) {
+                            result.onResponse(null);
+                        }
+                    }
+                });
             }
         });
-        deleteBlobsIgnoringIfNotExists(account, container, blobsToDelete);
+        if (outstanding.decrementAndGet() == 0) {
+            result.onResponse(null);
+        }
+        result.actionGet();
+        if (exceptions.isEmpty() == false) {
+            final IOException ex = new IOException("Deleting directory [" + path + "] failed");
+            exceptions.forEach(ex::addSuppressed);
+            throw ex;
+        }
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
 

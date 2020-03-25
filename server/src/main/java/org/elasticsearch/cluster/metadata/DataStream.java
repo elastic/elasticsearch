@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,9 +37,9 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     private final String name;
     private final String timeStampField;
-    private final List<String> indices;
+    private final List<Index> indices;
 
-    public DataStream(String name, String timeStampField, List<String> indices) {
+    public DataStream(String name, String timeStampField, List<Index> indices) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = indices;
@@ -52,12 +53,12 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return timeStampField;
     }
 
-    public List<String> getIndices() {
+    public List<Index> getIndices() {
         return indices;
     }
 
     public DataStream(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readStringList());
+        this(in.readString(), in.readString(), in.readList(Index::new));
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -68,7 +69,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(timeStampField);
-        out.writeStringCollection(indices);
+        out.writeList(indices);
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -77,12 +78,12 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
-        args -> new DataStream((String) args[0], (String) args[1], (List<String>) args[2]));
+        args -> new DataStream((String) args[0], (String) args[1], (List<Index>) args[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD_FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {

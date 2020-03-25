@@ -97,7 +97,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -154,6 +154,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -1043,20 +1044,45 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (cluster() != null && cluster().size() > 0) {
             final Client masterClient = client();
             MetaData metaData = masterClient.admin().cluster().prepareState().all().get().getState().metaData();
-            final XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.startObject();
-            metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
+            final Map<String, String> params = new HashMap<>(2);
+            params.put("binary", "true");
+            params.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
+            final ToXContent.Params formatParams = new ToXContent.MapParams(params);
 
-            final MetaData loadedMetaData;
-            try (XContentParser parser = createParser(ElasticsearchNodeCommand.namedXContentRegistry,
-                JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                loadedMetaData = MetaData.fromXContent(parser);
+            {
+                MetaData metaDataWithoutIndices = MetaData.builder(metaData).removeAllIndices().build();
+                final XContentBuilder builder = SmileXContent.contentBuilder();
+                builder.startObject();
+                metaDataWithoutIndices.toXContent(builder, formatParams);
+                builder.endObject();
+
+                final MetaData loadedMetaData;
+                try (XContentParser parser = createParser(ElasticsearchNodeCommand.namedXContentRegistry,
+                    SmileXContent.smileXContent, BytesReference.bytes(builder))) {
+                    loadedMetaData = MetaData.fromXContent(parser);
+                }
+
+                assertNull(
+                    "cluster state JSON serialization does not match",
+                    differenceBetweenMapsIgnoringArrayOrder(convertToMap(metaDataWithoutIndices), convertToMap(loadedMetaData)));
             }
 
-            assertNull(
-                "cluster state JSON serialization does not match",
-                differenceBetweenMapsIgnoringArrayOrder(convertToMap(metaData), convertToMap(loadedMetaData)));
+            for (IndexMetaData indexMetaData : metaData) {
+                final XContentBuilder builder = SmileXContent.contentBuilder();
+                builder.startObject();
+                indexMetaData.toXContent(builder, formatParams);
+                builder.endObject();
+
+                final IndexMetaData loadedIndexMetaData;
+                try (XContentParser parser = createParser(ElasticsearchNodeCommand.namedXContentRegistry,
+                    SmileXContent.smileXContent, BytesReference.bytes(builder))) {
+                    loadedIndexMetaData = IndexMetaData.fromXContent(parser);
+                }
+
+                assertNull(
+                    "cluster state JSON serialization does not match",
+                    differenceBetweenMapsIgnoringArrayOrder(convertToMap(indexMetaData), convertToMap(loadedIndexMetaData)));
+            }
         }
     }
 

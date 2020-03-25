@@ -20,8 +20,9 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
@@ -38,7 +39,7 @@ public class Wildcard extends ScalarFunction {
     private final List<Expression> patterns;
 
     public Wildcard(Source source, Expression field, List<Expression> patterns) {
-        super(source, toArguments(field, patterns));
+        super(source, CollectionUtils.combine(Collections.singletonList(field), patterns));
         this.field = field;
         this.patterns = patterns;
     }
@@ -123,12 +124,5 @@ public class Wildcard extends ScalarFunction {
         }
 
         return result;
-    }
-
-    private static List<Expression> toArguments(Expression src, List<Expression> patterns) {
-        ArrayList<Expression> arguments = new ArrayList<>();
-        arguments.add(src);
-        arguments.addAll(patterns);
-        return arguments;
     }
 }

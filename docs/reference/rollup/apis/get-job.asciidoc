@@ -142,14 +142,16 @@ The API yields the following response:
             "index_total": 0,
             "search_failures": 0,
             "search_time_in_ms": 0,
-            "search_total": 0
+            "search_total": 0,
+            "processing_time_in_ms": 0,
+            "processing_total": 0
           }
         }
     ]
 }
 ----
 
-The `jobs` array contains a single job (`id: sensor`) since we requested a single job in the endpoint's URL. 
+The `jobs` array contains a single job (`id: sensor`) since we requested a single job in the endpoint's URL.
 If we add another job, we can see how multi-job responses are handled:
 
 [source,console]
@@ -245,7 +247,9 @@ Which will yield the following response:
             "index_total": 0,
             "search_failures": 0,
             "search_time_in_ms": 0,
-            "search_total": 0
+            "search_total": 0,
+            "processing_time_in_ms": 0,
+            "processing_total": 0
           }
         },
         {
@@ -299,7 +303,9 @@ Which will yield the following response:
             "index_total": 0,
             "search_failures": 0,
             "search_time_in_ms": 0,
-            "search_total": 0
+            "search_total": 0,
+            "processing_time_in_ms": 0,
+            "processing_total": 0
           }
         }
     ]

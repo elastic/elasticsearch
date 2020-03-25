@@ -21,13 +21,11 @@ package org.elasticsearch.common.compress;
 
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -390,12 +388,9 @@ public class DeflateCompressTests extends ESTestCase {
         StreamInput rawIn = new ByteBufferStreamInput(bb);
         Compressor c = compressor;
 
-        final Version version = VersionUtils.randomVersion(random());
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         OutputStreamStreamOutput rawOs = new OutputStreamStreamOutput(bos);
-        rawOs.setVersion(version);
         StreamOutput os = c.streamOutput(rawOs);
-        assertEquals(version, os.getVersion());
 
         Random r = random();
         int bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(random(), 1, 70000);
@@ -415,9 +410,7 @@ public class DeflateCompressTests extends ESTestCase {
         byte compressed[] = bos.toByteArray();
         ByteBuffer bb2 = ByteBuffer.wrap(compressed);
         StreamInput compressedIn = new ByteBufferStreamInput(bb2);
-        compressedIn.setVersion(version);
         StreamInput in = c.streamInput(compressedIn);
-        assertEquals(version, in.getVersion());
 
         // randomize constants again
         bufferSize = r.nextBoolean() ? 65535 : TestUtil.nextInt(random(), 1, 70000);

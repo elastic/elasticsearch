@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.IfElseNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -33,11 +34,11 @@ import static java.util.Collections.singleton;
 /**
  * Represents an if/else block.
  */
-public final class SIfElse extends AStatement {
+public class SIfElse extends AStatement {
 
-    private AExpression condition;
-    private final SBlock ifblock;
-    private final SBlock elseblock;
+    protected final AExpression condition;
+    protected final SBlock ifblock;
+    protected final SBlock elseblock;
 
     public SIfElse(Location location, AExpression condition, SBlock ifblock, SBlock elseblock) {
         super(location);
@@ -48,14 +49,13 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
-        condition.analyze(scriptRoot, scope, conditionInput);
-        condition.cast();
+        AExpression.Output conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
+        condition.cast(conditionInput, conditionOutput);
 
         if (condition instanceof EBoolean) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
@@ -70,7 +70,7 @@ public final class SIfElse extends AStatement {
         ifblockInput.inLoop = input.inLoop;
         ifblockInput.lastLoop = input.lastLoop;
 
-        Output ifblockOutput = ifblock.analyze(scriptRoot, scope.newLocalScope(), ifblockInput);
+        Output ifblockOutput = ifblock.analyze(classNode, scriptRoot, scope.newLocalScope(), ifblockInput);
 
         output.anyContinue = ifblockOutput.anyContinue;
         output.anyBreak = ifblockOutput.anyBreak;
@@ -85,7 +85,7 @@ public final class SIfElse extends AStatement {
         elseblockInput.inLoop = input.inLoop;
         elseblockInput.lastLoop = input.lastLoop;
 
-        Output elseblockOutput = elseblock.analyze(scriptRoot, scope.newLocalScope(), elseblockInput);
+        Output elseblockOutput = elseblock.analyze(classNode, scriptRoot, scope.newLocalScope(), elseblockInput);
 
         output.methodEscape = ifblockOutput.methodEscape && elseblockOutput.methodEscape;
         output.loopEscape = ifblockOutput.loopEscape && elseblockOutput.loopEscape;
@@ -94,20 +94,15 @@ public final class SIfElse extends AStatement {
         output.anyBreak |= elseblockOutput.anyBreak;
         output.statementCount = Math.max(ifblockOutput.statementCount, elseblockOutput.statementCount);
 
-        return output;
-    }
-
-    @Override
-    IfElseNode write(ClassNode classNode) {
         IfElseNode ifElseNode = new IfElseNode();
-
-        ifElseNode.setConditionNode(condition.cast(condition.write(classNode)));
-        ifElseNode.setBlockNode(ifblock.write(classNode));
-        ifElseNode.setElseBlockNode(elseblock.write(classNode));
-
+        ifElseNode.setConditionNode(condition.cast(conditionOutput));
+        ifElseNode.setBlockNode((BlockNode)ifblockOutput.statementNode);
+        ifElseNode.setElseBlockNode((BlockNode)elseblockOutput.statementNode);
         ifElseNode.setLocation(location);
 
-        return ifElseNode;
+        output.statementNode = ifElseNode;
+
+        return output;
     }
 
     @Override

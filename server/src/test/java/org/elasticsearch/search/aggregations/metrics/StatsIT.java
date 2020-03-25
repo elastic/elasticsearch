@@ -35,11 +35,8 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -84,40 +81,6 @@ public class StatsIT extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(Double.POSITIVE_INFINITY));
         assertThat(stats.getMax(), equalTo(Double.NEGATIVE_INFINITY));
         assertThat(Double.isNaN(stats.getAvg()), is(true));
-    }
-
-    @Override
-    public void testUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
-                .setQuery(matchAllQuery())
-                .addAggregation(stats("stats").field("value"))
-                .get();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo(Double.NaN));
-        assertThat(stats.getMin(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(stats.getMax(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(stats.getSum(), equalTo(0.0));
-        assertThat(stats.getCount(), equalTo(0L));
-    }
-
-    public void testPartiallyUnmapped() {
-        Stats s1 = client().prepareSearch("idx")
-                .addAggregation(stats("stats").field("value")).get()
-                .getAggregations().get("stats");
-        Stats s2 = client().prepareSearch("idx", "idx_unmapped")
-                .addAggregation(stats("stats").field("value")).get()
-                .getAggregations().get("stats");
-        assertEquals(s1.getAvg(), s2.getAvg(), 1e-10);
-        assertEquals(s1.getCount(), s2.getCount());
-        assertEquals(s1.getMin(), s2.getMin(), 0d);
-        assertEquals(s1.getMax(), s2.getMax(), 0d);
     }
 
     @Override
@@ -200,77 +163,6 @@ public class StatsIT extends AbstractNumericTestCase {
     }
 
     @Override
-    public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
-                .setQuery(matchAllQuery())
-                .addAggregation(stats("stats").field("value"))
-                .get();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertHitCount(searchResponse, 10);
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (1+2+3+4+5+6+7+8+9+10) / 10));
-        assertThat(stats.getMin(), equalTo(1.0));
-        assertThat(stats.getMax(), equalTo(10.0));
-        assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10));
-        assertThat(stats.getCount(), equalTo(10L));
-    }
-
-    @Override
-    public void testSingleValuedFieldWithValueScript() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        stats("stats")
-                                .field("value")
-                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", emptyMap())))
-                .get();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertHitCount(searchResponse, 10);
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (2+3+4+5+6+7+8+9+10+11) / 10));
-        assertThat(stats.getMin(), equalTo(2.0));
-        assertThat(stats.getMax(), equalTo(11.0));
-        assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(10L));
-    }
-
-    @Override
-    public void testSingleValuedFieldWithValueScriptWithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("inc", 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        stats("stats")
-                                .field("value")
-                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params)))
-                .get();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertHitCount(searchResponse, 10);
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (2+3+4+5+6+7+8+9+10+11) / 10));
-        assertThat(stats.getMin(), equalTo(2.0));
-        assertThat(stats.getMax(), equalTo(11.0));
-        assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(10L));
-    }
-
-    @Override
     public void testMultiValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -288,157 +180,6 @@ public class StatsIT extends AbstractNumericTestCase {
         assertThat(stats.getMin(), equalTo(2.0));
         assertThat(stats.getMax(), equalTo(12.0));
         assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11+3+4+5+6+7+8+9+10+11+12));
-        assertThat(stats.getCount(), equalTo(20L));
-    }
-
-    @Override
-    public void testMultiValuedFieldWithValueScript() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        stats("stats")
-                                .field("values")
-                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap())))
-                .get();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertHitCount(searchResponse, 10);
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (1+2+3+4+5+6+7+8+9+10+2+3+4+5+6+7+8+9+10+11) / 20));
-        assertThat(stats.getMin(), equalTo(1.0));
-        assertThat(stats.getMax(), equalTo(11.0));
-        assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10+2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(20L));
-    }
-
-    @Override
-    public void testMultiValuedFieldWithValueScriptWithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("dec", 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        stats("stats")
-                                .field("values")
-                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params)))
-                .get();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertHitCount(searchResponse, 10);
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (1+2+3+4+5+6+7+8+9+10+2+3+4+5+6+7+8+9+10+11) / 20));
-        assertThat(stats.getMin(), equalTo(1.0));
-        assertThat(stats.getMax(), equalTo(11.0));
-        assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10+2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(20L));
-    }
-
-    @Override
-    public void testScriptSingleValued() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        stats("stats")
-                                .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", emptyMap())))
-                .get();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertHitCount(searchResponse, 10);
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (1+2+3+4+5+6+7+8+9+10) / 10));
-        assertThat(stats.getMin(), equalTo(1.0));
-        assertThat(stats.getMax(), equalTo(10.0));
-        assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10));
-        assertThat(stats.getCount(), equalTo(10L));
-    }
-
-    @Override
-    public void testScriptSingleValuedWithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("inc", 1);
-
-        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value + inc", params);
-
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(stats("stats").script(script))
-                .get();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertHitCount(searchResponse, 10);
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (2+3+4+5+6+7+8+9+10+11) / 10));
-        assertThat(stats.getMin(), equalTo(2.0));
-        assertThat(stats.getMax(), equalTo(11.0));
-        assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(10L));
-    }
-
-    @Override
-    public void testScriptMultiValued() throws Exception {
-        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values']", emptyMap());
-
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(stats("stats").script(script))
-                .get();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertHitCount(searchResponse, 10);
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (2+3+4+5+6+7+8+9+10+11+3+4+5+6+7+8+9+10+11+12) / 20));
-        assertThat(stats.getMin(), equalTo(2.0));
-        assertThat(stats.getMax(), equalTo(12.0));
-        assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11+3+4+5+6+7+8+9+10+11+12));
-        assertThat(stats.getCount(), equalTo(20L));
-    }
-
-    @Override
-    public void testScriptMultiValuedWithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("dec", 1);
-
-        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "[ doc['value'].value, doc['value'].value - dec ]",
-            params);
-
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        stats("stats")
-                                .script(script))
-                .get();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertHitCount(searchResponse, 10);
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (1+2+3+4+5+6+7+8+9+10+0+1+2+3+4+5+6+7+8+9) / 20));
-        assertThat(stats.getMin(), equalTo(0.0));
-        assertThat(stats.getMax(), equalTo(10.0));
-        assertThat(stats.getSum(), equalTo((double) 1+2+3+4+5+6+7+8+9+10+0+1+2+3+4+5+6+7+8+9));
         assertThat(stats.getCount(), equalTo(20L));
     }
 

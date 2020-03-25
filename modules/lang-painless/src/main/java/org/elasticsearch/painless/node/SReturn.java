@@ -29,9 +29,9 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 /**
  * Represents a return statement.
  */
-public final class SReturn extends AStatement {
+public class SReturn extends AStatement {
 
-    private AExpression expression;
+    protected final AExpression expression;
 
     public SReturn(Location location, AExpression expression) {
         super(location);
@@ -40,9 +40,10 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
+        AExpression.Output expressionOutput = null;
 
         if (expression == null) {
             if (scope.getReturnType() != void.class) {
@@ -54,8 +55,8 @@ public final class SReturn extends AStatement {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = scope.getReturnType();
             expressionInput.internal = true;
-            expression.analyze(scriptRoot, scope, expressionInput);
-            expression.cast();
+            expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            expression.cast(expressionInput, expressionOutput);
         }
 
         output.methodEscape = true;
@@ -64,18 +65,13 @@ public final class SReturn extends AStatement {
 
         output.statementCount = 1;
 
-        return output;
-    }
-
-    @Override
-    ReturnNode write(ClassNode classNode) {
         ReturnNode returnNode = new ReturnNode();
-
-        returnNode.setExpressionNode(expression == null ? null : expression.cast(expression.write(classNode)));
-
+        returnNode.setExpressionNode(expression == null ? null : expression.cast(expressionOutput));
         returnNode.setLocation(location);
 
-        return returnNode;
+        output.statementNode = returnNode;
+
+        return output;
     }
 
     @Override

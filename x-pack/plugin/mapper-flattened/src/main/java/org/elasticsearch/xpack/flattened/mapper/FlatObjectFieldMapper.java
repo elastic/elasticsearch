@@ -31,13 +31,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DynamicKeyFieldMapper;
@@ -409,15 +409,15 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public AtomicOrdinalsFieldData load(LeafReaderContext context) {
-            AtomicOrdinalsFieldData fieldData = delegate.load(context);
-            return new KeyedFlatObjectAtomicFieldData(key, fieldData);
+        public LeafOrdinalsFieldData load(LeafReaderContext context) {
+            LeafOrdinalsFieldData fieldData = delegate.load(context);
+            return new KeyedFlatObjectLeafFieldData(key, fieldData);
         }
 
         @Override
-        public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
-            AtomicOrdinalsFieldData fieldData = delegate.loadDirect(context);
-            return new KeyedFlatObjectAtomicFieldData(key, fieldData);
+        public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+            LeafOrdinalsFieldData fieldData = delegate.loadDirect(context);
+            return new KeyedFlatObjectLeafFieldData(key, fieldData);
         }
 
         @Override
@@ -463,7 +463,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                                            MapperService mapperService) {
                 String fieldName = fieldType.name();
                 IndexOrdinalsFieldData delegate = new SortedSetDVOrdinalsIndexFieldData(indexSettings,
-                    cache, fieldName, breakerService, AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+                    cache, fieldName, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
                 return new KeyedFlatObjectFieldData(key, delegate);
             }
         }

@@ -129,7 +129,7 @@ get the full benefit of aggregating and searching for
 
 [source,js]
 --------------------------------------------------
-{
+"ml.inference.feature_importance": {
   "type": "nested",
   "dynamic": true,
   "properties": {

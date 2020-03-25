@@ -845,7 +845,7 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testShouldPreFilterSearchShards() {
-        int numIndices = randomIntBetween(1, 10);
+        int numIndices = randomIntBetween(2, 10);
         Index[] indices = new Index[numIndices];
         for (int i = 0; i < numIndices; i++) {
             String indexName = randomAlphaOfLengthBetween(5, 10);
@@ -855,7 +855,7 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(1, 127)));
+                indices, randomIntBetween(2, 127)));
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
                 indices, randomIntBetween(127, 10000)));
         }
@@ -863,7 +863,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchRequest searchRequest = new SearchRequest()
                 .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(1, 127)));
+                indices, randomIntBetween(2, 127)));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
                 indices, randomIntBetween(127, 10000)));
         }
@@ -871,7 +871,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchRequest searchRequest = new SearchRequest()
                 .source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(1, 127)));
+                indices, randomIntBetween(2, 127)));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
                 indices, randomIntBetween(127, 10000)));
         }
@@ -880,14 +880,14 @@ public class TransportSearchActionTests extends ESTestCase {
                 .source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")))
                 .scroll("5m");
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(1, 127)));
+                indices, randomIntBetween(2, 127)));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
                 indices, randomIntBetween(127, 10000)));
         }
     }
 
     public void testShouldPreFilterSearchShardsWithReadOnly() {
-        int numIndices = randomIntBetween(1, 10);
+        int numIndices = randomIntBetween(2, 10);
         int numReadOnly = randomIntBetween(1, numIndices);
         Index[] indices = new Index[numIndices];
         ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder();
@@ -906,7 +906,7 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(1, 127)));
+                indices, randomIntBetween(2, 127)));
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
                 indices, randomIntBetween(127, 10000)));
         }
@@ -914,7 +914,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchRequest searchRequest = new SearchRequest()
                 .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(1, 127)));
+                indices, randomIntBetween(2, 127)));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
                 indices, randomIntBetween(127, 10000)));
         }
@@ -923,7 +923,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
             searchRequest.scroll("5s");
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(127, 10000)));
+                indices, randomIntBetween(2, 127)));
             assertTrue(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
                 indices, randomIntBetween(127, 10000)));
         }
@@ -932,7 +932,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 .source(new SearchSourceBuilder().query(QueryBuilders.rangeQuery("timestamp")));
             searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
-                indices, randomIntBetween(127, 10000)));
+                indices, randomIntBetween(2, 127)));
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
                 indices, randomIntBetween(127, 10000)));
         }

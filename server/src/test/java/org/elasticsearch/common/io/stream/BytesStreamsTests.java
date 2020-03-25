@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -49,6 +50,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -850,4 +852,13 @@ public class BytesStreamsTests extends ESTestCase {
         assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
 
+    public void testWriteCircularReferenceException() {
+        IOException rootEx = new IOException("disk broken");
+        AlreadyClosedException ace = new AlreadyClosedException("closed", rootEx);
+        rootEx.addSuppressed(ace); // circular reference
+        BytesStreamOutput out = new BytesStreamOutput();
+        AssertionError error = expectThrows(AssertionError.class, () -> out.writeException(rootEx));
+        assertThat(error.getMessage(), containsString("write a circular reference exception"));
+        assertThat(error.getCause(), equalTo(rootEx));
+    }
 }

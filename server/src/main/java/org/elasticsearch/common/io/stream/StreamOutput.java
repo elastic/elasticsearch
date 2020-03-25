@@ -27,6 +27,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CharArrays;
@@ -87,6 +88,7 @@ import static java.util.Map.entry;
 public abstract class StreamOutput extends OutputStream {
 
     private static final Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
+    private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
 
     static {
         final Map<TimeUnit, Byte> timeUnitByteMap = new EnumMap<>(TimeUnit.class);
@@ -923,6 +925,10 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeException(Throwable throwable) throws IOException {
+        writeException(throwable, throwable, 0);
+    }
+
+    private void writeException(Throwable rootException, Throwable throwable, int nestedLevel) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
         } else {
@@ -1032,10 +1038,16 @@ public abstract class StreamOutput extends OutputStream {
             if (writeMessage) {
                 writeOptionalString(throwable.getMessage());
             }
-            if (writeCause) {
-                writeException(throwable.getCause());
+            if (nestedLevel < MAX_NESTED_EXCEPTION_LEVEL) {
+                if (writeCause) {
+                    writeException(rootException, throwable.getCause(), nestedLevel + 1);
+                }
+                ElasticsearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
+            } else {
+                if (Assertions.ENABLED) {
+                    throw new AssertionError("write a circular reference exception", rootException);
+                }
             }
-            ElasticsearchException.writeStackTraces(throwable, this);
         }
     }
 

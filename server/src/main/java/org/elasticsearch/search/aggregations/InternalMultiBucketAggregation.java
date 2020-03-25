@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation,
@@ -145,7 +146,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     }
 
     /**
-     * Amulti-bucket agg needs to first reduce the buckets and *their* pipelines
+     * A multi-bucket agg needs to first reduce the buckets and *their* pipelines
      * before allowing sibling pipelines to materialize.
      */
     @Override
@@ -171,6 +172,13 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             newBuckets.add(newBucket);
         }
         return modified ? create(newBuckets) : this;
+    }
+
+    @Override
+    public void forEachBucket(Consumer<InternalAggregations> consumer) {
+        for (B bucket : getBuckets()) {
+            consumer.accept((InternalAggregations) bucket.getAggregations());
+        }
     }
 
     private List<B> reducePipelineBuckets(ReduceContext reduceContext, PipelineTree pipelineTree) {

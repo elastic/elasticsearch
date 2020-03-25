@@ -149,5 +149,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
             });
 
         project.getTasks().named("processTestResources").configure(t -> t.dependsOn(copyRestYamlSpecTask));
+
     }
+
 }

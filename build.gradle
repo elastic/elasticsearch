@@ -26,6 +26,7 @@ import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.elasticsearch.gradle.test.rest.report.RestResourcesReportsTask
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.util.DistributionLocator
@@ -470,6 +471,7 @@ wrapper {
   }
 }
 
+String restTestSourceReportDestination = System.getProperty("rest.test.source_report.destination")
 gradle.projectsEvaluated {
   subprojects {
     /*
@@ -498,6 +500,46 @@ gradle.projectsEvaluated {
           "This doesn't currently work correctly in Gradle, see: " +
           "https://github.com/gradle/gradle/issues/847"
       )
+    }
+  }
+
+  if (restTestSourceReportDestination != null) {
+    if (new File(restTestSourceReportDestination).exists()) {
+      throw new IllegalStateException("The file [" + restTestSourceReportDestination + "] " +
+        "for restTestsSourceReport already exists, please delete before re-running")
+    }
+    subprojects.findAll {
+      it.convention.findByName('java') != null &&
+        (it.plugins.hasPlugin('elasticsearch.testclusters') || it.plugins.hasPlugin('elasticsearch.rest-resources'))
+    }.each { p ->
+      Provider<Task> reportTask = p.tasks.register('restTestsSourceReport', RestResourcesReportsTask) {
+        reports {
+          source_report {
+            destination new File(restTestSourceReportDestination)
+            projects ':modules', ':plugins', ':rest-api-spec', ':x-pack:plugin'  //includes subprojects
+            //for example: -Drest.test.source_report.destination.excludes="**/watcher/qa/**/mustache/**, **/watcher/qa/with-security/**"
+            excludes System.getProperty("rest.test.source_report.destination.excludes", "").trim().split("\\s*,\\s*")
+            outputs.upToDateWhen { false }
+            enabled true
+          }
+        }
+      }
+      restTestsSourceReport.configure { t -> t.dependsOn(reportTask) }
+    }
+  }
+}
+
+//generate a report that lists all of the yaml based rest tests found in the source code.
+task restTestsSourceReport {
+  doFirst {
+    if (restTestSourceReportDestination == null) {
+      throw new IllegalStateException("The system property [rest.test.source_report.destination] must be set to a file location. " +
+        "For example [./gradlew restTestsSourceReport -Drest.test.source_report.destination=/tmp/report.txt]")
+    }
+  }
+  doLast {
+    if (new File(restTestSourceReportDestination).exists() == false) {
+      throw new IllegalStateException("The restTestsSourceReport was requested, but nothing was generated")
     }
   }
 }
@@ -546,6 +588,7 @@ allprojects {
   }
 }
 
+
 // TODO: remove this once 7.7 is released and the 7.x branch is 7.8
 subprojects {
   pluginManager.withPlugin('elasticsearch.testclusters') {
@@ -557,3 +600,4 @@ subprojects {
     }
   }
 }
+

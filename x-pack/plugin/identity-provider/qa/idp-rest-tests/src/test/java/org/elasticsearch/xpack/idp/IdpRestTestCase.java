@@ -9,10 +9,12 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
+import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.Role;
@@ -25,6 +27,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
@@ -91,4 +94,14 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         final DeleteRoleRequest request = new DeleteRoleRequest(name, RefreshPolicy.WAIT_UNTIL);
         client.security().deleteRole(request, RequestOptions.DEFAULT);
     }
+
+    protected void createApplicationPrivileges(String applicationName, Map<String, Collection<String>> privileges) throws IOException {
+        final RestHighLevelClient client = getHighLevelAdminClient();
+        final List<ApplicationPrivilege> applicationPrivileges = privileges.entrySet().stream()
+            .map(e -> new ApplicationPrivilege(applicationName, e.getKey(), List.copyOf(e.getValue()), null))
+            .collect(Collectors.toUnmodifiableList());
+        final PutPrivilegesRequest request = new PutPrivilegesRequest(applicationPrivileges, RefreshPolicy.IMMEDIATE);
+        client.security().putPrivileges(request, RequestOptions.DEFAULT);
+    }
+
 }

@@ -26,7 +26,7 @@ public final class ServiceProviderCacheSettings {
     public static final Setting<TimeValue> CACHE_TTL
         = Setting.timeSetting("xpack.idp.sp.cache.ttl", CACHE_TTL_DEFAULT, Setting.Property.NodeScope);
 
-    static <K, V> Cache<K, V> buildCache(Settings settings) {
+    public static <K, V> Cache<K, V> buildCache(Settings settings) {
         return CacheBuilder.<K, V>builder()
             .setMaximumWeight(CACHE_SIZE.get(settings))
             .setExpireAfterAccess(CACHE_TTL.get(settings))

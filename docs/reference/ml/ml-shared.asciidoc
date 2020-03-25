@@ -521,8 +521,8 @@ An object containing the hyperparameters of the {classanalysis}.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`class_assignment_objective`:::
 (string)
-(TBD)
-Possible values are `accuracy` and `minimum_recall`.
+Defines whether class assignment maximizes the accuracy or the minimum recall 
+metric. Possible values are `accuracy` and `minimum_recall`.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`downsample_factor`:::
 (double)
@@ -534,7 +534,9 @@ The value of the eta hyperparameter.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`eta_growth_rate_per_tree`:::
 (double)
-(TBD)
+Specifies with what rate to increase `eta` for every new tree added to the 
+forest. The rate of 1.0 does not change `eta`, the rate of 1.05 increases `eta` 
+by 5%.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`feature_bag_fraction`:::
 (double)
@@ -543,11 +545,17 @@ candidate split.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`max_attempts_to_add_tree`:::
 (integer)
-(TBD)
+If the algorithm fails to determine a non-trivial tree (more than a single 
+leaf), this parameter determines how many of such consecutive failures are 
+tolerated. Once the number of attempts exceeds the threshold, the forest 
+training stops.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`max_optimization_rounds_per_hyperparameter`:::
 (integer)
-(TBD)
+A multiplier responsible for determining the maximum number of 
+hyperparameter optimization steps in the bayesian optimization procedure. 
+Maximum number of steps is determined as the number of undefined hyperparameters 
+times the maximum optimization rounds per hyperparameter.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`max_trees`:::
 (integer)
@@ -555,31 +563,35 @@ The maximum number of trees.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`num_folds`:::
 (integer)
-(TBD)
+Maximum number of folds for the cross-validation procedure.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`num_splits_per_feature`:::
 (integer)
-(TBD)
+Determines the maximum number of splits for every feature that can occur in a 
+decision tree when the tree is trained.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`regularization_depth_penalty_multiplier`:::
 (double)
-(TBD)
+Regularization factor to penalize deeper trees when training decision trees.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`regularization_leaf_weight_penalty_multiplier`:::
 (double)
-(TBD)
+Regularization factor to penalize large leaf weights. This parameter is also 
+referred to as `lambda`.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`regularization_soft_tree_depth_limit`:::
 (double)
-(TBD)
+Tree depth limit is used for calculating the tree depth penalty. This is a soft 
+limit, it can be exceeded.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`regularization_soft_tree_depth_tolerance`:::
 (double)
-(TBD)
+Tree depth tolerance is used for calculating the tree depth penalty. This is a 
+soft limit, it can be exceeded.
 
 `analysis_stats`.`classification_stats`.`hyperparameters`.`regularization_tree_size_penalty_multiplier`:::
 (double)
-(TBD)
+Regularization factor to penalize trees with large numbers of nodes.
 
 `analysis_stats`.`classification_stats`.`iteration`:::
 (integer)
@@ -682,7 +694,9 @@ The value of the eta hyperparameter.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`eta_growth_rate_per_tree`:::
 (double)
-(TBD)
+Specifies with what rate to increase `eta` for every new tree added to the 
+forest. The rate of 1.0 does not change `eta`, the rate of 1.05 increases `eta` 
+by 5%.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`feature_bag_fraction`:::
 (double)
@@ -691,11 +705,17 @@ candidate split.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`max_attempts_to_add_tree`:::
 (integer)
-(TBD)
+If the algorithm fails to determine a non-trivial tree (more than a single 
+leaf), this parameter determines how many of such consecutive failures are 
+tolerated. Once the number of attempts exceeds the threshold, the forest 
+training stops.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`max_optimization_rounds_per_hyperparameter`:::
 (integer)
-(TBD)
+A multiplier responsible for determining the maximum number of 
+hyperparameter optimization steps in the bayesian optimization procedure. 
+Maximum number of steps is determined as the number of undefined hyperparameters 
+times the maximum optimization rounds per hyperparameter.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`max_trees`:::
 (integer)
@@ -703,31 +723,35 @@ The maximum number of trees.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`num_folds`:::
 (integer)
-(TBD)
+Maximum number of folds for the cross-validation procedure.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`num_splits_per_feature`:::
 (integer)
-(TBD)
+Determines the maximum number of splits for every feature that can occur in a 
+decision tree when the tree is trained.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`regularization_depth_penalty_multiplier`:::
 (double)
-(TBD)
+Regularization factor to penalize deeper trees when training decision trees.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`regularization_leaf_weight_penalty_multiplier`:::
 (double)
-(TBD)
+Regularization factor to penalize large leaf weights. This parameter is also 
+referred to as `lambda`.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`regularization_soft_tree_depth_limit`:::
 (double)
-(TBD)
+Tree depth limit is used for calculating the tree depth penalty. This is a soft 
+limit, it can be exceeded.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`regularization_soft_tree_depth_tolerance`:::
 (double)
-(TBD)
+Tree depth tolerance is used for calculating the tree depth penalty. This is a 
+soft limit, it can be exceeded.
 
 `analysis_stats`.`regression_stats`.`hyperparameters`.`regularization_tree_size_penalty_multiplier`:::
 (double)
-(TBD)
+Regularization factor to penalize trees with large numbers of nodes.
 
 `analysis_stats`.`regression_stats`.`iteration`:::
 (integer)

@@ -45,24 +45,15 @@ import org.elasticsearch.usage.UsageService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
-import static org.elasticsearch.rest.CompatibleConstants.COMPATIBLE_PARAMS_KEY;
 import static org.elasticsearch.rest.CompatibleConstants.COMPATIBLE_VERSION;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
-import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
-import static org.elasticsearch.rest.RestStatus.NOT_ACCEPTABLE;
-import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.RestStatus.*;
 
 public class RestController implements HttpServerTransport.Dispatcher {
 
@@ -333,7 +324,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 } else {
                     if(handler.compatibilityRequired() == false //regular (not removed) handlers are always dispatched
                         //handlers that were registered compatible, require request to be compatible
-                        || isCompatible(request)) {
+                        || request.isCompatible(CompatibleConstants.COMPATIBLE_VERSION)) {
                         dispatchRequest(request, channel, handler);
                     } else {
                         handleBadRequest(uri, requestMethod, channel);
@@ -350,7 +341,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private boolean isCompatible(ToXContent.Params params) {
-        String param = params.param(COMPATIBLE_PARAMS_KEY);
+        String param = params.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
         return COMPATIBLE_VERSION.equals(param);
     }
 

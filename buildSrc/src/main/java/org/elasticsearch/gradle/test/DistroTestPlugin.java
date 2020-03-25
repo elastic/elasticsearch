@@ -108,13 +108,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Copy> copyUpgradeTask = configureCopyUpgradeTask(project, upgradeVersion, upgradeDir);
         TaskProvider<Copy> copyPluginsTask = configureCopyPluginsTask(project, pluginsDir);
 
-        // Create lifecycle tasks so we can run all tests of a given type
-        Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecyleTasks = new HashMap<>();
-        lifecyleTasks.put(Type.DOCKER, project.getTasks().register("destructiveDistroTest.docker"));
-        lifecyleTasks.put(Type.ARCHIVE, project.getTasks().register("destructiveDistroTest.archives"));
-        lifecyleTasks.put(Type.DEB, project.getTasks().register("destructiveDistroTest.packages"));
-        lifecyleTasks.put(Type.RPM, lifecyleTasks.get(Type.DEB));
-
+        Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecyleTasks = lifecyleTasks(project, "distructiveDistroTest");
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
         for (ElasticsearchDistribution distribution : distributions) {
             TaskProvider<?> destructiveTask = configureDistroTest(project, distribution, dockerSupport);
@@ -135,6 +129,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             List<Object> vmDependencies = new ArrayList<>(configureVM(vmProject));
             vmDependencies.add(project.getConfigurations().getByName("testRuntimeClasspath"));
 
+            Map<ElasticsearchDistribution.Type, TaskProvider<?>> vmLifecyleTasks = lifecyleTasks(vmProject, "distroTest");
             TaskProvider<Task> distroTest = vmProject.getTasks().register("distroTest");
             for (ElasticsearchDistribution distribution : distributions) {
                 String destructiveTaskName = destructiveDistroTestTaskName(distribution);
@@ -149,6 +144,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                     );
                     vmTask.configure(t -> t.dependsOn(distribution));
 
+                    vmLifecyleTasks.get(distribution.getType()).configure(t -> t.dependsOn(vmTask));
                     distroTest.configure(t -> {
                         // Only VM sub-projects that are specifically opted-in to testing Docker should
                         // have the Docker task added as a dependency. Although we control whether Docker
@@ -176,6 +172,17 @@ public class DistroTestPlugin implements Plugin<Project> {
                 });
             });
         });
+    }
+
+    private static Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecyleTasks(Project project, String taskPrefix) {
+        Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecyleTasks = new HashMap<>();
+
+        lifecyleTasks.put(Type.DOCKER, project.getTasks().register(taskPrefix + ".docker"));
+        lifecyleTasks.put(Type.ARCHIVE, project.getTasks().register(taskPrefix + ".archives"));
+        lifecyleTasks.put(Type.DEB, project.getTasks().register(taskPrefix + ".packages"));
+        lifecyleTasks.put(Type.RPM, lifecyleTasks.get(Type.DEB));
+
+        return lifecyleTasks;
     }
 
     private static Jdk createJdk(

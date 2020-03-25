@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -27,6 +29,8 @@ import java.util.Objects;
  */
 public class OnAsyncWaitBranchingStep extends AsyncWaitStep {
     public static final String NAME = "async-branch";
+
+    private static final Logger logger = LogManager.getLogger(OnAsyncWaitBranchingStep.class);
 
     private StepKey nextStepKeyUnfulfilledWaitAction;
     private StepKey nextStepKeyFulfilledWaitAction;
@@ -74,6 +78,8 @@ public class OnAsyncWaitBranchingStep extends AsyncWaitStep {
 
             @Override
             public void onStopWaitingAndMoveToNextKey(ToXContentObject informationContext) {
+                logger.debug("stopped waiting for async condition to be met. branching towards the unfulfilled condition step {}" +
+                    nextStepKeyUnfulfilledWaitAction);
                 onCompleteConditionMet.set(false);
                 // to the "outside" world the condition was met (as the user decided so) and we're ready to move to the next step.
                 // {@link #getNextStepKey} will now point towards {@link #nextStepKeyUnfulfilledWaitAction)

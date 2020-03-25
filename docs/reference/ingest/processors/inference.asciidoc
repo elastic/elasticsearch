@@ -123,8 +123,8 @@ classes to the `probabilities` field. Both fields are contained in the
 [[inference-processor-feature-importance]]
 ==== {feat-imp-cap} object mapping
 
-Update your index mapping as you can see below to get the full benefit of 
-aggregating and searching for 
+Update your index mapping of the {feat-imp} result field as you can see below to 
+get the full benefit of aggregating and searching for 
 {ml-docs}/dfa-classification.html#dfa-classification-feature-importance[{feat-imp}].
 
 [source,js]
@@ -150,3 +150,32 @@ The mapping field name for {feat-imp} is compounded as follows:
 
 If `inference.tag` is not provided in the processor definition, it is not part 
 of the field path. The `<inference.target_field>` defaults to `inference`.
+
+For example, you provide a tag `foo` in the definition as you can see below:
+
+[source,js]
+--------------------------------------------------
+{
+  "tag": "foo",
+  ...
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+The `{feat-imp}` value is written to the `ml.inference.foo.feature_importance` 
+field.
+
+You can also specify a target field as follows:
+
+[source,js]
+--------------------------------------------------
+{
+  "tag": "foo",
+  "target_field": "my_field"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+In this case, `{feat-imp}` is exposed in the 
+`ml.my_field.foo.feature_importance` field.

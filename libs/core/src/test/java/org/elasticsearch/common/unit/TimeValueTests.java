@@ -253,7 +253,7 @@ public class TimeValueTests extends ESTestCase {
     public void testRejectsNegativeValuesAtCreation() {
         final long duration = randomLongBetween(Long.MIN_VALUE, -2);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new TimeValue(duration, randomTimeUnitObject()));
-        assertThat(ex.getMessage(), containsString("durations cannot be negative"));
+        assertThat(ex.getMessage(), containsString("duration cannot be negative"));
     }
 
     private TimeUnit randomTimeUnitObject() {

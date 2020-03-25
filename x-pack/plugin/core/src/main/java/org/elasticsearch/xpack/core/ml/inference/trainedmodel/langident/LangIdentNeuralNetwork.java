@@ -30,7 +30,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax;
@@ -130,7 +129,7 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         double[] h0 = hiddenLayer.productPlusBias(false, embeddedVector);
         double[] scores = softmaxLayer.productPlusBias(true, h0);
 
-        List<Double> probabilities = softMax(Arrays.stream(scores).boxed().collect(Collectors.toList()));
+        double[] probabilities = softMax(scores);
 
         ClassificationConfig classificationConfig = (ClassificationConfig) config;
         Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
@@ -143,7 +142,7 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         return new ClassificationInferenceResults(topClasses.v1(),
             LANGUAGE_NAMES.get(topClasses.v1()),
             topClasses.v2(),
-            Collections.emptyMap(),
+            Collections.emptyList(),
             classificationConfig);
     }
 
@@ -171,7 +170,7 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
     }
 
     @Override
-    public Map<String, Double> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
+    public Map<String, double[]> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
         throw new UnsupportedOperationException("[lang_ident] does not support feature importance");
     }
 

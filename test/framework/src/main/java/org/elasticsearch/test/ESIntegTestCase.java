@@ -63,6 +63,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -76,6 +77,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -91,8 +93,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -542,6 +547,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     }
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
+                    ensureClusterStateCanBeReadByNodeTool();
                     beforeIndexDeletion();
                     cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
@@ -1033,6 +1039,27 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     }
 
+    protected void ensureClusterStateCanBeReadByNodeTool() throws IOException {
+        if (cluster() != null && cluster().size() > 0) {
+            final Client masterClient = client();
+            MetaData metaData = masterClient.admin().cluster().prepareState().all().get().getState().metaData();
+            final XContentBuilder builder = JsonXContent.contentBuilder();
+            builder.startObject();
+            metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+
+            final MetaData loadedMetaData;
+            try (XContentParser parser = createParser(ElasticsearchNodeCommand.namedXContentRegistry,
+                JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                loadedMetaData = MetaData.fromXContent(parser);
+            }
+
+            assertNull(
+                "cluster state JSON serialization does not match",
+                differenceBetweenMapsIgnoringArrayOrder(convertToMap(metaData), convertToMap(loadedMetaData)));
+        }
+    }
+
     /**
      * Ensures the cluster is in a searchable state for the given indices. This means a searchable copy of each
      * shard is available on the cluster.
@@ -1146,7 +1173,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected final RefreshResponse refresh(String... indices) {
         waitForRelocation();
         // TODO RANDOMIZE with flush?
-        RefreshResponse actionGet = client().admin().indices().prepareRefresh(indices).execute().actionGet();
+        RefreshResponse actionGet = client().admin().indices().prepareRefresh(indices)
+            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED).execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
     }

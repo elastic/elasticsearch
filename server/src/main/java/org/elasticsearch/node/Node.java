@@ -155,6 +155,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -200,6 +201,8 @@ public class Node implements Closeable {
         Setting.boolSetting("node.master", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_INGEST_SETTING =
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_REMOTE_CLUSTER_CLIENT =
+        Setting.boolSetting("node.remote_cluster_client", RemoteClusterService.ENABLE_REMOTE_CLUSTERS, Property.NodeScope);
 
     /**
     * controls whether the node is allowed to persist things like metadata to disk
@@ -265,21 +268,21 @@ public class Node implements Closeable {
     /**
      * Constructs a node
      *
-     * @param environment                the environment for this node
+     * @param initialEnvironment         the initial environment for this node, which will be added to by plugins
      * @param classpathPlugins           the plugins to be loaded from the classpath
      * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
      *                                   test framework for tests that rely on being able to set private settings
      */
-    protected Node(
-            final Environment environment, Collection<Class<? extends Plugin>> classpathPlugins, boolean forbidPrivateIndexSettings) {
+    protected Node(final Environment initialEnvironment,
+                   Collection<Class<? extends Plugin>> classpathPlugins, boolean forbidPrivateIndexSettings) {
         logger = LogManager.getLogger(Node.class);
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
         try {
-            Settings tmpSettings = Settings.builder().put(environment.settings())
+            Settings tmpSettings = Settings.builder().put(initialEnvironment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
-            nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+            nodeEnvironment = new NodeEnvironment(tmpSettings, initialEnvironment);
             resourcesToClose.add(nodeEnvironment);
             logger.info("node name [{}], node ID [{}], cluster name [{}]",
                     NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId(),
@@ -311,11 +314,12 @@ public class Node implements Closeable {
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
-                    environment.configFile(), Arrays.toString(environment.dataFiles()), environment.logsFile(), environment.pluginsFile());
+                    initialEnvironment.configFile(), Arrays.toString(initialEnvironment.dataFiles()),
+                    initialEnvironment.logsFile(), initialEnvironment.pluginsFile());
             }
 
-            this.pluginsService = new PluginsService(tmpSettings, environment.configFile(), environment.modulesFile(),
-                environment.pluginsFile(), classpathPlugins);
+            this.pluginsService = new PluginsService(tmpSettings, initialEnvironment.configFile(), initialEnvironment.modulesFile(),
+                initialEnvironment.pluginsFile(), classpathPlugins);
             final Settings settings = pluginsService.updatedSettings();
             final Set<DiscoveryNodeRole> possibleRoles = Stream.concat(
                     DiscoveryNodeRole.BUILT_IN_ROLES.stream(),
@@ -329,8 +333,8 @@ public class Node implements Closeable {
 
             // create the environment based on the finalized (processed) view of the settings
             // this is just to makes sure that people get the same settings, no matter where they ask them from
-            this.environment = new Environment(settings, environment.configFile());
-            Environment.assertEquivalent(environment, this.environment);
+            this.environment = new Environment(settings, initialEnvironment.configFile());
+            Environment.assertEquivalent(initialEnvironment, this.environment);
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
 
@@ -576,7 +580,7 @@ public class Node implements Closeable {
                     b.bind(MetaDataCreateIndexService.class).toInstance(metaDataCreateIndexService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
-                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::createReduceContext));
+                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
                     b.bind(Transport.class).toInstance(transport);
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);

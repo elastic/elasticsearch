@@ -1007,8 +1007,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.tasks.TaskCancelledException::new, 146, UNKNOWN_VERSION_ADDED),
         SHARD_LOCK_OBTAIN_FAILED_EXCEPTION(org.elasticsearch.env.ShardLockObtainFailedException.class,
                                            org.elasticsearch.env.ShardLockObtainFailedException::new, 147, UNKNOWN_VERSION_ADDED),
-        UNKNOWN_NAMED_OBJECT_EXCEPTION(org.elasticsearch.common.xcontent.UnknownNamedObjectException.class,
-                org.elasticsearch.common.xcontent.UnknownNamedObjectException::new, 148, UNKNOWN_VERSION_ADDED),
+        // 148 was UnknownNamedObjectException
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
             MultiBucketConsumerService.TooManyBucketsException::new, 149, UNKNOWN_VERSION_ADDED),
         COORDINATION_STATE_REJECTED_EXCEPTION(org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,

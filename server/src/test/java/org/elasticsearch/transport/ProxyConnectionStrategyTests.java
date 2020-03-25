@@ -268,7 +268,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    public void testProxyStrategyWillNeedToBeRebuiltIfNumOfSocketsOrAddressesChange() {
+    public void testProxyStrategyWillNeedToBeRebuiltIfNumOfSocketsOrAddressesOrServerNameChange() {
         try (MockTransportService remoteTransport = startTransport("node1", Version.CURRENT)) {
             TransportAddress remoteAddress = remoteTransport.boundAddress().publishAddress();
 
@@ -280,7 +280,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 int numOfConnections = randomIntBetween(4, 8);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         numOfConnections, remoteAddress.toString())) {
+                         numOfConnections, remoteAddress.toString(), "server-name")) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
@@ -291,15 +291,18 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     Setting<?> modeSetting = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE
                         .getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> addressesSetting = ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES
+                    Setting<?> addressesSetting = ProxyConnectionStrategy.PROXY_ADDRESS
                         .getConcreteSettingForNamespace("cluster-alias");
                     Setting<?> socketConnections = ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS
+                        .getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> serverName = ProxyConnectionStrategy.SERVER_NAME
                         .getConcreteSettingForNamespace("cluster-alias");
 
                     Settings noChange = Settings.builder()
                         .put(modeSetting.getKey(), "proxy")
                         .put(addressesSetting.getKey(), remoteAddress.toString())
                         .put(socketConnections.getKey(), numOfConnections)
+                        .put(serverName.getKey(), "server-name")
                         .build();
                     assertFalse(strategy.shouldRebuildConnection(noChange));
                     Settings addressesChanged = Settings.builder()
@@ -313,6 +316,13 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                         .put(socketConnections.getKey(), numOfConnections + 1)
                         .build();
                     assertTrue(strategy.shouldRebuildConnection(socketsChanged));
+                    Settings serverNameChange = Settings.builder()
+                        .put(modeSetting.getKey(), "proxy")
+                        .put(addressesSetting.getKey(), remoteAddress.toString())
+                        .put(socketConnections.getKey(), numOfConnections)
+                        .put(serverName.getKey(), "server-name2")
+                        .build();
+                    assertTrue(strategy.shouldRebuildConnection(serverNameChange));
                 }
             }
         }
@@ -320,7 +330,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
     public void testModeSettingsCannotBeUsedWhenInDifferentMode() {
         List<Tuple<Setting.AffixSetting<?>, String>> restrictedSettings = Arrays.asList(
-            new Tuple<>(ProxyConnectionStrategy.REMOTE_CLUSTER_ADDRESSES, "192.168.0.1:8080"),
+            new Tuple<>(ProxyConnectionStrategy.PROXY_ADDRESS, "192.168.0.1:8080"),
             new Tuple<>(ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS, "3"));
 
         RemoteConnectionStrategy.ConnectionStrategy sniff = RemoteConnectionStrategy.ConnectionStrategy.SNIFF;

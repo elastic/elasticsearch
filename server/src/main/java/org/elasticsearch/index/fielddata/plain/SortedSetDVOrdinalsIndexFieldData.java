@@ -32,7 +32,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -87,17 +87,17 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
 
     @Override
     public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format) {
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 
     @Override
-    public AtomicOrdinalsFieldData load(LeafReaderContext context) {
-        return new SortedSetDVBytesAtomicFieldData(context.reader(), fieldName, scriptFunction);
+    public LeafOrdinalsFieldData load(LeafReaderContext context) {
+        return new SortedSetDVBytesLeafFieldData(context.reader(), fieldName, scriptFunction);
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

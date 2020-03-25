@@ -24,11 +24,9 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FeatureTestObject;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Scope.Variable;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
 import org.elasticsearch.painless.antlr.Walker;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessClass;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -162,19 +160,6 @@ public class NodeToStringTests extends ESTestCase {
                 + "  (SReturn (PCallInvoke (PCallInvoke (EStatic Optional) empty) orElseGet (Args (ECapturingFunctionRef x toString)))))",
                   "Integer x = Integer.valueOf(5);\n"
                 + "return Optional.empty().orElseGet(x::toString)");
-    }
-
-    public void testECast() {
-        Location l = new Location(getTestName(), 0);
-        AExpression child = new EConstant(l, "test");
-        PainlessCast cast = PainlessCast.originalTypetoTargetType(String.class, Integer.class, true);
-        assertEquals("(ECast java.lang.Integer (EConstant String 'test'))", new ECast(l, child, cast).toString());
-
-        l = new Location(getTestName(), 1);
-        child = new EBinary(l, Operation.ADD, new EConstant(l, "test"), new EConstant(l, 12));
-        cast = PainlessCast.originalTypetoTargetType(Integer.class, Boolean.class, true);
-        assertEquals("(ECast java.lang.Boolean (EBinary (EConstant String 'test') + (EConstant Integer 12)))",
-            new ECast(l, child, cast).toString());
     }
 
     public void testEComp() {
@@ -761,30 +746,6 @@ public class NodeToStringTests extends ESTestCase {
               + "} else {"
               + "  return false\n"
               + "}");
-    }
-
-    public void testSSubEachArray() {
-        Location l = new Location(getTestName(), 0);
-        Variable v = new Variable(int.class, "test", false);
-        AExpression e = new ENewArray(l, "int", Arrays.asList(new EConstant(l, 1), new EConstant(l, 2), new EConstant(l, 3)), true);
-        SBlock b = new SBlock(l, singletonList(new SReturn(l, new EConstant(l, 5))));
-        SSubEachArray node = new SSubEachArray(l, v, e, b);
-        assertEquals(
-                "(SSubEachArray int test (ENewArray int init (Args (EConstant Integer 1) (EConstant Integer 2) (EConstant Integer 3))) "
-              + "(SBlock (SReturn (EConstant Integer 5))))",
-                node.toString());
-    }
-
-    public void testSSubEachIterable() {
-        Location l = new Location(getTestName(), 0);
-        Variable v = new Variable(int.class, "test", false);
-        AExpression e = new EListInit(l, Arrays.asList(new EConstant(l, 1), new EConstant(l, 2), new EConstant(l, 3)));
-        SBlock b = new SBlock(l, singletonList(new SReturn(l, new EConstant(l, 5))));
-        SSubEachIterable node = new SSubEachIterable(l, v, e, b);
-        assertEquals(
-                  "(SSubEachIterable int test (EListInit (EConstant Integer 1) (EConstant Integer 2) (EConstant Integer 3)) (SBlock "
-                + "(SReturn (EConstant Integer 5))))",
-                  node.toString());
     }
 
     public void testSThrow() {

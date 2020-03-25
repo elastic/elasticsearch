@@ -134,7 +134,7 @@ public class JoinHelper {
             StartJoinRequest::new,
             (request, channel, task) -> {
                 final DiscoveryNode destination = request.getSourceNode();
-                sendJoinRequest(destination, Optional.of(joinLeaderInTerm.apply(request)));
+                sendJoinRequest(destination, currentTermSupplier.getAsLong(), Optional.of(joinLeaderInTerm.apply(request)));
                 channel.sendResponse(Empty.INSTANCE);
             });
 
@@ -234,13 +234,13 @@ public class JoinHelper {
         }
     }
 
-    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
+    public void sendJoinRequest(DiscoveryNode destination, long term, Optional<Join> optionalJoin) {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
         if (fsService.stats().getTotal().isWritable() == Boolean.FALSE) {
             logger.warn("All paths are not writable. Blocking join request");
             return;
         }
-        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), optionalJoin);
+        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), term, optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         if (pendingOutgoingJoins.add(dedupKey)) {
             logger.debug("attempting to join {} with {}", destination, joinRequest);

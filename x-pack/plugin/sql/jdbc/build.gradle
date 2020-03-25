@@ -44,3 +44,8 @@ dependencyLicenses {
 shadowJar {
   relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
 }
+
+thirdPartyAudit.ignoreMissingClasses(
+  'com.fasterxml.jackson.databind.ObjectMapper',
+  'com.fasterxml.jackson.databind.cfg.MapperBuilder'
+)

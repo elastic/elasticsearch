@@ -18,33 +18,34 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 public final class DataTypes {
 
     // @formatter:off
-    public static final DataType UNSUPPORTED  = new DataType("UNSUPPORTED", null, 0,                 false, false, false);
+    public static final DataType UNSUPPORTED      = new DataType("UNSUPPORTED", null, 0,                 false, false, false);
 
-    public static final DataType NULL         = new DataType("null",              0,                 false, false, false);
+    public static final DataType NULL             = new DataType("null",              0,                 false, false, false);
 
-    public static final DataType BOOLEAN      = new DataType("boolean",           1,                 false, false, false);
+    public static final DataType BOOLEAN          = new DataType("boolean",           1,                 false, false, false);
     // integer numeric
-    public static final DataType BYTE         = new DataType("byte",              Byte.BYTES,        true, false, true);
-    public static final DataType SHORT        = new DataType("short",             Short.BYTES,       true, false, true);
-    public static final DataType INTEGER      = new DataType("integer",           Integer.BYTES,     true, false, true);
-    public static final DataType LONG         = new DataType("long",              Long.BYTES,        true, false, true);
+    public static final DataType BYTE             = new DataType("byte",              Byte.BYTES,        true, false, true);
+    public static final DataType SHORT            = new DataType("short",             Short.BYTES,       true, false, true);
+    public static final DataType INTEGER          = new DataType("integer",           Integer.BYTES,     true, false, true);
+    public static final DataType LONG             = new DataType("long",              Long.BYTES,        true, false, true);
     // decimal numeric
-    public static final DataType DOUBLE       = new DataType("double",            Double.BYTES,      false, true, true);
-    public static final DataType FLOAT        = new DataType("float",             Float.BYTES,       false, true, true);
-    public static final DataType HALF_FLOAT   = new DataType("half_float",        Float.BYTES,       false, true, true);
-    public static final DataType SCALED_FLOAT = new DataType("scaled_float",      Long.BYTES,        false, true, true);
+    public static final DataType DOUBLE           = new DataType("double",            Double.BYTES,      false, true, true);
+    public static final DataType FLOAT            = new DataType("float",             Float.BYTES,       false, true, true);
+    public static final DataType HALF_FLOAT       = new DataType("half_float",        Float.BYTES,       false, true, true);
+    public static final DataType SCALED_FLOAT     = new DataType("scaled_float",      Long.BYTES,        false, true, true);
     // string
-    public static final DataType KEYWORD      = new DataType("keyword",           Integer.MAX_VALUE, false, false, true);
-    public static final DataType TEXT         = new DataType("text",              Integer.MAX_VALUE, false, false, false);
+    public static final DataType KEYWORD          = new DataType("keyword",           Integer.MAX_VALUE, false, false, true);
+    public static final DataType TEXT             = new DataType("text",              Integer.MAX_VALUE, false, false, false);
+    public static final DataType CONSTANT_KEYWORD = new DataType("constant_keyword",  Integer.MAX_VALUE, false, false, true);
     // date
-    public static final DataType DATETIME     = new DataType("DATETIME", "date",  Long.BYTES,        false, false, true);
+    public static final DataType DATETIME         = new DataType("DATETIME", "date",  Long.BYTES,        false, false, true);
     // ip
-    public static final DataType IP           = new DataType("ip",                39,                false, false, true);
+    public static final DataType IP           = new DataType("ip",                45,                false, false, true);
     // binary
-    public static final DataType BINARY       = new DataType("binary",            Integer.MAX_VALUE, false, false, true);
+    public static final DataType BINARY           = new DataType("binary",            Integer.MAX_VALUE, false, false, true);
     // complex types
-    public static final DataType OBJECT       = new DataType("object",            0,                 false, false, false);
-    public static final DataType NESTED       = new DataType("nested",            0,                 false, false, false);
+    public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
+    public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
     //@formatter:on
     
     private static final Collection<DataType> TYPES = Arrays.asList(
@@ -61,6 +62,7 @@ public final class DataTypes {
             SCALED_FLOAT,
             KEYWORD,
             TEXT,
+            CONSTANT_KEYWORD,
             DATETIME,
             IP,
             BINARY,
@@ -132,7 +134,7 @@ public final class DataTypes {
     }
 
     public static boolean isString(DataType t) {
-        return t == KEYWORD || t == TEXT;
+        return t == KEYWORD || t == TEXT || t == CONSTANT_KEYWORD;
     }
 
     public static boolean isPrimitive(DataType t) {

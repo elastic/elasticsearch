@@ -8,6 +8,8 @@ setup:
       indices.create:
         index:  test1
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               foo:
@@ -18,6 +20,8 @@ setup:
       indices.create:
         index:  test2
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               foo:
@@ -123,7 +127,7 @@ setup:
       search:
         index: test*
         pre_filter_shard_size: 1
-        body: 
+        body:
           size: 0
           query:
             prefix:
@@ -139,7 +143,7 @@ setup:
       search:
         index: test*
         pre_filter_shard_size: 1
-        body: 
+        body:
           size: 0
           query:
             wildcard:

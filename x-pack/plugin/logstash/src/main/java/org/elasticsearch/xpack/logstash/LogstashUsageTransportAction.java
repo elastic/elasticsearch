@@ -29,21 +29,36 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
     private final XPackLicenseState licenseState;
 
     @Inject
-    public LogstashUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Settings settings, XPackLicenseState licenseState) {
-        super(XPackUsageFeatureAction.LOGSTASH.name(), transportService, clusterService,
-            threadPool, actionFilters, indexNameExpressionResolver);
+    public LogstashUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
+        super(
+            XPackUsageFeatureAction.LOGSTASH.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
         this.settings = settings;
         this.licenseState = licenseState;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         boolean available = licenseState.isLogstashAllowed();
-        LogstashFeatureSetUsage usage =
-            new LogstashFeatureSetUsage(available, XPackSettings.LOGSTASH_ENABLED.get(settings));
+        LogstashFeatureSetUsage usage = new LogstashFeatureSetUsage(available, XPackSettings.LOGSTASH_ENABLED.get(settings));
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

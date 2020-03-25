@@ -19,9 +19,16 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -30,14 +37,50 @@ import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BoxplotAggregatorTests extends AggregatorTestCase {
+
+    /** Script to return the {@code _value} provided by aggs framework. */
+    public static final String VALUE_SCRIPT = "_value";
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new BoxplotAggregationBuilder("foo").field(fieldName);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.HISTOGRAM);
+    }
+
+    @Override
+    protected ScriptService getMockScriptService() {
+        Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+        scripts.put(VALUE_SCRIPT, vars -> ((Number) vars.get("_value")).doubleValue() + 1);
+
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+            scripts,
+            Collections.emptyMap());
+        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
+
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
@@ -120,6 +163,28 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(3.5, boxplot.getQ2(), 0);
             assertEquals(5, boxplot.getQ3(), 0);
         });
+    }
+
+    public void testMissingField() throws IOException {
+        BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot").field("number").missing(10L);
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("other", 2)));
+            iw.addDocument(singleton(new NumericDocValuesField("other", 2)));
+            iw.addDocument(singleton(new NumericDocValuesField("other", 3)));
+            iw.addDocument(singleton(new NumericDocValuesField("other", 4)));
+            iw.addDocument(singleton(new NumericDocValuesField("other", 5)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 0)));
+        },  (Consumer<InternalBoxplot>) boxplot -> {
+            assertEquals(0, boxplot.getMin(), 0);
+            assertEquals(10, boxplot.getMax(), 0);
+            assertEquals(10, boxplot.getQ1(), 0);
+            assertEquals(10, boxplot.getQ2(), 0);
+            assertEquals(10, boxplot.getQ3(), 0);
+        }, fieldType);
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -288,6 +353,68 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertThat(global.getProperty("boxplot.max"), equalTo(5.0));
             assertThat(boxplot.getProperty("min"), equalTo(1.0));
             assertThat(boxplot.getProperty("max"), equalTo(5.0));
+        }, fieldType);
+    }
+
+    public void testValueScript() throws IOException {
+        BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot")
+            .field("number")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
+        }, (Consumer<InternalBoxplot>) boxplot -> {
+            assertEquals(2, boxplot.getMin(), 0);
+            assertEquals(8, boxplot.getMax(), 0);
+            assertEquals(2, boxplot.getQ1(), 0);
+            assertEquals(5, boxplot.getQ2(), 0);
+            assertEquals(8, boxplot.getQ3(), 0);
+        }, fieldType);
+    }
+
+    public void testValueScriptUnmapped() throws IOException {
+        BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot")
+            .field("does_not_exist")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
+        }, (Consumer<InternalBoxplot>) boxplot -> {
+            assertEquals(Double.POSITIVE_INFINITY, boxplot.getMin(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, boxplot.getMax(), 0);
+            assertEquals(Double.NaN, boxplot.getQ1(), 0);
+            assertEquals(Double.NaN, boxplot.getQ2(), 0);
+            assertEquals(Double.NaN, boxplot.getQ3(), 0);
+        }, fieldType);
+    }
+
+    public void testValueScriptUnmappedMissing() throws IOException {
+        BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot")
+            .field("does_not_exist")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()))
+            .missing(1.0);
+
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        fieldType.setName("number");
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
+            iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
+        }, (Consumer<InternalBoxplot>) boxplot -> {
+            // Note: the way scripts, missing and unmapped interact, these will be the missing value and the script is not invoked
+            assertEquals(1.0, boxplot.getMin(), 0);
+            assertEquals(1.0, boxplot.getMax(), 0);
+            assertEquals(1.0, boxplot.getQ1(), 0);
+            assertEquals(1.0, boxplot.getQ2(), 0);
+            assertEquals(1.0, boxplot.getQ3(), 0);
         }, fieldType);
     }
 

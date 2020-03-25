@@ -337,7 +337,7 @@ public class ThreadPool implements Scheduler {
      */
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
-        command = preserveContext(command);
+        command = threadContext.preserveContext(command);
         if (!Names.SAME.equals(executor)) {
             command = new ThreadedRunnable(command, executor(executor));
         }
@@ -368,11 +368,6 @@ public class ThreadPool implements Scheduler {
                 },
                 (e) -> logger.warn(() -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
                         command, executor), e));
-    }
-
-    @Override
-    public Runnable preserveContext(Runnable command) {
-        return getThreadContext().preserveContext(command);
     }
 
     protected final void stopCachedTimeThread() {

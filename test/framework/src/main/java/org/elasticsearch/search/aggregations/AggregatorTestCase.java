@@ -683,10 +683,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
                             fail("Aggregator [" + aggregationBuilder.getType() + "] should not support field type ["
                                 + fieldType.typeName() + "] but executing against the field did not throw an exception");
                         }
-                    } catch (Exception e) {
+                    } catch (Exception | AssertionError e) {
                         if (supportedVSTypes.contains(vst) && unsupportedMappedFieldTypes.contains(fieldType.typeName()) == false) {
-                            fail("Aggregator [" + aggregationBuilder.getType() + "] supports field type ["
-                                + fieldType.typeName() + "] but executing against the field threw an exception: [" + e.getMessage() + "]");
+                            throw new AssertionError("Aggregator [" + aggregationBuilder.getType() + "] supports field type ["
+                                + fieldType.typeName() + "] but executing against the field threw an exception: [" + e.getMessage() + "]",
+                                e);
                         }
                     }
                 }
@@ -706,7 +707,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         ValuesSourceType vst = fieldType.getValuesSourceType();
         Document doc = new Document();
         String json;
-        
+
         if (vst.equals(CoreValuesSourceType.NUMERIC)) {
             // TODO note: once VS refactor adds DATE/BOOLEAN, this conditional will go away
             long v;

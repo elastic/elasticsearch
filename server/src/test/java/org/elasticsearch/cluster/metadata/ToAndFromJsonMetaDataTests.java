@@ -157,7 +157,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
 
         String metaDataSource = MetaData.Builder.toXContent(metaData);
 
-        MetaData parsedMetaData = MetaData.Builder.fromXContent(createParser(JsonXContent.jsonXContent, metaDataSource), false);
+        MetaData parsedMetaData = MetaData.Builder.fromXContent(createParser(JsonXContent.jsonXContent, metaDataSource));
 
         IndexMetaData indexMetaData = parsedMetaData.index("test1");
         assertThat(indexMetaData.primaryTerm(0), equalTo(1L));

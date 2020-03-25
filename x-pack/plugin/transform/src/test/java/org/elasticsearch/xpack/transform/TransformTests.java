@@ -19,7 +19,7 @@ public class TransformTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         boolean transformEnabled = randomBoolean();
         boolean transformPluginEnabled = randomBoolean();
-        boolean remoteEnabled = randomBoolean();
+        boolean remoteClusterClient = randomBoolean();
 
         // randomly use explicit or default setting
         if ((transformEnabled && randomBoolean()) == false) {
@@ -27,8 +27,8 @@ public class TransformTests extends ESTestCase {
         }
 
         // randomly use explicit or default setting
-        if ((remoteEnabled && randomBoolean()) == false) {
-            builder.put("cluster.remote.connect", remoteEnabled);
+        if ((remoteClusterClient && randomBoolean()) == false) {
+            builder.put("node.remote_cluster_client", remoteClusterClient);
         }
 
         if (transformPluginEnabled == false) {
@@ -43,7 +43,7 @@ public class TransformTests extends ESTestCase {
             Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node"))
         );
         assertEquals(
-            transformPluginEnabled && remoteEnabled,
+            transformPluginEnabled && remoteClusterClient,
             Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.remote_connect"))
         );
     }

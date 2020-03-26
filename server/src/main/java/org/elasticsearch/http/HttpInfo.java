@@ -28,10 +28,11 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
 
-public class HttpInfo implements Writeable, ToXContentFragment {
+public class HttpInfo implements ReportingService.Info {
 
     private final BoundTransportAddress address;
     private final long maxContentLength;
@@ -43,6 +44,11 @@ public class HttpInfo implements Writeable, ToXContentFragment {
     public HttpInfo(BoundTransportAddress address, long maxContentLength) {
         this.address = address;
         this.maxContentLength = maxContentLength;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "HttpInfo";
     }
 
     @Override

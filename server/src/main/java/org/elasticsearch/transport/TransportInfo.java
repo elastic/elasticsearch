@@ -30,6 +30,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,7 +38,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.Booleans.parseBoolean;
 
-public class TransportInfo implements Writeable, ToXContentFragment {
+public class TransportInfo implements ReportingService.Info {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TransportInfo.class));
 
@@ -72,6 +73,11 @@ public class TransportInfo implements Writeable, ToXContentFragment {
             }
         }
         this.cnameInPublishAddressProperty = CNAME_IN_PUBLISH_ADDRESS;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "TransportInfo";
     }
 
     @Override

@@ -25,13 +25,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public class ThreadPoolInfo implements Writeable, Iterable<ThreadPool.Info>, ToXContentFragment {
+public class ThreadPoolInfo implements ReportingService.Info, Iterable<ThreadPool.Info> {
 
     private final List<ThreadPool.Info> infos;
 
@@ -41,6 +42,11 @@ public class ThreadPoolInfo implements Writeable, Iterable<ThreadPool.Info>, ToX
 
     public ThreadPoolInfo(StreamInput in) throws IOException {
         this.infos = Collections.unmodifiableList(in.readList(ThreadPool.Info::new));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "ThreadPoolInfo";
     }
 
     @Override

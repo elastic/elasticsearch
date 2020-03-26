@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
@@ -44,7 +45,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class JvmInfo implements Writeable, ToXContentFragment {
+public class JvmInfo implements ReportingService.Info {
 
     private static JvmInfo INSTANCE;
 
@@ -291,6 +292,11 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         this.onOutOfMemoryError = null;
         this.useG1GC = "unknown";
         this.useSerialGC = "unknown";
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "JvmInfo";
     }
 
     @Override

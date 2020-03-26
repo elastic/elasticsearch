@@ -26,10 +26,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
 
-public class ProcessInfo implements Writeable, ToXContentFragment {
+public class ProcessInfo implements ReportingService.Info {
 
     private final long refreshInterval;
     private final long id;
@@ -45,6 +46,11 @@ public class ProcessInfo implements Writeable, ToXContentFragment {
         refreshInterval = in.readLong();
         id = in.readLong();
         mlockall = in.readBoolean();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "ProcessInfo";
     }
 
     @Override

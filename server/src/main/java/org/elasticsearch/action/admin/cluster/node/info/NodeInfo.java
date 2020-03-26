@@ -36,13 +36,16 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Node information (static, does not change over time).
@@ -52,7 +55,14 @@ public class NodeInfo extends BaseNodeResponse {
     // TODO: should this go into a global named registry?
     private static NamedWriteableRegistry LOCAL_REGISTRY = new NamedWriteableRegistry(
         List.of(
-            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "OsInfo", OsInfo::new)
+            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "OsInfo", OsInfo::new),
+            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "ProcessInfo", ProcessInfo::new),
+            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "JvmInfo", JvmInfo::new),
+            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "ThreadPoolInfo", ThreadPoolInfo::new),
+            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "TransportInfo", TransportInfo::new),
+            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "HttpInfo", HttpInfo::new),
+            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "PluginsAndModules", PluginsAndModules::new),
+            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "IngestInfo", IngestInfo::new)
         )
     );
 
@@ -64,27 +74,6 @@ public class NodeInfo extends BaseNodeResponse {
 
     // TODO: is it OK to key this map on class?
     Map<Class<? extends ReportingService.Info>, ReportingService.Info> infoMap = new HashMap<>();
-
-    @Nullable
-    private ProcessInfo process;
-
-    @Nullable
-    private JvmInfo jvm;
-
-    @Nullable
-    private ThreadPoolInfo threadPool;
-
-    @Nullable
-    private TransportInfo transport;
-
-    @Nullable
-    private HttpInfo http;
-
-    @Nullable
-    private PluginsAndModules plugins;
-
-    @Nullable
-    private IngestInfo ingest;
 
     @Nullable
     private ByteSizeValue totalIndexingBuffer;
@@ -105,24 +94,23 @@ public class NodeInfo extends BaseNodeResponse {
             int numberOfWriteables = in.readVInt();
             StreamInput awareStream = new NamedWriteableAwareStreamInput(in, LOCAL_REGISTRY);
             for (int i = 0; i < numberOfWriteables; i++) {
-                ReportingService.Info info = awareStream.readOptionalNamedWriteable(ReportingService.Info.class);
-                if (info != null) {
-                    infoMap.put(info.getClass(), info);
-                }
+                ReportingService.Info info = awareStream.readNamedWriteable(ReportingService.Info.class);
+                infoMap.put(info.getClass(), info);
             }
         } else {
-            OsInfo info = in.readOptionalWriteable(OsInfo::new);
-            if (info != null) {
-                infoMap.put(OsInfo.class, info);
-            }
+            Map<Class<? extends ReportingService.Info>, ReportingService.Info> tempMap = new HashMap<>();
+            tempMap.put(OsInfo.class, in.readOptionalWriteable(OsInfo::new));
+            tempMap.put(ProcessInfo.class, in.readOptionalWriteable(ProcessInfo::new));
+            tempMap.put(JvmInfo.class, in.readOptionalWriteable(JvmInfo::new));
+            tempMap.put(ThreadPoolInfo.class, in.readOptionalWriteable(ThreadPoolInfo::new));
+            tempMap.put(TransportInfo.class, in.readOptionalWriteable(TransportInfo::new));
+            tempMap.put(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
+            tempMap.put(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
+            tempMap.put(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
+            this.infoMap = tempMap.entrySet().stream()
+                .filter(e -> e.getValue() != null)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
-        process = in.readOptionalWriteable(ProcessInfo::new);
-        jvm = in.readOptionalWriteable(JvmInfo::new);
-        threadPool = in.readOptionalWriteable(ThreadPoolInfo::new);
-        transport = in.readOptionalWriteable(TransportInfo::new);
-        http = in.readOptionalWriteable(HttpInfo::new);
-        plugins = in.readOptionalWriteable(PluginsAndModules::new);
-        ingest = in.readOptionalWriteable(IngestInfo::new);
     }
 
     public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Settings settings,
@@ -133,14 +121,18 @@ public class NodeInfo extends BaseNodeResponse {
         this.version = version;
         this.build = build;
         this.settings = settings;
-        this.infoMap.put(OsInfo.class, os);
-        this.process = process;
-        this.jvm = jvm;
-        this.threadPool = threadPool;
-        this.transport = transport;
-        this.http = http;
-        this.plugins = plugins;
-        this.ingest = ingest;
+        Map<Class<? extends ReportingService.Info>, ReportingService.Info> tempMap = new HashMap<>();
+        tempMap.put(OsInfo.class, os);
+        tempMap.put(ProcessInfo.class, process);
+        tempMap.put(JvmInfo.class, jvm);
+        tempMap.put(ThreadPoolInfo.class, threadPool);
+        tempMap.put(TransportInfo.class, transport);
+        tempMap.put(HttpInfo.class, http);
+        tempMap.put(PluginsAndModules.class, plugins);
+        tempMap.put(IngestInfo.class, ingest);
+        this.infoMap = tempMap.entrySet().stream()
+            .filter(e -> e.getValue() != null)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         this.totalIndexingBuffer = totalIndexingBuffer;
     }
 
@@ -192,7 +184,7 @@ public class NodeInfo extends BaseNodeResponse {
      */
     @Nullable
     public ProcessInfo getProcess() {
-        return process;
+        return getInfo(ProcessInfo.class);
     }
 
     /**
@@ -200,32 +192,32 @@ public class NodeInfo extends BaseNodeResponse {
      */
     @Nullable
     public JvmInfo getJvm() {
-        return jvm;
+        return getInfo(JvmInfo.class);
     }
 
     @Nullable
     public ThreadPoolInfo getThreadPool() {
-        return this.threadPool;
+        return getInfo(ThreadPoolInfo.class);
     }
 
     @Nullable
     public TransportInfo getTransport() {
-        return transport;
+        return getInfo(TransportInfo.class);
     }
 
     @Nullable
     public HttpInfo getHttp() {
-        return http;
+        return getInfo(HttpInfo.class);
     }
 
     @Nullable
     public PluginsAndModules getPlugins() {
-        return this.plugins;
+        return getInfo(PluginsAndModules.class);
     }
 
     @Nullable
     public IngestInfo getIngest() {
-        return ingest;
+        return getInfo(IngestInfo.class);
     }
 
     @Nullable
@@ -252,16 +244,19 @@ public class NodeInfo extends BaseNodeResponse {
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeVInt(infoMap.size());
-            out.writeOptionalNamedWriteable(getInfo(OsInfo.class));
+            for (Map.Entry<Class<? extends ReportingService.Info>, ReportingService.Info> entry : infoMap.entrySet()) {
+                ReportingService.Info value = entry.getValue();
+                out.writeNamedWriteable(value);
+            }
         } else {
             out.writeOptionalWriteable(getInfo(OsInfo.class));
+            out.writeOptionalWriteable(getInfo(ProcessInfo.class));
+            out.writeOptionalWriteable(getInfo(JvmInfo.class));
+            out.writeOptionalWriteable(getInfo(ThreadPoolInfo.class));
+            out.writeOptionalWriteable(getInfo(TransportInfo.class));
+            out.writeOptionalWriteable(getInfo(HttpInfo.class));
+            out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
+            out.writeOptionalWriteable(getInfo(IngestInfo.class));
         }
-        out.writeOptionalWriteable(process);
-        out.writeOptionalWriteable(jvm);
-        out.writeOptionalWriteable(threadPool);
-        out.writeOptionalWriteable(transport);
-        out.writeOptionalWriteable(http);
-        out.writeOptionalWriteable(plugins);
-        out.writeOptionalWriteable(ingest);
     }
 }

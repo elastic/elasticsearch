@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
-public class IngestInfo implements Writeable, ToXContentFragment {
+public class IngestInfo implements ReportingService.Info {
 
     private final Set<ProcessorInfo> processors;
 
@@ -48,6 +49,11 @@ public class IngestInfo implements Writeable, ToXContentFragment {
         for (int i = 0; i < size; i++) {
             processors.add(new ProcessorInfo(in));
         }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "IngestInfo";
     }
 
     @Override

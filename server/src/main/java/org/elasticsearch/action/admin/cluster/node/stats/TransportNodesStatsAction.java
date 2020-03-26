@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRequest,
                                                                     NodesStatsResponse,
@@ -68,9 +69,21 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     @Override
     protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest, Task task) {
         NodesStatsRequest request = nodeStatsRequest.request;
-        return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(),
-                request.fs(), request.transport(), request.http(), request.breaker(), request.script(), request.discovery(),
-                request.ingest(), request.adaptiveSelection());
+        Set<String> metrics = request.requestedMetrics();
+        return nodeService.stats(
+            request.indices(),
+            NodesStatsRequest.Metric.OS.containedIn(metrics),
+            NodesStatsRequest.Metric.PROCESS.containedIn(metrics),
+            NodesStatsRequest.Metric.JVM.containedIn(metrics),
+            NodesStatsRequest.Metric.THREAD_POOL.containedIn(metrics),
+            NodesStatsRequest.Metric.FS.containedIn(metrics),
+            NodesStatsRequest.Metric.TRANSPORT.containedIn(metrics),
+            NodesStatsRequest.Metric.HTTP.containedIn(metrics),
+            NodesStatsRequest.Metric.BREAKER.containedIn(metrics),
+            NodesStatsRequest.Metric.SCRIPT.containedIn(metrics),
+            NodesStatsRequest.Metric.DISCOVERY.containedIn(metrics),
+            NodesStatsRequest.Metric.INGEST.containedIn(metrics),
+            NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics));
     }
 
     public static class NodeStatsRequest extends BaseNodeRequest {

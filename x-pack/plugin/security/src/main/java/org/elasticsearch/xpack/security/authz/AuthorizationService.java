@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRespon
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -585,7 +586,7 @@ public class AuthorizationService {
                     authentication.getUser().principal());
         }
         // check for authentication by API key
-        if (authentication.getAuthenticatedBy().getType().equals(ApiKeyService.API_KEY_REALM_TYPE)) {
+        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
             final String apiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             logger.debug("action [{}] is unauthorized for API key id [{}] of user [{}]", action, apiKeyId, authUser.principal());

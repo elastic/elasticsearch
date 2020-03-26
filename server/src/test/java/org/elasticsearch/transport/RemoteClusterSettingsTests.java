@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -27,7 +26,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.node.Node.NODE_REMOTE_CLUSTER_CLIENT;
-import static org.elasticsearch.transport.RemoteClusterService.ENABLE_REMOTE_CLUSTERS;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_NODE_ATTRIBUTE;
@@ -57,11 +55,6 @@ public class RemoteClusterSettingsTests extends ESTestCase {
 
     public void testDisableRemoteClusterClient() {
         assertFalse(NODE_REMOTE_CLUSTER_CLIENT.get(Settings.builder().put(NODE_REMOTE_CLUSTER_CLIENT.getKey(), false).build()));
-    }
-
-    public void testDisableEnableRemoteClusters() {
-        assertFalse(NODE_REMOTE_CLUSTER_CLIENT.get(Settings.builder().put(ENABLE_REMOTE_CLUSTERS.getKey(), false).build()));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ENABLE_REMOTE_CLUSTERS});
     }
 
     public void testSkipUnavailableDefault() {

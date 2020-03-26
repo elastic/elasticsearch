@@ -238,14 +238,14 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
 
     public void testNoIndex() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest("invalid-*");
-        request.setWaitForCompletion(TimeValue.timeValueMillis(1));
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
         assertFalse(response.isRunning());
         assertThat(response.getSearchResponse().getTotalShards(), equalTo(0));
 
         request = new SubmitAsyncSearchRequest("invalid");
-        request.setWaitForCompletion(TimeValue.timeValueMillis(1));
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         response = submitAsyncSearch(request);
         assertNull(response.getSearchResponse());
         assertNotNull(response.getFailure());
@@ -259,7 +259,7 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
         request.getSearchRequest().source(
             new SearchSourceBuilder().aggregation(new CancellingAggregationBuilder("test"))
         );
-        request.setWaitForCompletion(TimeValue.timeValueMillis(1));
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
         assertTrue(response.isRunning());

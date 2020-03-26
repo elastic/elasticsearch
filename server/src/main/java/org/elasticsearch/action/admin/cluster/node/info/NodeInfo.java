@@ -90,6 +90,7 @@ public class NodeInfo extends BaseNodeResponse {
         if (in.readBoolean()) {
             settings = Settings.readSettingsFromStream(in);
         }
+        // TODO[wrb]: Change this to V_7_8_0
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             int numberOfWriteables = in.readVInt();
             StreamInput awareStream = new NamedWriteableAwareStreamInput(in, LOCAL_REGISTRY);
@@ -98,18 +99,14 @@ public class NodeInfo extends BaseNodeResponse {
                 infoMap.put(info.getClass(), info);
             }
         } else {
-            Map<Class<? extends ReportingService.Info>, ReportingService.Info> tempMap = new HashMap<>();
-            tempMap.put(OsInfo.class, in.readOptionalWriteable(OsInfo::new));
-            tempMap.put(ProcessInfo.class, in.readOptionalWriteable(ProcessInfo::new));
-            tempMap.put(JvmInfo.class, in.readOptionalWriteable(JvmInfo::new));
-            tempMap.put(ThreadPoolInfo.class, in.readOptionalWriteable(ThreadPoolInfo::new));
-            tempMap.put(TransportInfo.class, in.readOptionalWriteable(TransportInfo::new));
-            tempMap.put(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
-            tempMap.put(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
-            tempMap.put(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
-            this.infoMap = tempMap.entrySet().stream()
-                .filter(e -> e.getValue() != null)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            addInfoIfNonNull(OsInfo.class, in.readOptionalWriteable(OsInfo::new));
+            addInfoIfNonNull(ProcessInfo.class, in.readOptionalWriteable(ProcessInfo::new));
+            addInfoIfNonNull(JvmInfo.class, in.readOptionalWriteable(JvmInfo::new));
+            addInfoIfNonNull(ThreadPoolInfo.class, in.readOptionalWriteable(ThreadPoolInfo::new));
+            addInfoIfNonNull(TransportInfo.class, in.readOptionalWriteable(TransportInfo::new));
+            addInfoIfNonNull(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
+            addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
+            addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
         }
     }
 
@@ -121,18 +118,14 @@ public class NodeInfo extends BaseNodeResponse {
         this.version = version;
         this.build = build;
         this.settings = settings;
-        Map<Class<? extends ReportingService.Info>, ReportingService.Info> tempMap = new HashMap<>();
-        tempMap.put(OsInfo.class, os);
-        tempMap.put(ProcessInfo.class, process);
-        tempMap.put(JvmInfo.class, jvm);
-        tempMap.put(ThreadPoolInfo.class, threadPool);
-        tempMap.put(TransportInfo.class, transport);
-        tempMap.put(HttpInfo.class, http);
-        tempMap.put(PluginsAndModules.class, plugins);
-        tempMap.put(IngestInfo.class, ingest);
-        this.infoMap = tempMap.entrySet().stream()
-            .filter(e -> e.getValue() != null)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        addInfoIfNonNull(OsInfo.class, os);
+        addInfoIfNonNull(ProcessInfo.class, process);
+        addInfoIfNonNull(JvmInfo.class, jvm);
+        addInfoIfNonNull(ThreadPoolInfo.class, threadPool);
+        addInfoIfNonNull(TransportInfo.class, transport);
+        addInfoIfNonNull(HttpInfo.class, http);
+        addInfoIfNonNull(PluginsAndModules.class, plugins);
+        addInfoIfNonNull(IngestInfo.class, ingest);
         this.totalIndexingBuffer = totalIndexingBuffer;
     }
 
@@ -225,6 +218,12 @@ public class NodeInfo extends BaseNodeResponse {
         return totalIndexingBuffer;
     }
 
+    private void addInfoIfNonNull(Class<? extends ReportingService.Info> clazz, ReportingService.Info info) {
+        if (info != null) {
+            infoMap.put(clazz, info);
+        }
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -242,8 +241,10 @@ public class NodeInfo extends BaseNodeResponse {
             out.writeBoolean(true);
             Settings.writeSettingsToStream(settings, out);
         }
+        // TODO[wrb]: Change this to V_7_8_0
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeVInt(infoMap.size());
+            // The NodesInfoResponse class controls the ordering of what goes to the user
             for (Map.Entry<Class<? extends ReportingService.Info>, ReportingService.Info> entry : infoMap.entrySet()) {
                 ReportingService.Info value = entry.getValue();
                 out.writeNamedWriteable(value);

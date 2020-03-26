@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -117,6 +118,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
         // Load EQL validation specs
         List<EqlSpec> specs = EqlSpecLoader.load("/test_queries.toml", true);
+        specs = CollectionUtils.combine(specs, EqlSpecLoader.load("/test_between_queries.toml", true));
         List<EqlSpec> unsupportedSpecs = EqlSpecLoader.load("/test_queries_unsupported.toml", false);
 
         // Validate only currently supported specs

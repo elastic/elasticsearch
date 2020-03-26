@@ -1,0 +1,11 @@
+[[queries]]
+expected_event_ids = [95]
+query = '''
+file where between(file_path, "dev", ".json", false) == "\\TestLogs\\something"
+'''
+
+[[queries]]
+expected_event_ids = [95]
+query = '''
+file where between(file_path, "dev", ".json", true) == "\\TestLogs\\something"
+'''

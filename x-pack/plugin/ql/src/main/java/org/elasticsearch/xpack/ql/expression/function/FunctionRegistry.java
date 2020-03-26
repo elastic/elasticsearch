@@ -403,6 +403,31 @@ public class FunctionRegistry {
         T build(Source source, Expression src, Expression exp1, Expression exp2, Expression exp3);
     }
 
+
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition defTwoOpt(Class<T> function,
+                                                              FiveParametersFunctionBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            boolean hasOptionalParams = OptionalArgument.class.isAssignableFrom(function);
+            if (hasOptionalParams && (children.size() > 5 || children.size() < 2)) {
+                throw new QlIllegalArgumentException("expects between two and five arguments");
+            } else if (!hasOptionalParams && children.size() != 5) {
+                throw new QlIllegalArgumentException("expects exactly five arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), children.get(2),
+                    children.size() > 3 ? children.get(3) : null,
+                    children.size() > 4 ? children.get(4) : null);
+        };
+        return def(function, builder, false, names);
+    }
+
+    protected interface FiveParametersFunctionBuilder<T> {
+        T build(Source source, Expression src, Expression exp1, Expression exp2, Expression exp3, Expression exp4);
+    }
+
     /**
      * Special method to create function definition for Cast as its
      * signature is not compatible with {@link UnresolvedFunction}

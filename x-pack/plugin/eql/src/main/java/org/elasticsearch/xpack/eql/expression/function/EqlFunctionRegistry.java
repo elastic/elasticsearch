@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.expression.function;
 
+import org.elasticsearch.xpack.eql.expression.function.scalar.between.Between;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
@@ -17,13 +18,14 @@ public class EqlFunctionRegistry extends FunctionRegistry {
     public EqlFunctionRegistry() {
         super(functions());
     }
-    
+
     private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
         // Scalar functions
         // String
             new FunctionDefinition[] {
                 def(Substring.class, Substring::new, "substring"),
+                defTwoOpt(Between.class, Between::new, "between"),
             },
         };
     }

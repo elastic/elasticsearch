@@ -31,7 +31,8 @@ public final class Expressions {
         FIRST,
         SECOND,
         THIRD,
-        FOURTH
+        FOURTH,
+        FIFTH
     }
 
     private Expressions() {}

@@ -41,6 +41,7 @@ public class InboundDecoder implements Releasable {
     private TransportDecompressor decompressor;
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
+    private boolean isClosed = false;
 
     public InboundDecoder(Version version, PageCacheRecycler recycler) {
         this.version = version;
@@ -48,6 +49,7 @@ public class InboundDecoder implements Releasable {
     }
 
     public int decode(ReleasableBytesReference reference, Consumer<Object> fragmentConsumer) throws IOException {
+        ensureOpen();
         try {
             return internalDecode(reference, fragmentConsumer);
         } catch (IOException e) {
@@ -123,6 +125,7 @@ public class InboundDecoder implements Releasable {
 
     @Override
     public void close() {
+        isClosed = true;
         cleanDecodeState();
     }
 
@@ -214,6 +217,12 @@ public class InboundDecoder implements Releasable {
 
     private boolean isDecodingFailed() {
         return decodingException != null;
+    }
+
+    private void ensureOpen() {
+        if (isClosed) {
+            throw new IllegalStateException("Decoder is already closed");
+        }
     }
 
     static IllegalStateException ensureVersionCompatibility(Version remoteVersion, Version currentVersion, boolean isHandshake) {

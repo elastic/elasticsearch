@@ -33,8 +33,10 @@ public class InboundAggregator implements Releasable {
     private ReleasableBytesReference firstContent;
     private ArrayList<ReleasableBytesReference> contentAggregation;
     private Header currentHeader;
+    private boolean isClosed = false;
 
     public void headerReceived(Header header) {
+        ensureOpen();
         if (currentHeader != null) {
             currentHeader = null;
             throw new IllegalStateException("Header already received.");
@@ -44,6 +46,7 @@ public class InboundAggregator implements Releasable {
     }
 
     public void aggregate(ReleasableBytesReference content) {
+        ensureOpen();
         if (currentHeader == null) {
             content.close();
             throw new IllegalStateException("Received content without header");
@@ -62,16 +65,18 @@ public class InboundAggregator implements Releasable {
     }
 
     public Header cancelAggregation() {
+        ensureOpen();
         if (currentHeader == null) {
             throw new IllegalStateException("Aggregation cancelled, but no aggregation had begun");
         } else {
             final Header header = this.currentHeader;
-            closeAggregation();
+            closeCurrentAggregation();
             return header;
         }
     }
 
     public InboundMessage finishAggregation() throws IOException {
+        ensureOpen();
         final ReleasableBytesReference releasableContent;
         if (isFirstContent()) {
             releasableContent = ReleasableBytesReference.wrap(BytesArray.EMPTY);
@@ -83,7 +88,7 @@ public class InboundAggregator implements Releasable {
             releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
         }
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent);
-        clearAggregation();
+        resetCurrentAggregation();
         boolean success = false;
         try {
             if (aggregated.getHeader().needsToReadVariableHeader()) {
@@ -108,21 +113,28 @@ public class InboundAggregator implements Releasable {
 
     @Override
     public void close() {
-        closeAggregation();
+        isClosed = true;
+        closeCurrentAggregation();
     }
 
-    private void closeAggregation() {
+    private void closeCurrentAggregation() {
         if (contentAggregation == null) {
             Releasables.close(firstContent);
         } else {
             Releasables.close(contentAggregation);
         }
-        clearAggregation();
+        resetCurrentAggregation();
     }
 
-    private void clearAggregation() {
+    private void resetCurrentAggregation() {
         firstContent = null;
         contentAggregation = null;
         currentHeader = null;
+    }
+
+    private void ensureOpen() {
+        if (isClosed) {
+            throw new IllegalStateException("Aggregator is already closed");
+        }
     }
 }

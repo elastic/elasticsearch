@@ -75,14 +75,26 @@ public class TransportDecompressor implements Closeable {
             bytesConsumed += ref.length;
             boolean continueInflating = true;
             while (continueInflating) {
-                if (pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE) {
+                final Recycler.V<byte[]> page;
+                final boolean isNewPage = pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE;
+                if (isNewPage) {
                     pageOffset = 0;
-                    pages.add(recycler.bytePage(false));
+                    page = recycler.bytePage(false);
+                } else {
+                    page = pages.getLast();
                 }
-                byte[] output = pages.getLast().v();
+                byte[] output = page.v();
                 try {
                     int bytesInflated = inflater.inflate(output, pageOffset, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
                     pageOffset += bytesInflated;
+                    if (isNewPage) {
+                        if (bytesInflated == 0) {
+                            page.close();
+                            pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
+                        } else {
+                            pages.add(page);
+                        }
+                    }
                 } catch (DataFormatException e) {
                     throw new IOException("Exception while inflating bytes", e);
                 }

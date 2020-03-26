@@ -1383,7 +1383,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                     SortedMap<?, ?> map = aliasAndIndexLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
                     if (map.size() != 0) {
                         throw new IllegalStateException("data stream [" + ds.getName() +
-                            "] could create backing indices that conflict with existing indices or aliases");
+                            "] could create backing indices that conflict with " + map.size() + " existing index(s) or alias(s)" +
+                            " including '" + map.firstKey() + "'");
                     }
                 }
             }

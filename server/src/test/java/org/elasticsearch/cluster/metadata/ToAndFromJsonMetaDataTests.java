@@ -204,9 +204,11 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
             "        \"settings\" : {\n" +
             "          \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
             "        },\n" +
-            "        \"mappings\" : {\n" +
-            "          \"key1\" : { }\n" +
-            "        },\n" +
+            "        \"mappings\" : [\n" +
+            "          {\n" +
+            "            \"key1\" : { }\n" +
+            "          }\n" +
+            "        ],\n" +
             "        \"aliases\" : { }\n" +
             "      }\n" +
             "    },\n" +
@@ -347,7 +349,11 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
             "            }\n" +
             "          }\n" +
             "        },\n" +
-            "        \"mappings\" : { },\n" +
+            "        \"mappings\" : {\n" +
+            "          \"type\" : {\n" +
+            "            \"key1\" : { }\n" +
+            "          }\n" +
+            "        },\n" +
             "        \"aliases\" : { }\n" +
             "      }\n" +
             "    },\n" +
@@ -402,7 +408,9 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
             "          \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
             "        },\n" +
             "        \"mappings\" : {\n" +
-            "          \"key1\" : { }\n" +
+            "          \"type\" : {\n" +
+            "            \"key1\" : { }\n" +
+            "          }\n" +
             "        },\n" +
             "        \"aliases\" : { }\n" +
             "      }\n" +
@@ -500,7 +508,11 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
             "            }\n" +
             "          }\n" +
             "        },\n" +
-            "        \"mappings\" : { },\n" +
+            "        \"mappings\" : {\n" +
+            "          \"type\" : {\n" +
+            "            \"key1\" : { }\n" +
+            "          }\n" +
+            "        },\n" +
             "        \"aliases\" : { }\n" +
             "      }\n" +
             "    },\n" +

@@ -196,7 +196,9 @@ public class ClusterStateTests extends ESTestCase {
             "          }\n" +
             "        },\n" +
             "        \"mappings\" : {\n" +
-            "          \"key1\" : { }\n" +
+            "          \"type\" : {\n" +
+            "            \"key1\" : { }\n" +
+            "          }\n" +
             "        },\n" +
             "        \"aliases\" : { }\n" +
             "      }\n" +
@@ -380,7 +382,9 @@ public class ClusterStateTests extends ESTestCase {
             "          \"index.version.created\" : \"" + Version.CURRENT.id + "\"\n" +
             "        },\n" +
             "        \"mappings\" : {\n" +
-            "          \"key1\" : { }\n" +
+            "          \"type\" : {\n" +
+            "            \"key1\" : { }\n" +
+            "          }\n" +
             "        },\n" +
             "        \"aliases\" : { }\n" +
             "      }\n" +
@@ -564,7 +568,11 @@ public class ClusterStateTests extends ESTestCase {
             "            }\n" +
             "          }\n" +
             "        },\n" +
-            "        \"mappings\" : { },\n" +
+            "        \"mappings\" : {\n" +
+            "          \"type\" : {\n" +
+            "            \"key1\" : { }\n" +
+            "          }\n" +
+            "        },\n" +
             "        \"aliases\" : { }\n" +
             "      }\n" +
             "    },\n" +

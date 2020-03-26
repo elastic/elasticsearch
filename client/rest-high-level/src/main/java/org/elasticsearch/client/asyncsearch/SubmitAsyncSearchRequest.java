@@ -197,7 +197,7 @@ public class SubmitAsyncSearchRequest implements Validatable {
 
     /**
      * Gets the number of shard results that should be reduced at once on the coordinating node.
-     * Returns <tt>null</tt> if unset.
+     * Returns {@code null} if unset.
      */
     public Integer getBatchedReduceSize() {
         return this.batchedReduceSize;

@@ -51,10 +51,8 @@ import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -155,6 +153,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public static final String CONTEXT_MODE_SNAPSHOT = XContentContext.SNAPSHOT.toString();
 
     public static final String CONTEXT_MODE_GATEWAY = XContentContext.GATEWAY.toString();
+
+    public static final String CONTEXT_MODE_API = XContentContext.API.toString();
 
     public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
 
@@ -1371,20 +1371,16 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return aliasAndIndexLookup;
         }
 
-        public static String toXContent(MetaData metaData) throws IOException {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.startObject();
-            toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            return Strings.toString(builder);
-        }
-
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, "API"));
+            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
 
-            builder.startObject("meta-data");
+            if (context == XContentContext.API) {
+                builder.startObject("metadata");
+            } else {
+                builder.startObject("meta-data");
+                builder.field("version", metaData.version());
+            }
 
-            builder.field("version", metaData.version());
             builder.field("cluster_uuid", metaData.clusterUUID);
             builder.field("cluster_uuid_committed", metaData.clusterUUIDCommitted);
 
@@ -1392,15 +1388,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             metaData.coordinationMetaData().toXContent(builder, params);
             builder.endObject();
 
-            if (!metaData.persistentSettings().isEmpty()) {
+            if (context != XContentContext.API && !metaData.persistentSettings().isEmpty()) {
                 builder.startObject("settings");
                 metaData.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
-                builder.endObject();
-            }
-
-            if (context == XContentContext.API && !metaData.transientSettings().isEmpty()) {
-                builder.startObject("transient_settings");
-                metaData.transientSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();
             }
 
@@ -1410,7 +1400,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
             builder.endObject();
 
-            if (context == XContentContext.API && !metaData.indices().isEmpty()) {
+            if (context == XContentContext.API) {
                 builder.startObject("indices");
                 for (IndexMetaData indexMetaData : metaData) {
                     IndexMetaData.Builder.toXContent(indexMetaData, builder, params);

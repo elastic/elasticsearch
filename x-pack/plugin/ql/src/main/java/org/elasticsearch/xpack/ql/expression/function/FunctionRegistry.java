@@ -416,7 +416,8 @@ public class FunctionRegistry {
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function,
-                                                              FiveParametersFunctionBuilder<T> ctorRef, int numOptionalParams, String... names) {
+                                                              FiveParametersFunctionBuilder<T> ctorRef,
+                                                              int numOptionalParams, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             final int NUM_TOTAL_PARAMS = 5;
             boolean hasOptionalParams = OptionalArgument.class.isAssignableFrom(function);

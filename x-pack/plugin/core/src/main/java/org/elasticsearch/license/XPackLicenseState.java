@@ -691,12 +691,11 @@ public class XPackLicenseState {
 
     /**
      * Test whether a feature is allowed by the status of license and security configuration.
-     * Note the difference to {@link #isAllowedByLicense(OperationMode, boolean, boolean)}
+     * Note the difference to {@link #isAllowedByLicense(OperationMode, boolean)}
      * is this method requires security to be enabled.
      *
      * @param minimumMode  The minimum license to meet or exceed
      * @param needActive   Whether current license needs to be active.
-     * @param allowTrial   Whether the feature is allowed for trial license
      *
      * @return true if feature is allowed, otherwise false
      */
@@ -720,7 +719,6 @@ public class XPackLicenseState {
      *
      * @param minimumMode  The minimum license to meet or exceed
      * @param needActive   Whether current license needs to be active
-     * @param allowTrial   Whether the feature is allowed for trial license
      *
      * @return true if feature is allowed, otherwise false
      */
@@ -735,7 +733,7 @@ public class XPackLicenseState {
 
     /**
      * A convenient method to test whether a feature is by license status.
-     * @see #isAllowedByLicense(OperationMode, boolean, boolean)
+     * @see #isAllowedByLicense(OperationMode, boolean)
      *
      * @param minimumMode  The minimum license to meet or exceed
      */

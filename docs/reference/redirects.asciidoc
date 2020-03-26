@@ -385,8 +385,3 @@ coming::[7.x]
 === Data stream APIs
 
 coming::[7.x]
-
-[role="exclude",id="cat-transform"]
-=== cat transform API
-
-See <<cat-transforms>>.

@@ -305,7 +305,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         assertThat(((Map) result.get("realm")).get("type"), equalTo(lookedUpRealmRef.getType()));
     }
 
-    public void testWillEnsureEscComplianceWhenParentFieldIsUser() throws Exception {
+    public void testWillEnsureEcsComplianceWhenParentFieldIsUser() throws Exception {
         User user = new User("_username", null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         new Authentication(user, realmRef, null).writeToContext(threadContext);
@@ -322,7 +322,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         assertThat(result.get("username"), is(nullValue()));
     }
 
-    public void testWillThrowWhenEscComplianceIsSetButParentFieldIsNotUser() throws Exception {
+    public void testWillThrowWhenEcsComplianceIsSetButParentFieldIsNotUser() throws Exception {
         User user = new User("_username", null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         new Authentication(user, realmRef, null).writeToContext(threadContext);

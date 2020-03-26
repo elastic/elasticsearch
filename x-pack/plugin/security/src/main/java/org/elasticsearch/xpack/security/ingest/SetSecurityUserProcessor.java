@@ -44,7 +44,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     private final XPackLicenseState licenseState;
     private final String field;
     private final Set<Property> properties;
-    private final boolean escCompliant;
+    private final boolean ecsCompliant;
 
     public SetSecurityUserProcessor(String tag, SecurityContext securityContext, XPackLicenseState licenseState, String field,
                                     Set<Property> properties, boolean ecsCompliant) {
@@ -62,7 +62,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         }
         this.field = field;
         this.properties = properties;
-        this.escCompliant = ecsCompliant;
+        this.ecsCompliant = ecsCompliant;
     }
 
     @Override
@@ -99,7 +99,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             switch (property) {
                 case USERNAME:
                     if (user.principal() != null) {
-                        if (escCompliant) {
+                        if (ecsCompliant) {
                             userObject.put("name", user.principal());
                         } else {
                             userObject.put("username", user.principal());
@@ -189,8 +189,8 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         return properties;
     }
 
-    boolean isEscCompliant() {
-        return escCompliant;
+    boolean isEcsCompliant() {
+        return ecsCompliant;
     }
 
     public static final class Factory implements Processor.Factory {

@@ -175,7 +175,13 @@ public class ClusterStateChanges {
                     //noinspection unchecked
                     return ((CheckedFunction) invocationOnMock.getArguments()[1]).apply(indexService);
                 });
-        } catch (IOException e) {
+        } catch (Exception e) {
+            /*
+             * Catch Exception because Eclipse uses the lower bound for
+             * CheckedFunction's exception type so it thinks the "when" call
+             * can throw Exception. javac seems to be ok inferring something
+             * else.
+             */
             throw new IllegalStateException(e);
         }
 

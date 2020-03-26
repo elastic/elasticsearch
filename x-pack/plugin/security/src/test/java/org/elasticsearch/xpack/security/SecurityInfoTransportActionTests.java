@@ -39,13 +39,10 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class SecurityInfoTransportActionTests extends ESTestCase {
 
@@ -93,7 +90,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     public void testUsage() throws Exception {
         final boolean authcAuthzAvailable = randomBoolean();
         final boolean explicitlyDisabled = randomBoolean();
-        final boolean enabled = explicitlyDisabled == false || randomBoolean();
+        final boolean enabled = explicitlyDisabled == false && randomBoolean();
         when(licenseState.isSecurityAvailable()).thenReturn(authcAuthzAvailable);
         when(licenseState.isSecurityEnabled()).thenReturn(enabled);
 

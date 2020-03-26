@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -45,6 +47,9 @@ import java.util.stream.Collectors;
  * configuration.
  */
 public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotingConfigExclusionsRequest> {
+    public static final String DEPRECATION_MESSAGE = "nodeDescription is deprecated and will be removed, use nodeIds or nodeNames instead";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+                                                                        LogManager.getLogger(AddVotingConfigExclusionsRequest.class));
     private final String[] nodeDescriptions;
     private final String[] nodeIds;
     private final String[] nodeNames;
@@ -75,6 +80,10 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
                 "One and only one of [node_name], [node_names] and [node_ids] has to be set");
         }
 
+        if (nodeDescriptions.length > 0) {
+            deprecationLogger.deprecatedAndMaybeLog("voting_config_exclusion", DEPRECATION_MESSAGE);
+        }
+
         this.nodeDescriptions = nodeDescriptions;
         this.nodeIds = nodeIds;
         this.nodeNames = nodeNames;
@@ -83,7 +92,6 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
 
     public AddVotingConfigExclusionsRequest(StreamInput in) throws IOException {
         super(in);
-        // TODO should this be removed in the latest version where nodeIds and nodeNames are used?
         nodeDescriptions = in.readStringArray();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             nodeIds = in.readStringArray();
@@ -94,6 +102,12 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
             nodeNames = Strings.EMPTY_ARRAY;
         }
         timeout = in.readTimeValue();
+
+        if (nodeDescriptions.length > 0) {
+            deprecationLogger.deprecatedAndMaybeLog("voting_config_exclusion",
+                "nodeDescription is deprecated and will be removed, use nodeIds or nodeNames instead");
+        }
+
     }
 
     Set<VotingConfigExclusion> resolveVotingConfigExclusions(ClusterState currentState) {
@@ -177,23 +191,15 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     }
 
     private boolean noneOrMoreThanOneIsSet(String[] deprecatedNodeDescription, String[] nodeIds, String[] nodeNames) {
-        if(arrayHasElement(deprecatedNodeDescription)) {
-            return arrayHasElement(nodeIds) || arrayHasElement(nodeNames);
+        if(deprecatedNodeDescription.length > 0) {
+            return nodeIds.length > 0 || nodeNames.length > 0;
         }
-        else if (arrayHasElement(nodeIds)) {
-            return arrayHasElement(nodeNames);
-        }
-        else if (arrayHasElement(nodeNames)) {
-            return false;
+        else if (nodeIds.length > 0) {
+            return nodeNames.length > 0;
         }
         else {
-            // none of the node identifiers are set
-            return true;
+            return nodeNames.length > 0 == false;
         }
-    }
-
-    private boolean arrayHasElement(String[] array) {
-        return array != null && array.length > 0;
     }
 
     /**
@@ -232,7 +238,6 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // TODO should this be removed in the latest version where nodeIds and nodeNames are used?
         out.writeStringArray(nodeDescriptions);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeStringArray(nodeIds);

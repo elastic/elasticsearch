@@ -19,6 +19,7 @@
 package org.elasticsearch.test.test;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -280,6 +281,8 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
+
+        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
     private Path[] getNodePaths(InternalTestCluster cluster, String name) {
@@ -408,6 +411,7 @@ public class InternalTestClusterTests extends ESTestCase {
             }
         } finally {
             cluster.close();
+            assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
         }
     }
 

@@ -53,6 +53,7 @@ public class RestAddVotingConfigExclusionActionTests extends RestActionTestCase 
         assertArrayEquals(expected, addVotingConfigExclusionsRequest.getNodeDescriptions());
         assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeIds());
         assertArrayEquals(Strings.EMPTY_ARRAY, addVotingConfigExclusionsRequest.getNodeNames());
+        assertWarnings("nodeDescription is deprecated and will be removed, use nodeIds or nodeNames instead");
     }
 
     public void testResolveVotingConfigExclusionsRequestNodeIds() {

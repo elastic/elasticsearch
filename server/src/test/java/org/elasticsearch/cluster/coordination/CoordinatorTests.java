@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigu
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
@@ -58,7 +59,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
@@ -1437,9 +1437,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             ClusterState newState1 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion1);
 
             synchronized (coordinator.mutex) {
-                AssertionError error = expectThrows(AssertionError.class, () -> coordinator.improveConfiguration(newState1));
-                assertEquals("Voting Config Exclusion in invalid state. Exclusions may not be processed correctly",
-                                error.getMessage());
+                expectThrows(AssertionError.class, () -> coordinator.improveConfiguration(newState1));
             }
 
             Set<CoordinationMetaData.VotingConfigExclusion> newVotingConfigExclusion2 = new HashSet<>(){{
@@ -1447,12 +1445,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                                                     "resolvableNodeName"));
             }};
 
-            ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion1);
+            ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion2);
 
             synchronized (coordinator.mutex) {
-                AssertionError error = expectThrows(AssertionError.class, () -> coordinator.improveConfiguration(newState2));
-                assertEquals("Voting Config Exclusion in invalid state. Exclusions may not be processed correctly",
-                                error.getMessage());
+                expectThrows(AssertionError.class, () -> coordinator.improveConfiguration(newState2));
             }
         }
     }
@@ -1461,7 +1457,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                                                 Set<CoordinationMetaData.VotingConfigExclusion> newVotingConfigExclusion) {
         DiscoveryNodes newNodes = DiscoveryNodes.builder(currentState.nodes())
                                         .add(new DiscoveryNode("resolvableNodeName", "resolvableNodeId", buildNewFakeTransportAddress(),
-                                                                emptyMap(), emptySet(), Version.CURRENT)).build();
+                                                                emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT))
+                                                    .build();
 
         CoordinationMetaData.Builder coordMetaDataBuilder = CoordinationMetaData.builder(currentState.coordinationMetaData());
         newVotingConfigExclusion.forEach(coordMetaDataBuilder::addVotingConfigExclusion);

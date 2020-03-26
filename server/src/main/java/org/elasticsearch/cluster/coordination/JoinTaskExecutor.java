@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 
 import java.util.ArrayList;
@@ -148,9 +149,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     nodesChanged = true;
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                     maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
-                    // TODO do we need to check node.isMasterNode here for eligibility? I think since in the checks later master
-                    // eligibility will be taken into account anyway, here we may not need the check?
-                    joiniedNodeNameIds.put(node.getName(), node.getId());
+                    if(node.isMasterNode()) {
+                        joiniedNodeNameIds.put(node.getName(), node.getId());
+                    }
                 } catch (IllegalArgumentException | IllegalStateException e) {
                     results.failure(joinTask, e);
                     continue;
@@ -177,14 +178,19 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                         }
                     }).collect(Collectors.toSet());
 
-                CoordinationMetaData.Builder coordMetaDataBuilder = CoordinationMetaData.builder(currentState.coordinationMetaData())
-                    .clearVotingConfigExclusions();
-                newVotingConfigExclusions.forEach(coordMetaDataBuilder::addVotingConfigExclusion);
-                MetaData newMetaData = MetaData.builder(currentState.metaData()).coordinationMetaData(coordMetaDataBuilder.build()).build();
-                return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).metaData(newMetaData).build()));
-            } else {
-                return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build()));
+                // if VotingConfigExclusions did get updated
+                if (Sets.difference(currentVotingConfigExclusions, newVotingConfigExclusions).isEmpty() == false) {
+                    CoordinationMetaData.Builder coordMetaDataBuilder = CoordinationMetaData.builder(currentState.coordinationMetaData())
+                        .clearVotingConfigExclusions();
+                    newVotingConfigExclusions.forEach(coordMetaDataBuilder::addVotingConfigExclusion);
+                    MetaData newMetaData = MetaData.builder(currentState.metaData())
+                                                    .coordinationMetaData(coordMetaDataBuilder.build()).build();
+                    return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder)
+                                                                                            .metaData(newMetaData).build()));
+                }
             }
+
+            return results.build(allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build()));
         } else {
             // we must return a new cluster state instance to force publishing. This is important
             // for the joining node to finalize its join and set us as a master

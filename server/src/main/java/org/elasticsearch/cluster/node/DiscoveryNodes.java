@@ -337,7 +337,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return StreamSupport.stream(this.spliterator(), false).map(DiscoveryNode::getId).toArray(String[]::new);
         } else {
             ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodes.length);
-
             for (String nodeId : nodes) {
                 if (nodeId.equals("_local")) {
                     String localNodeId = getLocalNodeId();
@@ -354,9 +353,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 } else {
                     for (DiscoveryNode node : this) {
                         if ("_all".equals(nodeId)
-                            || Regex.simpleMatch(nodeId, node.getName())
-                            || Regex.simpleMatch(nodeId, node.getHostAddress())
-                            || Regex.simpleMatch(nodeId, node.getHostName())) {
+                                || Regex.simpleMatch(nodeId, node.getName())
+                                || Regex.simpleMatch(nodeId, node.getHostAddress())
+                                || Regex.simpleMatch(nodeId, node.getHostName())) {
                             resolvedNodesIds.add(node.getId());
                         }
                     }

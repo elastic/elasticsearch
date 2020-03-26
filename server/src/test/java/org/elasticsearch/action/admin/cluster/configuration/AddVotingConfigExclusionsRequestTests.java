@@ -54,10 +54,10 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
             AddVotingConfigExclusionsRequest::new);
         assertThat(deserialized.getNodeDescriptions(), equalTo(originalRequest.getNodeDescriptions()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
+        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
     public void testSerializationForNodeIdOrNodeName() throws IOException {
-        // TODO still need adjustment for version? copyWriteable uses Version.CURRENT
         AddVotingConfigExclusionsRequest originalRequest = new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY,
                                         new String[]{"nodeId1", "nodeId2"}, Strings.EMPTY_ARRAY, TimeValue.ZERO);
         AddVotingConfigExclusionsRequest deserialized = copyWriteable(originalRequest, writableRegistry(),
@@ -68,7 +68,6 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         assertThat(deserialized.getNodeNames(), equalTo(originalRequest.getNodeNames()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
 
-        // TODO still need adjustment for version? copyWriteable uses Version.CURRENT
         originalRequest = new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY, new String[]{"nodeName1", "nodeName2"}, TimeValue.ZERO);
         deserialized = copyWriteable(originalRequest, writableRegistry(),
@@ -112,23 +111,19 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
             .add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode).localNodeId(localNode.getId())).build();
 
         assertThat(makeRequest("_all").resolveVotingConfigExclusions(clusterState),
-        containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion));
+                containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion));
         assertThat(makeRequest("_local").resolveVotingConfigExclusions(clusterState),
-            contains(localNodeExclusion));
+                contains(localNodeExclusion));
         assertThat(makeRequest("other*").resolveVotingConfigExclusions(clusterState),
-            containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
+                containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
 
         assertThat(expectThrows(IllegalArgumentException.class,
             () -> makeRequest("not-a-node").resolveVotingConfigExclusions(clusterState)).getMessage(),
             equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes"));
+        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
     public void testResolveAllNodeIdentifiersNullOrEmpty() {
-        assertThat(expectThrows(IllegalArgumentException.class,
-            () -> new AddVotingConfigExclusionsRequest(null, null, null, TimeValue.ZERO)).getMessage(),
-            equalTo("Please set node identifiers correctly. " +
-                "One and only one of [node_name], [node_names] and [node_ids] has to be set"));
-
         assertThat(expectThrows(IllegalArgumentException.class,
             () -> new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, TimeValue.ZERO))
                 .getMessage(), equalTo("Please set node identifiers correctly. " +
@@ -328,6 +323,7 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
             () -> makeRequest("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 1, "setting.name")).getMessage(),
             equalTo("add voting config exclusions request for [_local] would add [1] exclusions to the existing [1] which would " +
                 "exceed the maximum of [1] set by [setting.name]"));
+        assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
     private static AddVotingConfigExclusionsRequest makeRequest(String... descriptions) {

@@ -868,8 +868,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // Package-private for testing
     ClusterState improveConfiguration(ClusterState clusterState) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        assert validVotingConfigExclusionState(clusterState) : "Voting Config Exclusion in invalid state. " +
-            "Exclusions may not be processed correctly";
+        assert validVotingConfigExclusionState(clusterState) : clusterState;
 
         // exclude any nodes whose ID is in the voting config exclusions list ...
         final Stream<String> excludedNodeIds = clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId);
@@ -913,9 +912,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                                 .map(VotingConfigExclusion::getNodeId)
                                                 .collect(Collectors.toSet());
         for (DiscoveryNode node : clusterState.getNodes()) {
-            // TODO should this check be applied to master-eligible nodes only?
-            if(nodeIdsWithAbsentName.contains(node.getId()) || nodeNamesWithAbsentId.contains(node.getName())) {
-                return false;
+            if (node.isMasterNode() &&
+                (nodeIdsWithAbsentName.contains(node.getId()) || nodeNamesWithAbsentId.contains(node.getName()))) {
+                    return false;
             }
         }
 

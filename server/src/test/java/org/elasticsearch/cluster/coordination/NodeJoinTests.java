@@ -304,7 +304,8 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
     }
 
-    public void testJoinWithHigherTermButBetterStateStillElectsMasterThroughSelfJoin() { DiscoveryNode node0 = newNode(0, true);
+    public void testJoinWithHigherTermButBetterStateStillElectsMasterThroughSelfJoin() {
+        DiscoveryNode node0 = newNode(0, true);
         DiscoveryNode node1 = newNode(1, true);
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);

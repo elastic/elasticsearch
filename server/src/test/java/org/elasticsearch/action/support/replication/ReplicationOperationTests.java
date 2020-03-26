@@ -46,7 +46,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;

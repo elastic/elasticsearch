@@ -87,7 +87,7 @@ public class StatsResponseTests extends AbstractResponseTestCase<EnrichStatsActi
         String action = randomAlphaOfLength(5);
         String description = randomAlphaOfLength(5);
         long startTime = randomLong();
-        long runningTimeNanos = randomLong();
+        long runningTimeNanos = randomNonNegativeLong();
         boolean cancellable = randomBoolean();
         TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
         Map<String, String> headers = randomBoolean() ?

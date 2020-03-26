@@ -26,6 +26,7 @@ POST _search?typed_keys
 }
 --------------------------------------------------
 // TEST[setup:twitter]
+// TEST[skip:awaits fix of https://github.com/elastic/elasticsearch/issues/54257]
 
 In the response, the suggester names will be changed to respectively `term#my-first-suggester` and
 `phrase#my-second-suggester`, reflecting the types of each suggestion:

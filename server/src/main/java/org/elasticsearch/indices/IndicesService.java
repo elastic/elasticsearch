@@ -139,6 +139,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -580,7 +581,7 @@ public class IndicesService extends AbstractLifecycleComponent
         if (hasIndex(index)) {
             throw new ResourceAlreadyExistsException(index);
         }
-        List<IndexEventListener> finalListeners = List.of(
+        List<IndexEventListener> finalListeners = Collections.singletonList(
             // double check that shard is not created.
             new IndexEventListener() {
                 @Override

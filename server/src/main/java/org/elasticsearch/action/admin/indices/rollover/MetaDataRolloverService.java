@@ -36,6 +36,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -146,13 +148,13 @@ public class MetaDataRolloverService {
     static List<AliasAction> rolloverAliasToNewIndex(String oldIndex, String newIndex, boolean explicitWriteIndex,
                                                      @Nullable Boolean isHidden, String alias) {
         if (explicitWriteIndex) {
-            return List.of(
+            return Collections.unmodifiableList(Arrays.asList(
                 new AliasAction.Add(newIndex, alias, null, null, null, true, isHidden),
-                new AliasAction.Add(oldIndex, alias, null, null, null, false, isHidden));
+                new AliasAction.Add(oldIndex, alias, null, null, null, false, isHidden)));
         } else {
-            return List.of(
+            return Collections.unmodifiableList(Arrays.asList(
                 new AliasAction.Add(newIndex, alias, null, null, null, null, isHidden),
-                new AliasAction.Remove(oldIndex, alias));
+                new AliasAction.Remove(oldIndex, alias)));
         }
     }
 

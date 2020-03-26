@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 
 import java.io.IOException;
@@ -37,8 +38,11 @@ public class LengthFunctionProcessor implements Processor {
     }
 
     public static Object doProcess(Object source) {
-        if (source == null || (source instanceof String == false && source instanceof Character == false)) {
-            return Integer.valueOf(0);
+        if (source == null) {
+            return null;
+        }
+        if (source instanceof String == false && source instanceof Character == false) {
+            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", source);
         }
 
         return source.toString().length();

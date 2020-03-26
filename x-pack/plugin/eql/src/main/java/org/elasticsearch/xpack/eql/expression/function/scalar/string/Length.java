@@ -25,7 +25,7 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor.doProcess;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isExact;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
@@ -46,12 +46,8 @@ public class Length extends ScalarFunction {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-
-        if (DataTypes.isString(source.dataType())) {
-            return isExact(source, sourceText(), ParamOrdinal.DEFAULT);
-        }
         
-        return TypeResolution.TYPE_RESOLVED;
+        return isStringAndExact(source, sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

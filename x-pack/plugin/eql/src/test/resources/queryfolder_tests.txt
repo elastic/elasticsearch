@@ -87,13 +87,6 @@ InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),par
 "params":{"v0":"constant_keyword","v1":5}
 
 
-lengthFunctionWithLongField
-process where length(opcode) != 0
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.neq(
-InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
-"params":{"v0":"opcode","v1":0}
-
-
 substringFunction
 process where substring(file_name, -4) == '.exe'
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(

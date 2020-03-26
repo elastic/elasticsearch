@@ -7,29 +7,35 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.LiteralTests;
 
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.hamcrest.Matchers.startsWith;
 
 public class LengthProcessorTests extends ESTestCase {
 
     public void testLengthFunctionWithValidInput() {
         assertEquals(9, new Length(EMPTY, l("foobarbar")).makePipe().asProcessor().process(null));
         assertEquals(0, new Length(EMPTY, l("")).makePipe().asProcessor().process(null));
-        assertEquals(0, new Length(EMPTY, l(12)).makePipe().asProcessor().process(null));
-        assertEquals(0, new Length(EMPTY, l(true)).makePipe().asProcessor().process(null));
-        assertEquals(0, new Length(EMPTY, l(0.1f)).makePipe().asProcessor().process(null));
-        assertEquals(0, new Length(EMPTY, l("", IP)).makePipe().asProcessor().process(null));
-        assertEquals(0, new Length(EMPTY, l("", DATETIME)).makePipe().asProcessor().process(null));
+        assertEquals(1, new Length(EMPTY, l('f')).makePipe().asProcessor().process(null));
     }
     
-    public void testLengthFunctionWithRandomDataType() {
+    public void testLengthFunctionInputsValidation() {
+        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
+                () -> new Length(EMPTY, l(5)).makePipe().asProcessor().process(null));
+        assertEquals("A string/char is required; received [5]", siae.getMessage());
+        siae = expectThrows(QlIllegalArgumentException.class, () -> new Length(EMPTY, l(true)).makePipe().asProcessor().process(null));
+        assertEquals("A string/char is required; received [true]", siae.getMessage());
+    }
+
+    public void testLengthFunctionWithRandomInvalidDataType() {
         Literal literal = randomValueOtherThanMany(v -> v.dataType() == KEYWORD, () -> LiteralTests.randomLiteral());
-        assertEquals(0, new Length(EMPTY, literal).makePipe().asProcessor().process(null));
+        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
+                () -> new Length(EMPTY, literal).makePipe().asProcessor().process(null));
+        assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
     }
 }

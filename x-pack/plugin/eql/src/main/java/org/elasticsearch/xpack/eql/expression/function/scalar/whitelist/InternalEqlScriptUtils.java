@@ -19,8 +19,8 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     InternalEqlScriptUtils() {}
 
-    public static Integer length(Object o) {
-        return (Integer) LengthFunctionProcessor.doProcess(o);
+    public static Integer length(String s) {
+        return (Integer) LengthFunctionProcessor.doProcess(s);
     }
 
     public static String substring(String s, Number start, Number end) {

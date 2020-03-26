@@ -140,7 +140,7 @@ public final class RemoteClusterLicenseChecker {
 
     public static boolean isAllowedByLicense(final XPackInfoResponse.LicenseInfo licenseInfo) {
         final License.OperationMode mode = License.OperationMode.parse(licenseInfo.getMode());
-        return XPackLicenseState.isAllowedByOperationMode(mode, License.OperationMode.PLATINUM, true);
+        return XPackLicenseState.isAllowedByOperationMode(mode, License.OperationMode.PLATINUM);
     }
 
     /**

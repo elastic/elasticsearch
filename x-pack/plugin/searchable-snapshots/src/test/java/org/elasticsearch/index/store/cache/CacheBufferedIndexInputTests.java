@@ -20,11 +20,13 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
+import java.io.EOFException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
@@ -81,6 +83,52 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
         }
     }
 
+    public void testThrowsEOFException() throws IOException {
+        try (CacheService cacheService = createCacheService(random())) {
+            cacheService.start();
+
+            SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
+            IndexId indexId = new IndexId("_name", "_uuid");
+            ShardId shardId = new ShardId("_name", "_uuid", 0);
+
+            final String fileName = randomAlphaOfLength(10);
+            final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
+
+            final String blobName = randomUnicodeOfLength(10);
+            final StoreFileMetaData metaData = new StoreFileMetaData(fileName, input.length + 1, "_na", Version.CURRENT.luceneVersion);
+            final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L,
+                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metaData, new ByteSizeValue(input.length + 1))), 0L, 0L, 0, 0L);
+
+            final BlobContainer blobContainer = singleBlobContainer(blobName, input);
+
+            final Path cacheDir = createTempDir();
+            try (SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory( blobContainer, snapshot,
+                    snapshotId, indexId, shardId, Settings.EMPTY, () -> 0L, cacheService, cacheDir)) {
+                try (IndexInput indexInput = searchableSnapshotDirectory.openInput(fileName, newIOContext(random()))) {
+                    final byte[] buffer = new byte[input.length + 1];
+                    final IOException exception = expectThrows(IOException.class, () -> indexInput.readBytes(buffer, 0, buffer.length));
+                    if (containsEOFException(exception, new HashSet<>()) == false) {
+                        throw new AssertionError("inner EOFException not thrown", exception);
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean containsEOFException(Throwable throwable, HashSet<Throwable> seenThrowables) {
+        if (throwable == null || seenThrowables.add(throwable) == false) {
+            return false;
+        }
+        if (throwable instanceof EOFException) {
+            return true;
+        }
+        for (Throwable suppressed : throwable.getSuppressed()) {
+            if (containsEOFException(suppressed, seenThrowables)) {
+                return true;
+            }
+        }
+        return containsEOFException(throwable.getCause(), seenThrowables);
+    }
 
     /**
      * BlobContainer that counts the number of {@link java.io.InputStream} it opens, as well as the

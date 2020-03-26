@@ -1370,7 +1370,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 logger.debug(() -> new ParameterizedMessage("Snapshot [{}] was aborted during INIT", snapshot), e);
                                 listener.onResponse(null);
                             } else {
-                                logger.warn("deleted snapshot failed - deleting files", e);
+                                logger.warn("deleted snapshot failed", e);
                                 listener.onFailure(
                                     new SnapshotMissingException(snapshot.getRepository(), snapshot.getSnapshotId(), e));
                             }

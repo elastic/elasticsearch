@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
@@ -80,7 +79,7 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
     }
 
     @Override
-    protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        return new InternalExtendedStatsBucket(name(), count, sum, min, max, sumOfSqrs, sigma, format, pipelineAggregators, metadata);
+    protected InternalAggregation buildAggregation(Map<String, Object> metadata) {
+        return new InternalExtendedStatsBucket(name(), count, sum, min, max, sumOfSqrs, sigma, format, metadata);
     }
 }

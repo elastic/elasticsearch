@@ -130,7 +130,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         }
 
         return new SignificantStringTerms( name, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), pipelineAggregators(),
+                bucketCountThresholds.getMinDocCount(),
                 metaData(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
     }
 
@@ -141,7 +141,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, 0, supersetSize, significanceHeuristic, emptyList());
+                metaData(), format, 0, supersetSize, significanceHeuristic, emptyList());
     }
 
     @Override

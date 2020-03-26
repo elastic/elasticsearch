@@ -153,11 +153,25 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      *
      * @param name The name of the aggregation.
      */
+    protected InternalAggregation(String name, Map<String, Object> metaData) {
+        this.name = name;
+        this.pipelineAggregators = emptyList();
+        this.metaData = metaData;
+    }
+
+    /**
+     * Constructs an aggregation result with a given name.
+     *
+     * @param name The name of the aggregation.
+     * @deprecated pipelines are being removed from the aggregation tree. Use the other ctor.
+     */
+    @Deprecated
     protected InternalAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         this.name = name;
         this.pipelineAggregators = pipelineAggregators;
         this.metaData = metaData;
     }
+
 
     /**
      * Read from a stream.

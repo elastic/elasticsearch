@@ -212,7 +212,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
         final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), pipelineAggregators, metaData);
+                bucketCountThresholds.getMinDocCount(), metaData);
         Aggregator agg = new NonCollectingAggregator(name, searchContext, parent, factories, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {

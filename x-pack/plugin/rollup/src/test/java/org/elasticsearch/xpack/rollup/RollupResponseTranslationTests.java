@@ -335,7 +335,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         SearchResponse responseWithout = mock(SearchResponse.class);
         List<InternalAggregation> aggTreeWithoutFilter = new ArrayList<>(1);
-        InternalMax max = new InternalMax("filter_foo", 0, DocValueFormat.RAW, Collections.emptyList(), null);
+        InternalMax max = new InternalMax("filter_foo", 0, DocValueFormat.RAW, null);
         aggTreeWithoutFilter.add(max);
         Aggregations mockAggsWithout = new InternalAggregations(aggTreeWithoutFilter);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
@@ -357,7 +357,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         SearchResponse protoResponse = mock(SearchResponse.class);
         when(protoResponse.getTook()).thenReturn(new TimeValue(100));
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
-        InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, Collections.emptyList(), null);
+        InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, null);
         protoAggTree.add(internalAvg);
         Aggregations protoMockAggs = new InternalAggregations(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);

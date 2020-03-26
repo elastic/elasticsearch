@@ -95,8 +95,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         };
     }
 
-    abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                                              List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+    abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metaData);
 
     /**
      * This method is used to return a re-usable instance of the bucket when building
@@ -132,12 +131,12 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return buildAggregation(name, requiredSize, Arrays.asList(list), pipelineAggregators(), metaData());
+        return buildAggregation(name, requiredSize, Arrays.asList(list), metaData());
     }
 
     @Override
     public InternalGeoGrid buildEmptyAggregation() {
-        return buildAggregation(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
+        return buildAggregation(name, requiredSize, Collections.emptyList(), metaData());
     }
 
     @Override

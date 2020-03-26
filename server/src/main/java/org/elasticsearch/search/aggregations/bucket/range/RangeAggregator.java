@@ -338,7 +338,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, format, keyed, pipelineAggregators(), metaData());
+        return rangeFactory.create(name, buckets, format, keyed, metaData());
     }
 
     @Override
@@ -352,7 +352,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, format, keyed, pipelineAggregators(), metaData());
+        return rangeFactory.create(name, buckets, format, keyed, metaData());
     }
 
     public static class Unmapped<R extends RangeAggregator.Range> extends NonCollectingAggregator {
@@ -380,7 +380,7 @@ public class RangeAggregator extends BucketsAggregator {
             for (RangeAggregator.Range range : ranges) {
                 buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, format));
             }
-            return factory.create(name, buckets, format, keyed, pipelineAggregators(), metaData());
+            return factory.create(name, buckets, format, keyed, metaData());
         }
     }
 

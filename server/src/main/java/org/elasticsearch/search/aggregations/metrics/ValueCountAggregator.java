@@ -90,12 +90,12 @@ class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalValueCount(name, counts.get(bucket), pipelineAggregators(), metaData());
+        return new InternalValueCount(name, counts.get(bucket), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0L, pipelineAggregators(), metaData());
+        return new InternalValueCount(name, 0L, metaData());
     }
 
     @Override

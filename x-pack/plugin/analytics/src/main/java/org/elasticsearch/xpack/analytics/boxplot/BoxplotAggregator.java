@@ -131,7 +131,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalBoxplot(name, state, format, pipelineAggregators(), metaData());
+            return new InternalBoxplot(name, state, format, metaData());
         }
     }
 
@@ -144,7 +144,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalBoxplot(name, new TDigestState(compression), format, pipelineAggregators(), metaData());
+        return new InternalBoxplot(name, new TDigestState(compression), format, metaData());
     }
 
     @Override

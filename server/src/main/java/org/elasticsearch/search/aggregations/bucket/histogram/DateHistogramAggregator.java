@@ -148,8 +148,8 @@ class DateHistogramAggregator extends BucketsAggregator {
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
                 : null;
-        return new InternalDateHistogram(name, buckets, order, minDocCount, rounding.offset(), emptyBucketInfo, formatter, keyed,
-                pipelineAggregators(), metaData());
+        return new InternalDateHistogram(name, buckets, order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
+                keyed, metaData());
     }
 
     @Override
@@ -158,7 +158,7 @@ class DateHistogramAggregator extends BucketsAggregator {
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
                 : null;
         return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
-                keyed, pipelineAggregators(), metaData());
+                keyed, metaData());
     }
 
     @Override

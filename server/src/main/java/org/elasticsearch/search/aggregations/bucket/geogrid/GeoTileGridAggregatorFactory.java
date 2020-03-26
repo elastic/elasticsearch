@@ -65,8 +65,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize,
-                Collections.emptyList(), pipelineAggregators, metaData);
+        final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metaData);
         return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {

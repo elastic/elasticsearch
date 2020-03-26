@@ -39,9 +39,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyList;
 
 public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
 
@@ -66,8 +67,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metaData) throws IOException {
-        final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize,
-                Collections.emptyList(), pipelineAggregators, metaData);
+        final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, emptyList(), metaData);
         return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {
             @Override
             public InternalAggregation buildEmptyAggregation() {

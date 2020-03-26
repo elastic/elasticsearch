@@ -734,7 +734,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse protoResponse = mock(SearchResponse.class);
         when(protoResponse.getTook()).thenReturn(new TimeValue(100));
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
-        InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, emptyList(), null);
+        InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, null);
         protoAggTree.add(internalAvg);
         Aggregations protoMockAggs = new InternalAggregations(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);

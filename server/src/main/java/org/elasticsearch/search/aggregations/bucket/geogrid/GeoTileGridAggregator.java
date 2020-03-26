@@ -44,13 +44,13 @@ public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid
 
     @Override
     InternalGeoTileGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalGeoTileGrid(name, requiredSize, buckets, pipelineAggregators, metaData);
+                                         Map<String, Object> metaData) {
+        return new InternalGeoTileGrid(name, requiredSize, buckets, metaData);
     }
 
     @Override
     public InternalGeoTileGrid buildEmptyAggregation() {
-        return new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
+        return new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metaData());
     }
 
     InternalGeoGridBucket newEmptyBucket() {

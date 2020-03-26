@@ -117,12 +117,12 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), format, pipelineAggregators(), metaData());
+        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), format, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalAvg(name, 0.0, 0L, format, pipelineAggregators(), metaData());
+        return new InternalAvg(name, 0.0, 0L, format, metaData());
     }
 
     @Override

@@ -36,6 +36,14 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             B extends InternalMultiBucketAggregation.InternalBucket>
         extends InternalAggregation implements MultiBucketsAggregation {
 
+    public InternalMultiBucketAggregation(String name, Map<String, Object> metaData) {
+        super(name, metaData);
+    }
+
+    /**
+     * @deprecated being removed
+     */
+    @Deprecated
     public InternalMultiBucketAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
     }
@@ -145,7 +153,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     }
 
     /**
-     * Amulti-bucket agg needs to first reduce the buckets and *their* pipelines
+     * A multi-bucket agg needs to first reduce the buckets and *their* pipelines
      * before allowing sibling pipelines to materialize.
      */
     @Override

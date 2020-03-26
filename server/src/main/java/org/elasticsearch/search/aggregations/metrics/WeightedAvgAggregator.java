@@ -140,12 +140,12 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSources == null || bucket >= valueSums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalWeightedAvg(name, valueSums.get(bucket), weights.get(bucket), format, pipelineAggregators(), metaData());
+        return new InternalWeightedAvg(name, valueSums.get(bucket), weights.get(bucket), format, metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalWeightedAvg(name, 0.0, 0L, format, pipelineAggregators(), metaData());
+        return new InternalWeightedAvg(name, 0.0, 0L, format, metaData());
     }
 
     @Override

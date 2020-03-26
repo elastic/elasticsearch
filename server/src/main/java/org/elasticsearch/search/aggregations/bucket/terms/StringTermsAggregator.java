@@ -176,7 +176,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         }
 
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
+                metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
                 Arrays.asList(list), 0);
     }
 

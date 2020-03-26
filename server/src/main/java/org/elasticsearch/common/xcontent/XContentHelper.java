@@ -383,4 +383,58 @@ public class XContentHelper {
         BytesRef br = bytes.toBytesRef();
         return XContentFactory.xContentType(br.bytes, br.offset, br.length);
     }
+
+    /**
+     * Returns the contents of an object as an unparsed BytesReference
+     *
+     * This is useful for things like mappings where we're copying bytes around but don't
+     * actually need to parse their contents, and so avoids building large maps of maps
+     * unnecessarily
+     */
+    public static BytesReference childBytes(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+        int depth = 0;
+        do {
+            switch (parser.nextToken()) {
+                case START_OBJECT:
+                    depth++;
+                    builder.startObject();
+                    break;
+                case END_OBJECT:
+                    depth--;
+                    builder.endObject();
+                    break;
+                case START_ARRAY:
+                    builder.startArray();
+                    break;
+                case END_ARRAY:
+                    builder.endArray();
+                    break;
+                case FIELD_NAME:
+                    builder.field(parser.currentName());
+                    break;
+                case VALUE_STRING:
+                    builder.value(parser.text());
+                    break;
+                case VALUE_NUMBER:
+                    builder.value(parser.numberValue());
+                    break;
+                case VALUE_BOOLEAN:
+                    builder.value(parser.booleanValue());
+                    break;
+                case VALUE_EMBEDDED_OBJECT:
+                    builder.value(parser.binaryValue());
+                    break;
+                case VALUE_NULL:
+                    builder.nullValue();
+                    break;
+                default:
+                    throw new XContentParseException(parser.getTokenLocation(), "Unknown token type [" + parser.currentToken() + "]");
+            }
+        } while (depth > 0);
+        return BytesReference.bytes(builder);
+    }
 }

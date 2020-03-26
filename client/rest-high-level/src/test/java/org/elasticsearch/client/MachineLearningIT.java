@@ -1508,7 +1508,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setAnalysis(OutlierDetection.createDefault())
             .build();
 
-        PutDataFrameAnalyticsResponse putConfigResponse = execute(
+        execute(
             new PutDataFrameAnalyticsRequest(config),
             machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
 

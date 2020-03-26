@@ -44,6 +44,20 @@ import java.util.Iterator;
 
 public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
 
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new PercentileRanksAggregationBuilder("hdr_ranks", new double[]{0.1, 0.5, 12})
+            .field(fieldName)
+            .percentilesConfig(new PercentilesConfig.Hdr());
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN);
+    }
+
     public void testEmpty() throws IOException {
         PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[]{0.5})
                 .field("field")

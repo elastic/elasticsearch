@@ -61,15 +61,12 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
@@ -89,10 +86,12 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
@@ -103,6 +102,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -133,6 +133,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
+    protected static ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
     private static List<String> TYPE_TEST_BLACKLIST;
@@ -166,6 +167,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
             when(mapperService.fieldType(fieldName)).thenReturn(fieldType);
             when(searchContext.smartNameFieldType(fieldName)).thenReturn(fieldType);
         }
+    }
+
+    @BeforeClass
+    public static void initValuesSourceRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+        valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
@@ -340,7 +347,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return new QueryShardContext(0, indexSettings, bigArrays, null,
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
-            writableRegistry(), null, searcher, System::currentTimeMillis, null, null, () -> true);
+            writableRegistry(), null, searcher, System::currentTimeMillis, null, null, () -> true,
+            valuesSourceRegistry);
     }
 
     /**
@@ -613,9 +621,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         if (supportedVSTypes.isEmpty()) {
             // If the test says it doesn't support any VStypes, it has not been converted yet so skip
             return;
-        } else if (supportedVSTypes.contains(CoreValuesSourceType.ANY)) {
-            throw new IllegalArgumentException("Tests should not specify CoreValuesSourceType.ANY as a supported ValuesSourceType, " +
-                "but should instead list the concrete ValuesSourceTypes that are supported");
         }
 
         for (Map.Entry<String, Mapper.TypeParser> mappedType : mapperRegistry.getMapperParsers().entrySet()) {
@@ -674,27 +679,55 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     private void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
 
-        if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.NUMERIC)) {
-            // TODO note: once VS refactor adds DATE/BOOLEAN, this conditional will go away
-            if (fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE)
-                || fieldType.typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
-                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomNonNegativeLong())));
-            } else if (fieldType.typeName().equals(BooleanFieldMapper.CONTENT_TYPE)) {
-                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomBoolean() ? 0 : 1)));
+        String typeName = fieldType.typeName();
+        ValuesSourceType vst = fieldType.getValuesSourceType();
+        Document doc = new Document();
+        String json;
+
+
+        if (vst.equals(CoreValuesSourceType.NUMERIC)) {
+            long v;
+            if (typeName.equals(NumberFieldMapper.NumberType.DOUBLE.typeName())) {
+                double d = Math.abs(randomDouble());
+                v = NumericUtils.doubleToSortableLong(d);
+                json = "{ \"" + fieldName + "\" : \"" + d + "\" }";
+            } else if (typeName.equals(NumberFieldMapper.NumberType.FLOAT.typeName())) {
+                float f = Math.abs(randomFloat());
+                v = NumericUtils.floatToSortableInt(f);
+                json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
+            } else if (typeName.equals(NumberFieldMapper.NumberType.HALF_FLOAT.typeName())) {
+                float f = Math.abs(randomFloat());
+                v = HalfFloatPoint.halfFloatToSortableShort(f);
+                json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else {
-                iw.addDocument(singleton(new SortedNumericDocValuesField(fieldName, randomLong())));
+                v = randomLong();
+                json = "{ \"" + fieldName + "\" : \"" + v + "\" }";
             }
-        } else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.BYTES)) {
-            if (fieldType.typeName().equals(BinaryFieldMapper.CONTENT_TYPE)) {
-                iw.addDocument(singleton(new BinaryFieldMapper.CustomBinaryDocValuesField(fieldName, new BytesRef("a").bytes)));
-            } else if (fieldType.typeName().equals(IpFieldMapper.CONTENT_TYPE)) {
-                // TODO note: once VS refactor adds IP, this conditional will go away
-                boolean v4 = randomBoolean();
-                iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
+            doc.add(new SortedNumericDocValuesField(fieldName, v));
+
+        } else if (vst.equals(CoreValuesSourceType.BYTES)) {
+            if (typeName.equals(BinaryFieldMapper.CONTENT_TYPE)) {
+                doc.add(new BinaryFieldMapper.CustomBinaryDocValuesField(fieldName, new BytesRef("a").bytes));
+                json = "{ \"" + fieldName + "\" : \"a\" }";
             } else {
                 iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef("a"))));
             }
-        } else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.RANGE)) {
+        } else if (vst.equals(CoreValuesSourceType.DATE)) {
+            // positive integer because date_nanos gets unhappy with large longs
+            long v;
+            v = Math.abs(randomInt());
+            doc.add(new SortedNumericDocValuesField(fieldName, v));
+            json = "{ \"" + fieldName + "\" : \"" + v + "\" }";
+        } else if (vst.equals(CoreValuesSourceType.BOOLEAN)) {
+            long v;
+            v = randomBoolean() ? 0 : 1;
+            doc.add(new SortedNumericDocValuesField(fieldName, v));
+            json = "{ \"" + fieldName + "\" : \"" + (v == 0 ? "false" : "true") + "\" }";
+        } else if (vst.equals(CoreValuesSourceType.IP)) {
+                InetAddress ip = randomIp(randomBoolean());
+                json = "{ \"" + fieldName + "\" : \"" + NetworkAddress.format(ip) + "\" }";
+                doc.add(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(ip))));
+        } else if (vst.equals(CoreValuesSourceType.RANGE)) {
             Object start;
             Object end;
             RangeType rangeType;
@@ -729,13 +762,22 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
 
             final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, start, end, true, true);
-            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Collections.singleton(range)))));
+            doc.add(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Collections.singleton(range))));
+            json = "{ \"" + fieldName + "\" : { \n" +
+                "        \"gte\" : \"" + start + "\",\n" +
+                "        \"lte\" : \"" + end + "\"\n" +
+                "      }}";
 
         }  else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.GEOPOINT)) {
-            iw.addDocument(singleton(new LatLonDocValuesField(fieldName, randomDouble(), randomDouble())));
+            double lat = randomDouble();
+            double lon = randomDouble();
+            doc.add(new LatLonDocValuesField(fieldName, lat, lon));
+            json = "{ \"" + fieldName + "\" : \"[" + lon + "," + lat + "]\" }";
         } else {
             throw new IllegalStateException("Unknown field type [" + fieldType.typeName() + "]");
         }
+        doc.add(new StoredField("_source", new BytesRef(json)));
+        iw.addDocument(doc);
     }
 
     private class MockParserContext extends Mapper.TypeParser.ParserContext {

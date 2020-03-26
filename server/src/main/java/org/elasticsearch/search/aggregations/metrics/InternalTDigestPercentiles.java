@@ -30,9 +30,9 @@ import java.util.Map;
 public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentiles implements Percentiles {
     public static final String NAME = "tdigest_percentiles";
 
-    InternalTDigestPercentiles(String name, double[] percents, TDigestState state, boolean keyed, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        super(name, percents, state, keyed, formatter, pipelineAggregators, metadata);
+    public InternalTDigestPercentiles(String name, double[] percents, TDigestState state, boolean keyed, DocValueFormat formatter,
+                                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
     }
 
     /**

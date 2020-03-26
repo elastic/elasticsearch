@@ -46,6 +46,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new PercentilesAggregationBuilder("tdist_percentiles")
+            .field(fieldName)
+            .percentilesConfig(new PercentilesConfig.TDigest());
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN);
+    }
+
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs

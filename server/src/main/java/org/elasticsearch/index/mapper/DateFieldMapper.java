@@ -545,7 +545,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.NUMERIC;
+            return CoreValuesSourceType.DATE;
         }
 
         @Override

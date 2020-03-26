@@ -26,9 +26,11 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
@@ -54,6 +56,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
 
@@ -86,12 +89,14 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
                 usage.track(AnalyticsUsage.Item.STRING_STATS, checkLicense(StringStatsAggregationBuilder.PARSER)))
-                .addResultReader(InternalStringStats::new),
+                .addResultReader(InternalStringStats::new)
+                .setAggregatorRegistrar(StringStatsAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
                 usage.track(AnalyticsUsage.Item.BOXPLOT, checkLicense(BoxplotAggregationBuilder.PARSER)))
-                .addResultReader(InternalBoxplot::new),
+                .addResultReader(InternalBoxplot::new)
+                .setAggregatorRegistrar(BoxplotAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
@@ -131,6 +136,12 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, new HistogramFieldMapper.TypeParser());
+    }
+
+    @Override
+    public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
+        return List.of(AnalyticsPercentilesAggregatorFactory::registerPercentilesAggregator,
+            AnalyticsPercentilesAggregatorFactory::registerPercentileRanksAggregator);
     }
 
     @Override

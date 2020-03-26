@@ -133,7 +133,7 @@ subprojects {
           target '**/*.java'
 
           removeUnusedImports()
-          eclipse().configFile rootProject.file('.eclipseformat.xml')
+          eclipse().configFile rootProject.file('buildSrc/formatterConfig.xml')
           trimTrailingWhitespace()
 
           // See CONTRIBUTING.md for details of when to enabled this.

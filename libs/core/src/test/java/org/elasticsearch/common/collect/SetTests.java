@@ -22,21 +22,41 @@ package org.elasticsearch.common.collect;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.Collection;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SetTests extends ESTestCase {
 
-    public void testStringSet() {
-        final String[] strings = {"foo", "bar", "baz"};
-        final java.util.Set<?> stringsSet = Set.of(strings);
+    public void testStringSetOfZero() {
+        final String[] strings = {};
+        final java.util.Set<String> stringsSet = Set.of(strings);
         assertThat(stringsSet.size(), equalTo(strings.length));
         assertTrue(stringsSet.containsAll(Arrays.asList(strings)));
+        expectThrows(UnsupportedOperationException.class, () -> stringsSet.add("foo"));
     }
 
-    public void testSetIsImmutable() {
-        java.util.Set<?> s = Set.of(new Object());
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> s.remove(new Object()));
-        assertNotNull(e);
+    public void testStringSetOfOne() {
+        final String[] strings = {"foo"};
+        final java.util.Set<String> stringsSet = Set.of(strings);
+        assertThat(stringsSet.size(), equalTo(strings.length));
+        assertTrue(stringsSet.containsAll(Arrays.asList(strings)));
+        expectThrows(UnsupportedOperationException.class, () -> stringsSet.add("foo"));
+    }
+
+    public void testStringSetOfN() {
+        final String[] strings = {"foo", "bar", "baz"};
+        final java.util.Set<String> stringsSet = Set.of(strings);
+        assertThat(stringsSet.size(), equalTo(strings.length));
+        assertTrue(stringsSet.containsAll(Arrays.asList(strings)));
+        expectThrows(UnsupportedOperationException.class, () -> stringsSet.add("foo"));
+    }
+
+    public void testCopyOf() {
+        final Collection<String> coll = Arrays.asList("foo", "bar", "baz");
+        final java.util.Set<String> copy = Set.copyOf(coll);
+        assertThat(coll.size(), equalTo(copy.size()));
+        assertTrue(copy.containsAll(coll));
+        expectThrows(UnsupportedOperationException.class, () -> copy.add("foo"));
     }
 }

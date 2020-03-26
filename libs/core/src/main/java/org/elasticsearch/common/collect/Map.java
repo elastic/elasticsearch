@@ -27,8 +27,15 @@ public class Map {
     /**
      * Returns an unmodifiable map containing one mapping.
      */
+    public static <K, V> java.util.Map<K, V> of() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns an unmodifiable map containing one mapping.
+     */
     public static <K, V> java.util.Map<K, V> of(K k1, V v1) {
-        return mapN(k1, v1);
+        return Collections.singletonMap(k1, v1);
     }
 
     /**
@@ -108,6 +115,42 @@ public class Map {
         for (int k = 0; k < objects.length / 2; k++) {
             map.put((K) objects[k * 2], (V) objects[k * 2 + 1]);
         }
-       return Collections.unmodifiableMap(map);
+        return Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * Returns an unmodifiable map containing keys and values extracted from the given entries.
+     *
+     * @param <K> the {@code Map}'s key type
+     * @param <V> the {@code Map}'s value type
+     * @param entries {@code Map.Entry}s containing the keys and values from which the map is populated
+     * @return a {@code Map} containing the specified mappings
+     */
+    @SafeVarargs
+    public static <K, V> java.util.Map<K, V> ofEntries(java.util.Map.Entry<? extends K, ? extends V>... entries) {
+        if (entries.length == 0) {
+            return Collections.emptyMap();
+        } else if (entries.length == 1) {
+            return Collections.singletonMap(entries[0].getKey(), entries[0].getValue());
+        } else {
+            HashMap<K, V> map = new HashMap<>();
+            for (java.util.Map.Entry<? extends K, ? extends V> entry : entries) {
+                map.put(entry.getKey(), entry.getValue());
+            }
+            return Collections.unmodifiableMap(map);
+        }
+    }
+
+    /**
+     * Returns an unmodifiable {@code Map} containing the entries of the given {@code Map}.
+     *
+     * @param <K> the {@code Map}'s key type
+     * @param <V> the {@code Map}'s value type
+     * @param map a {@code Map} from which entries are drawn, must be non-null
+     * @return a {@code Map} containing the entries of the given {@code Map}
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <K, V> java.util.Map<K, V> copyOf(java.util.Map<? extends K, ? extends V> map) {
+        return (java.util.Map<K, V>) Map.ofEntries(map.entrySet().toArray(new java.util.Map.Entry[0]));
     }
 }

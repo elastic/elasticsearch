@@ -21,23 +21,42 @@ package org.elasticsearch.common.collect;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+import java.util.Collection;
+
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ListTests extends ESTestCase {
 
-    public void testStringList() {
-        final String[] strings = {"foo", "bar", "baz"};
-        final java.util.List<?> stringsList = List.of(strings);
+    public void testStringListOfZero() {
+        final String[] strings = {};
+        final java.util.List<String> stringsList = List.of(strings);
         assertThat(stringsList.size(), equalTo(strings.length));
-        for (int k = 0; k < strings.length; k++) {
-            assertEquals(String.class, stringsList.get(k).getClass());
-            assertEquals(strings[k], stringsList.get(k));
-        }
+        assertTrue(stringsList.containsAll(Arrays.asList(strings)));
+        expectThrows(UnsupportedOperationException.class, () -> stringsList.add("foo"));
     }
 
-    public void testListIsImmutable() {
-        java.util.List<?> list = List.of(new Object());
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> list.remove(0));
-        assertNotNull(e);
+    public void testStringListOfOne() {
+        final String[] strings = {"foo"};
+        final java.util.List<String> stringsList = List.of(strings);
+        assertThat(stringsList.size(), equalTo(strings.length));
+        assertTrue(stringsList.containsAll(Arrays.asList(strings)));
+        expectThrows(UnsupportedOperationException.class, () -> stringsList.add("foo"));
+    }
+
+    public void testStringListOfN() {
+        final String[] strings = {"foo", "bar", "baz"};
+        final java.util.List<String> stringsList = List.of(strings);
+        assertThat(stringsList.size(), equalTo(strings.length));
+        assertTrue(stringsList.containsAll(Arrays.asList(strings)));
+        expectThrows(UnsupportedOperationException.class, () -> stringsList.add("foo"));
+    }
+
+    public void testCopyOf() {
+        final Collection<String> coll = Arrays.asList("foo", "bar", "baz");
+        final java.util.List<String> copy = List.copyOf(coll);
+        assertThat(coll.size(), equalTo(copy.size()));
+        assertTrue(copy.containsAll(coll));
+        expectThrows(UnsupportedOperationException.class, () -> copy.add("foo"));
     }
 }

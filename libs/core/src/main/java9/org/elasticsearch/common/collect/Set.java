@@ -19,12 +19,36 @@
 
 package org.elasticsearch.common.collect;
 
+import java.util.Collection;
+
 public class Set {
 
     /**
      * Delegates to the Java9 {@code Set.of()} method.
-     * @param entries the elements to be contained in the set
+     *
      * @param <T> the {@code Set}'s element type
+     * @return an empty {@code Set}
+     */
+    public static <T> java.util.Set<T> of() {
+        return java.util.Set.of();
+    }
+
+    /**
+     * Delegates to the Java9 {@code Set.of()} method.
+     *
+     * @param <T> the {@code Set}'s element type
+     * @param e1  the single element
+     * @return a {@code Set} containing the specified element
+     */
+    public static <T> java.util.Set<T> of(T e1) {
+        return java.util.Set.of(e1);
+    }
+
+    /**
+     * Delegates to the Java9 {@code Set.of()} method.
+     *
+     * @param entries the elements to be contained in the set
+     * @param <T>     the {@code Set}'s element type
      * @return an unmodifiable set containing the specified elements.
      */
     @SafeVarargs
@@ -33,4 +57,14 @@ public class Set {
         return java.util.Set.of(entries);
     }
 
+    /**
+     * Delegates to the Java10 {@code Set.copyOf} method.
+     *
+     * @param <T>  the {@code Set}'s element type
+     * @param coll a {@code Collection} from which elements are drawn, must be non-null
+     * @return a {@code Set} containing the elements of the given {@code Collection}
+     */
+    public static <T> java.util.Set<T> copyOf(Collection<? extends T> coll) {
+        return java.util.Set.copyOf(coll);
+    }
 }

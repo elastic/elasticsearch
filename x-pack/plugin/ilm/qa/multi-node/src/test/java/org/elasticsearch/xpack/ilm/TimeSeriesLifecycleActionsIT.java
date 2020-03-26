@@ -1635,7 +1635,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(5000), singletonMap(DeleteAction.NAME, new DeleteAction(false))));
+        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(5000), singletonMap(DeleteAction.NAME,
+            new DeleteAction(false))));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();

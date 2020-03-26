@@ -58,7 +58,7 @@ public interface IndexSpace {
     /**
      * A write index is a dedicated concrete index, that accepts all the new documents that belong to an index space.
      *
-     * A write index may also be a regular concrete index of a index space and may be therefor also be returned
+     * A write index may also be a regular concrete index of a index space and may therefore also be returned
      * by {@link #getIndices()}. An index space may also not have a dedicated write index.
      *
      * @return the write index of this index space or

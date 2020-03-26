@@ -147,7 +147,7 @@ public class ElasticsearchMappings {
     public static void addDocMappingIfMissing(String alias,
                                               CheckedSupplier<String, IOException> mappingSupplier,
                                               Client client, ClusterState state, ActionListener<Boolean> listener) {
-        IndexSpace indexSpace = state.metaData().getAliasAndIndexLookup().get(alias);
+        IndexSpace indexSpace = state.metaData().getIndexSpaceLookup().get(alias);
         if (indexSpace == null) {
             // The index has never been created yet
             listener.onResponse(true);

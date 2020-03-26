@@ -70,8 +70,8 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                 + "] is not set on index [" + originalIndexMeta.getIndex().getName() + "]");
         }
 
-        IndexSpace indexSpace = clusterState.metaData().getAliasAndIndexLookup().get(rolloverAlias);
-        assert indexSpace.getType() == IndexSpace.Type.ALIAS : rolloverAlias + " must be an alias but it is an index";
+        IndexSpace indexSpace = clusterState.metaData().getIndexSpaceLookup().get(rolloverAlias);
+        assert indexSpace.getType() == IndexSpace.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
 
         IndexMetaData aliasWriteIndex = indexSpace.getWriteIndex();
         final String rolledIndexName;

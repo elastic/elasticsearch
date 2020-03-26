@@ -157,7 +157,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     }
 
     private void logDeprecatedPermission(RoleDescriptor roleDescriptor) {
-        final SortedMap<String, IndexSpace> aliasOrIndexMap = clusterService.state().metaData().getAliasAndIndexLookup();
+        final SortedMap<String, IndexSpace> aliasOrIndexMap = clusterService.state().metaData().getIndexSpaceLookup();
         final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();
         // sort answer by alias for tests
         final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();

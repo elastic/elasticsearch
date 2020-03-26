@@ -228,7 +228,7 @@ class IndicesAndAliasesResolver {
         final String concreteIndexName = request.getConcreteIndex().getName();
 
         // validate that the concrete index exists, otherwise there is no remapping that we could do
-        final IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(concreteIndexName);
+        final IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(concreteIndexName);
         final String resolvedAliasOrIndex;
         if (indexSpace == null) {
             resolvedAliasOrIndex = concreteIndexName;
@@ -247,7 +247,7 @@ class IndicesAndAliasesResolver {
                     .map(AliasMetaData::alias)
                     .filter(authorizedIndicesList::contains)
                     .filter(aliasName -> {
-                        IndexSpace alias = metaData.getAliasAndIndexLookup().get(aliasName);
+                        IndexSpace alias = metaData.getIndexSpaceLookup().get(aliasName);
                         List<IndexMetaData> indexMetadata = alias.getIndices();
                         if (indexMetadata.size() == 1) {
                             return true;
@@ -274,7 +274,7 @@ class IndicesAndAliasesResolver {
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, MetaData metaData) {
         List<String> authorizedAliases = new ArrayList<>();
-        SortedMap<String, IndexSpace> existingAliases = metaData.getAliasAndIndexLookup();
+        SortedMap<String, IndexSpace> existingAliases = metaData.getIndexSpaceLookup();
         for (String authorizedIndex : authorizedIndices) {
             IndexSpace indexSpace = existingAliases.get(authorizedIndex);
             if (indexSpace != null && indexSpace.getType() == IndexSpace.Type.ALIAS) {
@@ -416,7 +416,7 @@ class IndicesAndAliasesResolver {
 
     private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, MetaData metaData,
                                           boolean dateMathExpression) {
-        IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(index);
+        IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(index);
         final boolean isHidden = indexSpace.isHidden();
         if (indexSpace.getType() == IndexSpace.Type.ALIAS) {
             //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.

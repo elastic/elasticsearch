@@ -289,7 +289,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      * that if supplied with an alias, the alias resolves to at most one concrete index.
      */
     private static IndexMetaData resolveConcreteIndex(final String indexOrAliasName, final MetaData metaData) {
-        final IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(indexOrAliasName);
+        final IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(indexOrAliasName);
         if (indexSpace != null) {
             final List<IndexMetaData> indices = indexSpace.getIndices();
             if (indexSpace.getType() == IndexSpace.Type.ALIAS && indices.size() > 1) {

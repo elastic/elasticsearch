@@ -22,7 +22,7 @@ public class WatchStoreUtils {
      * @throws IndexNotFoundException If no index exists
      */
     public static IndexMetaData getConcreteIndex(String name, MetaData metaData) {
-        IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(name);
+        IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(name);
         if (indexSpace == null) {
             return null;
         }

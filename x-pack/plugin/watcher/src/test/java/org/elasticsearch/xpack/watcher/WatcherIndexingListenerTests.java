@@ -683,7 +683,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     private ClusterState mockClusterState(String watchIndex) {
         MetaData metaData = mock(MetaData.class);
         if (watchIndex == null) {
-            when(metaData.getAliasAndIndexLookup()).thenReturn(Collections.emptySortedMap());
+            when(metaData.getIndexSpaceLookup()).thenReturn(Collections.emptySortedMap());
         } else {
             SortedMap<String, IndexSpace> indices = new TreeMap<>();
 
@@ -698,7 +698,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 indices.put(Watch.INDEX, new IndexSpace.Alias(aliasMetaData, indexMetaData));
             }
 
-            when(metaData.getAliasAndIndexLookup()).thenReturn(indices);
+            when(metaData.getIndexSpaceLookup()).thenReturn(indices);
         }
 
         ClusterState clusterState = mock(ClusterState.class);

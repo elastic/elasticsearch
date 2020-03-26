@@ -439,7 +439,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     private static Index resolveSecurityIndex(MetaData metaData) {
-        final IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(SECURITY_MAIN_ALIAS);
+        final IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(SECURITY_MAIN_ALIAS);
         if (indexSpace != null) {
             return indexSpace.getIndices().get(0).getIndex();
         }

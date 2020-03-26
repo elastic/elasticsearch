@@ -38,7 +38,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) throws Exception {
         String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
         String policyAlias = EnrichPolicy.getBaseName(policyName);
-        IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(policyAlias);
+        IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(policyAlias);
         if (indexSpace == null) {
             throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
         }

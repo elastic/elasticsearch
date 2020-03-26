@@ -173,7 +173,7 @@ public class SamlServiceProviderIndex implements Closeable {
     }
 
     private void checkForAliasStateChange(ClusterState state) {
-        final IndexSpace aliasInfo = state.getMetaData().getAliasAndIndexLookup().get(ALIAS_NAME);
+        final IndexSpace aliasInfo = state.getMetaData().getIndexSpaceLookup().get(ALIAS_NAME);
         final boolean previousState = aliasExists;
         this.aliasExists = aliasInfo != null;
         if (aliasExists != previousState) {

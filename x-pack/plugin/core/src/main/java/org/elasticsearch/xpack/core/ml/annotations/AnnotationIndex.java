@@ -55,7 +55,7 @@ public class AnnotationIndex {
         }, finalListener::onFailure);
 
         // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
-        SortedMap<String, IndexSpace> mlLookup = state.getMetaData().getAliasAndIndexLookup().tailMap(".ml");
+        SortedMap<String, IndexSpace> mlLookup = state.getMetaData().getIndexSpaceLookup().tailMap(".ml");
         if (mlLookup.isEmpty() == false && mlLookup.firstKey().startsWith(".ml")) {
 
             // Create the annotations index if it doesn't exist already.

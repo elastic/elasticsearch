@@ -677,7 +677,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> verify that filter was updated");
         AliasMetaData aliasMetaData = ((IndexSpace.Alias) internalCluster()
-            .clusterService().state().metaData().getAliasAndIndexLookup().get("alias1")).getFirstAliasMetaData();
+            .clusterService().state().metaData().getIndexSpaceLookup().get("alias1")).getFirstAliasMetaData();
         assertThat(aliasMetaData.getFilter().toString(), equalTo("{\"term\":{\"name\":{\"value\":\"bar\",\"boost\":1.0}}}"));
 
         logger.info("--> deleting alias1");

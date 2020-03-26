@@ -184,14 +184,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     private final String[] allClosedIndices;
     private final String[] visibleClosedIndices;
 
-    private final SortedMap<String, IndexSpace> aliasAndIndexLookup;
+    private final SortedMap<String, IndexSpace> indexSpaceLookup;
 
     MetaData(String clusterUUID, boolean clusterUUIDCommitted, long version, CoordinationMetaData coordinationMetaData,
              Settings transientSettings, Settings persistentSettings, DiffableStringMap hashesOfConsistentSettings,
              ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates,
              ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] visibleIndices, String[] allOpenIndices,
              String[] visibleOpenIndices, String[] allClosedIndices, String[] visibleClosedIndices,
-             SortedMap<String, IndexSpace> aliasAndIndexLookup) {
+             SortedMap<String, IndexSpace> indexSpaceLookup) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
         this.version = version;
@@ -220,7 +220,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         this.visibleOpenIndices = visibleOpenIndices;
         this.allClosedIndices = allClosedIndices;
         this.visibleClosedIndices = visibleClosedIndices;
-        this.aliasAndIndexLookup = aliasAndIndexLookup;
+        this.indexSpaceLookup = indexSpaceLookup;
     }
 
     public long version() {
@@ -263,7 +263,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     public boolean hasAlias(String alias) {
-        IndexSpace indexSpace = getAliasAndIndexLookup().get(alias);
+        IndexSpace indexSpace = getIndexSpaceLookup().get(alias);
         if (indexSpace != null) {
             return indexSpace.getType() == IndexSpace.Type.ALIAS;
         } else {
@@ -286,8 +286,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return true;
     }
 
-    public SortedMap<String, IndexSpace> getAliasAndIndexLookup() {
-        return aliasAndIndexLookup;
+    public SortedMap<String, IndexSpace> getIndexSpaceLookup() {
+        return indexSpaceLookup;
     }
 
     /**
@@ -531,7 +531,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return routing;
         }
 
-        IndexSpace result = getAliasAndIndexLookup().get(aliasOrIndex);
+        IndexSpace result = getIndexSpaceLookup().get(aliasOrIndex);
         if (result == null || result.getType() != IndexSpace.Type.ALIAS) {
             return routing;
         }
@@ -567,7 +567,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return routing;
         }
 
-        IndexSpace result = getAliasAndIndexLookup().get(aliasOrIndex);
+        IndexSpace result = getIndexSpaceLookup().get(aliasOrIndex);
         if (result == null || result.getType() != IndexSpace.Type.ALIAS) {
             return routing;
         }
@@ -608,7 +608,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     public boolean hasConcreteIndex(String index) {
-        return getAliasAndIndexLookup().containsKey(index);
+        return getIndexSpaceLookup().containsKey(index);
     }
 
     public IndexMetaData index(String index) {

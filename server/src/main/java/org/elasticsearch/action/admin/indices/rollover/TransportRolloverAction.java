@@ -113,7 +113,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    final ActionListener<RolloverResponse> listener) {
         final MetaData metaData = state.metaData();
         validate(metaData, rolloverRequest);
-        final IndexSpace alias = metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
+        final IndexSpace alias = metaData.getIndexSpaceLookup().get(rolloverRequest.getAlias());
         final IndexMetaData indexMetaData = alias.getWriteIndex();
         final AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias.getName());
         final boolean explicitWriteIndex = Boolean.TRUE.equals(aliasMetaData.writeIndex());
@@ -263,12 +263,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     static void validate(MetaData metaData, RolloverRequest request) {
-        final IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(request.getAlias());
+        final IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(request.getAlias());
         if (indexSpace == null) {
             throw new IllegalArgumentException("source alias does not exist");
         }
         if (indexSpace.getType() != IndexSpace.Type.ALIAS) {
-            throw new IllegalArgumentException("source alias is a concrete index");
+            throw new IllegalArgumentException("source alias is not an alias");
         }
         if (indexSpace.getWriteIndex() == null) {
             throw new IllegalArgumentException("source alias [" + indexSpace.getName() + "] does not point to a write index");

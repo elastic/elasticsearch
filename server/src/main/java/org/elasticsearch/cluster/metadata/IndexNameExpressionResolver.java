@@ -180,7 +180,7 @@ public class IndexNameExpressionResolver {
 
         final Set<Index> concreteIndices = new HashSet<>(expressions.size());
         for (String expression : expressions) {
-            IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(expression);
+            IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(expression);
             if (indexSpace == null ) {
                 if (failNoIndices) {
                     IndexNotFoundException infe;
@@ -327,7 +327,7 @@ public class IndexNameExpressionResolver {
     public boolean hasIndexOrAlias(String aliasOrIndex, ClusterState state) {
         Context context = new Context(state, IndicesOptions.lenientExpandOpen());
         String resolvedAliasOrIndex = dateMathExpressionResolver.resolveExpression(aliasOrIndex, context);
-        return state.metaData().getAliasAndIndexLookup().containsKey(resolvedAliasOrIndex);
+        return state.metaData().getIndexSpaceLookup().containsKey(resolvedAliasOrIndex);
     }
 
     /**
@@ -456,7 +456,7 @@ public class IndexNameExpressionResolver {
         }
 
         for (String expression : resolvedExpressions) {
-            IndexSpace indexSpace = state.metaData().getAliasAndIndexLookup().get(expression);
+            IndexSpace indexSpace = state.metaData().getIndexSpaceLookup().get(expression);
             if (indexSpace != null && indexSpace.getType() == IndexSpace.Type.ALIAS) {
                 IndexSpace.Alias alias = (IndexSpace.Alias) indexSpace;
                 for (Tuple<String, AliasMetaData> item : alias.getConcreteIndexAndAliasMetaDatas()) {
@@ -721,7 +721,7 @@ public class IndexNameExpressionResolver {
                 if (Regex.isSimpleMatchPattern(expression) == false) {
                     //TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
                     if (options.ignoreUnavailable() == false) {
-                        IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(expression);
+                        IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(expression);
                         if (indexSpace == null) {
                             throw indexNotFoundException(expression);
                         } else if (indexSpace.getType() == IndexSpace.Type.ALIAS && options.ignoreAliases()) {
@@ -765,7 +765,7 @@ public class IndexNameExpressionResolver {
         }
 
         private static boolean aliasOrIndexExists(IndicesOptions options, MetaData metaData, String expression) {
-            IndexSpace indexSpace = metaData.getAliasAndIndexLookup().get(expression);
+            IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(expression);
             //treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
             return indexSpace != null && (options.ignoreAliases() == false || indexSpace.getType() != IndexSpace.Type.ALIAS);
         }
@@ -795,11 +795,11 @@ public class IndexNameExpressionResolver {
             if (Regex.isMatchAllPattern(expression)) {
                 // Can only happen if the expressions was initially: '-*'
                 if (context.getOptions().ignoreAliases()) {
-                    return metaData.getAliasAndIndexLookup().entrySet().stream()
+                    return metaData.getIndexSpaceLookup().entrySet().stream()
                             .filter(e -> e.getValue().getType() != IndexSpace.Type.ALIAS)
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 } else {
-                    return metaData.getAliasAndIndexLookup();
+                    return metaData.getIndexSpaceLookup();
                 }
             } else if (expression.indexOf("*") == expression.length() - 1) {
                 return suffixWildcard(context, metaData, expression);
@@ -814,7 +814,7 @@ public class IndexNameExpressionResolver {
             char[] toPrefixCharArr = fromPrefix.toCharArray();
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);
-            SortedMap<String, IndexSpace> subMap = metaData.getAliasAndIndexLookup().subMap(fromPrefix, toPrefix);
+            SortedMap<String, IndexSpace> subMap = metaData.getIndexSpaceLookup().subMap(fromPrefix, toPrefix);
             if (context.getOptions().ignoreAliases()) {
                  return subMap.entrySet().stream()
                         .filter(entry -> entry.getValue().getType() != IndexSpace.Type.ALIAS)
@@ -825,7 +825,7 @@ public class IndexNameExpressionResolver {
 
         private static Map<String, IndexSpace> otherWildcard(Context context, MetaData metaData, String expression) {
             final String pattern = expression;
-            return metaData.getAliasAndIndexLookup()
+            return metaData.getIndexSpaceLookup()
                 .entrySet()
                 .stream()
                 .filter(e -> context.getOptions().ignoreAliases() == false || e.getValue().getType() != IndexSpace.Type.ALIAS)

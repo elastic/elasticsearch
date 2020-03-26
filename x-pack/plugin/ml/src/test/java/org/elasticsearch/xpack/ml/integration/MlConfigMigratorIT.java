@@ -83,8 +83,8 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(nodeSettings(), new HashSet<>(Collections.singletonList(
                 MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION)));
         MetaData metaData = mock(MetaData.class);
-        SortedMap<String, IndexSpace> aliasOrIndexSortedMap = new TreeMap<>();
-        when(metaData.getAliasAndIndexLookup()).thenReturn(aliasOrIndexSortedMap);
+        SortedMap<String, IndexSpace> indexSpaceSortedMap = new TreeMap<>();
+        when(metaData.getIndexSpaceLookup()).thenReturn(indexSpaceSortedMap);
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.getMetaData()).thenReturn(metaData);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

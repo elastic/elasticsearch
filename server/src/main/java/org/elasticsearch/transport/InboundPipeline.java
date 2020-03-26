@@ -34,6 +34,7 @@ import java.util.function.BiConsumer;
 
 public class InboundPipeline implements Releasable {
 
+    private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);
     private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
 
     private final InboundDecoder decoder;
@@ -77,8 +78,8 @@ public class InboundPipeline implements Releasable {
             composite = new ReleasableBytesReference(new CompositeBytesReference(bytesReferences), releasable);
         }
 
+        final ArrayList<Object> fragments = fragmentList.get();
         int bytesConsumed = 0;
-        final ArrayList<Object> fragments = new ArrayList<>();
         boolean continueHandling = true;
 
         while (continueHandling && isClosed == false) {

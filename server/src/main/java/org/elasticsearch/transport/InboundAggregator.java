@@ -37,42 +37,32 @@ public class InboundAggregator implements Releasable {
 
     public void headerReceived(Header header) {
         ensureOpen();
-        if (currentHeader != null) {
-            currentHeader = null;
-            throw new IllegalStateException("Header already received.");
-        }
-
+        assert isAggregating() == false;
+        assert firstContent == null && contentAggregation == null;
         currentHeader = header;
     }
 
     public void aggregate(ReleasableBytesReference content) {
         ensureOpen();
-        if (currentHeader == null) {
-            content.close();
-            throw new IllegalStateException("Received content without header");
+        assert isAggregating();
+        if (isFirstContent()) {
+            firstContent = content.retain();
         } else {
-            if (isFirstContent()) {
-                firstContent = content.retain();
-            } else {
-                if (contentAggregation == null) {
-                    contentAggregation = new ArrayList<>(4);
-                    contentAggregation.add(firstContent);
-                    firstContent = null;
-                }
-                contentAggregation.add(content.retain());
+            if (contentAggregation == null) {
+                contentAggregation = new ArrayList<>(4);
+                contentAggregation.add(firstContent);
+                firstContent = null;
             }
+            contentAggregation.add(content.retain());
         }
     }
 
     public Header cancelAggregation() {
         ensureOpen();
-        if (currentHeader == null) {
-            throw new IllegalStateException("Aggregation cancelled, but no aggregation had begun");
-        } else {
-            final Header header = this.currentHeader;
-            closeCurrentAggregation();
-            return header;
-        }
+        assert isAggregating();
+        final Header header = this.currentHeader;
+        closeCurrentAggregation();
+        return header;
     }
 
     public InboundMessage finishAggregation() throws IOException {

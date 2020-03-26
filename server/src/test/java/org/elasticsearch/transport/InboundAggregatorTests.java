@@ -48,31 +48,11 @@ public class InboundAggregatorTests extends ESTestCase {
         aggregator = new InboundAggregator();
     }
 
-    public void testCannotReceiveHeaderTwice() {
-        long requestId = randomLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
-        header.setHeaders(new Tuple<>(Collections.emptyMap(), Collections.emptyMap()));
-        aggregator.headerReceived(header);
-
-        expectThrows(IllegalStateException.class, () -> aggregator.headerReceived(header));
-    }
-
-    public void testCannotReceiveContentWithoutHeader() throws IOException {
-        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-            threadContext.writeTo(streamOutput);
-            streamOutput.writeString("action_name");
-            streamOutput.write(randomByteArrayOfLength(10));
-            expectThrows(IllegalStateException.class, () -> {
-                ReleasableBytesReference content = ReleasableBytesReference.wrap(streamOutput.bytes());
-                aggregator.aggregate(content);
-            });
-        }
-    }
-
     public void testInboundAggregation() throws IOException {
         long requestId = randomNonNegativeLong();
         Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
-        header.setHeaders(new Tuple<>(Collections.emptyMap(), Collections.emptyMap()));
+        header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
+        header.actionName = "action_name";
         // Initiate Message
         aggregator.headerReceived(header);
 
@@ -118,7 +98,8 @@ public class InboundAggregatorTests extends ESTestCase {
     public void testCancelAndCloseWillCloseContent() {
         long requestId = randomNonNegativeLong();
         Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
-        header.setHeaders(new Tuple<>(Collections.emptyMap(), Collections.emptyMap()));
+        header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
+        header.actionName = "action_name";
         // Initiate Message
         aggregator.headerReceived(header);
 

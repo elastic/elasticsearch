@@ -36,8 +36,9 @@ public class Header {
     private final Version version;
     private final long requestId;
     private final byte status;
-    private String actionName;
-    private Tuple<Map<String, String>, Map<String, Set<String>>> headers;
+    // These are directly set by tests
+    String actionName;
+    Tuple<Map<String, String>, Map<String, Set<String>>> headers;
 
     Header(int networkMessageSize, long requestId, byte status, Version version) {
         this.networkMessageSize = networkMessageSize;
@@ -95,24 +96,16 @@ public class Header {
     }
 
     void finishParsingHeader(StreamInput input) throws IOException {
-        setHeaders(ThreadContext.readHeadersFromStream(input));
+        this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
             if (version.before(Version.V_8_0_0)) {
                 // discard features
                 input.readStringArray();
             }
-            setActionName(input.readString());
+            this.actionName = input.readString();
         } else {
-            setActionName(RESPONSE_NAME);
+            this.actionName = RESPONSE_NAME;
         }
-    }
-
-    void setHeaders(Tuple<Map<String, String>, Map<String, Set<String>>> headers) {
-        this.headers = headers;
-    }
-
-    void setActionName(String actionName) {
-        this.actionName = actionName;
     }
 }

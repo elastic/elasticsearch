@@ -1,7 +1,8 @@
 {
   "transform.delete_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html",
+      "description":"Deletes an existing transform."
     },
     "stability":"stable",
     "url":{

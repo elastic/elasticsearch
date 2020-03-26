@@ -41,8 +41,7 @@
             },
             "type":{
               "type":"string",
-              "description":"The type of the document",
-              "deprecated":true
+              "description":"The type of the document"
             }
           },
           "deprecated":{

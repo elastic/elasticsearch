@@ -1,7 +1,8 @@
 {
   "ml.delete_calendar":{
     "documentation":{
-      "url":null
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar.html",
+      "description":"Deletes a calendar."
     },
     "stability":"stable",
     "url":{

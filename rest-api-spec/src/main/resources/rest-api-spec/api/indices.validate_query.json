@@ -40,8 +40,7 @@
             },
             "type":{
               "type":"list",
-              "description":"A comma-separated list of document types to restrict the operation; leave empty to perform the operation on all types",
-              "deprecated":true
+              "description":"A comma-separated list of document types to restrict the operation; leave empty to perform the operation on all types"
             }
           },
           "deprecated":{

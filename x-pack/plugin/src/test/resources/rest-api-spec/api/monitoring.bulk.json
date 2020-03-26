@@ -1,7 +1,8 @@
 {
   "monitoring.bulk":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/monitor-elasticsearch-cluster.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/monitor-elasticsearch-cluster.html",
+      "description":"Used by the monitoring features to send monitoring data."
     },
     "stability":"experimental",
     "url":{
@@ -22,8 +23,7 @@
           "parts":{
             "type":{
               "type":"string",
-              "description":"Default document type for items which don't provide one",
-              "deprecated":true
+              "description":"Default document type for items which don't provide one"
             }
           },
           "deprecated":{

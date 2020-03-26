@@ -58,7 +58,7 @@ public class DateFormatters {
         .withResolverStyle(ResolverStyle.STRICT);
 
     private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
         .optionalStart()
         .appendLiteral("-")
         .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)

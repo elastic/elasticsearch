@@ -1043,10 +1043,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (endingSnapshots.add(entry.snapshot()) == false) {
             return;
         }
+        final Snapshot snapshot = entry.snapshot();
+        if (entry.repositoryStateId() == RepositoryData.UNKNOWN_REPO_GEN) {
+            logger.debug("[{}] was aborted before starting", snapshot);
+            removeSnapshotFromClusterState(entry.snapshot(), null,
+                new SnapshotException(snapshot, "Aborted on initialization"));
+            return;
+        }
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
-                final Snapshot snapshot = entry.snapshot();
                 final Repository repository = repositoriesService.repository(snapshot.getRepository());
                 final String failure = entry.failure();
                 logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
@@ -1233,6 +1239,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             boolean waitForSnapshot = false;
 
+            boolean abortedDuringInit = false;
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
@@ -1292,6 +1300,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shards = snapshotEntry.shards();
                         assert shards.isEmpty();
                         failure = "Snapshot was aborted during initialization";
+                        abortedDuringInit = true;
                     } else if (state == State.STARTED) {
                         // snapshot is started - mark every non completed shard as aborted
                         final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
@@ -1345,6 +1354,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");
                     addListener(snapshot, ActionListener.wrap(
                         snapshotInfo -> {
+                            assert abortedDuringInit == false: "Should not create SnapshotInfo if aborted during INIT";
                             logger.debug("deleted snapshot completed - deleting files");
                             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                                     try {
@@ -1356,19 +1366,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             );
                         },
                         e -> {
-                            logger.warn("deleted snapshot failed - deleting files", e);
-                            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                                try {
-                                    deleteSnapshot(snapshot.getRepository(), snapshot.getSnapshotId().getName(), listener, true);
-                                } catch (SnapshotMissingException smex) {
-                                    logger.info(() -> new ParameterizedMessage(
-                                        "Tried deleting in-progress snapshot [{}], but it could not be found after failing to abort.",
-                                        smex.getSnapshotName()), e);
-                                    listener.onFailure(new SnapshotException(snapshot,
-                                        "Tried deleting in-progress snapshot [" + smex.getSnapshotName() + "], but it " +
-                                            "could not be found after failing to abort.", smex));
-                                }
-                            });
+                            if (abortedDuringInit) {
+                                logger.debug(() -> new ParameterizedMessage("Snapshot [{}] was aborted during INIT", snapshot), e);
+                                listener.onResponse(null);
+                            } else {
+                                logger.warn("deleted snapshot failed - deleting files", e);
+                                listener.onFailure(
+                                    new SnapshotMissingException(snapshot.getRepository(), snapshot.getSnapshotId(), e));
+                            }
                         }
                     ));
                 } else {

@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -99,6 +100,23 @@ public class GetIndexTemplateV2Action extends ActionType<GetIndexTemplateV2Actio
          */
         public String[] names() {
             return this.names;
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(names);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            Request other = (Request) obj;
+            return Arrays.equals(other.names, this.names);
         }
     }
 

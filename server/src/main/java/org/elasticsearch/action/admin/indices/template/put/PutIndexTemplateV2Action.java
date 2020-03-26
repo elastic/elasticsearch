@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -154,6 +155,26 @@ public class PutIndexTemplateV2Action extends ActionType<AcknowledgedResponse> {
         @Override
         public IndicesOptions indicesOptions() {
             return IndicesOptions.strictExpand();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, cause, create, indexTemplate);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            Request other = (Request) obj;
+            return Objects.equals(this.name, other.name) &&
+                Objects.equals(this.cause, other.cause) &&
+                Objects.equals(this.indexTemplate, other.indexTemplate) &&
+                this.create == other.create;
         }
     }
 

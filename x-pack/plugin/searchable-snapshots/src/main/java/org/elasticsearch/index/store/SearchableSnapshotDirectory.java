@@ -20,10 +20,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.elasticsearch.index.store.cache.CacheBufferedIndexInput;
+import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
 import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
-import org.elasticsearch.index.store.direct.DirectBufferedIndexInput;
+import org.elasticsearch.index.store.direct.DirectBlobContainerIndexInput;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -224,10 +224,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfo(name);
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
         if (useCache) {
-            return new CacheBufferedIndexInput(this, fileInfo, context, inputStats);
+            return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats);
         } else {
             long preferredLength = blobContainer.readBlobPreferredLength();
-            return new DirectBufferedIndexInput(blobContainer, fileInfo, context, preferredLength, BufferedIndexInput.BUFFER_SIZE);
+            return new DirectBlobContainerIndexInput(blobContainer, fileInfo, context, preferredLength, BufferedIndexInput.BUFFER_SIZE);
         }
     }
 

@@ -8,14 +8,14 @@ package org.elasticsearch.index.store;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.store.cache.CacheBufferedIndexInput;
+import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongConsumer;
 
 /**
- * {@link IndexInputStats} records stats for a given {@link CacheBufferedIndexInput}.
+ * {@link IndexInputStats} records stats for a given {@link CachedBlobContainerIndexInput}.
  */
 public class IndexInputStats {
 

@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CacheBufferedIndexInputStatsTests extends ESIndexInputTestCase {
+public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCase {
 
     private static final int MAX_FILE_LENGTH = 10_000;
 

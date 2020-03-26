@@ -36,7 +36,7 @@ import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
+public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
     public void testRandomReads() throws IOException {
         try (CacheService cacheService = createCacheService(random())) {

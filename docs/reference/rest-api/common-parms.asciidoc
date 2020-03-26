@@ -182,6 +182,11 @@ is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
 documents when a segment is merged.
 end::docs-deleted[]
 
+tag::docs-indexed[]
+The number of documents that have been indexed into the destination index
+for the {transform}.
+end::docs-indexed[]
+
 tag::docs-processed[]
 The number of documents that have been processed from the source index of
 the {transform}.

@@ -109,9 +109,10 @@ become available, which happens whenever shard results are reduced. A partial
 reduction is performed every time the coordinating node has received a certain
 number of new shard responses (`5` by default).
 * `request_cache` defaults to `true`
-* `pre_filter_shard_size` defaults to `1`: this is to enforce the execution of
-a pre-filter roundtrip to retrieve statistics from each shard so that the ones
-that surely don't hold any document matching the query get skipped.
+* `pre_filter_shard_size` defaults to `1` and cannot be changed: this is to
+enforce the execution of a pre-filter roundtrip to retrieve statistics from
+each shard so that the ones that surely don't hold any document matching the
+query get skipped.
 * `ccs_minimize_roundtrips` defaults to `false`, which is also the only
 supported value
 

@@ -39,13 +39,10 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class SecurityInfoTransportActionTests extends ESTestCase {
 
@@ -70,7 +67,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         when(licenseState.isSecurityAvailable()).thenReturn(true);
         assertThat(featureSet.available(), is(true));
 
@@ -80,24 +77,28 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
     public void testEnabled() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         assertThat(featureSet.enabled(), is(true));
 
-        when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         assertThat(featureSet.enabled(), is(false));
     }
 
     public void testUsage() throws Exception {
         final boolean authcAuthzAvailable = randomBoolean();
+        final boolean explicitlyDisabled = randomBoolean();
+        final boolean enabled = explicitlyDisabled == false && randomBoolean();
         when(licenseState.isSecurityAvailable()).thenReturn(authcAuthzAvailable);
+        when(licenseState.isSecurityEnabled()).thenReturn(enabled);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 
-        boolean enabled = randomBoolean();
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), enabled);
-
+        if (explicitlyDisabled) {
+            settings.put("xpack.security.enabled", "false");
+        }
         final boolean httpSSLEnabled = randomBoolean();
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
         final boolean transportSSLEnabled = randomBoolean();
@@ -226,8 +227,13 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 // FIPS 140
                 assertThat(source.getValue("fips_140.enabled"), is(fips140Enabled));
             } else {
+                if (explicitlyDisabled) {
+                    assertThat(source.getValue("ssl"), is(nullValue()));
+                } else {
+                    assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
+                    assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
+                }
                 assertThat(source.getValue("realms"), is(nullValue()));
-                assertThat(source.getValue("ssl"), is(nullValue()));
                 assertThat(source.getValue("token_service"), is(nullValue()));
                 assertThat(source.getValue("api_key_service"), is(nullValue()));
                 assertThat(source.getValue("audit"), is(nullValue()));
@@ -240,7 +246,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
     public void testUsageOnTrialLicenseWithSecurityDisabledByDefault() throws Exception {
         when(licenseState.isSecurityAvailable()).thenReturn(true);
-        when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 

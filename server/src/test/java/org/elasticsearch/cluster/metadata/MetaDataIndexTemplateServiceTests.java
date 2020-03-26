@@ -19,11 +19,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -37,6 +39,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -197,21 +200,41 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.get(0).getMessage(), containsString("global templates may not specify the setting index.hidden"));
     }
 
-    public void testAddComponentTemplate() {
+    public void testAddComponentTemplate() throws Exception{
+        MetaDataIndexTemplateService metaDataIndexTemplateService = getMetaDataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
-        ComponentTemplate template = ComponentTemplateTests.randomInstance();
-        state = MetaDataIndexTemplateService.addComponentTemplate(state, false, "foo", template);
+        Template template = new Template(Settings.builder().build(), null, ComponentTemplateTests.randomAliases());
+        ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
+        state = metaDataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
 
         assertNotNull(state.metaData().componentTemplates().get("foo"));
-        assertThat(state.metaData().componentTemplates().get("foo"), equalTo(template));
+        assertThat(state.metaData().componentTemplates().get("foo"), equalTo(componentTemplate));
 
         final ClusterState throwState = ClusterState.builder(state).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> MetaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo", template));
+            () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo", componentTemplate));
         assertThat(e.getMessage(), containsString("component template [foo] already exists"));
 
-        state = MetaDataIndexTemplateService.addComponentTemplate(state, randomBoolean(), "bar", template);
+        state = metaDataIndexTemplateService.addComponentTemplate(state, randomBoolean(), "bar", componentTemplate);
         assertNotNull(state.metaData().componentTemplates().get("bar"));
+
+        template = new Template(Settings.builder().build(), new CompressedXContent("{\"invalid\"}"),
+            ComponentTemplateTests.randomAliases());
+        ComponentTemplate componentTemplate2 = new ComponentTemplate(template, 1L, new HashMap<>());
+        expectThrows(JsonParseException.class,
+            () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate2));
+
+        template = new Template(Settings.builder().build(), new CompressedXContent("{\"invalid\":\"invalid\"}"),
+            ComponentTemplateTests.randomAliases());
+        ComponentTemplate componentTemplate3 = new ComponentTemplate(template, 1L, new HashMap<>());
+        expectThrows(MapperParsingException.class,
+            () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate3));
+
+        template = new Template(Settings.builder().put("invalid", "invalid").build(), new CompressedXContent("{}"),
+            ComponentTemplateTests.randomAliases());
+        ComponentTemplate componentTemplate4 = new ComponentTemplate(template, 1L, new HashMap<>());
+        expectThrows(IllegalArgumentException.class,
+            () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
@@ -247,23 +270,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     private List<Throwable> putTemplateDetail(PutRequest request) throws Exception {
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
-                Settings.EMPTY,
-                clusterService,
-                indicesService,
-                null,
-                null,
-                new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                null,
-                xContentRegistry(),
-                Collections.emptyList(),
-                true);
-        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
-                clusterService, createIndexService, new AliasValidator(), indicesService,
-                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
+        MetaDataIndexTemplateService service = getMetaDataIndexTemplateService();
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -281,5 +288,25 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         });
         latch.await();
         return throwables;
+    }
+
+    private MetaDataIndexTemplateService getMetaDataIndexTemplateService() {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                null,
+                new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                null,
+                xContentRegistry(),
+                Collections.emptyList(),
+                true);
+        return new MetaDataIndexTemplateService(
+                clusterService, createIndexService, new AliasValidator(), indicesService,
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
     }
 }

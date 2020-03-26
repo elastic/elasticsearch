@@ -1584,7 +1584,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction(true))));
+        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(5000), singletonMap(DeleteAction.NAME, new DeleteAction(true))));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();
@@ -1626,6 +1626,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
     }
 
+    @SuppressWarnings("unchecked")
     public void testDeleteActionDoesntDeleteSearchableSnapshot() throws Exception {
         String snapshotRepo = createSnapshotRepo();
 
@@ -1634,7 +1635,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction(false))));
+        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(5000), singletonMap(DeleteAction.NAME, new DeleteAction(false))));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();
@@ -1679,7 +1680,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                     if (responseAsMap.get("snapshots") != null) {
                         ArrayList<Object> snapshots = (ArrayList<Object>) responseAsMap.get("snapshots");
                         for (Object snapshot : snapshots) {
-                            if ((((Map<String, Object>) snapshot).get("snapshot")).equals(snapshotName[0])) {
+                            Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
+                            if ((snapshotInfoMap.get("snapshot")).equals(snapshotName[0])) {
                                 return true;
                             }
                         }

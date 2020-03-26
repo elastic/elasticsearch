@@ -114,6 +114,20 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Get the context specific stats, null if using general cache
+     */
+    public Map<String, ScriptStats> getContextStats() {
+        return context;
+    }
+
+    /**
+     * Get the general stats, null if using context cache
+     */
+    public ScriptStats getGeneralStats() {
+        return general;
+    }
+
     static final class Fields {
         static final String SCRIPT_CACHE_STATS = "script_cache";
         static final String CONTEXT = "context";

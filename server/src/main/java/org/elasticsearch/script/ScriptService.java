@@ -606,7 +606,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                     SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings),
                     compilationLimitsEnabled ?
                         SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings) :
-                        SCRIPT_COMPILATION_RATE_ZERO);
+                        SCRIPT_COMPILATION_RATE_ZERO,
+                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey());
             }
         }
 
@@ -630,7 +631,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
             return new ScriptCache(cacheSize.existsOrFallbackExists(settings) ? cacheSize.get(settings) : context.cacheSizeDefault,
                                    cacheExpire.existsOrFallbackExists(settings) ? cacheExpire.get(settings) : context.cacheExpireDefault,
-                                   compileRate);
+                                   compileRate,
+                                   SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name).getKey());
         }
 
         /**

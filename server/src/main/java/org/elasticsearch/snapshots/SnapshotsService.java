@@ -1233,8 +1233,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void deleteSnapshot(final Snapshot snapshot, final ActionListener<Void> listener, final long repositoryStateId,
                                 final boolean immediatePriority) {
-        logger.info("deleting snapshot [{}]", snapshot);
         Priority priority = immediatePriority ? Priority.IMMEDIATE : Priority.NORMAL;
+        logger.info("deleting snapshot [{}] assuming repository generation [{}] and with priory [{}]",
+            snapshot, repositoryStateId, priority);
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(priority) {
 
             boolean waitForSnapshot = false;
@@ -1354,7 +1355,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");
                     addListener(snapshot, ActionListener.wrap(
                         snapshotInfo -> {
-                            assert abortedDuringInit == false: "Should not create SnapshotInfo if aborted during INIT";
                             logger.debug("deleted snapshot completed - deleting files");
                             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                                     try {

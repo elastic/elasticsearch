@@ -39,10 +39,8 @@ threads, the `node.processors` setting is now bounded by the number of available
 processors.
 
 [float]
-==== `cluster.remote.connect` is deprecated in favor of `node.remote_cluster_client`
+==== `cluster.remote.connect` is removed
 
-Previously the setting `cluster.remote.connect` was used to configure whether or
-not the local node is capable of acting as a remote cluster client in
-cross-cluster search and cross-cluster replication. This setting is deprecated
-in favor of `node.remote_cluster_client` serves the same purpose and identifies
-the local node as having the `remote_cluster_client` role.
+In Elasticsearch 7.7.0, the setting `cluster.remote.connect` was deprecated in
+favor of setting `node.remote_cluster_client`. In Elasticsearch 8.0.0, the
+setting `cluster.remote.connect` is removed.

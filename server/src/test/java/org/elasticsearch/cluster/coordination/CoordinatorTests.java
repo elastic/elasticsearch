@@ -1436,9 +1436,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             ClusterState newState1 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion1);
 
-            synchronized (coordinator.mutex) {
-                expectThrows(AssertionError.class, () -> coordinator.improveConfiguration(newState1));
-            }
+            assertFalse(Coordinator.validVotingConfigExclusionState(newState1));
 
             Set<CoordinationMetaData.VotingConfigExclusion> newVotingConfigExclusion2 = new HashSet<>(){{
                 add(new CoordinationMetaData.VotingConfigExclusion(CoordinationMetaData.VotingConfigExclusion.MISSING_VALUE_MARKER,
@@ -1447,9 +1445,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion2);
 
-            synchronized (coordinator.mutex) {
-                expectThrows(AssertionError.class, () -> coordinator.improveConfiguration(newState2));
-            }
+            assertFalse(Coordinator.validVotingConfigExclusionState(newState2));
         }
     }
 

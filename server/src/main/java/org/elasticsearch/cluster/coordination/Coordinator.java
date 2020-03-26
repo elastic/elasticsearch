@@ -901,7 +901,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     * 1. Every voting config exclusion with an ID of _absent_ should not match any nodes currently in the cluster by name
     * 2. Every voting config exclusion with a name of _absent_ should not match any nodes currently in the cluster by ID
      */
-    private boolean validVotingConfigExclusionState(ClusterState clusterState) {
+    static boolean validVotingConfigExclusionState(ClusterState clusterState) {
         Set<VotingConfigExclusion> votingConfigExclusions = clusterState.getVotingConfigExclusions();
         Set<String> nodeNamesWithAbsentId = votingConfigExclusions.stream()
                                                 .filter(e -> e.getNodeId().equals(VotingConfigExclusion.MISSING_VALUE_MARKER))

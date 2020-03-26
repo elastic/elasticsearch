@@ -20,7 +20,7 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
  * @see RestResourcesPlugin
  */
 public class CopyRestApiTask extends DefaultTask {
-    private static final String COPY_TO = "rest-api-spec/api";
+    private static final String REST_API_PREFIX = "rest-api-spec/api";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
@@ -109,7 +109,7 @@ public class CopyRestApiTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(getTestSourceSet().getOutput().getResourcesDir(), COPY_TO);
+        return new File(getTestSourceSet().getOutput().getResourcesDir(), REST_API_PREFIX);
     }
 
     @TaskAction
@@ -132,7 +132,13 @@ public class CopyRestApiTask extends DefaultTask {
             project.copy(c -> {
                 c.from(project.zipTree(coreConfig.getSingleFile()));
                 c.into(getTestSourceSet().getOutput().getResourcesDir()); // this ends up as the same dir as outputDir
-                c.include(includeCore.get().stream().map(prefix -> COPY_TO + "/" + prefix + "*/**").collect(Collectors.toList()));
+                if (includeCore.get().isEmpty()) {
+                    c.include(REST_API_PREFIX + "/**");
+                } else {
+                    c.include(
+                        includeCore.get().stream().map(prefix -> REST_API_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
+                    );
+                }
             });
         }
         // only copy x-pack specs if explicitly instructed
@@ -197,6 +203,6 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     private SourceSet getTestSourceSet() {
-        return Boilerplate.getJavaSourceSets(getProject()).findByName("test");
+        return GradleUtils.getJavaSourceSets(getProject()).findByName("test");
     }
 }

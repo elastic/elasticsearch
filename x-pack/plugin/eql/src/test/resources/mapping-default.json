@@ -1,10 +1,20 @@
 {
     "properties" : {
+        "bytes_written_string" : {
+            "type" : "keyword"
+        },
+        "bytes_written_string_list" : {
+            "type" : "keyword"
+        },
         "command_line" : {
             "type" : "keyword"
         },
-        "event_type" : {
-            "type" : "keyword"
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
         },
         "md5" : {
             "type" : "keyword"
@@ -30,7 +40,7 @@
         "subtype" : {
             "type" : "keyword"
         },
-        "timestamp" : {
+        "@timestamp" : {
             "type" : "date"
         },
         "user" : {

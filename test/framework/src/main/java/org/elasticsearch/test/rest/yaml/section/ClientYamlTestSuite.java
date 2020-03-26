@@ -164,6 +164,14 @@ public class ClientYamlTestSuite {
                 "section can skip the test at line [" + section.getLocation().lineNumber + "]");
 
         errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
+                .map(section -> (DoSection) section)
+                .filter(section -> false == section.getAllowedWarningHeaders().isEmpty())
+                .filter(section -> false == hasSkipFeature("allowed_warnings", testSection, setupSection, teardownSection))
+                .map(section -> "attempted to add a [do] with a [allowed_warnings] section " +
+                    "without a corresponding [\"skip\": \"features\": \"allowed_warnings\"] so runners that do not " +
+                    "support the [allowed_warnings] section can skip the test at line [" + section.getLocation().lineNumber + "]"));
+
+        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)
             .filter(section -> NodeSelector.ANY != section.getApiCallSection().getNodeSelector())
             .filter(section -> false == hasSkipFeature("node_selector", testSection, setupSection, teardownSection))

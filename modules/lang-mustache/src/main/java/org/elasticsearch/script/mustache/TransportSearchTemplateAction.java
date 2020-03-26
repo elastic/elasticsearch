@@ -32,11 +32,13 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -110,8 +112,27 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             builder.parseXContent(parser, false);
             builder.explain(searchTemplateRequest.isExplain());
             builder.profile(searchTemplateRequest.isProfile());
+            checkRestTotalHitsAsInt(searchRequest, builder);
             searchRequest.source(builder);
         }
         return searchRequest;
+    }
+
+    private static void checkRestTotalHitsAsInt(SearchRequest searchRequest, SearchSourceBuilder searchSourceBuilder) {
+        if (searchRequest.source() == null) {
+            searchRequest.source(new SearchSourceBuilder());
+        }
+        Integer trackTotalHitsUpTo = searchRequest.source().trackTotalHitsUpTo();
+        // trackTotalHitsUpTo is set to Integer.MAX_VALUE when `rest_total_hits_as_int` is true
+        if (trackTotalHitsUpTo != null) {
+            if (searchSourceBuilder.trackTotalHitsUpTo() == null) {
+                // trackTotalHitsUpTo should be set here, ensure that we can get an accurate total hits count
+                searchSourceBuilder.trackTotalHitsUpTo(trackTotalHitsUpTo);
+            } else if (searchSourceBuilder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
+                && searchSourceBuilder.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                throw new IllegalArgumentException("[" + RestSearchAction.TOTAL_HITS_AS_INT_PARAM + "] cannot be used " +
+                    "if the tracking of total hits is not accurate, got " + searchSourceBuilder.trackTotalHitsUpTo());
+            }
+        }
     }
 }

@@ -22,8 +22,9 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
     private static final Version UPGRADE_FROM_VERSION =
         Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
+    private static final String templatePrefix = ".watch-history-";
+
     public void testWatcherRestart() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/54220", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_7_0));
         client().performRequest(new Request("POST", "/_watcher/_stop"));
         ensureWatcherStopped();
 
@@ -34,8 +35,14 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
     }
 
     private void validateHistoryTemplate() throws Exception {
+        // v7.7.0 contains a Watch history template (version 11) that can't be used unless all nodes in the cluster are >=7.7.0, so
+        // in a mixed cluster with some nodes <7.7.0 it will install template version 10, but if all nodes are <=7.7.0 template v11
+        // is used.
+        final String expectedMixedClusterTemplate = templatePrefix + (UPGRADE_FROM_VERSION.before(Version.V_7_7_0) ? "10" : "11");
+        final String expectedFinalTemplate = templatePrefix + "11";
+
         if (ClusterType.MIXED == CLUSTER_TYPE) {
-            final Request request = new Request("HEAD", "/_template/.watch-history-10");
+            final Request request = new Request("HEAD", "/_template/" + expectedMixedClusterTemplate);
             request.addParameter("include_type_name", "false");
             RequestOptions.Builder builder = request.getOptions().toBuilder();
             builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
@@ -43,7 +50,7 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
             Response response = client().performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         } else if (ClusterType.UPGRADED == CLUSTER_TYPE) {
-            Response response = client().performRequest(new Request("HEAD", "/_template/.watch-history-11"));
+            Response response = client().performRequest(new Request("HEAD", "/_template/" + expectedFinalTemplate));
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }

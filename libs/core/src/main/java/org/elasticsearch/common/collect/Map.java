@@ -111,11 +111,18 @@ public class Map {
         if (objects.length % 2 != 0) {
             throw new IllegalStateException("Must provide an even number of arguments to Map::of method");
         }
-        HashMap<K, V> map = new HashMap<>();
-        for (int k = 0; k < objects.length / 2; k++) {
-            map.put((K) objects[k * 2], (V) objects[k * 2 + 1]);
+        switch (objects.length) {
+            case 0:
+                return Map.of();
+            case 2:
+                return Map.of((K) objects[0], (V) objects[1]);
+            default:
+                HashMap<K, V> map = new HashMap<>();
+                for (int k = 0; k < objects.length / 2; k++) {
+                    map.put((K) objects[k * 2], (V) objects[k * 2 + 1]);
+                }
+                return Collections.unmodifiableMap(map);
         }
-        return Collections.unmodifiableMap(map);
     }
 
     /**

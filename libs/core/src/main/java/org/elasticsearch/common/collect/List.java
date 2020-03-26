@@ -56,7 +56,14 @@ public class List {
     @SafeVarargs
     @SuppressWarnings("varargs")
     public static <T> java.util.List<T> of(T... entries) {
-        return Collections.unmodifiableList(Arrays.asList(entries));
+        switch (entries.length) {
+            case 0:
+                return List.of();
+            case 1:
+                return List.of(entries[0]);
+            default:
+                return Collections.unmodifiableList(Arrays.asList(entries));
+        }
     }
 
     /**

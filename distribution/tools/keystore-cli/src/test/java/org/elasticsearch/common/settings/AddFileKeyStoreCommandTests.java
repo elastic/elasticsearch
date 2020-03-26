@@ -226,7 +226,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password);
         final int n = randomIntBetween(1, 8);
         final List<Tuple<String, Path>> settingFilePairs = new ArrayList<>(n);
-        for (int i = 0; i < n ; i++) {
+        for (int i = 0; i < n; i++) {
             settingFilePairs.add(Tuple.tuple("foo" + i, createRandomFile()));
         }
         terminal.addSecretInput(password);

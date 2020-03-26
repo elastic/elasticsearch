@@ -15,9 +15,8 @@ not support token graphs containing multi-position tokens.
 
 [WARNING]
 ====
-Flattening graphs containing <<token-graphs-multi-position-tokens,multi-position
-tokens>> is a lossy process. Flattening collapses the side paths of a token
-graph into a linear path.
+Flattening graphs containing multi-position tokens is a lossy process.
+Flattening collapses the side paths of a token graph into a linear path.
 
 If possible, avoid using graph token filters in
 <<analysis-index-search-time,index analyzers>>. Use the respective

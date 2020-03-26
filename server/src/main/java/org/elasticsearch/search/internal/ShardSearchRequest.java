@@ -218,6 +218,27 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
+    public ShardSearchRequest(ShardSearchRequest clone) {
+        this.shardId = clone.shardId;
+        this.searchType = clone.searchType;
+        this.numberOfShards = clone.numberOfShards;
+        this.scroll = clone.scroll;
+        this.source = clone.source;
+        this.aliasFilter = clone.aliasFilter;
+        this.indexBoost = clone.indexBoost;
+        this.nowInMillis = clone.nowInMillis;
+        this.requestCache = clone.requestCache;
+        this.clusterAlias = clone.clusterAlias;
+        this.allowPartialSearchResults = clone.allowPartialSearchResults;
+        this.indexRoutings = clone.indexRoutings;
+        this.preference = clone.preference;
+        this.canReturnNullResponseIfMatchNoDocs = clone.canReturnNullResponseIfMatchNoDocs;
+        this.bottomSortValues = clone.bottomSortValues;
+        this.originalIndices = clone.originalIndices;
+        this.readerId = clone.readerId;
+        this.keepAlive = clone.keepAlive;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -249,7 +270,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0) && asKey == false) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
         }
@@ -356,6 +377,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public void canReturnNullResponseIfMatchNoDocs(boolean value) {
         this.canReturnNullResponseIfMatchNoDocs = value;
+    }
+
+    /**
+     * Returns <code>true</code> if the request needs to create a long-lived context.
+     */
+    public boolean shouldCreatePersistentReader() {
+        return scroll != null  || (keepAlive != null && readerId == null);
     }
 
     /**

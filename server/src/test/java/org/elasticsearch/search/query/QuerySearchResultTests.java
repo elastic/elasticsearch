@@ -35,17 +35,13 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalAggregationsTests;
-import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-
-import java.util.List;
 
 import static java.util.Collections.emptyList;
 
@@ -62,7 +58,7 @@ public class QuerySearchResultTests extends ESTestCase {
         ShardId shardId = new ShardId("index", "uuid", randomInt());
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shardId, 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, randomNonNegativeLong(), null, null);
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, randomNonNegativeLong(), null, new String[0]);
         QuerySearchResult result = new QuerySearchResult(new SearchContextId(UUIDs.base64UUID(), randomLong()),
             new SearchShardTarget("node", shardId, null, OriginalIndices.NONE), shardSearchRequest);
         if (randomBoolean()) {
@@ -93,19 +89,9 @@ public class QuerySearchResultTests extends ESTestCase {
         assertEquals(querySearchResult.size(), deserialized.size());
         assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
         if (deserialized.hasAggs()) {
-            Aggregations aggs = querySearchResult.consumeAggs();
-            Aggregations deserializedAggs = deserialized.consumeAggs();
+            Aggregations aggs = querySearchResult.consumeAggs().get();
+            Aggregations deserializedAggs = deserialized.consumeAggs().get();
             assertEquals(aggs.asList(), deserializedAggs.asList());
-            List<SiblingPipelineAggregator> pipelineAggs = ((InternalAggregations) aggs).getTopLevelPipelineAggregators();
-            List<SiblingPipelineAggregator> deserializedPipelineAggs =
-                ((InternalAggregations) deserializedAggs).getTopLevelPipelineAggregators();
-            assertEquals(pipelineAggs.size(), deserializedPipelineAggs.size());
-            for (int i = 0; i < pipelineAggs.size(); i++) {
-                SiblingPipelineAggregator pipelineAgg = pipelineAggs.get(i);
-                SiblingPipelineAggregator deserializedPipelineAgg = deserializedPipelineAggs.get(i);
-                assertArrayEquals(pipelineAgg.bucketsPaths(), deserializedPipelineAgg.bucketsPaths());
-                assertEquals(pipelineAgg.name(), deserializedPipelineAgg.name());
-            }
         }
         assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
     }

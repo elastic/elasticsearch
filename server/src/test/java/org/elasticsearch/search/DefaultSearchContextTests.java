@@ -127,7 +127,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             ReaderContext readerWithoutScroll = new ReaderContext(
                 randomNonNegativeLong(), indexShard, engineSearcher, randomNonNegativeLong(), false);
             DefaultSearchContext contextWithoutScroll = new DefaultSearchContext(readerWithoutScroll, shardSearchRequest, target, null,
-                indexService, indexShard, bigArrays, null, timeout, null);
+                indexService, indexShard, bigArrays, null, timeout, null, false);
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
 
@@ -143,7 +143,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             ReaderContext readerContext = new LegacyReaderContext(
                 randomNonNegativeLong(), indexShard, engineSearcher, shardSearchRequest, randomNonNegativeLong());
             DefaultSearchContext context1 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, indexService,
-                indexShard, bigArrays, null, timeout, null);
+                indexShard, bigArrays, null, timeout, null, false);
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
             assertThat(exception.getMessage(), equalTo("Batch size is too large, size must be less than or equal to: ["
@@ -176,7 +176,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             readerContext = new ReaderContext(randomNonNegativeLong(), indexShard, engineSearcher, randomNonNegativeLong(), false);
             // rescore is null but sliceBuilder is not null
             DefaultSearchContext context2 = new DefaultSearchContext(readerContext, shardSearchRequest, target,
-                null, indexService, indexShard, bigArrays, null, timeout, null);
+                null, indexService, indexShard, bigArrays, null, timeout, null, false);
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
             int numSlices = maxSlicesPerScroll + randomIntBetween(1, 100);
@@ -193,7 +193,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(shardSearchRequest.indexBoost()).thenReturn(AbstractQueryBuilder.DEFAULT_BOOST);
 
             DefaultSearchContext context3 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
-                indexService, indexShard, bigArrays, null, timeout, null);
+                indexService, indexShard, bigArrays, null, timeout, null, false);
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
@@ -205,7 +205,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             readerContext.close();
             readerContext = new ReaderContext(randomNonNegativeLong(), indexShard, engineSearcher, randomNonNegativeLong(), false);
             DefaultSearchContext context4 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
-                indexService, indexShard, bigArrays, null, timeout, null);
+                indexService, indexShard, bigArrays, null, timeout, null, false);
             context4.sliceBuilder(new SliceBuilder(1,2)).parsedQuery(parsedQuery).preProcess(false);
             Query query1 = context4.query();
             context4.sliceBuilder(new SliceBuilder(0,2)).parsedQuery(parsedQuery).preProcess(false);

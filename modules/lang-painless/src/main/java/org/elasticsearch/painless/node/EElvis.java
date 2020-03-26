@@ -33,8 +33,9 @@ import static java.util.Objects.requireNonNull;
  * non null. If the first expression is null then it evaluates the second expression and returns it.
  */
 public class EElvis extends AExpression {
-    private AExpression lhs;
-    private AExpression rhs;
+
+    protected AExpression lhs;
+    protected AExpression rhs;
 
     public EElvis(Location location, AExpression lhs, AExpression rhs) {
         super(location);
@@ -44,24 +45,26 @@ public class EElvis extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         if (input.expected != null && input.expected.isPrimitive()) {
             throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
         }
+
         Input leftInput = new Input();
         leftInput.expected = input.expected;
         leftInput.explicit = input.explicit;
         leftInput.internal = input.internal;
+        Output leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
+
         Input rightInput = new Input();
         rightInput.expected = input.expected;
         rightInput.explicit = input.explicit;
         rightInput.internal = input.internal;
+        Output rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
+
         output.actual = input.expected;
-        Output leftOutput = lhs.analyze(scriptRoot, scope, leftInput);
-        Output rightOutput = rhs.analyze(scriptRoot, scope, rightInput);
 
         if (lhs instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
@@ -83,28 +86,25 @@ public class EElvis extends AExpression {
         if (input.expected == null) {
             Class<?> promote = AnalyzerCaster.promoteConditional(leftOutput.actual, rightOutput.actual);
 
-            lhs.input.expected = promote;
-            rhs.input.expected = promote;
+            leftInput.expected = promote;
+            rightInput.expected = promote;
             output.actual = promote;
         }
 
-        lhs.cast();
-        rhs.cast();
+        lhs.cast(leftInput, leftOutput);
+        rhs.cast(rightInput, rightOutput);
 
-        return output;
-    }
-
-    @Override
-    ElvisNode write(ClassNode classNode) {
         ElvisNode elvisNode = new ElvisNode();
 
-        elvisNode.setLeftNode(lhs.cast(lhs.write(classNode)));
-        elvisNode.setRightNode(rhs.cast(rhs.write(classNode)));
+        elvisNode.setLeftNode(lhs.cast(leftOutput));
+        elvisNode.setRightNode(rhs.cast(rightOutput));
 
         elvisNode.setLocation(location);
         elvisNode.setExpressionType(output.actual);
 
-        return elvisNode;
+        output.expressionNode = elvisNode;
+
+        return output;
     }
 
     @Override

@@ -19,6 +19,17 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import static java.util.Map.entry;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.zone.ZoneOffsetTransition;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -26,14 +37,12 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -55,17 +64,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.zone.ZoneOffsetTransition;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
-import static java.util.Map.entry;
-
 /**
  * A builder for histograms on date fields.
  */
@@ -73,7 +71,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         implements MultiBucketAggregationBuilder, DateIntervalConsumer {
 
     public static final String NAME = "date_histogram";
-    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS = Map.ofEntries(
             entry("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY),
@@ -93,11 +90,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             entry("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
             entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE));
 
-    private static final ObjectParser<DateHistogramAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<DateHistogramAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, DateHistogramAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(DateHistogramAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareAnyFields(PARSER, true, true, true);
-
         DateIntervalWrapper.declareIntervalFields(PARSER);
 
         PARSER.declareField(DateHistogramAggregationBuilder::offset, p -> {
@@ -117,10 +113,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
         PARSER.declareObjectArray(DateHistogramAggregationBuilder::order, (p, c) -> InternalOrder.Parser.parseOrderParam(p),
                 Histogram.ORDER_FIELD);
-    }
-
-    public static DateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new DateHistogramAggregationBuilder(aggregationName), null);
     }
 
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();

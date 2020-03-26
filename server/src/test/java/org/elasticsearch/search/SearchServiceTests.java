@@ -462,10 +462,10 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> service.createContext(reader, request, null, randomBoolean()));
             assertEquals(
-                "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxScriptFields + "] but was ["
-                    + (maxScriptFields + 1)
-                    + "]. This limit can be set by changing the [index.max_script_fields] index level setting.",
-                ex.getMessage());
+                    "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxScriptFields + "] but was ["
+                            + (maxScriptFields + 1)
+                            + "]. This limit can be set by changing the [index.max_script_fields] index level setting.",
+                    ex.getMessage());
         }
     }
 
@@ -651,7 +651,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-        int numWrapReader = numWrapInvocations.get();
         assertTrue(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)).canMatch());
 
@@ -675,7 +674,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         searchRequest.source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder()));
         assertFalse(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)).canMatch());
-        assertEquals(numWrapReader, numWrapInvocations.get());
+        assertEquals(0, numWrapInvocations.get());
 
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
@@ -687,7 +686,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             public void onResponse(SearchPhaseResult searchPhaseResult) {
                 try {
                     // make sure that the wrapper is called when the query is actually executed
-                    assertEquals(numWrapReader + 1, numWrapInvocations.get());
+                    assertEquals(1, numWrapInvocations.get());
                 } finally {
                     latch.countDown();
                 }

@@ -23,6 +23,7 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Scope.Variable;
+import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ForEachSubIterableNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
@@ -38,56 +39,46 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
 /**
  * Represents a for-each loop for iterables.
  */
-final class SSubEachIterable extends AStatement {
+public class SSubEachIterable extends AStatement {
 
-    private AExpression expression;
-    private final SBlock block;
-    private final Variable variable;
+    protected final Variable variable;
+    protected final AExpression.Output expressionOutput;
+    protected final Output blockOutput;
 
-    private PainlessCast cast = null;
-    private Variable iterator = null;
-    private PainlessMethod method = null;
-
-    SSubEachIterable(Location location, Variable variable, AExpression expression, SBlock block) {
+    SSubEachIterable(Location location, Variable variable, AExpression.Output expressionOutput, Output blockOutput) {
         super(location);
 
         this.variable = Objects.requireNonNull(variable);
-        this.expression = Objects.requireNonNull(expression);
-        this.block = block;
+        this.expressionOutput = Objects.requireNonNull(expressionOutput);
+        this.blockOutput = blockOutput;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         // We must store the iterator as a variable for securing a slot on the stack, and
         // also add the location offset to make the name unique in case of nested for each loops.
-        iterator = scope.defineInternalVariable(location, Iterator.class, "itr" + location.getOffset(), true);
+        Variable iterator = scope.defineVariable(location, Iterator.class, "#itr" + location.getOffset(), true);
 
-        if (expression.output.actual == def.class) {
+        PainlessMethod method;
+
+        if (expressionOutput.actual == def.class) {
             method = null;
         } else {
-            method = scriptRoot.getPainlessLookup().lookupPainlessMethod(expression.output.actual, false, "iterator", 0);
+            method = scriptRoot.getPainlessLookup().lookupPainlessMethod(expressionOutput.actual, false, "iterator", 0);
 
             if (method == null) {
                     throw createError(new IllegalArgumentException(
-                            "method [" + typeToCanonicalTypeName(expression.output.actual) + ", iterator/0] not found"));
+                            "method [" + typeToCanonicalTypeName(expressionOutput.actual) + ", iterator/0] not found"));
             }
         }
 
-        cast = AnalyzerCaster.getLegalCast(location, def.class, variable.getType(), true, true);
+        PainlessCast cast = AnalyzerCaster.getLegalCast(location, def.class, variable.getType(), true, true);
 
-        return output;
-    }
-
-    @Override
-    ForEachSubIterableNode write(ClassNode classNode) {
         ForEachSubIterableNode forEachSubIterableNode = new ForEachSubIterableNode();
-
-        forEachSubIterableNode.setConditionNode(expression.write(classNode));
-        forEachSubIterableNode.setBlockNode(block.write(classNode));
-
+        forEachSubIterableNode.setConditionNode(expressionOutput.expressionNode);
+        forEachSubIterableNode.setBlockNode((BlockNode)blockOutput.statementNode);
         forEachSubIterableNode.setLocation(location);
         forEachSubIterableNode.setVariableType(variable.getType());
         forEachSubIterableNode.setVariableName(variable.getName());
@@ -97,11 +88,14 @@ final class SSubEachIterable extends AStatement {
         forEachSubIterableNode.setMethod(method);
         forEachSubIterableNode.setContinuous(false);
 
-        return forEachSubIterableNode;
+        output.statementNode = forEachSubIterableNode;
+
+        return output;
     }
 
     @Override
     public String toString() {
-        return singleLineToString(variable.getCanonicalTypeName(), variable.getName(), expression, block);
+        //return singleLineToString(variable.getCanonicalTypeName(), variable.getName(), expression, block);
+        return null;
     }
 }

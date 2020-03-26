@@ -35,7 +35,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -95,7 +94,7 @@ public class IndexMetaDataTests extends ESTestCase {
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        IndexMetaData.FORMAT.toXContent(builder, metaData);
         builder.endObject();
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         final IndexMetaData fromXContentMeta = IndexMetaData.fromXContent(parser);

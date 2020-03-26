@@ -392,8 +392,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                             XContentBuilder builder,
                                             ToXContent.Params params,
                                             boolean includeTypeName) throws IOException {
-            MetaData.XContentContext context = MetaData.XContentContext.valueOf(
-                params.param(CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_API));
+            MetaData.XContentContext context = params.param(CONTEXT_MODE_PARAM) != null ? MetaData.XContentContext.valueOf(
+                params.param(CONTEXT_MODE_PARAM)) : null;
 
             builder.field("order", indexTemplateMetaData.order());
             if (indexTemplateMetaData.version() != null) {

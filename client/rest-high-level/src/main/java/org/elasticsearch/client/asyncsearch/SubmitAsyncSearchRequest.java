@@ -43,8 +43,8 @@ public class SubmitAsyncSearchRequest implements Validatable {
 
     public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
 
-    private TimeValue waitForCompletion;
-    private Boolean cleanOnCompletion;
+    private TimeValue waitForCompletionTimeout;
+    private Boolean keepOnCompletion;
     private TimeValue keepAlive;
     private final SearchRequest searchRequest;
 
@@ -70,29 +70,29 @@ public class SubmitAsyncSearchRequest implements Validatable {
     /**
      * Get the minimum time that the request should wait before returning a partial result (defaults to 1 second).
      */
-    public TimeValue getWaitForCompletion() {
-        return waitForCompletion;
+    public TimeValue getWaitForCompletionTimeout() {
+        return waitForCompletionTimeout;
     }
 
     /**
      * Sets the minimum time that the request should wait before returning a partial result (defaults to 1 second).
      */
-    public void setWaitForCompletion(TimeValue waitForCompletion) {
-        this.waitForCompletion = waitForCompletion;
+    public void setWaitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+        this.waitForCompletionTimeout = waitForCompletionTimeout;
     }
 
     /**
      * Returns whether the resource resource should be removed on completion or failure (defaults to true).
      */
-    public Boolean isCleanOnCompletion() {
-        return cleanOnCompletion;
+    public Boolean isKeepOnCompletion() {
+        return keepOnCompletion;
     }
 
     /**
      * Determines if the resource should be removed on completion or failure (defaults to true).
      */
-    public void setCleanOnCompletion(boolean cleanOnCompletion) {
-        this.cleanOnCompletion = cleanOnCompletion;
+    public void setKeepOnCompletion(boolean keepOnCompletion) {
+        this.keepOnCompletion = keepOnCompletion;
     }
 
     /**
@@ -273,12 +273,12 @@ public class SubmitAsyncSearchRequest implements Validatable {
         SubmitAsyncSearchRequest request = (SubmitAsyncSearchRequest) o;
         return Objects.equals(searchRequest, request.searchRequest)
                 && Objects.equals(getKeepAlive(), request.getKeepAlive())
-                && Objects.equals(getWaitForCompletion(), request.getWaitForCompletion())
-                && Objects.equals(isCleanOnCompletion(), request.isCleanOnCompletion());
+                && Objects.equals(getWaitForCompletionTimeout(), request.getWaitForCompletionTimeout())
+                && Objects.equals(isKeepOnCompletion(), request.isKeepOnCompletion());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchRequest, getKeepAlive(), getWaitForCompletion(), isCleanOnCompletion());
+        return Objects.hash(searchRequest, getKeepAlive(), getWaitForCompletionTimeout(), isKeepOnCompletion());
     }
 }

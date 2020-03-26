@@ -93,6 +93,51 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 Recall.NAME.getPreferredName()));
     }
 
+    public void testEvaluate_AllMetrics_KeywordField_CaseSensitivity() {
+        String indexName = "some-index";
+        String actualField = "fieldA";
+        String predictedField = "fieldB";
+        client().admin().indices().prepareCreate(indexName)
+            .setMapping(
+                actualField, "type=keyword",
+                predictedField, "type=keyword")
+            .get();
+        client().prepareIndex(indexName)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setSource(
+                actualField, "crocodile",
+                predictedField, "cRoCoDiLe")
+            .get();
+
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                indexName,
+                new Classification(
+                    actualField,
+                    predictedField,
+                    List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
+
+        Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(accuracyResult.getClasses(), contains(new Accuracy.PerClassResult("crocodile", 0.0)));
+        assertThat(accuracyResult.getOverallAccuracy(), equalTo(0.0));
+
+        MulticlassConfusionMatrix.Result confusionMatrixResult =
+            (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics().get(1);
+        assertThat(
+            confusionMatrixResult.getConfusionMatrix(),
+            equalTo(List.of(
+                new MulticlassConfusionMatrix.ActualClass(
+                    "crocodile", 1, List.of(new MulticlassConfusionMatrix.PredictedClass("crocodile", 0L)), 1))));
+
+        Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(2);
+        assertThat(precisionResult.getClasses(), empty());
+        assertThat(precisionResult.getAvgPrecision(), is(notANumber()));
+
+        Recall.Result recallResult = (Recall.Result) evaluateDataFrameResponse.getMetrics().get(3);
+        assertThat(recallResult.getClasses(), contains(new Recall.PerClassResult("crocodile", 0.0)));
+        assertThat(recallResult.getAvgRecall(), equalTo(0.0));
+    }
+
     private Accuracy.Result evaluateAccuracy(String actualField, String predictedField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, List.of(new Accuracy())));

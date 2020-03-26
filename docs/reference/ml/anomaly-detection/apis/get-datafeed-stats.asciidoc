@@ -60,7 +60,7 @@ all {dfeeds}.
 (Optional, boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
-[role="child_attribute"]
+[role="child_attributes"]
 [[ml-get-datafeed-stats-results]]
 ==== {api-response-body-title}
 

@@ -141,6 +141,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
 
     @Override
     protected void validate(ValidationContext context) {
+        context.validateHasParent(NAME, name);
         if (sorts.isEmpty() && size == null && from == 0) {
             context.addValidationError("[" + name + "] is configured to perform nothing. Please set either of "
                     + Arrays.asList(SearchSourceBuilder.SORT_FIELD.getPreferredName(), SIZE.getPreferredName(), FROM.getPreferredName())

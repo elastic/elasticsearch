@@ -195,7 +195,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
 
     @Override
     protected void validate(ValidationContext context) {
-        // Nothing to check
+        context.validateHasParent(NAME, name);
     }
 
     @Override

@@ -70,7 +70,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
             return new IllegalStateException("Security is not enabled but a security rest handler is registered");
         } else if (licenseState.isSecurityAvailable() == false) {
             return LicenseUtils.newComplianceException(XPackField.SECURITY);
-        } else if (licenseState.isSecurityDisabledByLicenseDefaults()) {
+        } else if (licenseState.isSecurityEnabled() == false) {
             return new ElasticsearchException("Security must be explicitly enabled when using a [" +
                     licenseState.getOperationMode().description() + "] license. " +
                     "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +

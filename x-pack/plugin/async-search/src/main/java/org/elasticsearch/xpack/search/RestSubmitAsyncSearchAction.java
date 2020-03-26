@@ -51,14 +51,14 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         request.withContentOrSourceParamParserOrNull(parser ->
             parseSearchRequest(submit.getSearchRequest(), request, parser, setSize));
 
-        if (request.hasParam("wait_for_completion")) {
-            submit.setWaitForCompletion(request.paramAsTime("wait_for_completion", submit.getWaitForCompletion()));
+        if (request.hasParam("wait_for_completion_timeout")) {
+            submit.setWaitForCompletionTimeout(request.paramAsTime("wait_for_completion_timeout", submit.getWaitForCompletionTimeout()));
         }
         if (request.hasParam("keep_alive")) {
             submit.setKeepAlive(request.paramAsTime("keep_alive", submit.getKeepAlive()));
         }
-        if (request.hasParam("clean_on_completion")) {
-            submit.setCleanOnCompletion(request.paramAsBoolean("clean_on_completion", submit.isCleanOnCompletion()));
+        if (request.hasParam("keep_on_completion")) {
+            submit.setKeepOnCompletion(request.paramAsBoolean("keep_on_completion", submit.isKeepOnCompletion()));
         }
         return channel -> {
             RestStatusToXContentListener<AsyncSearchResponse> listener = new RestStatusToXContentListener<>(channel);

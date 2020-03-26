@@ -349,7 +349,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         String synchronizationField,
         long synchronizationTimestamp
     ) {
-        if (synchronizationField != null && field != null && synchronizationField.equals(field) && synchronizationTimestamp > 0) {
+        if (synchronizationField != null && synchronizationField.equals(field) && synchronizationTimestamp > 0) {
             return new RangeQueryBuilder(field).gte(rounding.round(synchronizationTimestamp)).format("epoch_millis");
         } else {
             return null;

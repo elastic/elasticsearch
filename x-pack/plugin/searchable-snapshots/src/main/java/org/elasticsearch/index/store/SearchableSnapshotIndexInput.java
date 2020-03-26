@@ -257,7 +257,6 @@ public class SearchableSnapshotIndexInput extends BaseSearchableSnapshotIndexInp
     }
 
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {
-        assert assertHashIsNotEqualToContent();
         return blobContainer.readBlob(fileInfo.partName(part), pos, length);
     }
 

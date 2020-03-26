@@ -26,6 +26,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         this.blobContainer = Objects.requireNonNull(blobContainer);
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
+        assert fileInfo.metadata().hashEqualsContents() == false
+            : "this method should only be used with blobs that are NOT stored in metadata's hash field (fileInfo: " + fileInfo + ')';
     }
 
     public BaseSearchableSnapshotIndexInput(
@@ -40,7 +42,6 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     }
 
     protected InputStream openInputStream(final long position, final long length) throws IOException {
-        assert assertHashIsNotEqualToContent();
         final long startPart = getPartNumberForPosition(position);
         final long endPart = getPartNumberForPosition(position + length);
         if ((startPart == endPart) || fileInfo.numberOfParts() == 1L) {
@@ -84,11 +85,5 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         if (position < 0L || position > fileInfo.length()) {
             throw new IllegalArgumentException("Position [" + position + "] is invalid");
         }
-    }
-
-    boolean assertHashIsNotEqualToContent() {
-        assert fileInfo.metadata().hashEqualsContents() == false
-            : "this method should only be used with blobs that are NOT stored in metadata's hash field (fileInfo: " + fileInfo + ')';
-        return true;
     }
 }

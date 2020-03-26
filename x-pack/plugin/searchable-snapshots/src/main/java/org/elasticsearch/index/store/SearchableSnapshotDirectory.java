@@ -12,6 +12,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -225,7 +226,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfo(name);
         if (fileInfo.metadata().hashEqualsContents()) {
-            return new ByteArrayIndexInput("ByteArrayIndexInput(" + name + ')', fileInfo.metadata().hash().bytes);
+            final BytesRef content = fileInfo.metadata().hash();
+            return new ByteArrayIndexInput("ByteArrayIndexInput(" + name + ')', content.bytes, content.offset, content.length);
         }
 
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));

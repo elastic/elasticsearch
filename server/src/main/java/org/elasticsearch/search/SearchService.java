@@ -34,6 +34,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -692,6 +693,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.size() == -1) {
                 context.size(DEFAULT_SIZE);
             }
+            context.setTask(task);
 
             // pre process
             dfsPhase.preProcess(context);
@@ -733,7 +735,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 bigArrays, threadPool::relativeTimeInMillis, timeout, fetchPhase, lowLevelCancellation);
             assert searchContext.getQueryShardContext().isCacheable();
             success = true;
-            return searchContext;
         } finally {
             if (success == false) {
                 // we handle the case where `IndicesService#indexServiceSafe`or `IndexService#getShard`, or the DefaultSearchContext
@@ -745,6 +746,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }
         }
+        return searchContext;
     }
 
     private void freeAllContextForIndex(Index index) {
@@ -1121,8 +1123,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
         ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
-                // now we need to check if there is a pending refresh and register
-                shard.awaitShardSearchActive(b -> listener.onResponse(request)),
+            // now we need to check if there is a pending refresh and register
+            shard.awaitShardSearchActive(b -> listener.onResponse(request)),
             listener::onFailure);
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not

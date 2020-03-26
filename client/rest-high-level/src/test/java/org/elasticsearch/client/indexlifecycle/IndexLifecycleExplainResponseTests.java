@@ -57,7 +57,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase
         boolean stepNull = randomBoolean();
         return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomLongBetween(0, System.currentTimeMillis()),
             stepNull ? null : randomAlphaOfLength(10),
             stepNull ? null : randomAlphaOfLength(10),
             stepNull ? null : randomAlphaOfLength(10),

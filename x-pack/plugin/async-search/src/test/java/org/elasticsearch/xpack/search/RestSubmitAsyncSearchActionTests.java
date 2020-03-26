@@ -111,7 +111,7 @@ public class RestSubmitAsyncSearchActionTests extends ESTestCase {
     }
 
     /**
-     * Sends the given request to the test controller in {@link #controller()}.
+     * Sends the given request to the test controller
      */
     protected void dispatchRequest(RestRequest request) {
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);

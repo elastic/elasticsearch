@@ -24,8 +24,8 @@ public class EqlFunctionRegistry extends FunctionRegistry {
         // Scalar functions
         // String
             new FunctionDefinition[] {
+                def(Between.class, Between::new, 2, "between"),
                 def(Substring.class, Substring::new, "substring"),
-                defTwoOpt(Between.class, Between::new, "between"),
             },
         };
     }

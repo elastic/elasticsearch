@@ -798,8 +798,8 @@ An array of index names. Wildcards are supported. For example:
 `["it_ops_metrics", "server*"]`.
 +
 --
-NOTE: If any indices are in remote clusters then `cluster.remote.connect` must
-not be set to `false` on any {ml} nodes.
+NOTE: If any indices are in remote clusters then `node.remote_cluster_client`
+must not be set to `false` on any {ml} nodes.
 
 --
 end::indices[]

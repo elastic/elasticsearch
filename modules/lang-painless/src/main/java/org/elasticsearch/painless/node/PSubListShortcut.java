@@ -32,13 +32,10 @@ import java.util.Objects;
 /**
  * Represents a list load/store shortcut.  (Internal only.)
  */
-final class PSubListShortcut extends AStoreable {
+public class PSubListShortcut extends AStoreable {
 
-    private final Class<?> targetClass;
-    private AExpression index;
-
-    private PainlessMethod getter;
-    private PainlessMethod setter;
+    protected final Class<?> targetClass;
+    protected final AExpression index;
 
     PSubListShortcut(Location location, Class<?> targetClass, AExpression index) {
         super(location);
@@ -48,14 +45,13 @@ final class PSubListShortcut extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
-        getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
-        setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "set", 2);
+        PainlessMethod getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
+        PainlessMethod setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "set", 2);
 
         if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
             getter.typeParameters.get(0) != int.class)) {
@@ -71,42 +67,36 @@ final class PSubListShortcut extends AStoreable {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
+        Output indexOutput = new Output();
+
         if ((input.read || input.write) && (input.read == false || getter != null) && (input.write == false || setter != null)) {
             Input indexInput = new Input();
             indexInput.expected = int.class;
-            index.analyze(scriptRoot, scope, indexInput);
-            index.cast();
+            indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+            index.cast(indexInput, indexOutput);
 
             output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
         } else {
             throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + canonicalClassName + "]."));
         }
 
-        return output;
-    }
-
-    @Override
-    ListSubShortcutNode write(ClassNode classNode) {
         ListSubShortcutNode listSubShortcutNode = new ListSubShortcutNode();
 
-        listSubShortcutNode.setChildNode(index.cast(index.write(classNode)));
+        listSubShortcutNode.setChildNode(index.cast(indexOutput));
 
         listSubShortcutNode.setLocation(location);
         listSubShortcutNode.setExpressionType(output.actual);
         listSubShortcutNode.setGetter(getter);
         listSubShortcutNode.setSetter(setter);
 
-        return listSubShortcutNode;
+        output.expressionNode = listSubShortcutNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
         return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
     }
 
     @Override

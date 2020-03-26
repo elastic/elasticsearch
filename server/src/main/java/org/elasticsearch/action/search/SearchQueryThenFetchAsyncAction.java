@@ -107,7 +107,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
-        return new FetchSearchPhase(results, searchPhaseController, null, context, clusterState());
+        return new FetchSearchPhase(results, searchPhaseController, null, context);
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {

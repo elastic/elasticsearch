@@ -73,6 +73,6 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final AggregatedDfs aggregatedDfs = searchPhaseController.aggregateDfs(dfsSearchResults);
 
         return new DfsQueryPhase(dfsSearchResults, aggregatedDfs, searchPhaseController, (queryResults) ->
-            new FetchSearchPhase(queryResults, searchPhaseController, aggregatedDfs, context, clusterState()), context);
+            new FetchSearchPhase(queryResults, searchPhaseController, aggregatedDfs, context), context);
     }
 }

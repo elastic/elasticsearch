@@ -235,7 +235,7 @@ public class ClientHelperTests extends ESTestCase {
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+            SearchResponse.Clusters.EMPTY, null));
         when(client.search(any())).thenReturn(searchFuture);
         assertExecutionWithOrigin(Collections.emptyMap(), client);
     }
@@ -249,7 +249,7 @@ public class ClientHelperTests extends ESTestCase {
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+            SearchResponse.Clusters.EMPTY, null));
         when(client.search(any())).thenReturn(searchFuture);
         Map<String, String> headers = MapBuilder.<String, String> newMapBuilder().put(AuthenticationField.AUTHENTICATION_KEY, "anything")
                 .put(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything").map();
@@ -270,7 +270,7 @@ public class ClientHelperTests extends ESTestCase {
 
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         searchFuture.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY));
+            SearchResponse.Clusters.EMPTY, null));
         when(client.search(any())).thenReturn(searchFuture);
         Map<String, String> unrelatedHeaders = MapBuilder.<String, String> newMapBuilder().put(randomAlphaOfLength(10), "anything").map();
 

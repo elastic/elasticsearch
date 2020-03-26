@@ -104,7 +104,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
             // block till latch has been counted down, simulating network latency
             awaitForLatch();
-            nextPhase.onResponse(new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null));
+            nextPhase.onResponse(new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null, null));
         }
 
         @Override
@@ -198,7 +198,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), null,
                 null, false, null, null, 1);
 
-            nextPhase.onResponse(new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null));
+            nextPhase.onResponse(new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null, null));
         }
 
         @Override

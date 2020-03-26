@@ -123,7 +123,7 @@ public class SearchResponseTests extends ESTestCase {
         }
 
         return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, skippedShards, tookInMillis,
-            shardSearchFailures, randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY);
+            shardSearchFailures, randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY, null);
     }
 
     static SearchResponse.Clusters randomClusters() {
@@ -216,7 +216,7 @@ public class SearchResponseTests extends ESTestCase {
                         null, false, null, 1),
                         null, 0
             , 0, 0, 0,
-                    ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+                    ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -245,7 +245,7 @@ public class SearchResponseTests extends ESTestCase {
                         new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1
                     ),
                 null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
-                new SearchResponse.Clusters(5, 3, 2));
+                new SearchResponse.Clusters(5, 3, 2), null);
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -295,7 +295,7 @@ public class SearchResponseTests extends ESTestCase {
 
     public void testToXContentEmptyClusters() throws IOException {
         SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, 1,
-            ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
         SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);

@@ -23,6 +23,7 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Scope.Variable;
+import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ForEachSubArrayNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
@@ -33,46 +34,34 @@ import java.util.Objects;
 /**
  * Represents a for-each loop for arrays.
  */
-final class SSubEachArray extends AStatement {
-    private final Variable variable;
-    private AExpression expression;
-    private final SBlock block;
+public class SSubEachArray extends AStatement {
 
-    private PainlessCast cast = null;
-    private Variable array = null;
-    private Variable index = null;
-    private Class<?> indexed = null;
+    protected final Variable variable;
+    protected final AExpression.Output expressionOutput;
+    protected final Output blockOutput;
 
-    SSubEachArray(Location location, Variable variable, AExpression expression, SBlock block) {
+    SSubEachArray(Location location, Variable variable, AExpression.Output expressionOutput, Output blockOutput) {
         super(location);
 
         this.variable = Objects.requireNonNull(variable);
-        this.expression = Objects.requireNonNull(expression);
-        this.block = block;
+        this.expressionOutput = Objects.requireNonNull(expressionOutput);
+        this.blockOutput = blockOutput;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         // We must store the array and index as variables for securing slots on the stack, and
         // also add the location offset to make the names unique in case of nested for each loops.
-        array = scope.defineInternalVariable(location, expression.output.actual, "array" + location.getOffset(), true);
-        index = scope.defineInternalVariable(location, int.class, "index" + location.getOffset(), true);
-        indexed = expression.output.actual.getComponentType();
-        cast = AnalyzerCaster.getLegalCast(location, indexed, variable.getType(), true, true);
+        Variable array = scope.defineVariable(location, expressionOutput.actual, "#array" + location.getOffset(), true);
+        Variable index = scope.defineVariable(location, int.class, "#index" + location.getOffset(), true);
+        Class<?> indexed = expressionOutput.actual.getComponentType();
+        PainlessCast cast = AnalyzerCaster.getLegalCast(location, indexed, variable.getType(), true, true);
 
-        return output;
-    }
-
-    @Override
-    ForEachSubArrayNode write(ClassNode classNode) {
         ForEachSubArrayNode forEachSubArrayNode = new ForEachSubArrayNode();
-
-        forEachSubArrayNode.setConditionNode(expression.write(classNode));
-        forEachSubArrayNode.setBlockNode(block.write(classNode));
-
+        forEachSubArrayNode.setConditionNode(expressionOutput.expressionNode);
+        forEachSubArrayNode.setBlockNode((BlockNode)blockOutput.statementNode);
         forEachSubArrayNode.setLocation(location);
         forEachSubArrayNode.setVariableType(variable.getType());
         forEachSubArrayNode.setVariableName(variable.getName());
@@ -84,11 +73,14 @@ final class SSubEachArray extends AStatement {
         forEachSubArrayNode.setIndexedType(indexed);
         forEachSubArrayNode.setContinuous(false);
 
-        return forEachSubArrayNode;
+        output.statementNode = forEachSubArrayNode;
+
+        return output;
     }
 
     @Override
     public String toString() {
-        return singleLineToString(variable.getCanonicalTypeName(), variable.getName(), expression, block);
+        //return singleLineToString(variable.getCanonicalTypeName(), variable.getName(), expression, block);
+        return null;
     }
 }

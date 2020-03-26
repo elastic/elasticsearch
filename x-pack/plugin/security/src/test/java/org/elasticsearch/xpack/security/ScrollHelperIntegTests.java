@@ -92,7 +92,7 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
             false,
             1);
         SearchResponse response = new SearchResponse(internalResponse, scrollId, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
+                SearchResponse.Clusters.EMPTY, null);
 
         Answer<?> returnResponse = invocation -> {
             @SuppressWarnings("unchecked")

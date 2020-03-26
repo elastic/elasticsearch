@@ -168,7 +168,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
                     final SearchResponse response = new SearchResponse(
                         new SearchResponseSections(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                            null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
+                            null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null, null);
                     listener.onResponse((Response) response);
                 } else if (SearchScrollAction.NAME.equals(action.name())){
                     assertThat(request, instanceOf(SearchScrollRequest.class));
@@ -176,7 +176,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     final SearchHit[] hits = searchScrollFunction.apply(searchScrollRequest);
                     final SearchResponse response = new SearchResponse(
                         new SearchResponseSections(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                            null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
+                            null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null, null);
                     listener.onResponse((Response) response);
                 } else if (ClearScrollAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(ClearScrollRequest.class));

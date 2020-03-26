@@ -511,7 +511,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         final Set<ShardId> queried = new HashSet<>();
 
         TestSearchResponse() {
-            super(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY);
+            super(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY, null);
         }
     }
 

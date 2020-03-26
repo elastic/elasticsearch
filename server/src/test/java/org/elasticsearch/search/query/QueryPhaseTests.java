@@ -910,12 +910,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     private static ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
         return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
     }
 
     private static ContextIndexSearcher newEarlyTerminationContextSearcher(IndexReader reader, int size) throws IOException {
         return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy()) {
+            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true) {
 
             @Override
             public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
@@ -928,7 +928,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     // used to check that numeric long or date sort optimization was run
     private static ContextIndexSearcher newOptimizedContextSearcher(IndexReader reader, int queryType) throws IOException {
         return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy()) {
+            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true) {
 
             @Override
             public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,

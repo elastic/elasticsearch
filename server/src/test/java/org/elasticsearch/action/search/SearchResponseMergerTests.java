@@ -100,7 +100,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             SearchContext.TRACK_TOTAL_HITS_ACCURATE, timeProvider, emptyReduceContextBuilder());
         for (int i = 0; i < numResponses; i++) {
             SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, randomLong(),
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponseTests.randomClusters());
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponseTests.randomClusters(), null);
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
@@ -136,7 +136,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 priorityQueue.add(Tuple.tuple(searchShardTarget, failure));
             }
             SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null,
-                1, 1, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY);
+                1, 1, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY, null);
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
@@ -174,7 +174,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 priorityQueue.add(Tuple.tuple(shardId, failure));
             }
             SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null,
-                1, 1, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY);
+                1, 1, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY, null);
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
@@ -208,7 +208,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 expectedFailures.add(shardSearchFailure);
             }
             SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null,
-                1, 1, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY);
+                1, 1, 0, 100L, shardSearchFailures, SearchResponse.Clusters.EMPTY, null);
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
@@ -228,7 +228,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, null, profile, false, null, 1);
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, 100L,
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
@@ -270,7 +270,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, suggest, null, false, null, 1);
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, randomLong(),
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
             addResponse(searchResponseMerger, searchResponse);
         }
         awaitResponsesAdded();
@@ -318,7 +318,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, null, suggest, null, false, null, 1);
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, randomLong(),
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
             addResponse(searchResponseMerger, searchResponse);
         }
         awaitResponsesAdded();
@@ -373,7 +373,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
             InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, aggs, null, null, false, null, 1);
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, 1, 1, 0, randomLong(),
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
             addResponse(searchResponseMerger, searchResponse);
         }
         awaitResponsesAdded();
@@ -494,7 +494,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 searchHits, null, null, null, timedOut, terminatedEarly, numReducePhases);
 
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, total, successful, skipped,
-                randomLong(), ShardSearchFailure.EMPTY_ARRAY, SearchResponseTests.randomClusters());
+                randomLong(), ShardSearchFailure.EMPTY_ARRAY, SearchResponseTests.randomClusters(), null);
 
             addResponse(searchResponseMerger, searchResponse);
         }
@@ -600,14 +600,14 @@ public class SearchResponseMergerTests extends ESTestCase {
             SearchHits searchHits = new SearchHits(hits, new TotalHits(10, TotalHits.Relation.EQUAL_TO), Float.NaN, sortFields, null, null);
             InternalSearchResponse response = new InternalSearchResponse(searchHits, null, null, null, false, false, 1);
             SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 1L,
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
             merger.add(searchResponse);
         }
         {
             SearchHits empty = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN, null, null, null);
             InternalSearchResponse response = new InternalSearchResponse(empty, null, null, null, false, false, 1);
             SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 1L,
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
             merger.add(searchResponse);
         }
         assertEquals(2, merger.numResponses());
@@ -642,7 +642,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             SearchHits empty = new SearchHits(new SearchHit[0], totalHits, Float.NaN, null, null, null);
             InternalSearchResponse response = new InternalSearchResponse(empty, null, null, null, false, false, 1);
             SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 1L,
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null);
             merger.add(searchResponse);
         }
         SearchResponse mergedResponse = merger.getMergedResponse(clusters);

@@ -117,7 +117,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                     InternalSearchResponse response = new InternalSearchResponse(new SearchHits(new SearchHit[0],
                         new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN), InternalAggregations.EMPTY, null, null, false, null, 1);
                     SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY);
+                        SearchResponse.Clusters.EMPTY, null);
                     channel.sendResponse(searchResponse);
                 });
             newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,

@@ -174,7 +174,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
             new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
             null, null, false, false, null, 1),
-        "_scrollId1", 1, 1, 0, 1, null, null));
+        "_scrollId1", 1, 1, 0, 1, null, null, null));
 
         assertResult(sourcePrivileges, future);
     }
@@ -196,7 +196,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
             new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
             null, null, false, false, null, 1),
-        "_scrollId1", 1, 1, 0, 1, null, null));
+        "_scrollId1", 1, 1, 0, 1, null, null, null));
     }
 
     public void testGetPrivilegesByStarApplicationName() throws Exception {
@@ -215,7 +215,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
             new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
             null, null, false, false, null, 1),
-        "_scrollId1", 1, 1, 0, 1, null, null));
+        "_scrollId1", 1, 1, 0, 1, null, null, null));
     }
 
     public void testGetAllPrivileges() throws Exception {
@@ -240,7 +240,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
             new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
             null, null, false, false, null, 1),
-            "_scrollId1", 1, 1, 0, 1, null, null));
+            "_scrollId1", 1, 1, 0, 1, null, null, null));
 
         assertResult(sourcePrivileges, future);
     }

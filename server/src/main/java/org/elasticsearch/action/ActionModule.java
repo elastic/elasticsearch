@@ -193,10 +193,12 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.TransportMainAction;
+import org.elasticsearch.action.search.ClearReaderAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
+import org.elasticsearch.action.search.TransportClearReaderAction;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -215,6 +217,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
@@ -347,6 +350,7 @@ import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
 import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
+import org.elasticsearch.rest.action.search.RestClearReaderAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestCountAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
@@ -419,17 +423,19 @@ public class ActionModule extends AbstractModule {
     private final RestController restController;
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
+    private final ClusterService clusterService;
 
     public ActionModule(Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
                         ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-                        CircuitBreakerService circuitBreakerService, UsageService usageService) {
+                        CircuitBreakerService circuitBreakerService, UsageService usageService, ClusterService clusterService) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
+        this.clusterService = clusterService;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver);
@@ -454,9 +460,9 @@ public class ActionModule extends AbstractModule {
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
-        final boolean restrictSystemIndices = RestController.RESTRICT_SYSTEM_INDICES.get(settings);
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, restrictSystemIndices);
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
     }
+
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;
@@ -563,6 +569,7 @@ public class ActionModule extends AbstractModule {
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         actions.register(ExplainAction.INSTANCE, TransportExplainAction.class);
         actions.register(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
+        actions.register(ClearReaderAction.INSTANCE, TransportClearReaderAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
         actions.register(NodesReloadSecureSettingsAction.INSTANCE, TransportNodesReloadSecureSettingsAction.class);
 
@@ -698,7 +705,7 @@ public class ActionModule extends AbstractModule {
 
         registerHandler.accept(new RestIndexAction());
         registerHandler.accept(new CreateHandler());
-        registerHandler.accept(new AutoIdHandler(nodesInCluster));
+        registerHandler.accept(new AutoIdHandler(clusterService));
         registerHandler.accept(new RestGetAction());
         registerHandler.accept(new RestGetSourceAction());
         registerHandler.accept(new RestMultiGetAction(settings));
@@ -712,6 +719,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSearchAction());
         registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
+        registerHandler.accept(new RestClearReaderAction());
         registerHandler.accept(new RestMultiSearchAction(settings));
 
         registerHandler.accept(new RestValidateQueryAction());

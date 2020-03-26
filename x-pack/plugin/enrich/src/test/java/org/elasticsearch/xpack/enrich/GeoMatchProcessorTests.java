@@ -194,7 +194,8 @@ public class GeoMatchProcessorTests extends ESTestCase {
             0,
             1,
             ShardSearchFailure.EMPTY_ARRAY,
-            new SearchResponse.Clusters(1, 1, 0)
+            new SearchResponse.Clusters(1, 1, 0),
+            null
         );
     }
 }

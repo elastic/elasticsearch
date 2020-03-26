@@ -324,7 +324,8 @@ public class TransformIndexerTests extends ESTestCase {
             0,
             0,
             ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            null
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;

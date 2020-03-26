@@ -156,7 +156,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 commonExecutor.execute(() -> {
                     counter.decrementAndGet();
                     listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L,
-                        ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY));
+                        ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY, null));
                 });
             }
 

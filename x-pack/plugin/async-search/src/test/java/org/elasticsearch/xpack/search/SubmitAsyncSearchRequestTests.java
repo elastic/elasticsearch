@@ -35,9 +35,9 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
             searchRequest = new SubmitAsyncSearchRequest();
         }
         if (randomBoolean()) {
-            searchRequest.setWaitForCompletion(TimeValue.parseTimeValue(randomPositiveTimeValue(), "wait_for_completion"));
+            searchRequest.setWaitForCompletionTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "wait_for_completion"));
         }
-        searchRequest.setCleanOnCompletion(randomBoolean());
+        searchRequest.setKeepOnCompletion(randomBoolean());
         if (randomBoolean()) {
             searchRequest.setKeepAlive(TimeValue.parseTimeValue(randomPositiveTimeValue(), "keep_alive"));
         }
@@ -108,5 +108,14 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         assertNotNull(exc);
         assertThat(exc.validationErrors().size(), equalTo(1));
         assertThat(exc.validationErrors().get(0), containsString("suggest"));
+    }
+
+    public void testValidatePreFilterShardSize() {
+        SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
+        req.getSearchRequest().setPreFilterShardSize(randomIntBetween(2, Integer.MAX_VALUE));
+        ActionRequestValidationException exc = req.validate();
+        assertNotNull(exc);
+        assertThat(exc.validationErrors().size(), equalTo(1));
+        assertThat(exc.validationErrors().get(0), containsString("[pre_filter_shard_size]"));
     }
 }

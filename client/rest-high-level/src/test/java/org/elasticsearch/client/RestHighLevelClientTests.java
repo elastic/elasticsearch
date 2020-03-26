@@ -234,7 +234,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testSearchScroll() throws IOException {
         SearchResponse mockSearchResponse = new SearchResponse(new SearchResponseSections(SearchHits.empty(), InternalAggregations.EMPTY,
                 null, false, false, null, 1), randomAlphaOfLengthBetween(5, 10), 5, 5, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
+                SearchResponse.Clusters.EMPTY, null);
         mockResponse(mockSearchResponse);
         SearchResponse searchResponse = restHighLevelClient.scroll(
                 new SearchScrollRequest(randomAlphaOfLengthBetween(5, 10)), RequestOptions.DEFAULT);
@@ -801,7 +801,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.delete_component_template",
             "indices.create_data_stream",
             "indices.get_data_streams",
-            "indices.delete_data_stream"
+            "indices.delete_data_stream",
+            "clear_reader"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {

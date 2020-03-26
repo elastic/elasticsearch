@@ -22,9 +22,7 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.RescoreDocIds;
@@ -39,7 +37,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -51,29 +48,26 @@ final class FetchSearchPhase extends SearchPhase {
     private final AtomicArray<FetchSearchResult> fetchResults;
     private final SearchPhaseController searchPhaseController;
     private final AtomicArray<SearchPhaseResult> queryResults;
-    private final BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory;
+    private final BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final Logger logger;
     private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchProgressListener progressListener;
     private final AggregatedDfs aggregatedDfs;
-    private final ClusterState clusterState;
 
     FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
                      AggregatedDfs aggregatedDfs,
-                     SearchPhaseContext context,
-                     ClusterState clusterState) {
-        this(resultConsumer, searchPhaseController, aggregatedDfs, context, clusterState,
-            (response, scrollId) -> new ExpandSearchPhase(context, response, scrollId));
+                     SearchPhaseContext context) {
+        this(resultConsumer, searchPhaseController, aggregatedDfs, context,
+            (response, queryPhaseResults) -> new ExpandSearchPhase(context, response, queryPhaseResults));
     }
 
     FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
                      AggregatedDfs aggregatedDfs,
                      SearchPhaseContext context,
-                     ClusterState clusterState,
-                     BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory) {
+                     BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory) {
         super("fetch");
         if (context.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException("number of shards must match the length of the query results but doesn't:"
@@ -88,7 +82,6 @@ final class FetchSearchPhase extends SearchPhase {
         this.logger = context.getLogger();
         this.resultConsumer = resultConsumer;
         this.progressListener = context.getTask().getProgressListener();
-        this.clusterState = clusterState;
     }
 
     @Override
@@ -109,21 +102,14 @@ final class FetchSearchPhase extends SearchPhase {
         });
     }
 
-    private void innerRun() throws IOException {
+    private void innerRun() {
         final int numShards = context.getNumShards();
         final boolean isScrollSearch = context.getRequest().scroll() != null;
         final List<SearchPhaseResult> phaseResults = queryResults.asList();
-        final String scrollId;
-        if (isScrollSearch) {
-            final boolean includeContextUUID = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0);
-            scrollId = TransportSearchHelper.buildScrollId(queryResults, includeContextUUID);
-        } else {
-            scrollId = null;
-        }
         final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
         final boolean queryAndFetchOptimization = queryResults.length() == 1;
         final Runnable finishPhase = ()
-            -> moveToNextPhase(searchPhaseController, scrollId, reducedQueryPhase, queryAndFetchOptimization ?
+            -> moveToNextPhase(searchPhaseController, queryResults, reducedQueryPhase, queryAndFetchOptimization ?
             queryResults : fetchResults);
         if (queryAndFetchOptimization) {
             assert phaseResults.isEmpty() || phaseResults.get(0).fetchResult() != null : "phaseResults empty [" + phaseResults.isEmpty()
@@ -222,7 +208,7 @@ final class FetchSearchPhase extends SearchPhase {
     private void releaseIrrelevantSearchContext(QuerySearchResult queryResult) {
         // we only release search context that we did not fetch from if we are not scrolling
         // and if it has at lease one hit that didn't make it to the global topDocs
-        if (context.getRequest().scroll() == null && queryResult.hasSearchContext()) {
+        if (context.getRequest().scroll() == null &&  context.getRequest().reader() == null && queryResult.hasSearchContext()) {
             try {
                 SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
@@ -234,10 +220,11 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     private void moveToNextPhase(SearchPhaseController searchPhaseController,
-                                 String scrollId, SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
+                                 AtomicArray<SearchPhaseResult> queryPhaseResults,
+                                 SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
                                  AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
         final InternalSearchResponse internalResponse = searchPhaseController.merge(context.getRequest().scroll() != null,
             reducedQueryPhase, fetchResultsArr.asList(), fetchResultsArr::get);
-        context.executeNextPhase(this, nextPhaseFactory.apply(internalResponse, scrollId));
+        context.executeNextPhase(this, nextPhaseFactory.apply(internalResponse, queryPhaseResults));
     }
 }

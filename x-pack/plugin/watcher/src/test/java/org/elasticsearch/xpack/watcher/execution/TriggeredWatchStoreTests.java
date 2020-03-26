@@ -234,8 +234,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         hit.sourceRef(source);
         hits = new SearchHits(new SearchHit[]{hit}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponse searchResponse2 = new SearchResponse(
-            new InternalSearchResponse(hits, null, null, null, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
-        SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId2", 1, 1, 0, 1, null, null);
+            new InternalSearchResponse(hits, null, null, null, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null, null);
+        SearchResponse searchResponse3 = new SearchResponse(InternalSearchResponse.empty(), "_scrollId2", 1, 1, 0, 1, null, null, null);
 
         doAnswer(invocation -> {
             SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];

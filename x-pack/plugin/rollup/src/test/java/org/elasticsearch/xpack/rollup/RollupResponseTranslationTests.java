@@ -500,11 +500,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         MultiSearchResponse.Item unrolledItem = new MultiSearchResponse.Item(new SearchResponse(
                 new InternalSearchResponse(null,
                         new InternalAggregations(Collections.singletonList(responses.get(0))), null, null, false, false, 1),
-                        null, 1, 1, 0, 10, null, null), null);
+                        null, 1, 1, 0, 10, null, null, null), null);
         MultiSearchResponse.Item rolledItem = new MultiSearchResponse.Item(new SearchResponse(
                 new InternalSearchResponse(null,
                         new InternalAggregations(Collections.singletonList(responses.get(1))), null, null, false, false, 1),
-                        null, 1, 1, 0, 10, null, null), null);
+                        null, 1, 1, 0, 10, null, null, null), null);
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{unrolledItem, rolledItem};
 

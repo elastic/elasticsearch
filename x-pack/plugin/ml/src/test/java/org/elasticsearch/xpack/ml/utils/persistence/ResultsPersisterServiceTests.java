@@ -73,9 +73,9 @@ public class ResultsPersisterServiceTests extends ESTestCase {
     // Constants for searchWithRetry tests
     private static final SearchRequest SEARCH_REQUEST = new SearchRequest("my-index");
     private static final SearchResponse SEARCH_RESPONSE_SUCCESS =
-        new SearchResponse(null, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+        new SearchResponse(null, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null, null);
     private static final SearchResponse SEARCH_RESPONSE_FAILURE =
-        new SearchResponse(null, null, 1, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
+        new SearchResponse(null, null, 1, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null, null);
 
     // Constants for bulkIndexWithRetry tests
     private static final IndexRequest INDEX_REQUEST_SUCCESS =

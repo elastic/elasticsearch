@@ -164,7 +164,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),0);
         InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
         return new SearchResponse(internalResponse, randomSimpleString(random(), 1, 10), 5, 4, 0, randomLong(), null,
-            SearchResponse.Clusters.EMPTY);
+            SearchResponse.Clusters.EMPTY, null);
     }
 
     private void assertSameHits(List<? extends ScrollableHitSource.Hit> actual, SearchHit[] expected) {

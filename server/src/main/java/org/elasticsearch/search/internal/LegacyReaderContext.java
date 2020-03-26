@@ -32,8 +32,11 @@ public class LegacyReaderContext extends ReaderContext {
     private AggregatedDfs aggregatedDfs;
     private RescoreDocIds rescoreDocIds;
 
-    public LegacyReaderContext(long id, IndexShard indexShard, Engine.Searcher engineSearcher, ShardSearchRequest shardSearchRequest) {
-        super(id, indexShard, engineSearcher);
+    public LegacyReaderContext(long id, IndexShard indexShard, Engine.Searcher engineSearcher,
+                               ShardSearchRequest shardSearchRequest, long keepAliveInMillis) {
+        super(id, indexShard, engineSearcher, keepAliveInMillis, false);
+        assert shardSearchRequest.readerId() == null;
+        assert shardSearchRequest.keepAlive() == null;
         this.shardSearchRequest = Objects.requireNonNull(shardSearchRequest);
         if (shardSearchRequest.scroll() != null) {
             this.scrollContext = new ScrollContext();
@@ -70,5 +73,10 @@ public class LegacyReaderContext extends ReaderContext {
     @Override
     public void setRescoreDocIds(RescoreDocIds rescoreDocIds) {
         this.rescoreDocIds = rescoreDocIds;
+    }
+
+    @Override
+    public boolean singleSession() {
+        return scrollContext == null || scrollContext.scroll == null;
     }
 }

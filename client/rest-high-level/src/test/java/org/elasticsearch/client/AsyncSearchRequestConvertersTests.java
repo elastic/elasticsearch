@@ -19,8 +19,12 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.client.asyncsearch.DeleteAsyncSearchRequest;
+import org.elasticsearch.client.asyncsearch.GetAsyncSearchRequest;
 import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -52,9 +56,9 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         setRandomIndicesOptions(submitRequest::setIndicesOptions, submitRequest::getIndicesOptions, expectedParams);
 
         if (randomBoolean()) {
-            boolean cleanOnCompletion = randomBoolean();
-            submitRequest.setCleanOnCompletion(cleanOnCompletion);
-            expectedParams.put("clean_on_completion", Boolean.toString(cleanOnCompletion));
+            boolean keepOnCompletion = randomBoolean();
+            submitRequest.setKeepOnCompletion(keepOnCompletion);
+            expectedParams.put("keep_on_completion", Boolean.toString(keepOnCompletion));
         }
         if (randomBoolean()) {
             TimeValue keepAlive = TimeValue.parseTimeValue(randomTimeValue(), "test");
@@ -62,9 +66,9 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
             expectedParams.put("keep_alive", keepAlive.getStringRep());
         }
         if (randomBoolean()) {
-            TimeValue waitForCompletion = TimeValue.parseTimeValue(randomTimeValue(), "test");
-            submitRequest.setWaitForCompletion(waitForCompletion);
-            expectedParams.put("wait_for_completion", waitForCompletion.getStringRep());
+            TimeValue waitForCompletionTimeout = TimeValue.parseTimeValue(randomTimeValue(), "test");
+            submitRequest.setWaitForCompletionTimeout(waitForCompletionTimeout);
+            expectedParams.put("wait_for_completion_timeout", waitForCompletionTimeout.getStringRep());
         }
 
         Request request = AsyncSearchRequestConverters.submitAsyncSearch(submitRequest);
@@ -112,4 +116,35 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         expectedParams.put("max_concurrent_shard_requests", Integer.toString(request.getMaxConcurrentShardRequests()));
     }
 
+    public void testGetAsyncSearch() throws Exception {
+        String id = randomAlphaOfLengthBetween(5, 10);
+        Map<String, String> expectedParams = new HashMap<>();
+        GetAsyncSearchRequest submitRequest = new GetAsyncSearchRequest(id);
+        if (randomBoolean()) {
+            TimeValue keepAlive = TimeValue.parseTimeValue(randomTimeValue(), "test");
+            submitRequest.setKeepAlive(keepAlive);
+            expectedParams.put("keep_alive", keepAlive.getStringRep());
+        }
+        if (randomBoolean()) {
+            TimeValue waitForCompletion = TimeValue.parseTimeValue(randomTimeValue(), "test");
+            submitRequest.setWaitForCompletion(waitForCompletion);
+            expectedParams.put("wait_for_completion_timeout", waitForCompletion.getStringRep());
+        }
+
+        Request request = AsyncSearchRequestConverters.getAsyncSearch(submitRequest);
+        String endpoint = "/_async_search/" + id;
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testDeleteAsyncSearch() throws Exception {
+        String id = randomAlphaOfLengthBetween(5, 10);
+        DeleteAsyncSearchRequest deleteRequest = new DeleteAsyncSearchRequest(id);
+
+        Request request = AsyncSearchRequestConverters.deleteAsyncSearch(deleteRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_async_search/" + id, request.getEndpoint());
+        assertTrue(request.getParameters().isEmpty());
+    }
 }

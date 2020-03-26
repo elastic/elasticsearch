@@ -60,9 +60,7 @@ import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -143,14 +141,9 @@ public class TransportGetDataFrameAnalyticsStatsAction
                         ActionListener.wrap(
                             finalResponse -> {
 
-                                // We need to have access to the config itself to fill in missing defaults which
-                                // is why we do it here
-                                List<Stats> statsWithDefaults = buildStatsWithDefaults(getResponse.getResources().results(),
-                                    finalResponse.getResponse().results());
-
                                 // While finalResponse has all the stats objects we need, we should report the count
                                 // from the get response
-                                QueryPage<Stats> finalStats = new QueryPage<>(statsWithDefaults,
+                                QueryPage<Stats> finalStats = new QueryPage<>(finalResponse.getResponse().results(),
                                     getResponse.getResources().count(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD);
                                 listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(finalStats));
                             },
@@ -316,31 +309,6 @@ public class TransportGetDataFrameAnalyticsStatsAction
             node,
             assignmentExplanation
         );
-    }
-
-    private List<Stats> buildStatsWithDefaults(List<DataFrameAnalyticsConfig> configs, List<Stats> stats) {
-        Map<String, DataFrameAnalyticsConfig> configById = new HashMap<>();
-        for (DataFrameAnalyticsConfig config : configs) {
-            configById.put(config.getId(), config);
-        }
-
-        List<Stats> statsWithDefaults = new ArrayList<>(stats.size());
-        for (Stats statsItem : stats) {
-            DataFrameAnalyticsConfig config = configById.get(statsItem.getId());
-            statsWithDefaults.add(new Stats(
-                statsItem.getId(),
-                statsItem.getState(),
-                statsItem.getFailureReason(),
-                statsItem.getProgress(),
-                statsItem.getDataCounts() == null ? new DataCounts(config.getId()) : statsItem.getDataCounts(),
-                statsItem.getMemoryUsage() == null ?
-                    new MemoryUsage(config.getId(), config.getCreateTime(), 0) : statsItem.getMemoryUsage(),
-                statsItem.getAnalysisStats(),
-                statsItem.getNode(),
-                statsItem.getAssignmentExplanation()
-            ));
-        }
-        return statsWithDefaults;
     }
 
     private static class RetrievedStatsHolder {

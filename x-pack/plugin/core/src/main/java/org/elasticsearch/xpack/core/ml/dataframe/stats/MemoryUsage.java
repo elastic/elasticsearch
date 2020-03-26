@@ -46,27 +46,38 @@ public class MemoryUsage implements Writeable, ToXContentObject {
     }
 
     private final String jobId;
+    /**
+     * timestamp may only be null when we construct a zero usage object
+     */
     private final Instant timestamp;
     private final long peakUsageBytes;
+
+    /**
+     * Creates a zero usage object
+     */
+    public MemoryUsage(String jobId) {
+        this(jobId, null, 0);
+    }
 
     public MemoryUsage(String jobId, Instant timestamp, long peakUsageBytes) {
         this.jobId = Objects.requireNonNull(jobId);
         // We intend to store this timestamp in millis granularity. Thus we're rounding here to ensure
         // internal representation matches toXContent
-        this.timestamp = Instant.ofEpochMilli(ExceptionsHelper.requireNonNull(timestamp, Fields.TIMESTAMP).toEpochMilli());
+        this.timestamp = timestamp == null ? null : Instant.ofEpochMilli(
+            ExceptionsHelper.requireNonNull(timestamp, Fields.TIMESTAMP).toEpochMilli());
         this.peakUsageBytes = peakUsageBytes;
     }
 
     public MemoryUsage(StreamInput in) throws IOException {
         jobId = in.readString();
-        timestamp = in.readInstant();
+        timestamp = in.readOptionalInstant();
         peakUsageBytes = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        out.writeInstant(timestamp);
+        out.writeOptionalInstant(timestamp);
         out.writeVLong(peakUsageBytes);
     }
 
@@ -77,7 +88,10 @@ public class MemoryUsage implements Writeable, ToXContentObject {
             builder.field(Fields.TYPE.getPreferredName(), TYPE_VALUE);
             builder.field(Fields.JOB_ID.getPreferredName(), jobId);
         }
-        builder.timeField(Fields.TIMESTAMP.getPreferredName(), Fields.TIMESTAMP.getPreferredName() + "_string", timestamp.toEpochMilli());
+        if (timestamp != null) {
+            builder.timeField(Fields.TIMESTAMP.getPreferredName(), Fields.TIMESTAMP.getPreferredName() + "_string",
+                timestamp.toEpochMilli());
+        }
         builder.field(PEAK_USAGE_BYTES.getPreferredName(), peakUsageBytes);
         builder.endObject();
         return builder;
@@ -105,6 +119,7 @@ public class MemoryUsage implements Writeable, ToXContentObject {
     }
 
     public String documentId(String jobId) {
+        assert timestamp != null;
         return documentIdPrefix(jobId) + timestamp.toEpochMilli();
     }
 

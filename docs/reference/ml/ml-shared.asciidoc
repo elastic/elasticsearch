@@ -531,77 +531,77 @@ An object containing the hyperparameters of the {classanalysis}.
 .Properties of `hyperparameters`
 [%collapsible%open]
 ======
-`class_assignment_objective`:::::
+`class_assignment_objective`::::
 (string)
 Defines whether class assignment maximizes the accuracy or the minimum recall 
 metric. Possible values are `accuracy` and `minimum_recall`.
 
-`downsample_factor`:::::
+`downsample_factor`::::
 (double)
 The value of the downsample factor.
 
-`eta`:::::
+`eta`::::
 (double)
 The value of the eta hyperparameter.
 
-`eta_growth_rate_per_tree`:::::
+`eta_growth_rate_per_tree`::::
 (double)
 Specifies with what rate to increase `eta` for every new tree added to the 
 forest. The rate of 1.0 does not change `eta`, the rate of 1.05 increases `eta` 
 by 5%.
 
-`feature_bag_fraction`:::::
+`feature_bag_fraction`::::
 (double)
 The fraction of features that is used when selecting a random bag for each 
 candidate split.
 
-`max_attempts_to_add_tree`:::::
+`max_attempts_to_add_tree`::::
 (integer)
 If the algorithm fails to determine a non-trivial tree (more than a single 
 leaf), this parameter determines how many of such consecutive failures are 
 tolerated. Once the number of attempts exceeds the threshold, the forest 
 training stops.
 
-`max_optimization_rounds_per_hyperparameter`:::::
+`max_optimization_rounds_per_hyperparameter`::::
 (integer)
 A multiplier responsible for determining the maximum number of 
 hyperparameter optimization steps in the bayesian optimization procedure. 
 Maximum number of steps is determined as the number of undefined hyperparameters 
 times the maximum optimization rounds per hyperparameter.
 
-`max_trees`:::::
+`max_trees`::::
 (integer)
 The maximum number of trees.
 
-`num_folds`:::::
+`num_folds`::::
 (integer)
 Maximum number of folds for the cross-validation procedure.
 
-`num_splits_per_feature`:::::
+`num_splits_per_feature`::::
 (integer)
 Determines the maximum number of splits for every feature that can occur in a 
 decision tree when the tree is trained.
 
-`regularization_depth_penalty_multiplier`:::::
+`regularization_depth_penalty_multiplier`::::
 (double)
 Regularization factor to penalize deeper trees when training decision trees.
 
-`regularization_leaf_weight_penalty_multiplier`:::::
+`regularization_leaf_weight_penalty_multiplier`::::
 (double)
 Regularization factor to penalize large leaf weights. This parameter is also 
 referred to as `lambda`.
 
-`regularization_soft_tree_depth_limit`:::::
+`regularization_soft_tree_depth_limit`::::
 (double)
 Tree depth limit is used for calculating the tree depth penalty. This is a soft 
 limit, it can be exceeded.
 
-`regularization_soft_tree_depth_tolerance`:::::
+`regularization_soft_tree_depth_tolerance`::::
 (double)
 Tree depth tolerance is used for calculating the tree depth penalty. This is a 
 soft limit, it can be exceeded.
 
-`regularization_tree_size_penalty_multiplier`:::::
+`regularization_tree_size_penalty_multiplier`::::
 (double)
 Regularization factor to penalize trees with large numbers of nodes.
 ======
@@ -623,11 +623,11 @@ An object containing time statistics about the {dfanalytics-job}.
 .Properties of `timing_stats`
 [%collapsible%open]
 ======
-`elapsed_time`:::::
+`elapsed_time`::::
 (integer)
 Runtime of the {dfanalytics-job} in milliseconds.
 
-`iteration_time`:::::
+`iteration_time`::::
 (integer)
 Runtime of the {dfanalytics-job} since the last iteration in milliseconds.
 ======
@@ -641,11 +641,11 @@ An object containing information about validation loss.
 .Properties of `validation_loss`
 [%collapsible%open]
 ======
-`loss_type`:::::
+`loss_type`::::
 (string)
 The name of the loss metric. For example, `binomial_logistic`.
 
-`fold_values`:::::
+`fold_values`::::
 (array of strings)
 Validation loss values for every added decision tree during the forest growing 
 procedure.
@@ -671,31 +671,31 @@ heuristics.
 .Properties of `parameters`
 [%collapsible%open]
 ======
-`compute_feature_influence`:::::
+`compute_feature_influence`::::
 (boolean)
 If true, feature influence calculation is enabled.
 
-`feature_influence_threshold`:::::
+`feature_influence_threshold`::::
 (double)
 The minimum {olscore} that a document needs to have to calculate its feature 
 influence score.
 
-`method`:::::
+`method`::::
 (string)
 The method that {oldetection} uses. Possible values are `lof`, `ldof`, 
 `distance_kth_nn`, `distance_knn`, and `ensemble`.
 
-`n_neighbors`:::::
+`n_neighbors`::::
 (integer)
 The value for how many nearest neighbors each method of {oldetection} uses to 
 calculate its outlier score.
 
-`outlier_fraction`:::::
+`outlier_fraction`::::
 (double)
 The proportion of the data set that is assumed to be outlying prior to 
 {oldetection}.
 
-`standardization_enabled`:::::
+`standardization_enabled`::::
 (boolean)
 If true, then the following operation is performed on the columns before 
 computing {olscores}: (x_i - mean(x_i)) / sd(x_i).
@@ -714,7 +714,7 @@ An object containing time statistics about the {dfanalytics-job}.
 .Property of `timing_stats`
 [%collapsible%open]
 ======
-`elapsed_time`:::::
+`elapsed_time`::::
 (integer)
 Runtime of the {dfanalytics-job} in milliseconds.
 ======
@@ -738,72 +738,72 @@ An object containing the hyperparameters of the {reganalysis}.
 .Properties of `hyperparameters`
 [%collapsible%open]
 ======
-`downsample_factor`:::::
+`downsample_factor`::::
 (double)
 The value of the downsample factor.
 
-`eta`:::::
+`eta`::::
 (double)
 The value of the eta hyperparameter.
 
-`eta_growth_rate_per_tree`:::::
+`eta_growth_rate_per_tree`::::
 (double)
 Specifies with what rate to increase `eta` for every new tree added to the 
 forest. The rate of 1.0 does not change `eta`, the rate of 1.05 increases `eta` 
 by 5%.
 
-`feature_bag_fraction`:::::
+`feature_bag_fraction`::::
 (double)
 The fraction of features that is used when selecting a random bag for each 
 candidate split.
 
-`max_attempts_to_add_tree`:::::
+`max_attempts_to_add_tree`::::
 (integer)
 If the algorithm fails to determine a non-trivial tree (more than a single 
 leaf), this parameter determines how many of such consecutive failures are 
 tolerated. Once the number of attempts exceeds the threshold, the forest 
 training stops.
 
-`max_optimization_rounds_per_hyperparameter`:::::
+`max_optimization_rounds_per_hyperparameter`::::
 (integer)
 A multiplier responsible for determining the maximum number of 
 hyperparameter optimization steps in the bayesian optimization procedure. 
 Maximum number of steps is determined as the number of undefined hyperparameters 
 times the maximum optimization rounds per hyperparameter.
 
-`max_trees`:::::
+`max_trees`::::
 (integer)
 The maximum number of trees.
 
-`num_folds`:::::
+`num_folds`::::
 (integer)
 Maximum number of folds for the cross-validation procedure.
 
-`num_splits_per_feature`:::::
+`num_splits_per_feature`::::
 (integer)
 Determines the maximum number of splits for every feature that can occur in a 
 decision tree when the tree is trained.
 
-`regularization_depth_penalty_multiplier`:::::
+`regularization_depth_penalty_multiplier`::::
 (double)
 Regularization factor to penalize deeper trees when training decision trees.
 
-`regularization_leaf_weight_penalty_multiplier`:::::
+`regularization_leaf_weight_penalty_multiplier`::::
 (double)
 Regularization factor to penalize large leaf weights. This parameter is also 
 referred to as `lambda`.
 
-`regularization_soft_tree_depth_limit`:::::
+`regularization_soft_tree_depth_limit`::::
 (double)
 Tree depth limit is used for calculating the tree depth penalty. This is a soft 
 limit, it can be exceeded.
 
-`regularization_soft_tree_depth_tolerance`:::::
+`regularization_soft_tree_depth_tolerance`::::
 (double)
 Tree depth tolerance is used for calculating the tree depth penalty. This is a 
 soft limit, it can be exceeded.
 
-`regularization_tree_size_penalty_multiplier`:::::
+`regularization_tree_size_penalty_multiplier`::::
 (double)
 Regularization factor to penalize trees with large numbers of nodes.
 ======
@@ -825,11 +825,11 @@ An object containing time statistics about the {dfanalytics-job}.
 .Propertis of `timing_stats`
 [%collapsible%open]
 ======
-`elapsed_time`:::::
+`elapsed_time`::::
 (integer)
 Runtime of the {dfanalytics-job} in milliseconds.
 
-`iteration_time`:::::
+`iteration_time`::::
 (integer)
 Runtime of the {dfanalytics-job} since the last iteration in milliseconds.
 ======
@@ -843,11 +843,11 @@ An object containing information about validation loss.
 .Properties of `validation_loss`
 [%collapsible%open]
 ======
-`loss_type`:::::
+`loss_type`::::
 (string)
 The name of the loss metric. For example, `mse`.
 
-`fold_values`:::::
+`fold_values`::::
 (array of strings)
 Validation loss values for every added decision tree during the forest growing 
 procedure.

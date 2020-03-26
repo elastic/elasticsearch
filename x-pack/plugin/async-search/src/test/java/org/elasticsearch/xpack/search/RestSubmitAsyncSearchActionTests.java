@@ -51,8 +51,8 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
             ArgumentCaptor<SubmitAsyncSearchRequest> argumentCaptor = ArgumentCaptor.forClass(SubmitAsyncSearchRequest.class);
             verify(nodeClient).executeLocally(any(ActionType.class), argumentCaptor.capture(), any(ActionListener.class));
             SubmitAsyncSearchRequest submitRequest = argumentCaptor.getValue();
-            assertEquals(TimeValue.timeValueSeconds(1), submitRequest.getWaitForCompletion());
-            assertEquals(true, submitRequest.isCleanOnCompletion());
+            assertEquals(TimeValue.timeValueSeconds(1), submitRequest.getWaitForCompletionTimeout());
+            assertEquals(false, submitRequest.isKeepOnCompletion());
             assertEquals(TimeValue.timeValueDays(5), submitRequest.getKeepAlive());
             // check parameters we implicitly set in the SubmitAsyncSearchRequest ctor
             assertEquals(false, submitRequest.getSearchRequest().isCcsMinimizeRoundtrips());
@@ -64,11 +64,11 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
     public void testParameters() throws IOException {
         String tvString = randomTimeValue(1, 100);
         doTestParameter("keep_alive", tvString, TimeValue.parseTimeValue(tvString, ""), SubmitAsyncSearchRequest::getKeepAlive);
-        doTestParameter("wait_for_completion", tvString, TimeValue.parseTimeValue(tvString, ""),
-                SubmitAsyncSearchRequest::getWaitForCompletion);
-        boolean cleanOnCompletion = randomBoolean();
-        doTestParameter("clean_on_completion", Boolean.toString(cleanOnCompletion), cleanOnCompletion,
-                SubmitAsyncSearchRequest::isCleanOnCompletion);
+        doTestParameter("wait_for_completion_timeout", tvString, TimeValue.parseTimeValue(tvString, ""),
+                SubmitAsyncSearchRequest::getWaitForCompletionTimeout);
+        boolean keepOnCompletion = randomBoolean();
+        doTestParameter("keep_on_completion", Boolean.toString(keepOnCompletion), keepOnCompletion,
+                SubmitAsyncSearchRequest::isKeepOnCompletion);
         boolean requestCache = randomBoolean();
         doTestParameter("request_cache", Boolean.toString(requestCache), requestCache,
                 r -> r.getSearchRequest().requestCache());

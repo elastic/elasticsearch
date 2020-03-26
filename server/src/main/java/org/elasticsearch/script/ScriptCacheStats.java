@@ -48,7 +48,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
 
     public ScriptCacheStats(StreamInput in) throws IOException {
         boolean isContext = in.readBoolean();
-        if (isContext) {
+        if (isContext == false) {
             general = new ScriptStats(in);
             context = null;
             return;
@@ -92,7 +92,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
             return builder;
         }
 
-        ScriptStats sum = ScriptStats.sum(context.values());
+        ScriptStats sum = sum();
         builder.field(ScriptStats.Fields.COMPILATIONS, sum.getCompilations());
         builder.field(ScriptStats.Fields.CACHE_EVICTIONS, sum.getCacheEvictions());
         builder.field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, sum.getCompilationLimitTriggered());
@@ -126,6 +126,16 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
      */
     public ScriptStats getGeneralStats() {
         return general;
+    }
+
+    /**
+     * The sum of all script stats, either the general stats or the sum of all stats of the context stats.
+     */
+    public ScriptStats sum() {
+        if (general != null) {
+            return general;
+        }
+        return ScriptStats.sum(context.values());
     }
 
     static final class Fields {

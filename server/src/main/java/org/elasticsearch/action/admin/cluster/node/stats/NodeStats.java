@@ -266,7 +266,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
-        if (out.getVersion().after(Version.V_7_7_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeOptionalWriteable(scriptCacheStats);
         }
     }

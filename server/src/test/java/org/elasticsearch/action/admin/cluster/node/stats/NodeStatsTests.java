@@ -318,12 +318,27 @@ public class NodeStatsTests extends ESTestCase {
                     assertNull(deserializedScriptCacheStats);
                 } else {
                     Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
-                    scriptCacheStats.getContextStats().forEach((k, v) -> {
-                        ScriptStats stats = deserialized.get(k);
-                        assertEquals(v.getCacheEvictions(), stats.getCacheEvictions());
-                        assertEquals(v.getCompilationLimitTriggered(), stats.getCompilationLimitTriggered());
-                        assertEquals(v.getCompilations(), stats.getCompilations());
-                    });
+                    long evictions = 0;
+                    long limited = 0;
+                    long compilations = 0;
+                    Map<String, ScriptStats> stats = scriptCacheStats.getContextStats();
+                    for (String context: stats.keySet()) {
+                        ScriptStats deserStats = deserialized.get(context);
+                        ScriptStats generatedStats = stats.get(context);
+
+                        evictions += generatedStats.getCacheEvictions();
+                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
+
+                        limited += generatedStats.getCompilationLimitTriggered();
+                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
+
+                        compilations += generatedStats.getCompilations();
+                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
+                    }
+                    ScriptStats sum = deserializedScriptCacheStats.sum();
+                    assertEquals(evictions, sum.getCacheEvictions());
+                    assertEquals(limited, sum.getCompilationLimitTriggered());
+                    assertEquals(compilations, sum.getCompilations());
                 }
             }
         }

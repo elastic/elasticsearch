@@ -56,9 +56,9 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         setRandomIndicesOptions(submitRequest::setIndicesOptions, submitRequest::getIndicesOptions, expectedParams);
 
         if (randomBoolean()) {
-            boolean cleanOnCompletion = randomBoolean();
-            submitRequest.setCleanOnCompletion(cleanOnCompletion);
-            expectedParams.put("clean_on_completion", Boolean.toString(cleanOnCompletion));
+            boolean keepOnCompletion = randomBoolean();
+            submitRequest.setKeepOnCompletion(keepOnCompletion);
+            expectedParams.put("keep_on_completion", Boolean.toString(keepOnCompletion));
         }
         if (randomBoolean()) {
             TimeValue keepAlive = TimeValue.parseTimeValue(randomTimeValue(), "test");
@@ -66,9 +66,9 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
             expectedParams.put("keep_alive", keepAlive.getStringRep());
         }
         if (randomBoolean()) {
-            TimeValue waitForCompletion = TimeValue.parseTimeValue(randomTimeValue(), "test");
-            submitRequest.setWaitForCompletion(waitForCompletion);
-            expectedParams.put("wait_for_completion", waitForCompletion.getStringRep());
+            TimeValue waitForCompletionTimeout = TimeValue.parseTimeValue(randomTimeValue(), "test");
+            submitRequest.setWaitForCompletionTimeout(waitForCompletionTimeout);
+            expectedParams.put("wait_for_completion_timeout", waitForCompletionTimeout.getStringRep());
         }
 
         Request request = AsyncSearchRequestConverters.submitAsyncSearch(submitRequest);
@@ -128,7 +128,7 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             TimeValue waitForCompletion = TimeValue.parseTimeValue(randomTimeValue(), "test");
             submitRequest.setWaitForCompletion(waitForCompletion);
-            expectedParams.put("wait_for_completion", waitForCompletion.getStringRep());
+            expectedParams.put("wait_for_completion_timeout", waitForCompletion.getStringRep());
         }
 
         Request request = AsyncSearchRequestConverters.getAsyncSearch(submitRequest);

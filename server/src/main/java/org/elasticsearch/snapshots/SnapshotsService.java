@@ -106,9 +106,8 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * <ul>
  * <li>On the master node the {@link #createSnapshot(CreateSnapshotRequest, ActionListener)} is called and makes sure that
  * no snapshot is currently running and registers the new snapshot in cluster state</li>
- * <li>When cluster state is updated
- * the {@link #beginSnapshot} method kicks in and initializes
- * the snapshot in the repository and then populates list of shards that needs to be snapshotted in cluster state</li>
+ * <li>When the cluster state is updated the {@link #beginSnapshot} method kicks in and populates the list of shards that need to be
+ * snapshotted in cluster state</li>
  * <li>Each data node is watching for these shards and when new shards scheduled for snapshotting appear in the cluster state, data nodes
  * start processing them through {@link SnapshotShardsService#startNewSnapshots} method</li>
  * <li>Once shard snapshot is created data node updates state of the shard in the cluster state using
@@ -1234,7 +1233,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void deleteSnapshot(final Snapshot snapshot, final ActionListener<Void> listener, final long repositoryStateId,
                                 final boolean immediatePriority) {
         Priority priority = immediatePriority ? Priority.IMMEDIATE : Priority.NORMAL;
-        logger.info("deleting snapshot [{}] assuming repository generation [{}] and with priory [{}]",
+        logger.info("deleting snapshot [{}] assuming repository generation [{}] and with priority [{}]",
             snapshot, repositoryStateId, priority);
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(priority) {
 

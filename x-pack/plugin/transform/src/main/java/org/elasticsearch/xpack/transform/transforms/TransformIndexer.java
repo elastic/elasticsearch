@@ -231,7 +231,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     pageSize = pivot.getInitialPageSize();
                 }
 
-                runState = determineRunState();
+                runState = determineRunStateAtStart();
                 listener.onResponse(true);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -876,7 +876,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return true;
     }
 
-    private RunState determineRunState() {
+    private RunState determineRunStateAtStart() {
         // either 1st run or not a continuous transform
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
             return RunState.APPLY_BUCKET_RESULTS;

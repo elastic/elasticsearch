@@ -193,6 +193,8 @@ public class Pivot {
         String synchronizationField,
         long lastSynchronizationCheckpoint
     ) {
+        assert changedBuckets != null;
+
         if (config.getGroupConfig().getGroups().size() == 1) {
             Entry<String, SingleGroupSource> entry = config.getGroupConfig().getGroups().entrySet().iterator().next();
             logger.trace("filter by bucket: " + entry.getKey() + "/" + entry.getValue().getField());

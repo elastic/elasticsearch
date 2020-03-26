@@ -197,7 +197,7 @@ public class Pivot {
 
         if (config.getGroupConfig().getGroups().size() == 1) {
             Entry<String, SingleGroupSource> entry = config.getGroupConfig().getGroups().entrySet().iterator().next();
-            logger.trace("filter by bucket: " + entry.getKey() + "/" + entry.getValue().getField());
+            logger.trace(() -> new ParameterizedMessage("filter by bucket: {}/{}", entry.getKey(), entry.getValue().getField()));
             Set<String> changedBucketsByGroup = changedBuckets.get(entry.getKey());
             return entry.getValue()
                 .getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationField, lastSynchronizationCheckpoint);

@@ -84,18 +84,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE =
         Setting.simpleString("cluster.remote.node.attr", Setting.Property.NodeScope);
 
-    /**
-     * If <code>true</code> connecting to remote clusters is supported on this node. If <code>false</code> this node will not establish
-     * connections to any remote clusters configured. Search requests executed against this node (where this node is the coordinating node)
-     * will fail if remote cluster syntax is used as an index pattern. The default is <code>true</code>
-     */
-    public static final Setting<Boolean> ENABLE_REMOTE_CLUSTERS =
-        Setting.boolSetting(
-            "cluster.remote.connect",
-            true,
-            Setting.Property.Deprecated,
-            Setting.Property.NodeScope);
-
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE =
         Setting.affixKeySetting(
             "cluster.remote.",

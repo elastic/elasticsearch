@@ -132,7 +132,7 @@ public class RestCatTransformAction extends AbstractCatAction {
                     .setAliases("f")
                     .build())
             .addCell("max_page_search_size",
-                TableColumnAttributeBuilder.builder("max page search size ")
+                TableColumnAttributeBuilder.builder("max page search size")
                     .setAliases("mpsz")
                     .build())
 
@@ -143,7 +143,7 @@ public class RestCatTransformAction extends AbstractCatAction {
                     .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
                     .build())
             .addCell("reason",
-                TableColumnAttributeBuilder.builder("reason", false)
+                TableColumnAttributeBuilder.builder("reason for the current state", false)
                     .setAliases("r", "reason")
                     .build())
             .addCell("changes_last_detection_time",
@@ -151,7 +151,7 @@ public class RestCatTransformAction extends AbstractCatAction {
                     .setAliases("cldt")
                     .build())
             .addCell("search_total",
-                TableColumnAttributeBuilder.builder("total number of searches", false)
+                TableColumnAttributeBuilder.builder("total number of search phases", false)
                     .setAliases("st")
                     .build())
             .addCell("search_failure",
@@ -159,11 +159,11 @@ public class RestCatTransformAction extends AbstractCatAction {
                     .setAliases("sf")
                     .build())
             .addCell("search_time",
-                TableColumnAttributeBuilder.builder("search time", false)
+                TableColumnAttributeBuilder.builder("total search time", false)
                     .setAliases("stime")
                     .build())
             .addCell("index_total",
-                TableColumnAttributeBuilder.builder("total number of indices", false)
+                TableColumnAttributeBuilder.builder("total number of index phases done by the transform", false)
                     .setAliases("it")
                     .build())
             .addCell("index_failure",
@@ -171,19 +171,29 @@ public class RestCatTransformAction extends AbstractCatAction {
                     .setAliases("if")
                     .build())
             .addCell("index_time",
-                TableColumnAttributeBuilder.builder("index time", false)
+                TableColumnAttributeBuilder.builder("total time spent indexing documents", false)
                     .setAliases("itime")
                     .build())
-            .addCell("document_total",
-                TableColumnAttributeBuilder.builder("total number of documents", false)
-                    .setAliases("dt")
+            .addCell("documents_processed",
+                TableColumnAttributeBuilder.builder("the number of documents read from source indices and processed",
+                    false)
+                    .setAliases("docp")
                     .build())
-            .addCell("invocation_total",
-                TableColumnAttributeBuilder.builder("total number of invocations", false)
-                    .setAliases("itotal")
+            .addCell("documents_indexed",
+                TableColumnAttributeBuilder.builder("the number of documents index to the destination index",
+                    false)
+                    .setAliases("doci")
                     .build())
-            .addCell("page_total",
-                TableColumnAttributeBuilder.builder("total number of pages", false)
+            .addCell("trigger_count",
+                TableColumnAttributeBuilder.builder("the number of times the transform has been triggered", false)
+                    .setAliases("tc")
+                    .build())
+            .addCell("pages_processed",
+                TableColumnAttributeBuilder.builder("the number of pages processed", false)
+                    .setAliases("pp")
+                    .build())
+            .addCell("processing_time",
+                TableColumnAttributeBuilder.builder("the total time spent processing documents", false)
                     .setAliases("pt")
                     .build())
             .addCell("checkpoint_duration_time_exp_avg",
@@ -240,8 +250,10 @@ public class RestCatTransformAction extends AbstractCatAction {
                 .addCell(transformIndexerStats == null ? null : TimeValue.timeValueMillis(transformIndexerStats.getIndexTime()))
 
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getNumDocuments())
+                .addCell(transformIndexerStats == null ? null : transformIndexerStats.getOutputDocuments())
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getNumInvocations())
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getNumPages())
+                .addCell(transformIndexerStats == null ? null : TimeValue.timeValueMillis(transformIndexerStats.getProcessingTime()))
 
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getExpAvgCheckpointDurationMs())
                 .addCell(transformIndexerStats == null ? null : transformIndexerStats.getExpAvgDocumentsIndexed())

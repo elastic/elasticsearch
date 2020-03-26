@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParseField;
 import java.util.Objects;
 
 public abstract class IndexerJobStats {
-    public static final String NAME = "data_frame_indexer_transform_stats";
     public static ParseField NUM_PAGES = new ParseField("pages_processed");
     public static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
     public static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed");

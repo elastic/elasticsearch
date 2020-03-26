@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.client.core.IndexerJobStats;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,11 +28,24 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class TransformIndexerStats extends IndexerJobStats {
+public class TransformIndexerStats {
+    public static final String NAME = "transform_indexer_stats";
 
     static ParseField EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS = new ParseField("exponential_avg_checkpoint_duration_ms");
     static ParseField EXPONENTIAL_AVG_DOCUMENTS_INDEXED = new ParseField("exponential_avg_documents_indexed");
     static ParseField EXPONENTIAL_AVG_DOCUMENTS_PROCESSED = new ParseField("exponential_avg_documents_processed");
+    static ParseField PAGES_PROCESSED = new ParseField("pages_processed");
+    static ParseField DOCUMENTS_PROCESSED = new ParseField("documents_processed");
+    static ParseField DOCUMENTS_INDEXED = new ParseField("documents_indexed");
+    static ParseField TRIGGER_COUNT = new ParseField("trigger_count");
+    static ParseField INDEX_TIME_IN_MS = new ParseField("index_time_in_ms");
+    static ParseField SEARCH_TIME_IN_MS = new ParseField("search_time_in_ms");
+    static ParseField PROCESSING_TIME_IN_MS = new ParseField("processing_time_in_ms");
+    static ParseField INDEX_TOTAL = new ParseField("index_total");
+    static ParseField SEARCH_TOTAL = new ParseField("search_total");
+    static ParseField PROCESSING_TOTAL = new ParseField("processing_total");
+    static ParseField SEARCH_FAILURES = new ParseField("search_failures");
+    static ParseField INDEX_FAILURES = new ParseField("index_failures");
 
     public static final ConstructingObjectParser<TransformIndexerStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -58,10 +70,10 @@ public class TransformIndexerStats extends IndexerJobStats {
     );
 
     static {
-        LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_PAGES);
-        LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_INPUT_DOCUMENTS);
-        LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_OUTPUT_DOCUMENTS);
-        LENIENT_PARSER.declareLong(optionalConstructorArg(), NUM_INVOCATIONS);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), PAGES_PROCESSED);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), DOCUMENTS_PROCESSED);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), DOCUMENTS_INDEXED);
+        LENIENT_PARSER.declareLong(optionalConstructorArg(), TRIGGER_COUNT);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), INDEX_TIME_IN_MS);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), SEARCH_TIME_IN_MS);
         LENIENT_PARSER.declareLong(optionalConstructorArg(), PROCESSING_TIME_IN_MS);
@@ -82,12 +94,24 @@ public class TransformIndexerStats extends IndexerJobStats {
     private final double expAvgCheckpointDurationMs;
     private final double expAvgDocumentsIndexed;
     private final double expAvgDocumentsProcessed;
+    private final long pagesProcessed;
+    private final long documentsProcessed;
+    private final long documentsIndexed;
+    private final long triggerCount;
+    private final long indexTime;
+    private final long indexTotal;
+    private final long searchTime;
+    private final long searchTotal;
+    private final long processingTime;
+    private final long processingTotal;
+    private final long indexFailures;
+    private final long searchFailures;
 
     public TransformIndexerStats(
-        long numPages,
-        long numInputDocuments,
-        long numOuputDocuments,
-        long numInvocations,
+        long pagesProcessed,
+        long documentsProcessed,
+        long documentsIndexed,
+        long triggerCount,
         long indexTime,
         long searchTime,
         long processingTime,
@@ -100,20 +124,18 @@ public class TransformIndexerStats extends IndexerJobStats {
         double expAvgDocumentsIndexed,
         double expAvgDocumentsProcessed
     ) {
-        super(
-            numPages,
-            numInputDocuments,
-            numOuputDocuments,
-            numInvocations,
-            indexTime,
-            searchTime,
-            processingTime,
-            indexTotal,
-            searchTotal,
-            processingTotal,
-            indexFailures,
-            searchFailures
-        );
+        this.pagesProcessed = pagesProcessed;
+        this.documentsProcessed = documentsProcessed;
+        this.documentsIndexed = documentsIndexed;
+        this.triggerCount = triggerCount;
+        this.indexTime = indexTime;
+        this.indexTotal = indexTotal;
+        this.searchTime = searchTime;
+        this.searchTotal = searchTotal;
+        this.processingTime = processingTime;
+        this.processingTotal = processingTotal;
+        this.indexFailures = indexFailures;
+        this.searchFailures = searchFailures;
         this.expAvgCheckpointDurationMs = expAvgCheckpointDurationMs;
         this.expAvgDocumentsIndexed = expAvgDocumentsIndexed;
         this.expAvgDocumentsProcessed = expAvgDocumentsProcessed;
@@ -131,6 +153,127 @@ public class TransformIndexerStats extends IndexerJobStats {
         return expAvgDocumentsProcessed;
     }
 
+    /**
+     * The number of pages read from the input indices
+     */
+    public long getPagesProcessed() {
+        return pagesProcessed;
+    }
+
+    /**
+     * The number of documents read from the input indices
+     */
+    public long getDocumentsProcessed() {
+        return documentsProcessed;
+    }
+
+    /**
+     * Number of times that the job woke up to write documents
+     */
+    public long getTriggerCount() {
+        return triggerCount;
+    }
+
+    /**
+     * Number of documents written
+     */
+    public long getDocumentsIndexed() {
+        return documentsIndexed;
+    }
+
+    /**
+     * The number of pages read from the input indices
+     * Deprecated, use {@link TransformIndexerStats#getPagesProcessed()} instead
+     */
+    @Deprecated
+    public long getNumPages() {
+        return getPagesProcessed();
+    }
+
+    /**
+     * The number of documents read from the input indices
+     * Deprecated, use {@link TransformIndexerStats#getDocumentsProcessed()} instead
+     */
+    @Deprecated
+    public long getNumDocuments() {
+        return getDocumentsProcessed();
+    }
+
+    /**
+     * Number of times that the job woke up to write documents
+     * Deprecated, use {@link TransformIndexerStats#getTriggerCount()} instead
+     */
+    @Deprecated
+    public long getNumInvocations() {
+        return getTriggerCount();
+    }
+
+    /**
+     * Number of documents written
+     * Deprecated, use {@link TransformIndexerStats#getDocumentsIndexed()} instead
+     */
+    @Deprecated
+    public long getOutputDocuments() {
+        return getDocumentsIndexed();
+    }
+
+    /**
+     * Number of index failures that have occurred
+     */
+    public long getIndexFailures() {
+        return indexFailures;
+    }
+
+    /**
+     * Number of failures that have occurred
+     */
+    public long getSearchFailures() {
+        return searchFailures;
+    }
+
+    /**
+     * Returns the time spent indexing (cumulative) in milliseconds
+     */
+    public long getIndexTime() {
+        return indexTime;
+    }
+
+    /**
+     * Returns the time spent searching (cumulative) in milliseconds
+     */
+    public long getSearchTime() {
+        return searchTime;
+    }
+
+    /**
+     * Returns the time spent processing (cumulative) in milliseconds
+     */
+    public long getProcessingTime() {
+        return processingTime;
+    }
+
+    /**
+     * Returns the total number of indexing requests that have been processed
+     * (Note: this is not the number of _documents_ that have been indexed)
+     */
+    public long getIndexTotal() {
+        return indexTotal;
+    }
+
+    /**
+     * Returns the total number of search requests that have been made
+     */
+    public long getSearchTotal() {
+        return searchTotal;
+    }
+
+    /**
+     * Returns the total number of processing runs that have been made
+     */
+    public long getProcessingTotal() {
+        return processingTotal;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -143,10 +286,10 @@ public class TransformIndexerStats extends IndexerJobStats {
 
         TransformIndexerStats that = (TransformIndexerStats) other;
 
-        return Objects.equals(this.numPages, that.numPages)
-            && Objects.equals(this.numInputDocuments, that.numInputDocuments)
-            && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
-            && Objects.equals(this.numInvocations, that.numInvocations)
+        return Objects.equals(this.pagesProcessed, that.pagesProcessed)
+            && Objects.equals(this.documentsProcessed, that.documentsProcessed)
+            && Objects.equals(this.documentsIndexed, that.documentsIndexed)
+            && Objects.equals(this.triggerCount, that.triggerCount)
             && Objects.equals(this.indexTime, that.indexTime)
             && Objects.equals(this.searchTime, that.searchTime)
             && Objects.equals(this.processingTime, that.processingTime)
@@ -163,10 +306,10 @@ public class TransformIndexerStats extends IndexerJobStats {
     @Override
     public int hashCode() {
         return Objects.hash(
-            numPages,
-            numInputDocuments,
-            numOuputDocuments,
-            numInvocations,
+            pagesProcessed,
+            documentsProcessed,
+            documentsIndexed,
+            triggerCount,
             indexTime,
             searchTime,
             processingTime,

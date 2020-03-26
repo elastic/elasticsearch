@@ -205,11 +205,16 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             Percentiles aggregation = (Percentiles) agg;
-
             HashMap<String, Double> percentiles = new HashMap<>();
 
             for (Percentile p : aggregation) {
-                percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), p.getValue());
+                // in case of sparse data percentiles might not have data, in this case it returns NaN,
+                // we need to guard the output and set null in this case
+                if (Numbers.isValidDouble(p.getValue()) == false) {
+                    percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), null);
+                } else {
+                    percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), p.getValue());
+                }
             }
 
             return percentiles;

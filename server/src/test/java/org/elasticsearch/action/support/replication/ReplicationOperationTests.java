@@ -43,7 +43,10 @@ import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -66,6 +69,20 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReplicationOperationTests extends ESTestCase {
+
+    private ThreadPool threadPool;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        terminate(threadPool);
+        super.tearDown();
+    }
 
     public void testReplication() throws Exception {
         final String index = "test";
@@ -342,7 +359,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
         final TestReplicationOperation op = new TestReplicationOperation(request,
             new TestPrimary(primaryShard, () -> initialReplicationGroup),
-                listener, new TestReplicaProxy(), logger, "test", primaryTerm);
+                listener, new TestReplicaProxy(), logger, threadPool, "test", primaryTerm);
 
         if (passesActiveShardCheck) {
             assertThat(op.checkActiveShardCount(), nullValue());
@@ -645,13 +662,13 @@ public class ReplicationOperationTests extends ESTestCase {
     class TestReplicationOperation extends ReplicationOperation<Request, Request, TestPrimary.Result> {
         TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
                 ActionListener<TestPrimary.Result> listener, Replicas<Request> replicas, long primaryTerm) {
-            this(request, primary, listener, replicas, ReplicationOperationTests.this.logger, "test", primaryTerm);
+            this(request, primary, listener, replicas, ReplicationOperationTests.this.logger, threadPool, "test", primaryTerm);
         }
 
         TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
                                  ActionListener<TestPrimary.Result> listener,
-                                 Replicas<Request> replicas, Logger logger, String opType, long primaryTerm) {
-            super(request, primary, listener, replicas, logger, opType, primaryTerm);
+                                 Replicas<Request> replicas, Logger logger, ThreadPool threadPool, String opType, long primaryTerm) {
+            super(request, primary, listener, replicas, logger, threadPool, opType, primaryTerm);
         }
     }
 

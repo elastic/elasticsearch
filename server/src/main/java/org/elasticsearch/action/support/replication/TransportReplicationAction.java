@@ -370,7 +370,7 @@ public abstract class TransportReplicationAction<
 
                     new ReplicationOperation<>(primaryRequest.getRequest(), primaryShardReference,
                         ActionListener.map(responseListener, result -> result.finalResponseIfSuccessful),
-                        newReplicasProxy(), logger, actionName, primaryRequest.getPrimaryTerm()).execute();
+                        newReplicasProxy(), logger, threadPool, actionName, primaryRequest.getPrimaryTerm()).execute();
                 }
             } catch (Exception e) {
                 handleException(primaryShardReference, e);
@@ -393,10 +393,6 @@ public abstract class TransportReplicationAction<
     // allows subclasses to adapt the response
     protected void adaptResponse(Response response, IndexShard indexShard) {
 
-    }
-
-    protected ActionListener<Response> wrapResponseActionListener(ActionListener<Response> listener, IndexShard shard) {
-        return listener;
     }
 
     public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,

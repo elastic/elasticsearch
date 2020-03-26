@@ -603,7 +603,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                         adaptResponse(result.finalResponse, getPrimaryShard());
                         return result.finalResponse;
                     }),
-                    new ReplicasRef(), logger, opType, primaryTerm)
+                    new ReplicasRef(), logger, threadPool, opType, primaryTerm)
                     .execute();
             } catch (Exception e) {
                 listener.onFailure(e);

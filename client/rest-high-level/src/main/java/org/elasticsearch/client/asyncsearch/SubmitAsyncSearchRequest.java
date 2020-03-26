@@ -44,13 +44,14 @@ public class SubmitAsyncSearchRequest implements Validatable {
     private Boolean keepOnCompletion;
     private TimeValue keepAlive;
     private final SearchRequest searchRequest;
+    // The following is optional and will only be sent down with the request if explicitely set by the user
+    private Integer batchedReduceSize;
 
     /**
      * Creates a new request
      */
     public SubmitAsyncSearchRequest(SearchSourceBuilder source, String... indices) {
         this.searchRequest = new SearchRequest(indices, source);
-        searchRequest.setBatchedReduceSize(DEFAULT_BATCHED_REDUCE_SIZE);
     }
 
     /**
@@ -186,21 +187,20 @@ public class SubmitAsyncSearchRequest implements Validatable {
     }
 
     /**
-     * Sets the number of shard results that should be reduced at once on the coordinating node.
+     * Optional. Sets the number of shard results that should be reduced at once on the coordinating node.
      * This value should be used as a protection mechanism to reduce the memory overhead per search
-     * request if the potential number of shards in the request can be large.
-     * This defaults to 5 for {@link SubmitAsyncSearchRequest}.
+     * request if the potential number of shards in the request can be large. Defaults to 5.
      */
     public void setBatchedReduceSize(int batchedReduceSize) {
-        this.searchRequest.setBatchedReduceSize(batchedReduceSize);
+        this.batchedReduceSize = batchedReduceSize;
     }
 
     /**
      * Gets the number of shard results that should be reduced at once on the coordinating node.
-     * This defaults to 5 for {@link SubmitAsyncSearchRequest}.
+     * Returns <tt>null</tt> if unset.
      */
-    public int getBatchedReduceSize() {
-        return this.searchRequest.getBatchedReduceSize();
+    public Integer getBatchedReduceSize() {
+        return this.batchedReduceSize;
     }
 
     /**

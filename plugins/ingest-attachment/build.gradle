@@ -25,9 +25,9 @@ esplugin {
 }
 
 versions << [
-  'tika'  : '1.22',
-  'pdfbox': '2.0.16',
-  'poi'   : '4.0.1',
+  'tika'  : '1.24',
+  'pdfbox': '2.0.19',
+  'poi'   : '4.1.2',
   'mime4j': '0.8.3'
 ]
 
@@ -64,12 +64,22 @@ dependencies {
   // MS Office
   compile "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  compile 'org.apache.commons:commons-compress:1.18'
+  compile 'org.apache.commons:commons-compress:1.19'
   // Outlook documents
   compile "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
   // EPUB books
   compile 'org.apache.commons:commons-lang3:3.9'
+  // Microsoft Word files with visio diagrams
+  compile 'org.apache.commons:commons-math3:3.6.1'
+  // POIs dependency
+  compile 'com.zaxxer:SparseBitSet:1.2'
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'ingest', 'index', 'get'
+  }
 }
 
 dependencyLicenses {

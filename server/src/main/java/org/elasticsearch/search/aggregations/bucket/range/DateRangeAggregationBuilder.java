@@ -40,9 +40,9 @@ import java.util.Map;
 public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeAggregationBuilder, RangeAggregator.Range> {
     public static final String NAME = "date_range";
 
-    private static final ObjectParser<DateRangeAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<DateRangeAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME,  DateRangeAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(DateRangeAggregationBuilder.NAME);
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
         PARSER.declareBoolean(DateRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
@@ -53,9 +53,6 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         }, (p, c) -> DateRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new DateRangeAggregationBuilder(aggregationName), null);
-    }
 
     private static RangeAggregator.Range parseRange(XContentParser parser) throws IOException {
         return RangeAggregator.Range.fromXContent(parser);

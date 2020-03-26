@@ -19,12 +19,16 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -39,11 +43,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * A builder for histograms on numeric fields.  This builder can operate on either base numeric fields, or numeric range fields.  IP range
@@ -61,9 +60,9 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
     }
 
-    private static final ObjectParser<HistogramAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<HistogramAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, HistogramAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(HistogramAggregationBuilder.NAME);
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
 
         PARSER.declareDouble(HistogramAggregationBuilder::interval, Histogram.INTERVAL_FIELD);
@@ -80,10 +79,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
         PARSER.declareObjectArray(HistogramAggregationBuilder::order, (p, c) -> InternalOrder.Parser.parseOrderParam(p),
             Histogram.ORDER_FIELD);
-    }
-
-    public static HistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new HistogramAggregationBuilder(aggregationName), null);
     }
 
     public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {

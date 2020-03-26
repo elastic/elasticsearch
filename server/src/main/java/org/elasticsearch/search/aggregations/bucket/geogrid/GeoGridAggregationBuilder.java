@@ -19,6 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -40,10 +45,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
 public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<GeoGridAggregationBuilder>
         implements MultiBucketAggregationBuilder {
     /* recognized field names in JSON */
@@ -62,8 +63,9 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         int parse(XContentParser parser) throws IOException;
     }
 
-    public static ObjectParser<GeoGridAggregationBuilder, Void> createParser(String name, PrecisionParser precisionParser) {
-        ObjectParser<GeoGridAggregationBuilder, Void> parser = new ObjectParser<>(name);
+    public static <T extends GeoGridAggregationBuilder> ObjectParser<T, String> createParser(
+            String name, PrecisionParser precisionParser, Function<String, T> ctor) {
+        ObjectParser<T, String> parser = ObjectParser.fromBuilder(name, ctor);
         ValuesSourceAggregationBuilder.declareFields(parser, false, false, false);
         parser.declareField((p, builder, context) -> builder.precision(precisionParser.parse(p)), FIELD_PRECISION,
             org.elasticsearch.common.xcontent.ObjectParser.ValueType.INT);

@@ -35,7 +35,7 @@ publishing {
 archivesBaseName = 'elasticsearch'
 
 // we want to keep the JDKs in our IDEs set to JDK 11 until minimum JDK is bumped to 17 so we do not include this source set in our IDEs
-if (!isEclipse && !isIdea) {
+if (!isEclipse) {
   sourceSets {
     java12 {
       java {
@@ -82,7 +82,7 @@ dependencies {
   compile project(":libs:elasticsearch-geo")
 
   compileOnly project(':libs:elasticsearch-plugin-classloader')
-  testRuntime project(':libs:elasticsearch-plugin-classloader')
+  testRuntimeOnly project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
   compile "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -123,7 +123,7 @@ dependencies {
   // repackaged jna with native bits linked against all elastic supported platforms
   compile "org.elasticsearch:jna:${versions.jna}"
 
-  if (!isEclipse && !isIdea) {
+  if (!isEclipse) {
     java12Compile sourceSets.main.output
   }
 

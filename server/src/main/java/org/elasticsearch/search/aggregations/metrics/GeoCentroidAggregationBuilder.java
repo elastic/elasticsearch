@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -42,14 +41,10 @@ public class GeoCentroidAggregationBuilder
         extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregationBuilder> {
     public static final String NAME = "geo_centroid";
 
-    private static final ObjectParser<GeoCentroidAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<GeoCentroidAggregationBuilder, String> PARSER =
+        ObjectParser.fromBuilder(NAME, GeoCentroidAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(GeoCentroidAggregationBuilder.NAME);
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
-    }
-
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new GeoCentroidAggregationBuilder(aggregationName), null);
     }
 
     public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {

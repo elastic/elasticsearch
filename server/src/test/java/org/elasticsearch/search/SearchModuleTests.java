@@ -442,6 +442,9 @@ public class SearchModuleTests extends ESTestCase {
         private static TestPipelineAggregationBuilder fromXContent(String name, XContentParser p) {
             return null;
         }
+
+        @Override
+        protected void validate(ValidationContext context) {}
     }
 
     /**

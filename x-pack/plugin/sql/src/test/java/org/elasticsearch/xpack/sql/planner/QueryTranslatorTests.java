@@ -389,8 +389,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.dateAdd(" +
-                "params.v0,InternalSqlScriptUtils.docValue(doc,params.v1),InternalSqlScriptUtils.docValue(doc,params.v2)," +
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateAdd(" +
+                "params.v0,InternalQlScriptUtils.docValue(doc,params.v1),InternalQlScriptUtils.docValue(doc,params.v2)," +
                 "params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))",
             sc.script().toString());
         assertEquals("[{v=quarter}, {v=int}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
@@ -406,8 +406,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.dateDiff(" +
-                "params.v0,InternalSqlScriptUtils.docValue(doc,params.v1),InternalSqlScriptUtils.docValue(doc,params.v2)," +
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateDiff(" +
+                "params.v0,InternalQlScriptUtils.docValue(doc,params.v1),InternalQlScriptUtils.docValue(doc,params.v2)," +
                 "params.v3),InternalSqlScriptUtils.asDateTime(params.v4)))",
             sc.script().toString());
         assertEquals("[{v=week}, {v=date}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
@@ -423,8 +423,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.dateTrunc(" +
-                "params.v0,InternalSqlScriptUtils.docValue(doc,params.v1),params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.dateTrunc(" +
+                "params.v0,InternalQlScriptUtils.docValue(doc,params.v1),params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))",
             sc.script().toString());
         assertEquals("[{v=month}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
     }
@@ -439,8 +439,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.datePart(" +
-                "params.v0,InternalSqlScriptUtils.docValue(doc,params.v1),params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.datePart(" +
+                "params.v0,InternalQlScriptUtils.docValue(doc,params.v1),params.v2),InternalSqlScriptUtils.asDateTime(params.v3)))",
             sc.script().toString());
         assertEquals("[{v=month}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
     }
@@ -547,6 +547,23 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("keyword", rqsq.field());
     }
 
+    public void testLikeRLikeAsPainlessScripts() {
+        LogicalPlan p = plan("SELECT count(*), CASE WHEN keyword LIKE '%foo%' THEN 1 WHEN keyword RLIKE '.*bar.*' THEN 2 " +
+                             "ELSE 3 END AS t FROM test GROUP BY t");
+        assertTrue(p instanceof Aggregate);
+        Expression condition = ((Aggregate) p).groupings().get(0);
+        assertFalse(condition.foldable());
+        GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.regex(InternalQlScriptUtils.docValue("
+                + "doc,params.v0),params.v1),params.v2,InternalSqlScriptUtils.regex(InternalQlScriptUtils.docValue(" +
+                     "doc,params.v3),params.v4),params.v5,params.v6])",
+                scriptTemplate.toString());
+        assertEquals("[{v=keyword}, {v=^.*foo.*$}, {v=1}, {v=keyword}, {v=.*bar.*}, {v=2}, {v=3}]",
+                scriptTemplate.params().toString());
+    }
+
     public void testTranslateNotExpression_WhereClause_Painless() {
         LogicalPlan p = plan("SELECT * FROM test WHERE NOT(POSITION('x', keyword) = 0)");
         assertTrue(p instanceof Project);
@@ -556,9 +573,9 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, false);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.not(" +
-            "InternalSqlScriptUtils.eq(InternalSqlScriptUtils.position(" +
-            "params.v0,InternalSqlScriptUtils.docValue(doc,params.v1)),params.v2)))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(" +
+                "InternalQlScriptUtils.eq(InternalSqlScriptUtils.position(" +
+                "params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2)))",
             sc.script().toString());
         assertEquals("[{v=x}, {v=keyword}, {v=0}]", sc.script().params().toString());
     }
@@ -587,8 +604,8 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, false);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNull(" +
-            "InternalSqlScriptUtils.position(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(" +
+                "InternalSqlScriptUtils.position(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))))",
             sc.script().toString());
         assertEquals("[{v=x}, {v=keyword}]", sc.script().params().toString());
     }
@@ -615,8 +632,8 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, false);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNotNull(" +
-                "InternalSqlScriptUtils.position(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(" +
+                "InternalSqlScriptUtils.position(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))))",
             sc.script().toString());
         assertEquals("[{v=x}, {v=keyword}]", sc.script().params().toString());
     }
@@ -629,7 +646,8 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNull(params.a0))",
+        assertEquals(
+                "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNull(params.a0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
     }
@@ -642,7 +660,8 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.isNotNull(params.a0))",
+        assertEquals(
+                "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(params.a0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
     }
@@ -659,17 +678,17 @@ public class QueryTranslatorTests extends ESTestCase {
         String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
         String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
         assertThat(aggBuilder.toString(), containsString("{\"terms\":{\"script\":{\"source\":\"" +
-                "InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)])\",\"lang\":\"painless\"" +
+                "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0)])\",\"lang\":\"painless\"" +
                 ",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}," +
                 "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":" +
                 "{\"bucket_selector\":{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"" +
-                "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.coalesce(" +
+                "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.coalesce(" +
                 "[params.a0]),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\",\"params\":" +
                 "{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
         assertTrue(esQExec.queryContainer().query() instanceof ScriptQuery);
         ScriptQuery sq = (ScriptQuery) esQExec.queryContainer().query();
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(" +
-                "InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0)]),params.v1))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(" +
+                "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0)]),params.v1))",
                 sq.script().toString());
         assertEquals("[{v=int}, {v=10}]", sq.script().params().toString());
     }
@@ -726,8 +745,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(" +
-                "InternalSqlScriptUtils.power(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1), params.v2))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(" +
+                "InternalSqlScriptUtils.power(InternalQlScriptUtils.docValue(doc,params.v0),params.v1), params.v2))",
             sc.script().toString());
         assertEquals("[{v=int}, {v=2}, {v=[10.0, null, 20.0]}]", sc.script().params().toString());
     }
@@ -740,7 +759,7 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(params.a0, params.v0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, 20]}]"));
@@ -754,7 +773,7 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(params.a0, params.v0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10]}]"));
@@ -769,7 +788,7 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(params.a0, params.v0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, null, 20, 30]}]"));
@@ -787,7 +806,7 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils." +
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils." +
                 operation.name().toLowerCase(Locale.ROOT) + "(params.a0),params.v0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int)"));
@@ -809,7 +828,8 @@ public class QueryTranslatorTests extends ESTestCase {
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
-        assertEquals("InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalSqlScriptUtils.docValue(doc,params.v0), "
+        assertEquals(
+                "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0), "
                 + "params.v1, params.v2),params.v3)",
             scriptTemplate.toString());
         assertEquals("[{v=date}, {v=Z}, {v=YEAR}, {v=null}]", scriptTemplate.params().toString());
@@ -833,7 +853,8 @@ public class QueryTranslatorTests extends ESTestCase {
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
-        assertEquals("InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalSqlScriptUtils.docValue(doc,params.v0), "
+        assertEquals(
+                "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0), "
                 + "params.v1, params.v2),params.v3)",
             scriptTemplate.toString());
         assertEquals("[{v=date}, {v=Z}, {v=YEAR}, {v=-2}]", scriptTemplate.params().toString());
@@ -847,7 +868,7 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils.abs" +
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.abs" +
                 "(params.a0),params.v0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int)"));
@@ -863,7 +884,7 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(" +
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(" +
                 "InternalSqlScriptUtils.stAswkt(InternalSqlScriptUtils.geoDocValue(doc,params.v0))," +
                 "params.v1)" +
                 ")",
@@ -880,9 +901,9 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
-                "InternalSqlScriptUtils.eq(InternalSqlScriptUtils.stWktToSql(" +
-                "InternalSqlScriptUtils.docValue(doc,params.v0)),InternalSqlScriptUtils.stWktToSql(params.v1)))",
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(" +
+                "InternalQlScriptUtils.eq(InternalSqlScriptUtils.stWktToSql(" +
+                "InternalQlScriptUtils.docValue(doc,params.v0)),InternalSqlScriptUtils.stWktToSql(params.v1)))",
             aggFilter.scriptTemplate().toString());
         assertEquals("[{v=keyword}, {v=POINT (10.0 20.0)}]", aggFilter.scriptTemplate().params().toString());
     }
@@ -899,8 +920,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
-                "InternalSqlScriptUtils." + operatorFunction + "(" +
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(" +
+                "InternalQlScriptUtils." + operatorFunction + "(" +
                 "InternalSqlScriptUtils.stDistance(" +
                 "InternalSqlScriptUtils.geoDocValue(doc,params.v0),InternalSqlScriptUtils.stWktToSql(params.v1)),params.v2))",
             sc.script().toString());
@@ -935,7 +956,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.aggFilter);
         assertThat(translation.query, instanceOf(ScriptQuery.class));
         ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(InternalSqlScriptUtils.st" + dim + "(" +
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.st" + dim + "(" +
                 "InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))",
             sc.script().toString());
         assertEquals("[{v=point}, {v=10}]", sc.script().params().toString());
@@ -951,7 +972,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.aggFilter);
         assertThat(translation.query, instanceOf(ScriptQuery.class));
         ScriptQuery sc = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(InternalSqlScriptUtils.stGeometryType(" +
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.stGeometryType(" +
                 "InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))",
             sc.script().toString());
         assertEquals("[{v=point}, {v=POINT}]", sc.script().params().toString());
@@ -965,7 +986,8 @@ public class QueryTranslatorTests extends ESTestCase {
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
-        assertEquals("InternalSqlScriptUtils.coalesce([InternalSqlScriptUtils.docValue(doc,params.v0),params.v1])",
+        assertEquals(
+                "InternalSqlScriptUtils.coalesce([InternalQlScriptUtils.docValue(doc,params.v0),params.v1])",
             scriptTemplate.toString());
         assertEquals("[{v=int}, {v=10}]", scriptTemplate.params().toString());
     }
@@ -978,7 +1000,8 @@ public class QueryTranslatorTests extends ESTestCase {
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
-        assertEquals("InternalSqlScriptUtils.nullif(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)",
+        assertEquals(
+                "InternalSqlScriptUtils.nullif(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)",
             scriptTemplate.toString());
         assertEquals("[{v=int}, {v=10}]", scriptTemplate.params().toString());
     }
@@ -991,8 +1014,8 @@ public class QueryTranslatorTests extends ESTestCase {
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
-        assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(" + "" +
-                "doc,params.v0),params.v1),params.v2,InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(doc,params.v3)," +
+        assertEquals("InternalSqlScriptUtils.caseFunction([InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(" + ""
+                + "doc,params.v0),params.v1),params.v2,InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v3)," +
                 "params.v4),params.v5,params.v6])",
             scriptTemplate.toString());
         assertEquals("[{v=int}, {v=10}, {v=foo}, {v=int}, {v=20}, {v=bar}, {v=default}]", scriptTemplate.params().toString());
@@ -1006,8 +1029,8 @@ public class QueryTranslatorTests extends ESTestCase {
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
-        assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.gt("  +
-                "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1),params.v2,params.v3])",
+        assertEquals("InternalSqlScriptUtils.caseFunction([InternalQlScriptUtils.gt("  +
+                "InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2,params.v3])",
             scriptTemplate.toString());
         assertEquals("[{v=int}, {v=20}, {v=foo}, {v=bar}]", scriptTemplate.params().toString());
     }
@@ -1138,7 +1161,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(DATETIME, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"date_histogram\":{\"script\":{\"source\":\"InternalSqlScriptUtils.add(" +
-                        "InternalSqlScriptUtils.docValue(doc,params.v0),InternalSqlScriptUtils.intervalDayTime(params.v1,params.v2))\"," +
+                        "InternalQlScriptUtils.docValue(doc,params.v0),InternalSqlScriptUtils.intervalDayTime(params.v1,params.v2))\"," +
                         "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"PT120H\",\"v2\":\"INTERVAL_DAY\"}}," +
                         "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"," +
                         "\"calendar_interval\":\"1d\",\"time_zone\":\"Z\"}}}]}}}"));
@@ -1153,7 +1176,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(INTEGER, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"date_histogram\":{\"script\":{\"source\":\"InternalSqlScriptUtils.cast(" +
-                        "InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0)," +
+                        "InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0)," +
                         "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3)\"," +
                         "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"P5M\",\"v2\":\"INTERVAL_MONTH\"," +
                         "\"v3\":\"DATE\"}},\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"," +
@@ -1168,8 +1191,9 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("YEAR(date)", eqe.output().get(0).qualifiedName());
         assertEquals(INTEGER, eqe.output().get(0).dataType());
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""),
-                endsWith("\"sort\":[{\"_script\":{\"script\":{\"source\":\"InternalSqlScriptUtils.nullSafeSortNumeric(" +
-                        "InternalSqlScriptUtils.dateTimeChrono(InternalSqlScriptUtils.docValue(doc,params.v0)," +
+                endsWith("\"sort\":[{\"_script\":{\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeSortNumeric("
+                        +
+                        "InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0)," +
                         "params.v1,params.v2))\",\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"Z\"," +
                         "\"v2\":\"YEAR\"}},\"type\":\"number\",\"order\":\"asc\"}}]}"));
     }
@@ -1292,17 +1316,17 @@ public class QueryTranslatorTests extends ESTestCase {
                         + "\"a4\":\"_count\","
                         + "\"a5\":\"" + avgInt.getName() + "\"},"
                         + "\"script\":{\"source\":\""
-                        + "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
-                        +   "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
-                        +     "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
-                        +       "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
-                        +         "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.and("
-                        +           "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a0,params.v0)),"
-                        +           "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a1,params.v1)))),"
-                        +         "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a2,params.v2)))),"
-                        +       "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a3,params.v3)))),"
-                        +     "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a4,params.v4)))),"
-                        +   "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a5,params.v5))))\","
+                        + "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
+                        +   "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
+                        +     "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
+                        +       "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
+                        +         "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and("
+                        +           "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0)),"
+                        +           "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a1,params.v1)))),"
+                        +         "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a2,params.v2)))),"
+                        +       "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a3,params.v3)))),"
+                        +     "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a4,params.v4)))),"
+                        +   "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a5,params.v5))))\","
                         + "\"lang\":\"painless\",\"params\":{\"v0\":3,\"v1\":32,\"v2\":1,\"v3\":2,\"v4\":5,\"v5\":50000}},"
                         + "\"gap_policy\":\"skip\"}}}}}"));
     }
@@ -1318,7 +1342,7 @@ public class QueryTranslatorTests extends ESTestCase {
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
             endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
-                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                        "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
         );
@@ -1335,7 +1359,7 @@ public class QueryTranslatorTests extends ESTestCase {
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
             endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
-                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                        "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
         );
@@ -1352,7 +1376,7 @@ public class QueryTranslatorTests extends ESTestCase {
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
             endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
-                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                        "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
         );
@@ -1371,7 +1395,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
                 endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
-                    "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                            "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
             );
@@ -1387,7 +1411,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
                 endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
-                    "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
+                            "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"HOUR_OF_DAY\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
             );
@@ -1406,7 +1430,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
                 endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
-                    "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                            "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
             );
@@ -1421,7 +1445,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
                 endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
-                    "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
+                            "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"MINUTE_OF_HOUR\"}}," +
                     "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
             );
@@ -1439,7 +1463,7 @@ public class QueryTranslatorTests extends ESTestCase {
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
             endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
-                "(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
+                        "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
         );
@@ -1455,7 +1479,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
-            endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))\"," +
+                endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))\","
+                        +
                 "\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
         );
@@ -1472,7 +1497,8 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))" +
+                    endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))"
+                            +
                     "\",\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
             );
@@ -1488,7 +1514,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                    endsWith("{\"source\":\"InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
                     "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":3}}," +
                     "\"missing_bucket\":true,\"value_type\":\"boolean\",\"order\":\"asc\"}}}]}}}")
             );
@@ -1506,7 +1532,8 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))" +
+                    endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))"
+                            +
                     "\",\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
             );
@@ -1520,7 +1547,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalSqlScriptUtils.docValue(doc,params.v1))\"," +
+                    endsWith("{\"source\":\"InternalSqlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))\"," +
                     "\"lang\":\"painless\",\"params\":{\"v0\":3.141592653589793,\"v1\":\"int\"}}," +
                     "\"missing_bucket\":true,\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}")
             );
@@ -1534,8 +1561,8 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0)," +
-                    "InternalSqlScriptUtils.intervalDayTime(params.v1,params.v2))\"," +
+                    endsWith("{\"source\":\"InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0)," +
+                            "InternalSqlScriptUtils.intervalDayTime(params.v1,params.v2))\"," +
                     "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"PT24H\",\"v2\":\"INTERVAL_DAY\"}}," +
                     "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
             );
@@ -1551,8 +1578,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().toString()
                 .replaceAll("\\s+", ""),
-            endsWith("\"sort\":[{\"_script\":{\"script\":{\"source\":\"InternalSqlScriptUtils.nullSafeSortString(InternalSqlScriptUtils" +
-                ".cast(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1))\",\"lang\":\"painless\"," +
+            endsWith("\"sort\":[{\"_script\":{\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeSortString(InternalSqlScriptUtils" +
+                        ".cast(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"TIME\"}},\"type\":\"string\",\"order\":\"asc\"}},{\"int\":{\"order\":\"asc\"," +
                 "\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}]}")
         );
@@ -1694,9 +1721,9 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
-                "\"script\":{\"script\":{\"source\":\"InternalSqlScriptUtils.nullSafeFilter("
-                + "InternalSqlScriptUtils.gt(InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0),"
-                + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),InternalSqlScriptUtils.asDateTime(params.v3)))\","
+                "\"script\":{\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter("
+                        + "InternalQlScriptUtils.gt(InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
+                        + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),InternalSqlScriptUtils.asDateTime(params.v3)))\","
                 + "\"lang\":\"painless\","
                 + "\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"2019-03-11T12:34:56.000Z\"}},"));
     }
@@ -1711,8 +1738,8 @@ public class QueryTranslatorTests extends ESTestCase {
         EsQueryExec eqe = (EsQueryExec) p;
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
                 "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils.dateTimeChrono("
-                + "InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0),"
-                + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3,params.v4)\","
+                        + "InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
+                        + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3,params.v4)\","
                 + "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\","
                 + "\"v3\":\"Z\",\"v4\":\"" + randomFunction.chronoField().name() + "\"}},\"missing_bucket\":true,"
                 + "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}}"));
@@ -1730,8 +1757,8 @@ public class QueryTranslatorTests extends ESTestCase {
         EsQueryExec eqe = (EsQueryExec) p;
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
                 "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils." + scriptMethods[pos]
-                + "(InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0),"
-                + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3)\",\"lang\":\"painless\","
+                        + "(InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
+                        + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3)\",\"lang\":\"painless\","
                 + "\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"Z\"}},\"missing_bucket\":true,"));
     }
 
@@ -1753,7 +1780,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
         assertEquals(1, eqe.output().size());
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
-                "\"script\":{\"source\":\"InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a0,params.v0))\","
+                "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))\","
                 + "\"lang\":\"painless\",\"params\":{\"v0\":0}}"));
     }
 }

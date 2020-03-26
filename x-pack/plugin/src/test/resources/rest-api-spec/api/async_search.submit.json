@@ -3,7 +3,7 @@
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"
     },
-    "stability":"experimental",
+    "stability":"stable",
     "url":{
       "paths":[
         {
@@ -32,6 +32,10 @@
         "description":"Specify the time that the request should block waiting for the final response",
         "default": "1s"
       },
+      "clean_on_completion":{
+        "type":"boolean",
+        "description":"Control whether the response should not be stored in the cluster if it completed within the provided [wait_for_completion] time (default: true)"
+      },
       "keep_alive": {
         "type": "time",
         "description": "Update the time interval in which the results (partial or final) for this search will be available"
@@ -40,6 +44,10 @@
         "type":"number",
         "description":"The number of shard results that should be reduced at once on the coordinating node. This value should be used as the granularity at which progress results will be made available.",
         "default":5
+      },
+      "request_cache":{
+        "type":"boolean",
+        "description":"Specify if request cache should be used for this request or not, defaults to true"
       },
       "analyzer":{
         "type":"string",
@@ -204,18 +212,10 @@
         "type":"boolean",
         "description":"Specify whether to return sequence number and primary term of the last modification of each hit"
       },
-      "request_cache":{
-        "type":"boolean",
-        "description":"Specify if request cache should be used for this request or not, defaults to index level setting"
-      },
       "max_concurrent_shard_requests":{
         "type":"number",
         "description":"The number of concurrent shard requests per node this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
         "default":5
-      },
-      "clean_on_completion":{
-        "type":"boolean",
-        "description":"Control whether the response should not be stored in the cluster if it completed within the provided [wait_for_completion] time (default: true)"
       }
     },
     "body":{

@@ -81,14 +81,22 @@ public class IndexLifecycleRunner {
         assert lifecycleDate != null && lifecycleDate >= 0 : "expected index to have a lifecycle date but it did not";
         final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
         final long now = nowSupplier.getAsLong();
-        final TimeValue age = new TimeValue(now - lifecycleDate);
+        final long ageMillis = now - lifecycleDate;
+        final TimeValue age;
+        if (ageMillis >= 0) {
+            age = new TimeValue(ageMillis);
+        } else if (ageMillis == Long.MIN_VALUE) {
+            age = new TimeValue(Long.MAX_VALUE);
+        } else {
+            age = new TimeValue(-ageMillis);
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] checking for index age to be at least [{}] before performing actions in " +
-                    "the \"{}\" phase. Now: {}, lifecycle date: {}, age: [{}/{}s]",
+                    "the \"{}\" phase. Now: {}, lifecycle date: {}, age: [{}{}/{}s]",
                 indexMetaData.getIndex().getName(), after, phase,
                 new TimeValue(now).seconds(),
                 new TimeValue(lifecycleDate).seconds(),
-                age, age.seconds());
+                ageMillis < 0 ? "-" : "", age, age.seconds());
         }
         return now >= lifecycleDate + after.getMillis();
     }

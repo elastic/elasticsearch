@@ -8,7 +8,6 @@ rootProject.name = dirName
 List projects = [
   'build-tools',
   'build-tools:reaper',
-  'checkstyle',
   'rest-api-spec',
   'docs',
   'client:rest',

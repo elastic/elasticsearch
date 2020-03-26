@@ -24,6 +24,7 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.util.Util
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
@@ -233,7 +234,7 @@ class PrecommitTasks {
         }
         project.dependencies {
             checkstyle "com.puppycrawl.tools:checkstyle:${VersionProperties.versions.checkstyle}"
-            checkstyle project.project(':checkstyle')
+            checkstyle project.files(Util.buildSrcCodeSource)
         }
 
         project.tasks.withType(Checkstyle).configureEach { task ->

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.checkstyle;
+package org.elasticsearch.gradle.checkstyle;
+
+import com.puppycrawl.tools.checkstyle.api.AbstractFileSetCheck;
+import com.puppycrawl.tools.checkstyle.api.CheckstyleException;
+import com.puppycrawl.tools.checkstyle.api.FileText;
 
 import java.io.File;
 import java.util.Arrays;
@@ -25,10 +29,6 @@ import java.util.Iterator;
 import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.puppycrawl.tools.checkstyle.api.AbstractFileSetCheck;
-import com.puppycrawl.tools.checkstyle.api.CheckstyleException;
-import com.puppycrawl.tools.checkstyle.api.FileText;
 
 /**
  * Checks the snippets included in the docs aren't too wide to fit on
@@ -46,7 +46,6 @@ public class SnippetLengthCheck extends AbstractFileSetCheck {
     }
 
     @Override
-    @SuppressForbidden(reason = "Checkstyle's API contain File")
     protected void processFiltered(File file, FileText fileText) throws CheckstyleException {
         checkFile((line, message) -> log(line, message), max, fileText.toLinesArray());
     }

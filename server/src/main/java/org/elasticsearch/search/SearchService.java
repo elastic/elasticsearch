@@ -34,7 +34,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -680,7 +679,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                       boolean includeAggregations) throws IOException {
         final DefaultSearchContext context = createSearchContext(reader, request, defaultSearchTimeout);
         try {
-            context.setTask(task);
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
             }

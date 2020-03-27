@@ -380,11 +380,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             return new IndexFieldData.Builder() {
-
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                                CircuitBreakerService breakerService, MapperService mapperService) {
-
                     return new IndexAggregateDoubleMetricFieldData(indexSettings.getIndex(), fieldType.name()) {
                         @Override
                         public LeafAggregateDoubleMetricFieldData load(LeafReaderContext context) {
@@ -396,7 +394,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                                             subfieldName(fieldName, metric));
 
                                         return new SortedNumericDoubleValues() {
-
                                             @Override
                                             public int docValueCount() {
                                                 return 1;

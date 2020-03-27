@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
@@ -40,20 +40,23 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-public class MinAggregator extends NumericMetricsAggregator.SingleValue {
+class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.SingleValue {
     private static final int MAX_BKD_LOOKUPS = 1024;
 
-    final ValuesSource.Numeric valuesSource;
+    private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
     final DocValueFormat format;
 
     final String pointField;
@@ -61,13 +64,13 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     DoubleArray mins;
 
-    MinAggregator(String name,
-                    ValuesSourceConfig config,
-                    ValuesSource.Numeric valuesSource,
-                    SearchContext context,
-                    Aggregator parent,
-                    List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) throws IOException {
+    AggregateMetricBackedMinAggregator(String name,
+                                       ValuesSourceConfig config,
+                                       AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
+                                       SearchContext context,
+                                       Aggregator parent,
+                                       List<PipelineAggregator> pipelineAggregators,
+                                       Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -114,7 +117,8 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
             }
         }
         final BigArrays bigArrays = context.bigArrays();
-        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
+        final SortedNumericDoubleValues allValues = valuesSource.getAggregateMetricValues(ctx, Metric.min);
+
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
 
@@ -132,7 +136,6 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
                     mins.set(bucket, min);
                 }
             }
-
         };
     }
 
@@ -171,7 +174,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
      * @param parent The parent aggregator.
      * @param config The config for the values source metric.
      */
-    public static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
+    static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
                                                                 ValuesSourceConfig config) {
         if (context.query() != null &&
                 context.query().getClass() != MatchAllDocsQuery.class) {

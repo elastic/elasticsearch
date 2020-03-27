@@ -40,12 +40,13 @@ public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin,
             new ActionHandler<>(XPackInfoFeatureAction.AGGREGATE_METRIC, AggregateMetricInfoTransportAction.class));
     }
 
-
     @Override
     public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
         return List.of(
             AggregateMetricsAggregatorsRegistrar::registerSumAggregator,
-            AggregateMetricsAggregatorsRegistrar::registerAvgAggregator
+            AggregateMetricsAggregatorsRegistrar::registerAvgAggregator,
+            AggregateMetricsAggregatorsRegistrar::registerMinAggregator,
+            AggregateMetricsAggregatorsRegistrar::registerMaxAggregator
         );
     }
 

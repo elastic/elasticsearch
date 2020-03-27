@@ -157,7 +157,9 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     protected boolean strategyMustBeRebuilt(Settings newSettings) {
         String address = PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         int numOfSockets = REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        return numOfSockets != maxNumConnections || configuredAddress.equals(address) == false;
+        String serverName = SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        return numOfSockets != maxNumConnections || configuredAddress.equals(address) == false ||
+            Objects.equals(serverName, configuredServerName) == false;
     }
 
     @Override
@@ -279,10 +281,10 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("address", address);
+            builder.field("proxy_address", address);
             builder.field("server_name", serverName);
-            builder.field("num_sockets_connected", numSocketsConnected);
-            builder.field("max_socket_connections", maxSocketConnections);
+            builder.field("num_proxy_sockets_connected", numSocketsConnected);
+            builder.field("max_proxy_socket_connections", maxSocketConnections);
             return builder;
         }
 

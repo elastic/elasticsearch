@@ -76,11 +76,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean enabled() {
-        if (licenseState != null) {
-            return XPackSettings.SECURITY_ENABLED.get(settings) &&
-                licenseState.isSecurityDisabledByLicenseDefaults() == false;
-        }
-        return false;
+        return licenseState != null && licenseState.isSecurityEnabled();
     }
 
     @Override
@@ -101,13 +97,14 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> realmsUsageRef = new AtomicReference<>();
+
+        final boolean enabled = licenseState.isSecurityEnabled();
         final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
                 listener.onResponse(new SecurityFeatureSetUsage(available(), enabled(), realmsUsageRef.get(), rolesUsageRef.get(),
                         roleMappingUsageRef.get(), sslUsage, auditUsage, ipFilterUsage, anonymousUsage, tokenServiceUsage,
-                        apiKeyServiceUsage, fips140Usage));
-            }
+                        apiKeyServiceUsage, fips140Usage)); }
         };
 
         final ActionListener<Map<String, Object>> rolesStoreUsageListener =
@@ -129,17 +126,17 @@ public class SecurityFeatureSet implements XPackFeatureSet {
                 doCountDown.run();
             }, listener::onFailure);
 
-        if (rolesStore == null) {
+        if (rolesStore == null || enabled == false) {
             rolesStoreUsageListener.onResponse(Collections.emptyMap());
         } else {
             rolesStore.usageStats(rolesStoreUsageListener);
         }
-        if (roleMappingStore == null) {
+        if (roleMappingStore == null || enabled == false) {
             roleMappingStoreUsageListener.onResponse(Collections.emptyMap());
         } else {
             roleMappingStore.usageStats(roleMappingStoreUsageListener);
         }
-        if (realms == null) {
+        if (realms == null || enabled == false) {
             realmsUsageListener.onResponse(Collections.emptyMap());
         } else {
             realms.usageStats(realmsUsageListener);

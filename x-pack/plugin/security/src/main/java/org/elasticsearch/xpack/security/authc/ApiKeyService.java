@@ -104,6 +104,7 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
 public class ApiKeyService {
@@ -351,7 +352,7 @@ public class ApiKeyService {
      * retrieval of role descriptors that are associated with the api key
      */
     public void getRoleForApiKey(Authentication authentication, ActionListener<ApiKeyRoleDescriptors> listener) {
-        if (authentication.getAuthenticationType() != Authentication.AuthenticationType.API_KEY) {
+        if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
 
@@ -902,7 +903,7 @@ public class ApiKeyService {
      * @return realm name
      */
     public static String getCreatorRealmName(final Authentication authentication) {
-        if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
+        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
             return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_NAME);
         } else {
             return authentication.getSourceRealm().getName();
@@ -917,7 +918,7 @@ public class ApiKeyService {
      * @return realm type
      */
     public static String getCreatorRealmType(final Authentication authentication) {
-        if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
+        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
             return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_TYPE);
         } else {
             return authentication.getSourceRealm().getType();

@@ -83,6 +83,7 @@ properties:
 `min_version`::
 (string) The minimum version required to be able to restore the model snapshot.
 
+//Begin model_size_stats
 `model_size_stats`::
 (object) Summary information describing the model.
 +
@@ -176,6 +177,7 @@ separately for each detector and partition.
 `total_partition_field_count`:::
 (long) The number of _partition_ field values analyzed.
 ====
+//End model_size_stats
 
 `retain`::
 (boolean)

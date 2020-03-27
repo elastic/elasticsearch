@@ -43,7 +43,7 @@ NOTE: If the job is open when you make the update, you must stop the {dfeed},
 close the job, then reopen the job and restart the {dfeed} for the changes to take effect.
 
 --
-
+//Begin analysis_limits
 [[update-analysislimits]]`analysis_limits`::
 (Optional, object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-limits]
@@ -66,6 +66,7 @@ to re-run the job with an increased `model_memory_limit`.
 
 --
 ====
+//End analysis_limits
 
 `background_persist_interval`::
 (<<time-units,time units>>)
@@ -84,12 +85,15 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=custom-settings]
 `description`::
 (string) A description of the job.
 
+//Begin detectors
 `detectors`::
 (array) An array of detector update objects.
 +
 .Properties of `detectors`
 [%collapsible%open]
 ====
+
+//Begin detectors.custom_rules
 `custom_rules`:::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
@@ -97,11 +101,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
 .Properties of `custom_rules`
 [%collapsible%open]
 =====
+
 `actions`:::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
 
-// Begin conditions
+// Begin detectors.custom_rules.conditions
 `conditions`:::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
@@ -109,6 +114,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
 .Properties of `conditions`
 [%collapsible%open]
 ======
+
 `applies_to`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-applies-to]
@@ -121,8 +127,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
 ======
-//End conditions
-//Begin scope
+//End detectors.custom_rules.conditions
+
+//Begin detectors.custom_rules.scope
 `scope`:::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
@@ -138,9 +145,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
 ======
-//End scope
+//End detectors.custom_rules.scope
 =====
-//End custom_rules
+//End detectors.custom_rules
 
 `description`:::
 (string)
@@ -161,6 +168,7 @@ cannot, however, change the `detector_index` value for a detector.
 (array of strings)
 include::{docdir}/ml/ml-shared.asciidoc[tag=groups]
 
+//Begin model_plot_config
 `model_plot_config`::
 (object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config]
@@ -176,6 +184,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
 experimental[] (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
 ====
+//End model_plot_config
 
 `model_snapshot_retention_days`::
 (long)

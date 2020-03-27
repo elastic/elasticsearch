@@ -67,7 +67,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-field-name]
 (array of strings)
 include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-filters]
 
-//Begin detectors
+//Begin analysis_config.detectors
 `detectors`:::
 (array) An array of detector configuration objects. Detector configuration
 objects specify which data fields a job analyzes. They also specify which
@@ -83,7 +83,7 @@ no analysis can occur and an error is returned.
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
 
-//Begin custom_rules
+//Begin analysis_config.detectors.custom_rules
 [[put-customrules]]`custom_rules`::::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
@@ -91,29 +91,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
 .Properties of `custom_rules`
 [%collapsible%open]
 ======
+
 `actions`:::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
 
-//Begin scope
-`scope`:::
-(object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
-+
-.Properties of `scope`
-[%collapsible%open]
-=======
-`filter_id`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
-
-`filter_type`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
-=======
-//End scope
-
-//Begin conditions
+//Begin analysis_config.detectors.custom_rules.conditions
 `conditions`:::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
@@ -133,9 +116,27 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
 =======
-//End conditions
+//End analysis_config.detectors.custom_rules.conditions
+
+//Begin analysis_config.detectors.custom_rules.scope
+`scope`:::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
++
+.Properties of `scope`
+[%collapsible%open]
+=======
+`filter_id`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
+
+`filter_type`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
+=======
+//End analysis_config.detectors.custom_rules.scope
 ======
-//End custom_rules
+//End analysis_config.detectors.custom_rules
 
 `detector_description`::::
 (string)
@@ -171,7 +172,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
 (boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=use-null]
 =====
-//End detectors
+//End analysis_config.detectors
 
 `influencers`:::
 (array of strings)

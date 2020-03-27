@@ -87,6 +87,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
 .Properties of `dest`
 [%collapsible%open]
 ====
+
 `index`:::
 (Required, string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
@@ -109,6 +110,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot]
 .Properties of `pivot`
 [%collapsible%open]
 ====
+
 `aggregations` or `aggs`:::
 (Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
@@ -131,6 +133,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 .Properties of `source`
 [%collapsible%open]
 ====
+
 `index`:::
 (Required, string or array)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
@@ -149,6 +152,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
 .Properties of `sync`
 [%collapsible%open]
 ====
+
 //Begin time
 `time`:::
 (Required, object)
@@ -157,6 +161,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
 .Properties of `time`
 [%collapsible%open]
 =====
+
 `delay`::::
 (Optional, <<time-units, time units>>)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]

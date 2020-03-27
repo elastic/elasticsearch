@@ -61,6 +61,7 @@ job:
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=assignment-explanation-anomaly-jobs]
 
+//Begin data_counts
 [[datacounts]]`data_counts`::
 (object) An object that describes the quantity of input to the job and any
 related error counts. The `data_count` values are cumulative for the lifetime of
@@ -98,7 +99,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=input-record-count]
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=invalid-date-count]
 
-`data_counts`.`job_id`:::
+`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
@@ -139,12 +140,14 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=processed-record-count]
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=sparse-bucket-count]
 ====
+//End data_counts
 
 `deleting`::
 (boolean)
 Indicates that the process of deleting the job is in progress but not yet 
 completed. It is only reported when `true`.
 
+//Begin forecasts_stats
 [[forecastsstats]]`forecasts_stats`::
 (object) An object that provides statistical information about forecasts 
 belonging to this job. Some statistics are omitted if no forecasts have been 
@@ -181,11 +184,13 @@ forecasts related to this job. If there are no forecasts, this property is omitt
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=forecast-total]
 ====
+//End forecasts_stats
 
 `job_id`::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
+//Begin model_size_stats
 [[modelsizestats]]`model_size_stats`::
 (object) An object that provides information about the size and contents of the
 model.
@@ -263,7 +268,9 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=total-partition-field-count]
 (date)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-timestamp]
 ====
+//End model_size_stats
 
+//Begin node
 [[stats-node]]`node`::
 (object) Contains properties for the node that runs the job. This information is
 available only for open jobs.
@@ -289,6 +296,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=node-id]
 `transport_address`:::
 (string) The host and port where transport HTTP connections are accepted.
 ====
+//End node
 
 `open_time`::
 (string)
@@ -298,6 +306,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=open-time]
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=state-anomaly-job]
 
+//Begin timing_stats
 [[timingstats]]`timing_stats`::
 (object) An object that provides statistical information about timing aspect of
 this job.
@@ -336,6 +345,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-minimum]
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-time-total]
 ====
+//End timing_stats
 
 [[ml-get-job-stats-response-codes]]
 ==== {api-response-codes-title}

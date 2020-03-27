@@ -82,7 +82,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 new Classification(
                     ANIMAL_NAME_KEYWORD_FIELD,
                     ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
-                    List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
+                    Arrays.asList(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(
@@ -99,11 +99,11 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         String actualField = "fieldA";
         String predictedField = "fieldB";
         client().admin().indices().prepareCreate(indexName)
-            .setMapping(
+            .addMapping("_doc",
                 actualField, "type=keyword",
                 predictedField, "type=keyword")
             .get();
-        client().prepareIndex(indexName)
+        client().prepareIndex(indexName, "_doc")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setSource(
                 actualField, "crocodile",
@@ -116,7 +116,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 new Classification(
                     actualField,
                     predictedField,
-                    List.of(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
+                    Arrays.asList(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall())));
 
         Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(accuracyResult.getClasses(), contains(new Accuracy.PerClassResult("crocodile", 0.0)));
@@ -126,9 +126,9 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics().get(1);
         assertThat(
             confusionMatrixResult.getConfusionMatrix(),
-            equalTo(List.of(
+            equalTo(Arrays.asList(
                 new MulticlassConfusionMatrix.ActualClass(
-                    "crocodile", 1, List.of(new MulticlassConfusionMatrix.PredictedClass("crocodile", 0L)), 1))));
+                    "crocodile", 1, Arrays.asList(new MulticlassConfusionMatrix.PredictedClass("crocodile", 0L)), 1))));
 
         Precision.Result precisionResult = (Precision.Result) evaluateDataFrameResponse.getMetrics().get(2);
         assertThat(precisionResult.getClasses(), empty());
@@ -141,7 +141,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     private Accuracy.Result evaluateAccuracy(String actualField, String predictedField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, List.of(new Accuracy())));
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, Arrays.asList(new Accuracy())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -153,7 +153,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_Accuracy_KeywordField() {
         List<Accuracy.PerClassResult> expectedPerClassResults =
-            List.of(
+            Arrays.asList(
                 new Accuracy.PerClassResult("ant", 47.0 / 75),
                 new Accuracy.PerClassResult("cat", 47.0 / 75),
                 new Accuracy.PerClassResult("dog", 47.0 / 75),
@@ -173,7 +173,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_Accuracy_IntegerField() {
         List<Accuracy.PerClassResult> expectedPerClassResults =
-            List.of(
+            Arrays.asList(
                 new Accuracy.PerClassResult("1", 57.0 / 75),
                 new Accuracy.PerClassResult("2", 54.0 / 75),
                 new Accuracy.PerClassResult("3", 51.0 / 75),
@@ -203,7 +203,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_Accuracy_BooleanField() {
         List<Accuracy.PerClassResult> expectedPerClassResults =
-            List.of(
+            Arrays.asList(
                 new Accuracy.PerClassResult("false", 18.0 / 30),
                 new Accuracy.PerClassResult("true", 27.0 / 45));
         double expectedOverallAccuracy = 45.0 / 75;
@@ -232,7 +232,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint
             List<Accuracy.PerClassResult> expectedPerClassResults =
-                List.of(
+                Arrays.asList(
                     new Accuracy.PerClassResult("1", 0.8),
                     new Accuracy.PerClassResult("2", 0.8),
                     new Accuracy.PerClassResult("3", 0.8),
@@ -247,7 +247,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint
             List<Accuracy.PerClassResult> expectedPerClassResults =
-                List.of(
+                Arrays.asList(
                     new Accuracy.PerClassResult("false", 0.6),
                     new Accuracy.PerClassResult("true", 0.4));
             double expectedOverallAccuracy = 0.0;
@@ -260,7 +260,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     private Precision.Result evaluatePrecision(String actualField, String predictedField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, List.of(new Precision())));
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, Arrays.asList(new Precision())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -272,7 +272,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_Precision_KeywordField() {
         List<Precision.PerClassResult> expectedPerClassResults =
-            List.of(
+            Arrays.asList(
                 new Precision.PerClassResult("ant", 1.0 / 15),
                 new Precision.PerClassResult("cat", 1.0 / 15),
                 new Precision.PerClassResult("dog", 1.0 / 15),
@@ -289,7 +289,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_Precision_IntegerField() {
         List<Precision.PerClassResult> expectedPerClassResults =
-            List.of(
+            Arrays.asList(
                 new Precision.PerClassResult("1", 0.2),
                 new Precision.PerClassResult("2", 0.2),
                 new Precision.PerClassResult("3", 0.2),
@@ -313,7 +313,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_Precision_BooleanField() {
         List<Precision.PerClassResult> expectedPerClassResults =
-            List.of(
+            Arrays.asList(
                 new Precision.PerClassResult("false", 0.5),
                 new Precision.PerClassResult("true", 9.0 / 13));
         double expectedAvgPrecision = 31.0 / 52;
@@ -354,13 +354,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 ElasticsearchStatusException.class,
                 () -> evaluateDataFrame(
                     ANIMALS_DATA_INDEX,
-                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, List.of(new Precision()))));
+                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, Arrays.asList(new Precision()))));
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name_keyword] is too high"));
     }
 
     private Recall.Result evaluateRecall(String actualField, String predictedField) {
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, List.of(new Recall())));
+            evaluateDataFrame(ANIMALS_DATA_INDEX, new Classification(actualField, predictedField, Arrays.asList(new Recall())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -372,7 +372,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_Recall_KeywordField() {
         List<Recall.PerClassResult> expectedPerClassResults =
-            List.of(
+            Arrays.asList(
                 new Recall.PerClassResult("ant", 1.0 / 15),
                 new Recall.PerClassResult("cat", 1.0 / 15),
                 new Recall.PerClassResult("dog", 1.0 / 15),
@@ -389,7 +389,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_Recall_IntegerField() {
         List<Recall.PerClassResult> expectedPerClassResults =
-            List.of(
+            Arrays.asList(
                 new Recall.PerClassResult("1", 1.0 / 15),
                 new Recall.PerClassResult("2", 2.0 / 15),
                 new Recall.PerClassResult("3", 3.0 / 15),
@@ -413,7 +413,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     public void testEvaluate_Recall_BooleanField() {
         List<Recall.PerClassResult> expectedPerClassResults =
-            List.of(
+            Arrays.asList(
                 new Recall.PerClassResult("true", 0.6),
                 new Recall.PerClassResult("false", 0.6));
         double expectedAvgRecall = 0.6;
@@ -436,7 +436,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint, hence 0.0 results here
             List<Recall.PerClassResult> expectedPerClassResults =
-                List.of(
+                Arrays.asList(
                     new Recall.PerClassResult("1", 0.0),
                     new Recall.PerClassResult("2", 0.0),
                     new Recall.PerClassResult("3", 0.0),
@@ -451,7 +451,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         {
             // When actual and predicted fields have different types, the sets of classes are disjoint, hence 0.0 results here
             List<Recall.PerClassResult> expectedPerClassResults =
-                List.of(
+                Arrays.asList(
                     new Recall.PerClassResult("true", 0.0),
                     new Recall.PerClassResult("false", 0.0));
             double expectedAvgRecall = 0.0;
@@ -469,7 +469,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
                 ElasticsearchStatusException.class,
                 () -> evaluateDataFrame(
                     ANIMALS_DATA_INDEX,
-                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, List.of(new Recall()))));
+                    new Classification(ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, Arrays.asList(new Recall()))));
         assertThat(e.getMessage(), containsString("Cardinality of field [animal_name_keyword] is too high"));
     }
 
@@ -478,7 +478,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
                 new Classification(
-                    ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, List.of(new MulticlassConfusionMatrix())));
+                    ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, Arrays.asList(new MulticlassConfusionMatrix())));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -559,7 +559,9 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             evaluateDataFrame(
                 ANIMALS_DATA_INDEX,
                 new Classification(
-                    ANIMAL_NAME_KEYWORD_FIELD, ANIMAL_NAME_PREDICTION_KEYWORD_FIELD, List.of(new MulticlassConfusionMatrix(3, null))));
+                    ANIMAL_NAME_KEYWORD_FIELD,
+                    ANIMAL_NAME_PREDICTION_KEYWORD_FIELD,
+                    Arrays.asList(new MulticlassConfusionMatrix(3, null))));
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));

@@ -31,7 +31,7 @@ POST /sales*/_async_search?size=0
 }
 --------------------------------------------------
 // TEST[setup:sales]
-// TEST[s/size=0/size=0&wait_for_completion=10s&clean_on_completion=false/]
+// TEST[s/size=0/size=0&wait_for_completion_timeout=10s&keep_on_completion=true/]
 
 The response contains an identifier of the search being executed.
 You can use this ID to later retrieve the search's final results.
@@ -88,8 +88,8 @@ results are returned as part of the <<search-api-response-body,`response`>> obje
 <6> How many documents are currently matching the query, which belong to the shards that have already completed the search
 
 It is possible to block and wait until the search is completed up to a certain
-timeout by providing the `wait_for_completion` parameter, which defaults to
-`1` second.
+timeout by providing the `wait_for_completion_timeout` parameter, which
+defaults to `1` second.
 
 You can also specify how long the async search needs to be
 available through the `keep_alive` parameter, which defaults to `5d` (five days).
@@ -193,11 +193,12 @@ first.
 <6> Partial aggregations results, coming from the shards that have already
 completed the execution of the query.
 
-The `wait_for_completion` parameter, which defaults to `1`, can also be provided
-when calling the Get Async Search API, in order to wait for the search to be
-completed up until the provided timeout. Final results will be returned if
-available before the timeout expires, otherwise the currently available results
-will be returned once the timeout expires.
+The `wait_for_completion_timeout` parameter can also be provided when calling
+the Get Async Search API, in order to wait for the search to be completed up
+until the provided timeout. Final results will be returned if available before
+the timeout expires, otherwise the currently available results will be
+returned once the timeout expires. By default no timeout is set meaning that
+the currently available results will be returned without any additional wait.
 
 The `keep_alive` parameter specifies how long the async search should be
 available in the cluster. When not specified, the `keep_alive` set with the

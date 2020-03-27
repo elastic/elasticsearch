@@ -46,6 +46,10 @@ public class DataCounts implements ToXContentObject, Writeable {
     private final long testDocsCount;
     private final long skippedDocsCount;
 
+    public DataCounts(String jobId) {
+        this(jobId, 0, 0, 0);
+    }
+
     public DataCounts(String jobId, long trainingDocsCount, long testDocsCount, long skippedDocsCount) {
         this.jobId = Objects.requireNonNull(jobId);
         this.trainingDocsCount = trainingDocsCount;

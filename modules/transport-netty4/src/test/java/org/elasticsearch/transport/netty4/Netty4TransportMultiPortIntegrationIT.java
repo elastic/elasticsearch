@@ -20,6 +20,7 @@ package org.elasticsearch.transport.netty4;
 
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -63,7 +64,9 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
 
     @Network
     public void testThatInfosAreExposed() throws Exception {
-        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setTransport(true).get();
+        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear()
+            .addMetric(NodesInfoRequest.Metric.TRANSPORT.metricName())
+            .get();
         for (NodeInfo nodeInfo : response.getNodes()) {
             assertThat(nodeInfo.getTransport().getProfileAddresses().keySet(), hasSize(1));
             assertThat(nodeInfo.getTransport().getProfileAddresses(), hasKey("client1"));

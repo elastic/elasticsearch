@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.ssl;
 
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -71,7 +72,9 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
             new TrustManager[]{CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Collections.singletonList(certPath)))},
             new SecureRandom());
         SSLSocketFactory socketFactory = sslContext.getSocketFactory();
-        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().setTransport(true).get();
+        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo()
+            .addMetric(NodesInfoRequest.Metric.TRANSPORT.metricName())
+            .get();
         TransportAddress address = randomFrom(response.getNodes()).getTransport().getAddress().publishAddress();
 
         final CountDownLatch latch = new CountDownLatch(1);

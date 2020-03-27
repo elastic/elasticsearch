@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -112,7 +113,9 @@ public final class ExternalTestCluster extends TestCluster {
         Client client = clientWrapper.apply(node.client());
         try {
             node.start();
-            NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
+            NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear()
+                .addMetrics(NodesInfoRequest.Metric.SETTINGS.metricName(), NodesInfoRequest.Metric.HTTP.metricName())
+                .get();
             httpAddresses = new InetSocketAddress[nodeInfos.getNodes().size()];
             int dataNodes = 0;
             int masterAndDataNodes = 0;

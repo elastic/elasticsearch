@@ -368,7 +368,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null),
             indexShard);
-        final SearchContext contextWithDefaultTimeout = service.createContext(rewriteContext);
+        final SearchContext contextWithDefaultTimeout = service.createContext(rewriteContext, null);
         try {
             // the search context should inherit the default timeout
             assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -383,7 +383,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null),
             indexShard);
-        final SearchContext context = service.createContext(rewriteContext);
+        final SearchContext context = service.createContext(rewriteContext, null);
         try {
             // the search context should inherit the query timeout
             assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
@@ -417,7 +417,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         {
             SearchService.SearchRewriteContext rewriteContext = service.acquireSearcherAndRewrite(shardRequest, indexShard);
-            try (SearchContext context = service.createContext(rewriteContext)) {
+            try (SearchContext context = service.createContext(rewriteContext, null)) {
                 assertNotNull(context);
             }
         }
@@ -426,7 +426,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             SearchService.SearchRewriteContext rewriteContext = service.acquireSearcherAndRewrite(shardRequest, indexShard);
             searchSourceBuilder.docValueField("one_field_too_much");
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> service.createContext(rewriteContext));
+                () -> service.createContext(rewriteContext, null));
             assertEquals(
                 "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [100] but was [101]. "
                     + "This limit can be set by changing the [index.max_docvalue_fields_search] index level setting.", ex.getMessage());
@@ -458,7 +458,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         {
             SearchService.SearchRewriteContext rewriteContext = service.acquireSearcherAndRewrite(shardRequest, indexShard);
-            try (SearchContext context = service.createContext(rewriteContext)) {
+            try (SearchContext context = service.createContext(rewriteContext, null)) {
                 assertNotNull(context);
             }
         }
@@ -468,7 +468,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap()));
             SearchService.SearchRewriteContext rewriteContext = service.acquireSearcherAndRewrite(shardRequest, indexShard);
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                    () -> service.createContext(rewriteContext));
+                    () -> service.createContext(rewriteContext, null));
             assertEquals(
                 "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxScriptFields + "] but was ["
                     + (maxScriptFields + 1)
@@ -494,7 +494,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null),
             indexShard);
-        try (SearchContext context = service.createContext(rewriteContext)) {
+        try (SearchContext context = service.createContext(rewriteContext, null)) {
             assertEquals(0, context.scriptFields().fields().size());
         }
     }
@@ -531,12 +531,53 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchService.SearchRewriteContext rewriteContext =
             service.acquireSearcherAndRewrite(new ShardScrollRequestTest(indexShard.shardId()), indexShard);
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> service.createAndPutContext(rewriteContext));
+            () -> service.createAndPutContext(rewriteContext, null));
         assertEquals(
             "Trying to create too many scroll contexts. Must be less than or equal to: [" +
                 SearchService.MAX_OPEN_SCROLL_CONTEXT.get(Settings.EMPTY) + "]. " +
                 "This limit can be set by changing the [search.max_open_scroll_context] setting.",
             ex.getMessage());
+    }
+
+    public void testOpenScrollContextsConcurrently() throws Exception {
+        createIndex("index");
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexShard indexShard = indicesService.indexServiceSafe(resolveIndex("index")).getShard(0);
+
+        final int maxScrollContexts = SearchService.MAX_OPEN_SCROLL_CONTEXT.get(Settings.EMPTY);
+        final SearchService searchService = getInstanceFromNode(SearchService.class);
+        Thread[] threads = new Thread[randomIntBetween(2, 8)];
+        CountDownLatch latch = new CountDownLatch(threads.length);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                latch.countDown();
+                try {
+                    latch.await();
+                    for (; ; ) {
+                        SearchService.SearchRewriteContext rewriteContext =
+                            searchService.acquireSearcherAndRewrite(new ShardScrollRequestTest(indexShard.shardId()), indexShard);
+                        try {
+                            searchService.createAndPutContext(rewriteContext, null);
+                        } catch (ElasticsearchException e) {
+                            assertThat(e.getMessage(), equalTo(
+                                "Trying to create too many scroll contexts. Must be less than or equal to: " +
+                                    "[" + maxScrollContexts + "]. " +
+                                    "This limit can be set by changing the [search.max_open_scroll_context] setting."));
+                            return;
+                        }
+                    }
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+            threads[i].setName("elasticsearch[node_s_0][search]");
+            threads[i].start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        assertThat(searchService.getActiveContexts(), equalTo(maxScrollContexts));
+        searchService.freeAllScrollContexts();
     }
 
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
@@ -736,14 +777,15 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateReduceContext() {
-        final SearchService service = getInstanceFromNode(SearchService.class);
+        SearchService service = getInstanceFromNode(SearchService.class);
+        InternalAggregation.ReduceContextBuilder reduceContextBuilder = service.aggReduceContextBuilder(new SearchRequest());
         {
-            InternalAggregation.ReduceContext reduceContext = service.createReduceContext(true);
+            InternalAggregation.ReduceContext reduceContext = reduceContextBuilder.forFinalReduction();
             expectThrows(MultiBucketConsumerService.TooManyBucketsException.class,
                 () -> reduceContext.consumeBucketsAndMaybeBreak(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 1));
         }
         {
-            InternalAggregation.ReduceContext reduceContext = service.createReduceContext(false);
+            InternalAggregation.ReduceContext reduceContext = reduceContextBuilder.forPartialReduction();
             reduceContext.consumeBucketsAndMaybeBreak(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 1);
         }
     }
@@ -793,7 +835,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 }
             }, indexShard);
         NullPointerException e = expectThrows(NullPointerException.class,
-            () -> service.createContext(rewriteContext));
+            () -> service.createContext(rewriteContext, null));
         assertEquals("expected", e.getMessage());
         assertEquals("should have 2 store refs (IndexService + InternalEngine)", 2, indexService.getShard(0).store().refCount());
     }
@@ -946,7 +988,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         int numContexts = randomIntBetween(1, 10);
         for (int i = 0; i < numContexts; i++) {
             SearchService.SearchRewriteContext rewriteContext = searchService.acquireSearcherAndRewrite(shardSearchRequest, indexShard);
-            final SearchContext searchContext = searchService.createContext(rewriteContext);
+            final SearchContext searchContext = searchService.createContext(rewriteContext, null);
             assertThat(searchContext.id().getId(), equalTo((long) (i + 1)));
             searchService.putContext(searchContext);
             contextIds.add(searchContext.id());

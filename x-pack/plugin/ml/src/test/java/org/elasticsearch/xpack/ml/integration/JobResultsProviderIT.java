@@ -142,8 +142,10 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertThat(mappingProperties.keySet(), hasItem("by_field_1"));
 
         // Check aliases have been created
-        assertThat(getAliases(sharedResultsIndex), containsInAnyOrder(AnomalyDetectorsIndex.jobResultsAliasedName(job1.getId()),
-            AnomalyDetectorsIndex.resultsWriteAlias(job1.getId())));
+        assertThat(getAliases(sharedResultsIndex), containsInAnyOrder(
+            AnomalyDetectorsIndex.jobResultsAliasedName(job1.getId()),
+            AnomalyDetectorsIndex.resultsWriteAlias(job1.getId())
+        ));
 
         // Now let's create a second job to test things work when the index exists already
         assertThat(mappingProperties.keySet(), not(hasItem("by_field_2")));
@@ -187,8 +189,10 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertThat(mappingProperties.keySet(), hasItem("by_field"));
 
         // Check aliases have been created
-        assertThat(getAliases(customIndex), containsInAnyOrder(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()),
-            AnomalyDetectorsIndex.resultsWriteAlias(job.getId())));
+        assertThat(getAliases(customIndex), containsInAnyOrder(
+            AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()),
+            AnomalyDetectorsIndex.resultsWriteAlias(job.getId())
+        ));
     }
 
     @AwaitsFix(bugUrl ="https://github.com/elastic/elasticsearch/issues/40134")
@@ -366,12 +370,14 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private Set<String> getAliases(String index) {
-        GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(
-            new GetAliasesRequest().indices(index)).actionGet();
+        GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest().indices(index)).actionGet();
         ImmutableOpenMap<String, List<AliasMetaData>> aliases = getAliasesResponse.getAliases();
         assertThat(aliases.containsKey(index), is(true));
-        List<AliasMetaData> aliasMetaData = aliases.get(index);
-        return aliasMetaData.stream().map(AliasMetaData::alias).collect(Collectors.toSet());
+        List<AliasMetaData> aliasMetaDataList = aliases.get(index);
+        for (AliasMetaData aliasMetaData : aliasMetaDataList) {
+            assertThat("Anomalies aliases should be hidden but are not: " + aliases, aliasMetaData.isHidden(), is(true));
+        }
+        return aliasMetaDataList.stream().map(AliasMetaData::alias).collect(Collectors.toSet());
     }
 
     private List<Calendar> getCalendars(String jobId) throws Exception {

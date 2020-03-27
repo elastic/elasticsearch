@@ -874,7 +874,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         {
             // Index a randomly named unused state document
             String docId = "non_existing_job_" + randomFrom("model_state_1234567#1", "quantiles", "categorizer_state#1");
-            IndexRequest indexRequest = new IndexRequest(".ml-state").id(docId);
+            IndexRequest indexRequest = new IndexRequest(".ml-state-000001").id(docId);
             indexRequest.source(Collections.emptyMap(), XContentType.JSON);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
@@ -944,8 +944,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(forecastExists(jobId, forecastId));
 
         {
-            // Verify .ml-state contains the expected unused state document
-            Iterable<SearchHit> hits = searchAll(".ml-state");
+            // Verify .ml-state* contains the expected unused state document
+            Iterable<SearchHit> hits = searchAll(".ml-state*");
             List<SearchHit> target = new ArrayList<>();
             hits.forEach(target::add);
             long numMatches = target.stream()
@@ -974,8 +974,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertFalse(forecastExists(jobId, forecastId));
 
         {
-            // Verify .ml-state doesn't contain unused state documents
-            Iterable<SearchHit> hits = searchAll(".ml-state");
+            // Verify .ml-state* doesn't contain unused state documents
+            Iterable<SearchHit> hits = searchAll(".ml-state*");
             List<SearchHit> hitList = new ArrayList<>();
             hits.forEach(hitList::add);
             long numMatches = hitList.stream()
@@ -1297,7 +1297,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setLambda(1.0)
                 .setGamma(1.0)
                 .setEta(1.0)
-                .setMaximumNumberTrees(10)
+                .setMaxTrees(10)
                 .setFeatureBagFraction(0.5)
                 .setNumTopFeatureImportanceValues(3)
                 .build())
@@ -1336,11 +1336,13 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setPredictionFieldName("my_dependent_variable_prediction")
                 .setTrainingPercent(80.0)
                 .setRandomizeSeed(42L)
+                .setClassAssignmentObjective(
+                    org.elasticsearch.client.ml.dataframe.Classification.ClassAssignmentObjective.MAXIMIZE_ACCURACY)
                 .setNumTopClasses(1)
                 .setLambda(1.0)
                 .setGamma(1.0)
                 .setEta(1.0)
-                .setMaximumNumberTrees(10)
+                .setMaxTrees(10)
                 .setFeatureBagFraction(0.5)
                 .setNumTopFeatureImportanceValues(3)
                 .build())
@@ -2265,7 +2267,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             "          \"target_field\": \"regression_value\",\n" +
             "          \"model_id\": \"" + modelIdPrefix + 0 + "\",\n" +
             "          \"inference_config\": {\"regression\": {}},\n" +
-            "          \"field_mappings\": {\n" +
+            "          \"field_map\": {\n" +
             "            \"col1\": \"col1\",\n" +
             "            \"col2\": \"col2\",\n" +
             "            \"col3\": \"col3\",\n" +

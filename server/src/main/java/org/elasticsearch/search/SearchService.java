@@ -28,6 +28,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,8 +70,10 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -84,11 +87,11 @@ import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
@@ -336,10 +339,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private DfsSearchResult executeDfsPhase(SearchRewriteContext rewriteContext, SearchShardTask task) throws IOException {
-        final SearchContext context = createAndPutContext(rewriteContext);
+        final SearchContext context = createAndPutContext(rewriteContext, task);
         context.incRef();
         try {
-            context.setTask(task);
             contextProcessing(context);
             dfsPhase.execute(context);
             contextProcessedSuccessfully(context);
@@ -419,11 +421,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private SearchPhaseResult executeQueryPhase(SearchRewriteContext rewriteContext, SearchShardTask task) throws Exception {
-        final SearchContext context = createAndPutContext(rewriteContext);
+        final SearchContext context = createAndPutContext(rewriteContext, task);
         final ShardSearchRequest request = rewriteContext.request;
         context.incRef();
         try {
-            context.setTask(task);
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
                 contextProcessing(context);
@@ -623,8 +624,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final SearchContext createAndPutContext(SearchRewriteContext rewriteContext) throws IOException {
-        SearchContext context = createContext(rewriteContext);
+    final SearchContext createAndPutContext(SearchRewriteContext rewriteContext, SearchShardTask task) throws IOException {
+        SearchContext context = createContext(rewriteContext, task);
         onNewContext(context);
         boolean success = false;
         try {
@@ -642,7 +643,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean success = false;
         try {
             if (context.scrollContext() != null) {
-                openScrollContexts.incrementAndGet();
                 context.indexShard().getSearchOperationListener().onNewScrollContext(context);
             }
             context.indexShard().getSearchOperationListener().onNewContext(context);
@@ -658,17 +658,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    final SearchContext createContext(SearchRewriteContext rewriteContext) throws IOException {
+    final SearchContext createContext(SearchRewriteContext rewriteContext, SearchShardTask searchTask) throws IOException {
         final DefaultSearchContext context = createSearchContext(rewriteContext, defaultSearchTimeout);
         try {
-            if (rewriteContext.request != null && openScrollContexts.get() >= maxOpenScrollContext) {
-                throw new ElasticsearchException(
-                    "Trying to create too many scroll contexts. Must be less than or equal to: [" +
-                        maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
-                        + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
-            }
             final ShardSearchRequest request = rewriteContext.request;
             if (request.scroll() != null) {
+                context.addReleasable(openScrollContexts::decrementAndGet, Lifetime.CONTEXT);
+                if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
+                    throw new ElasticsearchException(
+                        "Trying to create too many scroll contexts. Must be less than or equal to: [" +
+                            maxOpenScrollContext + "]. " + "This limit can be set by changing the ["
+                            + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
+                }
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();
             }
@@ -681,6 +682,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.size() == -1) {
                 context.size(DEFAULT_SIZE);
             }
+            context.setTask(searchTask);
 
             // pre process
             dfsPhase.preProcess(context);
@@ -693,7 +695,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 keepAlive = request.scroll().keepAlive().millis();
             }
             contextScrollKeepAlive(context, keepAlive);
-            context.lowLevelCancellation(lowLevelCancellation);
         } catch (Exception e) {
             context.close();
             throw e;
@@ -728,7 +729,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             DefaultSearchContext searchContext = new DefaultSearchContext(
                 new SearchContextId(readerId, idGenerator.incrementAndGet()),
                 request, shardTarget, searcher, clusterService, indexService, indexShard, bigArrays,
-                threadPool::relativeTimeInMillis, timeout, fetchPhase);
+                threadPool::relativeTimeInMillis, timeout, fetchPhase, lowLevelCancellation);
             success = true;
             return searchContext;
         } finally {
@@ -768,7 +769,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert activeContexts.containsKey(context.id().getId()) == false;
         context.indexShard().getSearchOperationListener().onFreeContext(context);
         if (context.scrollContext() != null) {
-            openScrollContexts.decrementAndGet();
             context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
         }
     }
@@ -1201,9 +1201,31 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService;
     }
 
-    public InternalAggregation.ReduceContext createReduceContext(boolean finalReduce) {
-        return new InternalAggregation.ReduceContext(bigArrays, scriptService,
-            finalReduce ? multiBucketConsumerService.create() : bucketCount -> {}, finalReduce);
+    /**
+     * Returns a builder for {@link InternalAggregation.ReduceContext}. This
+     * builder retains a reference to the provided {@link SearchRequest}.
+     */
+    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchRequest request) {
+        return new InternalAggregation.ReduceContextBuilder() {
+            @Override
+            public InternalAggregation.ReduceContext forPartialReduction() {
+                return InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService);
+            }
+
+            @Override
+            public ReduceContext forFinalReduction() {
+                PipelineTree pipelineTree = requestToPipelineTree(request);
+                return InternalAggregation.ReduceContext.forFinalReduction(
+                        bigArrays, scriptService, multiBucketConsumerService.create(), pipelineTree);
+            }
+        };
+    }
+
+    private static PipelineTree requestToPipelineTree(SearchRequest request) {
+        if (request.source() == null || request.source().aggregations() == null) {
+            return PipelineTree.EMPTY;
+        }
+        return request.source().aggregations().buildPipelineTree();
     }
 
     static class SearchRewriteContext {

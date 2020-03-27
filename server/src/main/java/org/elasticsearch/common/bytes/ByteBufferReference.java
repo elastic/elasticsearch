@@ -54,7 +54,7 @@ public class ByteBufferReference extends AbstractBytesReference {
     @Override
     public int indexOf(byte marker, int from) {
         final int remainingBytes = Math.max(length - from, 0);
-        Objects.checkFromIndexSize(from, remainingBytes, length);
+        FutureObjects.checkFromIndexSize(from, remainingBytes, length);
         if (buffer.hasArray()) {
             int startIndex = from + buffer.arrayOffset();
             int endIndex = startIndex + remainingBytes;

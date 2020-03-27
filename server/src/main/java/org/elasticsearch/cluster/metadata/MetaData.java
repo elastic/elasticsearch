@@ -1372,7 +1372,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return aliasAndIndexLookup;
         }
 
-        private void validateDataStreams(SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
+        private void validateDataStreams(SortedMap<String, IndexSpace> aliasAndIndexLookup) {
             DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {

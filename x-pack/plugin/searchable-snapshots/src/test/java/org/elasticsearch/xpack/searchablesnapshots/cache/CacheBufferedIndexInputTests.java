@@ -61,9 +61,10 @@ public class CacheBufferedIndexInputTests extends ESIndexInputTestCase {
                 }
 
                 final Path cacheDir = createTempDir();
-                try (CacheDirectory cacheDirectory
-                         = new CacheDirectory(directory, cacheService, cacheDir, snapshotId, indexId, shardId, Settings.EMPTY, () -> 0L)) {
-                    try (IndexInput indexInput = cacheDirectory.openInput(fileName, newIOContext(random()))) {
+                try (SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(blobContainer, snapshot, snapshotId, indexId,
+                    shardId, Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(), () -> 0L, cacheService, cacheDir
+                )) {
+                    try (IndexInput indexInput = directory.openInput(fileName, newIOContext(random()))) {
                         assertEquals(input.length, indexInput.length());
                         assertEquals(0, indexInput.getFilePointer());
                         byte[] output = randomReadAndSlice(indexInput, input.length);

@@ -77,6 +77,7 @@ public interface BlobContainer {
      *
      * @return a hint to consumers regarding the length of data to request if there is a good chance that future reads can be satisfied from
      * the same stream.
+     *
      */
     default long readBlobPreferredLength() {
         throw new UnsupportedOperationException(); // NORELEASE

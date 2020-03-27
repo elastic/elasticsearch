@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.index.store;
+package org.elasticsearch.index.store.direct;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
@@ -13,6 +13,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -21,8 +22,8 @@ import java.io.InputStream;
 import java.util.Objects;
 
 /**
- * A {@link SearchableSnapshotIndexInput} instance corresponds to a single file from a Lucene directory that has been snapshotted. Because
- * large Lucene file might be split into multiple parts during the snapshot, {@link SearchableSnapshotIndexInput} requires a
+ * A {@link DirectBlobContainerIndexInput} instance corresponds to a single file from a Lucene directory that has been snapshotted. Because
+ * large Lucene file might be split into multiple parts during the snapshot, {@link DirectBlobContainerIndexInput} requires a
  * {@link FileInfo} object at creation time. This object is used to retrieve the file name and length of the original Lucene file, as well
  * as all the parts (stored as "blobs" in the repository) that composed the file in the snapshot.
  *
@@ -33,18 +34,18 @@ import java.util.Objects;
  * - __4vdpz_HFQ8CuKjCERX0o2A.part1 of size 997b
  * - __4vdpz_HFQ8CuKjCERX0o2A.part2 of size 416b
  *
- * {@link SearchableSnapshotIndexInput} maintains a global position that indicates the current position in the Lucene file where the
+ * {@link DirectBlobContainerIndexInput} maintains a global position that indicates the current position in the Lucene file where the
  * next read will occur. In the case of a Lucene file snapshotted into multiple parts, this position is used to identify which part must
  * be read at which position (see {@link #readInternal(byte[], int, int)}. This position is also passed over to cloned and sliced input
  * along with the {@link FileInfo} so that they can also track their reading position.
  *
- * The {@code sequentialReadSize} constructor parameter configures the {@link SearchableSnapshotIndexInput} to perform a larger read on the
+ * The {@code sequentialReadSize} constructor parameter configures the {@link DirectBlobContainerIndexInput} to perform a larger read on the
  * underlying {@link BlobContainer} than it needs in order to fill its internal buffer, on the assumption that the client is reading
  * sequentially from this file and will consume the rest of this stream in due course. It keeps hold of the partially-consumed
  * {@link InputStream} in {@code streamForSequentialReads}. Clones and slices, however, do not expect to be read sequentially and so make
  * a new request to the {@link BlobContainer} each time their internal buffer needs refilling.
  */
-public class SearchableSnapshotIndexInput extends BaseSearchableSnapshotIndexInput {
+public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
 
     private final long offset;
     private final long length;
@@ -57,15 +58,15 @@ public class SearchableSnapshotIndexInput extends BaseSearchableSnapshotIndexInp
     private long sequentialReadSize;
     private static final long NO_SEQUENTIAL_READ_OPTIMIZATION = 0L;
 
-    SearchableSnapshotIndexInput(BlobContainer blobContainer, FileInfo fileInfo, IOContext context,
-                                 long sequentialReadSize, int bufferSize) {
-        this("SearchableSnapshotIndexInput(" + fileInfo.physicalName() + ")", blobContainer, fileInfo, context, 0L, 0L, fileInfo.length(),
+    public DirectBlobContainerIndexInput(BlobContainer blobContainer, FileInfo fileInfo, IOContext context,
+                                         long sequentialReadSize, int bufferSize) {
+        this("DirectBlobContainerIndexInput(" + fileInfo.physicalName() + ")", blobContainer, fileInfo, context, 0L, 0L, fileInfo.length(),
             sequentialReadSize, bufferSize);
     }
 
-    private SearchableSnapshotIndexInput(String resourceDesc, BlobContainer blobContainer, FileInfo fileInfo, IOContext context,
-                                         final long position, final long offset, final long length, final long sequentialReadSize,
-                                         final int bufferSize) {
+    private DirectBlobContainerIndexInput(String resourceDesc, BlobContainer blobContainer, FileInfo fileInfo, IOContext context,
+                                          final long position, final long offset, final long length, final long sequentialReadSize,
+                                          final int bufferSize) {
         super(resourceDesc, blobContainer, fileInfo, context, bufferSize);
         this.offset = offset;
         this.length = length;
@@ -215,7 +216,7 @@ public class SearchableSnapshotIndexInput extends BaseSearchableSnapshotIndexInp
 
     @Override
     public BufferedIndexInput clone() {
-        return new SearchableSnapshotIndexInput("clone(" + this + ")", blobContainer, fileInfo, context, position, offset, length,
+        return new DirectBlobContainerIndexInput("clone(" + this + ")", blobContainer, fileInfo, context, position, offset, length,
             // Clones might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
             // solution: do not optimize sequential reads on clones.
             NO_SEQUENTIAL_READ_OPTIMIZATION,
@@ -225,8 +226,8 @@ public class SearchableSnapshotIndexInput extends BaseSearchableSnapshotIndexInp
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
-            final SearchableSnapshotIndexInput slice = new SearchableSnapshotIndexInput(sliceDescription, blobContainer, fileInfo,  context,
-                position, this.offset + offset, length,
+            final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(sliceDescription, blobContainer, fileInfo,
+                context, position, this.offset + offset, length,
                 // Slices might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
                 // solution: do not optimize sequential reads on slices.
                 NO_SEQUENTIAL_READ_OPTIMIZATION,
@@ -247,7 +248,7 @@ public class SearchableSnapshotIndexInput extends BaseSearchableSnapshotIndexInp
 
     @Override
     public String toString() {
-        return "SearchableSnapshotIndexInput{" +
+        return "DirectBlobContainerIndexInput{" +
             "resourceDesc=" + super.toString() +
             ", fileInfo=" + fileInfo +
             ", offset=" + offset +

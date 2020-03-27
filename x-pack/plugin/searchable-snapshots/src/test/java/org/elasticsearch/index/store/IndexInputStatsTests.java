@@ -3,12 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.searchablesnapshots.cache;
+package org.elasticsearch.index.store;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.searchablesnapshots.cache.IndexInputStats.SEEKING_THRESHOLD;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.TestUtils.assertCounter;
+import static org.elasticsearch.index.store.IndexInputStats.SEEKING_THRESHOLD;
+import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
 
 public class IndexInputStatsTests extends ESTestCase {
 

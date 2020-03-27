@@ -3,18 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.searchablesnapshots.cache;
+package org.elasticsearch.index.store;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongConsumer;
 
 /**
- * {@link IndexInputStats} records stats for a given {@link CacheBufferedIndexInput}.
+ * {@link IndexInputStats} records stats for a given {@link CachedBlobContainerIndexInput}.
  */
 public class IndexInputStats {
 
@@ -46,8 +47,7 @@ public class IndexInputStats {
         this(fileLength, SEEKING_THRESHOLD.getBytes());
     }
 
-    // pkg-private for testing
-    IndexInputStats(long fileLength, long seekingThreshold) {
+    public IndexInputStats(long fileLength, long seekingThreshold) {
         this.fileLength = fileLength;
         this.seekingThreshold = seekingThreshold;
     }
@@ -155,7 +155,7 @@ public class IndexInputStats {
     }
 
     @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")
-    boolean isLargeSeek(long delta) {
+    public boolean isLargeSeek(long delta) {
         return delta != Long.MIN_VALUE && Math.abs(delta) > seekingThreshold;
     }
 

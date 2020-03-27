@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardS
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.CacheIndexInputStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.Counter;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats.TimedCounter;
-import org.elasticsearch.xpack.searchablesnapshots.cache.IndexInputStats;
+import org.elasticsearch.index.store.IndexInputStats;
 
 import java.io.IOException;
 import java.util.List;

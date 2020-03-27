@@ -23,16 +23,16 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
+import org.elasticsearch.index.store.cache.CacheFile;
+import org.elasticsearch.index.store.cache.CacheKey;
+import org.elasticsearch.index.store.direct.DirectBlobContainerIndexInput;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheBufferedIndexInput;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheFile;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.IndexInputStats;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -242,9 +242,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
         if (useCache && isExcludedFromCache(name) == false) {
-            return new CacheBufferedIndexInput(this, fileInfo, context, inputStats);
+            return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats);
         } else {
-            return new SearchableSnapshotIndexInput(blobContainer, fileInfo, context, uncachedChunkSize, BufferedIndexInput.BUFFER_SIZE);
+            return new DirectBlobContainerIndexInput(blobContainer, fileInfo, context, uncachedChunkSize, BufferedIndexInput.BUFFER_SIZE);
         }
     }
 

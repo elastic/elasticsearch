@@ -581,7 +581,7 @@ public class TaskManager implements ClusterStateApplier {
             }
         }
 
-        synchronized Set<DiscoveryNode> startBan(Runnable onEmptyChildNodes) {
+        Set<DiscoveryNode> startBan(Runnable onEmptyChildNodes) {
             final Set<DiscoveryNode> pendingChildNodes;
             synchronized (this) {
                 if (banChildren) {

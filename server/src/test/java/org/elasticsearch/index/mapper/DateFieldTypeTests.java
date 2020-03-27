@@ -232,7 +232,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
                 BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-                xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true);
+                xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null);
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date = "2015-10-12T14:10:55";
@@ -255,7 +255,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
                 BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-                null, null, () -> nowInMillis, null, null, () -> true);
+                null, null, () -> nowInMillis, null, null, () -> true, null);
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date1 = "2015-10-12T14:10:55";

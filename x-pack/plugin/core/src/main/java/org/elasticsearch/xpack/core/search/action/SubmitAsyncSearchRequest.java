@@ -113,7 +113,7 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     }
 
     /**
-     * Should the resource be removed on completion or failure (defaults to true).
+     * Should the resource be kept on completion or failure (defaults to false).
      */
     public SubmitAsyncSearchRequest setKeepOnCompletion(boolean value) {
         this.keepOnCompletion = value;
@@ -162,8 +162,12 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SubmitAsyncSearchRequest request1 = (SubmitAsyncSearchRequest) o;
         return keepOnCompletion == request1.keepOnCompletion &&
             waitForCompletionTimeout.equals(request1.waitForCompletionTimeout) &&

@@ -17,35 +17,94 @@ import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMet
 public class AggregateMetricsAggregatorsRegistrar {
 
     public static void registerSumAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(SumAggregationBuilder.NAME,
+        valuesSourceRegistry.register(
+            SumAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) (name, valuesSource, formatter, context, parent, pipelineAggregators, metaData) ->
-                new AggregateMetricBackedSumAggregator(name, (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    formatter, context, parent, pipelineAggregators, metaData));
+            (MetricAggregatorSupplier) (
+                name,
+                valuesSource,
+                formatter,
+                context,
+                parent,
+                pipelineAggregators,
+                metaData) -> new AggregateMetricBackedSumAggregator(
+                    name,
+                    (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
+                    formatter,
+                    context,
+                    parent,
+                    pipelineAggregators,
+                    metaData
+                )
+        );
     }
 
-
     public static void registerAvgAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(AvgAggregationBuilder.NAME,
+        valuesSourceRegistry.register(
+            AvgAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) (name, valuesSource, formatter, context, parent, pipelineAggregators, metaData) ->
-                new AggregateMetricBackedAvgAggregator(name, (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    formatter, context, parent, pipelineAggregators, metaData));
+            (MetricAggregatorSupplier) (
+                name,
+                valuesSource,
+                formatter,
+                context,
+                parent,
+                pipelineAggregators,
+                metaData) -> new AggregateMetricBackedAvgAggregator(
+                    name,
+                    (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
+                    formatter,
+                    context,
+                    parent,
+                    pipelineAggregators,
+                    metaData
+                )
+        );
     }
 
     public static void registerMinAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(MinAggregationBuilder.NAME,
+        valuesSourceRegistry.register(
+            MinAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) (name, valuesSource, formatter, context, parent, pipelineAggregators, metaData) ->
-                new AggregateMetricBackedAvgAggregator(name, (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    formatter, context, parent, pipelineAggregators, metaData));
+            (MetricAggregatorSupplier) (
+                name,
+                valuesSource,
+                formatter,
+                context,
+                parent,
+                pipelineAggregators,
+                metaData) -> new AggregateMetricBackedAvgAggregator(
+                    name,
+                    (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
+                    formatter,
+                    context,
+                    parent,
+                    pipelineAggregators,
+                    metaData
+                )
+        );
     }
 
     public static void registerMaxAggregator(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(MaxAggregationBuilder.NAME,
+        valuesSourceRegistry.register(
+            MaxAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) (name, valuesSource, formatter, context, parent, pipelineAggregators, metaData) ->
-                new AggregateMetricBackedAvgAggregator(name, (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    formatter, context, parent, pipelineAggregators, metaData));
+            (MetricAggregatorSupplier) (
+                name,
+                valuesSource,
+                formatter,
+                context,
+                parent,
+                pipelineAggregators,
+                metaData) -> new AggregateMetricBackedAvgAggregator(
+                    name,
+                    (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
+                    formatter,
+                    context,
+                    parent,
+                    pipelineAggregators,
+                    metaData
+                )
+        );
     }
 }

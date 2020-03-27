@@ -18,8 +18,12 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 public class AggregateMetricInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Inject
-    public AggregateMetricInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                              Settings settings, XPackLicenseState licenseState) {
+    public AggregateMetricInfoTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
         super(XPackInfoFeatureAction.AGGREGATE_METRIC.name(), transportService, actionFilters);
     }
 

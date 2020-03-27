@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.fielddata;
 
-
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;

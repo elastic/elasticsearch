@@ -27,7 +27,9 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
         AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType();
         fieldType.setName("foo");
         for (AggregateDoubleMetricFieldMapper.Metric m : List.of(
-            AggregateDoubleMetricFieldMapper.Metric.min, AggregateDoubleMetricFieldMapper.Metric.max)) {
+            AggregateDoubleMetricFieldMapper.Metric.min,
+            AggregateDoubleMetricFieldMapper.Metric.max
+        )) {
 
             NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
             fieldType.addMetricField(m, subfield);
@@ -50,8 +52,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     public void testRangeQuery() throws Exception {
         final MappedFieldType fieldType = createDefaultFieldType();
-        Query query = fieldType.rangeQuery(10.1, 100.1, true, true,
-            null, null, null, null);
+        Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, null);
         assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
     }
 }

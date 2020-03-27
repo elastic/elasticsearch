@@ -46,15 +46,19 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
 
     public void testMatchesNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(List.of(
-                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(20)),
-                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
-            ));
+            iw.addDocument(
+                List.of(
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(20)),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
+                )
+            );
 
-            iw.addDocument(List.of(
-                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
-                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
-            ));
+            iw.addDocument(
+                List.of(
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                )
+            );
         }, avg -> {
             assertEquals(10, avg.getValue(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
@@ -82,21 +86,27 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
 
     public void testQueryFiltering() throws IOException {
         testCase(new TermQuery(new Term("match", "yes")), iw -> {
-            iw.addDocument(List.of(
-                new StringField("match", "yes", Field.Store.NO),
-                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
-                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(1))
-            ));
-            iw.addDocument(List.of(
-                new StringField("match", "yes", Field.Store.NO),
-                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
-                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
-            ));
-            iw.addDocument(List.of(
-                new StringField("match", "no", Field.Store.NO),
-                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(40)),
-                new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
-            ));
+            iw.addDocument(
+                List.of(
+                    new StringField("match", "yes", Field.Store.NO),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(1))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new StringField("match", "yes", Field.Store.NO),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                )
+            );
+            iw.addDocument(
+                List.of(
+                    new StringField("match", "no", Field.Store.NO),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(40)),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                )
+            );
         }, avg -> {
             assertEquals(10d, avg.getValue(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
@@ -121,18 +131,20 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
         return fieldType;
     }
 
-    private void testCase(Query query,
-                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalAvg> verify) throws IOException {
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalAvg> verify)
+        throws IOException {
         MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
     private void testCase(
-        AggregationBuilder aggregationBuilder, Query query,
+        AggregationBuilder aggregationBuilder,
+        Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalAvg> verify, MappedFieldType fieldType) throws IOException {
+        Consumer<InternalAvg> verify,
+        MappedFieldType fieldType
+    ) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             buildIndex.accept(indexWriter);
@@ -166,7 +178,8 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
-            AggregateMetricsValuesSourceType.AGGREGATE_METRIC);
+            AggregateMetricsValuesSourceType.AGGREGATE_METRIC
+        );
     }
 
 }

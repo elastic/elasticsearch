@@ -36,8 +36,13 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
             if (!(indexFieldData instanceof IndexAggregateDoubleMetricFieldData)) {
-                throw new IllegalArgumentException("Expected aggregate_metric_double type on field [" + fieldContext.field() +
-                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+                throw new IllegalArgumentException(
+                    "Expected aggregate_metric_double type on field ["
+                        + fieldContext.field()
+                        + "], but got ["
+                        + fieldContext.fieldType().typeName()
+                        + "]"
+                );
             }
             return new AggregateMetricsValuesSource.AggregateDoubleMetric.Fielddata((IndexAggregateDoubleMetricFieldData) indexFieldData);
         }
@@ -47,7 +52,6 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
     };
-
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

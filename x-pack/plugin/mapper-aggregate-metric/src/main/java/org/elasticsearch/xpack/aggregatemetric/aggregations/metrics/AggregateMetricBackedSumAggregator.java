@@ -36,13 +36,16 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
     private DoubleArray sums;
     private DoubleArray compensations;
 
-    AggregateMetricBackedSumAggregator(String name,
-                                       AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
-                                       DocValueFormat formatter,
-                                       SearchContext context,
-                                       Aggregator parent,
-                                       List<PipelineAggregator> pipelineAggregators,
-                                       Map<String, Object> metaData) throws IOException {
+    AggregateMetricBackedSumAggregator(
+        String name,
+        AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
+        DocValueFormat formatter,
+        SearchContext context,
+        Aggregator parent,
+        List<PipelineAggregator> pipelineAggregators,
+        Map<String, Object> metaData
+    )
+        throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.format = formatter;
@@ -58,8 +61,7 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }

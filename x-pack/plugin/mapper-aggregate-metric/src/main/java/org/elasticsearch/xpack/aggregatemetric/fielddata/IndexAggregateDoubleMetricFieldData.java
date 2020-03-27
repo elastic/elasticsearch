@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.aggregatemetric.fielddata;
 
-
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -15,7 +14,8 @@ import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
  * Specialization of {@link IndexFieldData} for aggregate_metric.
  */
 public abstract class IndexAggregateDoubleMetricFieldData extends DocValuesIndexFieldData
-    implements IndexFieldData<LeafAggregateDoubleMetricFieldData> {
+    implements
+        IndexFieldData<LeafAggregateDoubleMetricFieldData> {
 
     public IndexAggregateDoubleMetricFieldData(Index index, String fieldName) {
         super(index, fieldName);

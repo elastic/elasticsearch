@@ -38,12 +38,16 @@ class AggregateMetricBackedAvgAggregator extends NumericMetricsAggregator.Single
     DoubleArray compensations;
     DocValueFormat format;
 
-    AggregateMetricBackedAvgAggregator(String name,
-                                       AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
-                                       DocValueFormat formatter, SearchContext context,
-                                       Aggregator parent,
-                                       List<PipelineAggregator> pipelineAggregators,
-                                       Map<String, Object> metaData) throws IOException {
+    AggregateMetricBackedAvgAggregator(
+        String name,
+        AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource,
+        DocValueFormat formatter,
+        SearchContext context,
+        Aggregator parent,
+        List<PipelineAggregator> pipelineAggregators,
+        Map<String, Object> metaData
+    )
+        throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.format = formatter;
@@ -61,17 +65,20 @@ class AggregateMetricBackedAvgAggregator extends NumericMetricsAggregator.Single
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
         // Retrieve aggregate values for metrics sum and value_count
-        final SortedNumericDoubleValues aggregateSums = valuesSource.getAggregateMetricValues(ctx,
-            AggregateDoubleMetricFieldMapper.Metric.sum);
-        final SortedNumericDoubleValues aggregateValueCounts = valuesSource.getAggregateMetricValues(ctx,
-            AggregateDoubleMetricFieldMapper.Metric.value_count);
+        final SortedNumericDoubleValues aggregateSums = valuesSource.getAggregateMetricValues(
+            ctx,
+            AggregateDoubleMetricFieldMapper.Metric.sum
+        );
+        final SortedNumericDoubleValues aggregateValueCounts = valuesSource.getAggregateMetricValues(
+            ctx,
+            AggregateDoubleMetricFieldMapper.Metric.value_count
+        );
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
         return new LeafBucketCollectorBase(sub, sums) {

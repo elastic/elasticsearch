@@ -26,16 +26,32 @@ import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsa
 public class AggregateMetricUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     @Inject
-    public AggregateMetricUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Settings settings, XPackLicenseState licenseState) {
-        super(XPackUsageFeatureAction.AGGREGATE_METRIC.name(), transportService, clusterService,
-            threadPool, actionFilters, indexNameExpressionResolver);
+    public AggregateMetricUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
+        super(
+            XPackUsageFeatureAction.AGGREGATE_METRIC.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         AggregateMetricFeatureSetUsage usage = new AggregateMetricFeatureSetUsage(true, true);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

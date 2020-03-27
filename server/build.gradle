@@ -216,7 +216,6 @@ thirdPartyAudit.ignoreMissingClasses(
   // from log4j
   'com.conversantmedia.util.concurrent.DisruptorBlockingQueue',
   'com.conversantmedia.util.concurrent.SpinPolicy',
-  //TODO PG why it fails now with ecs??
   'com.fasterxml.jackson.databind.SerializationFeature',
   'com.fasterxml.jackson.annotation.JsonInclude$Include',
   'com.fasterxml.jackson.databind.DeserializationContext',

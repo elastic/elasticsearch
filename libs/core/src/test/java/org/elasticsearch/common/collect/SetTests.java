@@ -44,6 +44,14 @@ public class SetTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> stringsSet.add("foo"));
     }
 
+    public void testStringSetOfTwo() {
+        final String[] strings = {"foo", "bar"};
+        final java.util.Set<String> stringsSet = Set.of(strings);
+        assertThat(stringsSet.size(), equalTo(strings.length));
+        assertTrue(stringsSet.containsAll(Arrays.asList(strings)));
+        expectThrows(UnsupportedOperationException.class, () -> stringsSet.add("foo"));
+    }
+
     public void testStringSetOfN() {
         final String[] strings = {"foo", "bar", "baz"};
         final java.util.Set<String> stringsSet = Set.of(strings);

@@ -79,7 +79,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         Setting.simpleString("index.store.snapshot.index_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
     public static final Setting<Boolean> SNAPSHOT_CACHE_ENABLED_SETTING =
         Setting.boolSetting("index.store.snapshot.cache.enabled", true, Setting.Property.IndexScope);
-    // The file extensions that are blacklisted from the cache
+    // The file extensions that are excluded from the cache
     public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING =
         Setting.listSetting("index.store.snapshot.cache.excluded_file_types", Collections.emptyList(), Function.identity(),
             Setting.Property.IndexScope, Setting.Property.NodeScope);

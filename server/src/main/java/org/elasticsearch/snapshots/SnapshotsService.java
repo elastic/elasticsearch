@@ -1369,7 +1369,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 logger.debug(() -> new ParameterizedMessage("Snapshot [{}] was aborted during INIT", snapshot), e);
                                 listener.onResponse(null);
                             } else {
-                                if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
+                                if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class)
+                                    != null) {
                                     logger.warn("master failover before deleted snapshot could complete", e);
                                     // Just pass the exception to the transport handler as is so it is retried on the new master
                                     listener.onFailure(e);

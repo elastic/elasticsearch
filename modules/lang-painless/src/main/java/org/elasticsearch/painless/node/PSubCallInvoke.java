@@ -83,9 +83,4 @@ public class PSubCallInvoke extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, prefix, method.javaMethod.getName());
-    }
 }

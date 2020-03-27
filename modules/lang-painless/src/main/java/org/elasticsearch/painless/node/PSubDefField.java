@@ -64,9 +64,4 @@ public class PSubDefField extends AStoreable {
     boolean isDefOptimized() {
         return true;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, value);
-    }
 }

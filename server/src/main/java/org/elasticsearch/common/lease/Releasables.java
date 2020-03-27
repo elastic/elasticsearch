@@ -52,7 +52,7 @@ public enum Releasables {
     }
 
     /** Release the provided {@link Releasable}s, ignoring exceptions. */
-    public static void closeWhileHandlingException(Iterable<Releasable> releasables) {
+    public static void closeWhileHandlingException(Iterable<? extends Releasable> releasables) {
         close(releasables, true);
     }
 

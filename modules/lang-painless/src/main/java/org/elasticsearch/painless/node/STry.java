@@ -31,8 +31,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.singleton;
-
 /**
  * Represents the try block as part of a try-catch block.
  */
@@ -106,10 +104,5 @@ public class STry extends AStatement {
         output.statementNode = tryNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return multilineToString(singleton(block), catches);
     }
 }

@@ -99,9 +99,4 @@ public class EConditional extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(condition, left, right);
-    }
 }

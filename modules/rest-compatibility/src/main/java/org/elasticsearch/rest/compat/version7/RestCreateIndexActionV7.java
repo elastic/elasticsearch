@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,7 +40,7 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestCreateIndexActionV7 extends BaseRestHandler {
+public class RestCreateIndexActionV7 extends RestCreateIndexAction {
 
     /**
      * Parameter that controls whether certain REST apis should include type names in their requests or responses.
@@ -47,16 +48,6 @@ public class RestCreateIndexActionV7 extends BaseRestHandler {
      */
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
     public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
-
-    @Override
-    public List<Route> routes() {
-        return List.of(new Route(PUT, "/{index}"));
-    }
-
-    @Override
-    public String getName() {
-        return "create_index_action";
-    }
 
     @Override
     public String compatibleWithVersion() {

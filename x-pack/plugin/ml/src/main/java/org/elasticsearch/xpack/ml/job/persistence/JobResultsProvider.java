@@ -144,7 +144,7 @@ public class JobResultsProvider {
     private static final int RECORDS_SIZE_PARAM = 10000;
     public static final int BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE = 20;
     private static final double ESTABLISHED_MEMORY_CV_THRESHOLD = 0.1;
-    private static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
+    public static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
 
     private final Client client;
     private final Settings settings;

@@ -39,7 +39,7 @@ public final class MlIndexAndAlias {
 
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
 
-    private static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
+    static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
 
     // Visible for testing
     static final Comparator<String> INDEX_NAME_COMPARATOR = new Comparator<String>() {

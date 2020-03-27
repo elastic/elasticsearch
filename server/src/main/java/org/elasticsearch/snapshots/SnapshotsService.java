@@ -294,8 +294,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 validate(repositoryName, snapshotName, currentState);
+                final SnapshotsInProgress existingSnapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 if (currentState.nodes().getMinNodeVersion().before(CONCURRENT_REPO_OPERATIONS_VERSION)) {
                     ensureMayCreateSnapshot(currentState, repositoryName, snapshotName);
+                } else {
+                    if (existingSnapshots != null && existingSnapshots.entries().stream()
+                        .map(SnapshotsInProgress.Entry::snapshot)
+                        .anyMatch(s -> s.getSnapshotId().getName().equals(snapshotName)
+                            && s.getRepository().equals(repositoryName))) {
+                        throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
+                            " a snapshot by that name is already running");
+                    }
                 }
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState,
@@ -313,7 +322,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     userMeta, Version.CURRENT
                 );
                 initializingSnapshots.add(newSnapshot.snapshot());
-                final SnapshotsInProgress existingSnapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 SnapshotsInProgress snapshots;
                 if (existingSnapshots == null) {
                     snapshots = new SnapshotsInProgress(newSnapshot);

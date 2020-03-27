@@ -24,7 +24,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -115,7 +114,7 @@ public interface IndexAbstraction {
 
         @Override
         public List<IndexMetaData> getIndices() {
-            return Collections.singletonList(concreteIndex);
+            return List.of(concreteIndex);
         }
 
         @Override

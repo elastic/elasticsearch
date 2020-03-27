@@ -26,7 +26,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
@@ -34,11 +33,9 @@ import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestCreateIndexActionV7 extends RestCreateIndexAction {
 
@@ -59,10 +56,9 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
 
         if (request.hasContent()) {
-            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
-                request.getXContentType()).v2();
+            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
 
-            request.param(INCLUDE_TYPE_NAME_PARAMETER);//just consume, it is not replaced with _doc
+            request.param(INCLUDE_TYPE_NAME_PARAMETER);// just consume, it is not replaced with _doc
             sourceAsMap = prepareMappingsV7(sourceAsMap, request);
 
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
@@ -75,14 +71,13 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
     }
 
     static Map<String, Object> prepareMappingsV7(Map<String, Object> source, RestRequest request) {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
 
         if (includeTypeName && mappings.size() == 1) {
-            //no matter what the type was, replace it with _doc
+            // no matter what the type was, replace it with _doc
             Map<String, Object> newSource = new HashMap<>();
 
             String typeName = mappings.keySet().iterator().next();
@@ -91,14 +86,13 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
 
             newSource.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, typedMappings));
             return newSource;
-        }else{
+        } else {
             return prepareMappings(source);
         }
     }
 
     static Map<String, Object> prepareMappings(Map<String, Object> source) {
-        if (source.containsKey("mappings") == false
-            || (source.get("mappings") instanceof Map) == false) {
+        if (source.containsKey("mappings") == false || (source.get("mappings") instanceof Map) == false) {
             return source;
         }
 

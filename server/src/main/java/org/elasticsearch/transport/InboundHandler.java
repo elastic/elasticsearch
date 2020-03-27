@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -135,7 +136,7 @@ public class InboundHandler {
                     if (message.isError()) {
                         handlerResponseError(message.getStreamInput(), handler);
                     } else {
-                        handleResponse(remoteAddress, message.getStreamInput(), handler);
+                        handleResponse(remoteAddress, message.getStreamInput(), handler, reference.length());
                     }
                     // Check the entire message has been read
                     final int nextByte = message.getStreamInput().read();
@@ -199,9 +200,23 @@ public class InboundHandler {
     }
 
     private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream,
-                                                              final TransportResponseHandler<T> handler) {
+                                                              final TransportResponseHandler<T> handler, int messageLengthBytes) {
         final T response;
         try {
+            if (handler.canTripCircuitBreaker() && messageLengthBytes > 1024) {
+                // the main purpose is to check memory before deserialization for large size of response
+                CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+                try {
+                    breaker.addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_response>");
+                } catch (CircuitBreakingException e) {
+                    handleException(handler, e);
+                    return;
+                } finally {
+                    // release message bytes from request breaker even the real memory has not been released yet
+                    breaker.addWithoutBreaking(-messageLengthBytes);
+                }
+            }
+
             response = handler.read(stream);
             response.remoteAddress(new TransportAddress(remoteAddress));
         } catch (Exception e) {

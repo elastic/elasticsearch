@@ -1091,6 +1091,11 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             return getClass().getName() + "/" + delegate.toString();
         }
 
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return delegate.canTripCircuitBreaker();
+        }
+
         void setTimeoutHandler(TimeoutHandler handler) {
             this.handler = handler;
         }

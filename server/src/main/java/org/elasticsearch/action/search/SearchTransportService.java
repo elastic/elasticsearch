@@ -406,6 +406,11 @@ public class SearchTransportService {
             clientConnections.computeIfPresent(nodeId, (id, conns) -> conns.longValue() == 1 ? null : conns - 1);
         }
 
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return true;
+        }
+
         private boolean assertNodePresent() {
             clientConnections.compute(nodeId, (id, conns) -> {
                 assert conns != null : "number of connections for " + id + " is null, but should be an integer";

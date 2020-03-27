@@ -89,7 +89,7 @@ public class MatchAssertion extends Assertion {
 
         if (expectedValue.equals(actualValue) == false) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
-            message.compare(getField(), actualValue, expectedValue);
+            message.compare(getField(), true, actualValue, expectedValue);
             throw new AssertionError(getField() + " didn't match expected value:\n" + message);
         }
     }

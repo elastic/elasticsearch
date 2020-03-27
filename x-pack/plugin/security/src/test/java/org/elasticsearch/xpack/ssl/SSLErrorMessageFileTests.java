@@ -346,10 +346,12 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     private ElasticsearchException expectFailure(Settings.Builder settings) {
-        return expectThrows(ElasticsearchException.class, () -> new SSLService(settings.build(), env));
+        return expectThrows(ElasticsearchException.class,
+            () -> new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings.build()))));
     }
+
     private SSLService expectSuccess(Settings.Builder settings) {
-        return new SSLService(settings.build(), env);
+        return new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings.build())));
     }
 
     private String resource(String fileName) {

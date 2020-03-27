@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.execution.search.AggRef;
+import org.elasticsearch.xpack.ql.execution.search.AggRef;
 
 /**
  * Reference to a GROUP BY agg (typically this gets translated to a composite key).

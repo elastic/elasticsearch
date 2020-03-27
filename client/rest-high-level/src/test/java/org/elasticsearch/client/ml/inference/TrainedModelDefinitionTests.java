@@ -32,6 +32,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
@@ -70,7 +71,7 @@ public class TrainedModelDefinitionTests extends AbstractXContentTestCase<Traine
                         TargetMeanEncodingTests.createRandom()))
                         .limit(numberOfProcessors)
                         .collect(Collectors.toList()))
-            .setTrainedModel(randomFrom(TreeTests.buildRandomTree(Collections.emptyList(), 6, targetType),
+            .setTrainedModel(randomFrom(TreeTests.buildRandomTree(Arrays.asList("foo", "bar"), 6, targetType),
                 EnsembleTests.createRandom(targetType)));
     }
 

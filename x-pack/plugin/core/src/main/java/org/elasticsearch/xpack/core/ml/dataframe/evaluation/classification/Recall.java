@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.common.Nullable;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,20 +20,20 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -53,15 +53,10 @@ public class Recall implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("recall");
 
-    private static final String PAINLESS_TEMPLATE = "doc[''{0}''].value == doc[''{1}''].value";
     private static final String AGG_NAME_PREFIX = "classification_recall_";
     static final String BY_ACTUAL_CLASS_AGG_NAME = AGG_NAME_PREFIX + "by_actual_class";
     static final String PER_ACTUAL_CLASS_RECALL_AGG_NAME = AGG_NAME_PREFIX + "per_actual_class_recall";
     static final String AVG_RECALL_AGG_NAME = AGG_NAME_PREFIX + "avg_recall";
-
-    private static Script buildScript(Object...args) {
-        return new Script(new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args));
-    }
 
     private static final ObjectParser<Recall, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Recall::new);
 
@@ -69,24 +64,14 @@ public class Recall implements EvaluationMetric {
         return PARSER.apply(parser, null);
     }
 
-    private static final int DEFAULT_MAX_CLASSES_CARDINALITY = 1000;
+    private static final int MAX_CLASSES_CARDINALITY = 1000;
 
-    private final int maxClassesCardinality;
-    private String actualField;
-    private EvaluationMetricResult result;
+    private final SetOnce<String> actualField = new SetOnce<>();
+    private final SetOnce<Result> result = new SetOnce<>();
 
-    public Recall() {
-        this((Integer) null);
-    }
+    public Recall() {}
 
-    // Visible for testing
-    public Recall(@Nullable Integer maxClassesCardinality) {
-        this.maxClassesCardinality = maxClassesCardinality != null ? maxClassesCardinality : DEFAULT_MAX_CLASSES_CARDINALITY;
-    }
-
-    public Recall(StreamInput in) throws IOException {
-        this.maxClassesCardinality = DEFAULT_MAX_CLASSES_CARDINALITY;
-    }
+    public Recall(StreamInput in) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -99,18 +84,21 @@ public class Recall implements EvaluationMetric {
     }
 
     @Override
-    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
+    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
+                                                                                        String actualField,
+                                                                                        String predictedField) {
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
-        this.actualField = actualField;
-        if (result != null) {
+        this.actualField.trySet(actualField);
+        if (result.get() != null) {
             return Tuple.tuple(List.of(), List.of());
         }
-        Script script = buildScript(actualField, predictedField);
+        Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
         return Tuple.tuple(
             List.of(
                 AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)
                     .field(actualField)
-                    .size(maxClassesCardinality)
+                    .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
+                    .size(MAX_CLASSES_CARDINALITY)
                     .subAggregation(AggregationBuilders.avg(PER_ACTUAL_CLASS_RECALL_AGG_NAME).script(script))),
             List.of(
                 PipelineAggregatorBuilders.avgBucket(
@@ -120,15 +108,15 @@ public class Recall implements EvaluationMetric {
 
     @Override
     public void process(Aggregations aggs) {
-        if (result == null &&
+        if (result.get() == null &&
                 aggs.get(BY_ACTUAL_CLASS_AGG_NAME) instanceof Terms &&
                 aggs.get(AVG_RECALL_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
             Terms byActualClassAgg = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
             if (byActualClassAgg.getSumOfOtherDocCounts() > 0) {
-                // This means there were more than {@code maxClassesCardinality} buckets.
+                // This means there were more than {@code MAX_CLASSES_CARDINALITY} buckets.
                 // We cannot calculate average recall accurately, so we fail.
                 throw ExceptionsHelper.badRequestException(
-                    "Cannot calculate average recall. Cardinality of field [{}] is too high", actualField);
+                    "Cannot calculate average recall. Cardinality of field [{}] is too high", actualField.get());
             }
             NumericMetricsAggregation.SingleValue avgRecallAgg = aggs.get(AVG_RECALL_AGG_NAME);
             List<PerClassResult> classes = new ArrayList<>(byActualClassAgg.getBuckets().size());
@@ -137,13 +125,13 @@ public class Recall implements EvaluationMetric {
                 NumericMetricsAggregation.SingleValue recallAgg = bucket.getAggregations().get(PER_ACTUAL_CLASS_RECALL_AGG_NAME);
                 classes.add(new PerClassResult(className, recallAgg.value()));
             }
-            result = new Result(classes, avgRecallAgg.value());
+            result.set(new Result(classes, avgRecallAgg.value()));
         }
     }
 
     @Override
-    public Optional<EvaluationMetricResult> getResult() {
-        return Optional.ofNullable(result);
+    public Optional<Result> getResult() {
+        return Optional.ofNullable(result.get());
     }
 
     @Override

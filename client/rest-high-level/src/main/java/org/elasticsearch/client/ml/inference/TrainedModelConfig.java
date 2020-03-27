@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,7 @@ public class TrainedModelConfig implements ToXContentObject {
     public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
     public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
     public static final ParseField LICENSE_LEVEL = new ParseField("license_level");
+    public static final ParseField DEFAULT_FIELD_MAP = new ParseField("default_field_map");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME,
             true,
@@ -75,6 +77,7 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareLong(TrainedModelConfig.Builder::setEstimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES);
         PARSER.declareLong(TrainedModelConfig.Builder::setEstimatedOperations, ESTIMATED_OPERATIONS);
         PARSER.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
+        PARSER.declareObject(TrainedModelConfig.Builder::setDefaultFieldMap, (p, c) -> p.mapStrings(), DEFAULT_FIELD_MAP);
     }
 
     public static TrainedModelConfig fromXContent(XContentParser parser) throws IOException {
@@ -94,6 +97,7 @@ public class TrainedModelConfig implements ToXContentObject {
     private final Long estimatedHeapMemory;
     private final Long estimatedOperations;
     private final String licenseLevel;
+    private final Map<String, String> defaultFieldMap;
 
     TrainedModelConfig(String modelId,
                        String createdBy,
@@ -107,11 +111,12 @@ public class TrainedModelConfig implements ToXContentObject {
                        TrainedModelInput input,
                        Long estimatedHeapMemory,
                        Long estimatedOperations,
-                       String licenseLevel) {
+                       String licenseLevel,
+                       Map<String, String> defaultFieldMap) {
         this.modelId = modelId;
         this.createdBy = createdBy;
         this.version = version;
-        this.createTime = Instant.ofEpochMilli(createTime.toEpochMilli());
+        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.definition = definition;
         this.compressedDefinition = compressedDefinition;
         this.description = description;
@@ -121,6 +126,7 @@ public class TrainedModelConfig implements ToXContentObject {
         this.estimatedHeapMemory = estimatedHeapMemory;
         this.estimatedOperations = estimatedOperations;
         this.licenseLevel = licenseLevel;
+        this.defaultFieldMap = defaultFieldMap == null ? null : Collections.unmodifiableMap(defaultFieldMap);
     }
 
     public String getModelId() {
@@ -179,6 +185,10 @@ public class TrainedModelConfig implements ToXContentObject {
         return licenseLevel;
     }
 
+    public Map<String, String> getDefaultFieldMap() {
+        return defaultFieldMap;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -225,6 +235,9 @@ public class TrainedModelConfig implements ToXContentObject {
         if (licenseLevel != null) {
             builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel);
         }
+        if (defaultFieldMap != null) {
+            builder.field(DEFAULT_FIELD_MAP.getPreferredName(), defaultFieldMap);
+        }
         builder.endObject();
         return builder;
     }
@@ -251,6 +264,7 @@ public class TrainedModelConfig implements ToXContentObject {
             Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
             Objects.equals(estimatedOperations, that.estimatedOperations) &&
             Objects.equals(licenseLevel, that.licenseLevel) &&
+            Objects.equals(defaultFieldMap, that.defaultFieldMap) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -268,7 +282,8 @@ public class TrainedModelConfig implements ToXContentObject {
             estimatedOperations,
             metadata,
             licenseLevel,
-            input);
+            input,
+            defaultFieldMap);
     }
 
 
@@ -287,18 +302,19 @@ public class TrainedModelConfig implements ToXContentObject {
         private Long estimatedHeapMemory;
         private Long estimatedOperations;
         private String licenseLevel;
+        private Map<String, String> defaultFieldMap;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
             return this;
         }
 
-        public Builder setCreatedBy(String createdBy) {
+        private Builder setCreatedBy(String createdBy) {
             this.createdBy = createdBy;
             return this;
         }
 
-        public Builder setVersion(Version version) {
+        private Builder setVersion(Version version) {
             this.version = version;
             return this;
         }
@@ -312,7 +328,7 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setCreateTime(Instant createTime) {
+        private Builder setCreateTime(Instant createTime) {
             this.createTime = createTime;
             return this;
         }
@@ -320,6 +336,10 @@ public class TrainedModelConfig implements ToXContentObject {
         public Builder setTags(List<String> tags) {
             this.tags = tags;
             return this;
+        }
+
+        public Builder setTags(String... tags) {
+            return setTags(Arrays.asList(tags));
         }
 
         public Builder setMetadata(Map<String, Object> metadata) {
@@ -347,18 +367,23 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
+        private Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
             this.estimatedHeapMemory = estimatedHeapMemory;
             return this;
         }
 
-        public Builder setEstimatedOperations(Long estimatedOperations) {
+        private Builder setEstimatedOperations(Long estimatedOperations) {
             this.estimatedOperations = estimatedOperations;
             return this;
         }
 
-        public Builder setLicenseLevel(String licenseLevel) {
+        private Builder setLicenseLevel(String licenseLevel) {
             this.licenseLevel = licenseLevel;
+            return this;
+        }
+
+        public Builder setDefaultFieldMap(Map<String, String> defaultFieldMap) {
+            this.defaultFieldMap = defaultFieldMap;
             return this;
         }
 
@@ -376,7 +401,8 @@ public class TrainedModelConfig implements ToXContentObject {
                 input,
                 estimatedHeapMemory,
                 estimatedOperations,
-                licenseLevel);
+                licenseLevel,
+                defaultFieldMap);
         }
     }
 

@@ -223,7 +223,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .get());
 
         Script template = new Script(ScriptType.STORED, null, "my-template", Collections.emptyMap());
-        WatcherSearchTemplateRequest searchRequest = new WatcherSearchTemplateRequest(new String[]{"events"}, new String[0],
+        WatcherSearchTemplateRequest searchRequest = new WatcherSearchTemplateRequest(new String[]{"events"},
                 SearchType.DEFAULT, WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, template);
         testConditionSearch(searchRequest);
     }
@@ -336,7 +336,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         timeWarp().clock().setTime(ZonedDateTime.now(Clock.systemUTC()));
 
         String watchName = "_name";
-        assertAcked(prepareCreate("events").addMapping("event", "level", "type=text"));
+        assertAcked(prepareCreate("events").setMapping("level", "type=text"));
 
         new PutWatchRequestBuilder(client()).setId(watchName)
                 .setSource(watchBuilder()

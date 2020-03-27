@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -44,6 +45,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -71,6 +73,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     @Before
     public void setUpVariables() {
         ThreadPool tp = mock(ThreadPool.class);
+        ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        when(tp.generic()).thenReturn(executorService);
         client = mock(Client.class);
         Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
         ClusterSettings clusterSettings = new ClusterSettings(settings,
@@ -127,7 +131,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             ingestService);
 
         Map<String, Object> config = new HashMap<>() {{
-            put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
+            put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
             put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap("unknown_type", Collections.emptyMap()));
@@ -139,7 +143,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             equalTo("unrecognized inference configuration type [unknown_type]. Supported types [classification, regression]"));
 
         Map<String, Object> config2 = new HashMap<>() {{
-            put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
+            put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
             put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap("regression", "boom"));
@@ -150,7 +154,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             equalTo("inference_config must be an object with one inference type mapped to an object."));
 
         Map<String, Object> config3 = new HashMap<>() {{
-            put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
+            put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
             put(InferenceProcessor.INFERENCE_CONFIG, Collections.emptyMap());
@@ -169,10 +173,11 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
 
         Map<String, Object> regression = new HashMap<>() {{
-            put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
+            put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME, Collections.emptyMap()));
+            put(InferenceProcessor.INFERENCE_CONFIG,
+                    Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
         }};
 
         try {
@@ -186,10 +191,10 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }
 
         Map<String, Object> classification = new HashMap<>() {{
-            put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
+            put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(ClassificationConfig.NAME,
+            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(ClassificationConfig.NAME.getPreferredName(),
                 Collections.singletonMap(ClassificationConfig.NUM_TOP_CLASSES.getPreferredName(), 1)));
         }};
 
@@ -211,10 +216,11 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             ingestService);
 
         Map<String, Object> regression = new HashMap<>() {{
-            put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
+            put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME, Collections.emptyMap()));
+            put(InferenceProcessor.INFERENCE_CONFIG,
+                    Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
         }};
 
         try {
@@ -224,10 +230,10 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }
 
         Map<String, Object> classification = new HashMap<>() {{
-            put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
+            put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "result");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(ClassificationConfig.NAME,
+            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(ClassificationConfig.NAME.getPreferredName(),
                 Collections.singletonMap(ClassificationConfig.NUM_TOP_CLASSES.getPreferredName(), 1)));
         }};
 
@@ -245,10 +251,10 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             ingestService);
 
         Map<String, Object> regression = new HashMap<>() {{
-            put(InferenceProcessor.FIELD_MAPPINGS, Collections.emptyMap());
+            put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
             put(InferenceProcessor.MODEL_ID, "my_model");
             put(InferenceProcessor.TARGET_FIELD, "ml");
-            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME,
+            put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME.getPreferredName(),
                 Collections.singletonMap(RegressionConfig.RESULTS_FIELD.getPreferredName(), "warning")));
         }};
 
@@ -296,9 +302,10 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 Collections.singletonMap(InferenceProcessor.TYPE,
                     new HashMap<>() {{
                         put(InferenceProcessor.MODEL_ID, modelId);
-                        put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME, Collections.emptyMap()));
+                        put(InferenceProcessor.INFERENCE_CONFIG,
+                                Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
                         put(InferenceProcessor.TARGET_FIELD, "new_field");
-                        put(InferenceProcessor.FIELD_MAPPINGS, Collections.singletonMap("source", "dest"));
+                        put(InferenceProcessor.FIELD_MAP, Collections.singletonMap("source", "dest"));
                     }}))))) {
             return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
         }

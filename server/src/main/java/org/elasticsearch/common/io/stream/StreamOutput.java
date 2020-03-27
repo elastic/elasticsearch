@@ -87,6 +87,7 @@ import static java.util.Map.entry;
 public abstract class StreamOutput extends OutputStream {
 
     private static final Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
+    private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
 
     static {
         final Map<TimeUnit, Byte> timeUnitByteMap = new EnumMap<>(TimeUnit.class);
@@ -270,6 +271,15 @@ public abstract class StreamOutput extends OutputStream {
             throw new IllegalStateException("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + i + "]");
         }
         writeVLongNoCheck(i);
+    }
+
+    public void writeOptionalVLong(@Nullable  Long l) throws IOException {
+        if (l == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeVLong(l);
+        }
     }
 
     /**
@@ -914,8 +924,15 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeException(Throwable throwable) throws IOException {
+        writeException(throwable, throwable, 0);
+    }
+
+    private void writeException(Throwable rootException, Throwable throwable, int nestedLevel) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
+        } else if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
+            assert failOnTooManyNestedExceptions(rootException);
+            writeException(new IllegalStateException("too many nested exceptions"));
         } else {
             writeBoolean(true);
             boolean writeCause = true;
@@ -1024,10 +1041,14 @@ public abstract class StreamOutput extends OutputStream {
                 writeOptionalString(throwable.getMessage());
             }
             if (writeCause) {
-                writeException(throwable.getCause());
+                writeException(rootException, throwable.getCause(), nestedLevel + 1);
             }
-            ElasticsearchException.writeStackTraces(throwable, this);
+            ElasticsearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
         }
+    }
+
+    boolean failOnTooManyNestedExceptions(Throwable throwable) {
+        throw new AssertionError("too many nested exceptions", throwable);
     }
 
     /**
@@ -1136,6 +1157,22 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeStringCollection(final Collection<String> collection) throws IOException {
         writeCollection(collection, StreamOutput::writeString);
+    }
+
+    /**
+     * Writes an optional collection of a strings. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readList(Writeable.Reader)}.
+     *
+     * @param collection the collection of strings
+     * @throws IOException if an I/O exception occurs writing the collection
+     */
+    public void writeOptionalStringCollection(final Collection<String> collection) throws IOException {
+        if (collection != null) {
+            writeBoolean(true);
+            writeCollection(collection, StreamOutput::writeString);
+        } else {
+            writeBoolean(false);
+        }
     }
 
     /**

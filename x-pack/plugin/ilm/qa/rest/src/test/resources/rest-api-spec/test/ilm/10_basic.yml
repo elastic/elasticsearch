@@ -216,3 +216,25 @@ setup:
       catch: missing
       ilm.get_lifecycle:
         policy: "my_timeseries_lifecycle"
+
+---
+"Test Invalid Policy":
+  - do:
+      catch: bad_request
+      ilm.put_lifecycle:
+        policy: "my_invalid_lifecycle"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "hot": {
+                   "min_age": "0s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 1
+                     }
+                   }
+                 }
+               }
+             }
+           }

@@ -19,29 +19,26 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
-import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.apache.lucene.search.DoubleValues;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 
+import java.io.IOException;
+import java.util.Objects;
+
 /**
  * A {@link ValueSource} wrapper for field data.
  */
-class FieldDataValueSource extends ValueSource {
+class FieldDataValueSource extends FieldDataBasedDoubleValuesSource {
 
-    final IndexFieldData<?> fieldData;
     final MultiValueMode multiValueMode;
 
     protected FieldDataValueSource(IndexFieldData<?> fieldData, MultiValueMode multiValueMode) {
-        this.fieldData = Objects.requireNonNull(fieldData);
+        super(fieldData);
         this.multiValueMode = Objects.requireNonNull(multiValueMode);
     }
 
@@ -65,24 +62,25 @@ class FieldDataValueSource extends ValueSource {
     }
 
     @Override
-    @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
-    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+    public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
+        LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
-        return new DoubleDocValues(this) {
-          @Override
-          public double doubleVal(int doc) throws IOException {
-            if (docValues.advanceExact(doc)) {
+        return new DoubleValues() {
+            @Override
+            public double doubleValue() throws IOException {
                 return docValues.doubleValue();
-            } else {
-                return 0;
             }
-          }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return docValues.advanceExact(doc);
+            }
         };
     }
 
     @Override
-    public String description() {
+    public String toString() {
         return "field(" + fieldData.getFieldName() + ")";
     }
+
 }

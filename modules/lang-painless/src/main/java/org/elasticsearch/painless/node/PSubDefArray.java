@@ -19,25 +19,22 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BraceSubDefNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.def;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
  */
-final class PSubDefArray extends AStoreable {
-    private AExpression index;
+public class PSubDefArray extends AStoreable {
+
+    protected AExpression index;
 
     PSubDefArray(Location location, AExpression index) {
         super(location);
@@ -46,67 +43,32 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        index.analyze(scriptRoot, locals);
-        index.expected = index.actual;
-        index = index.cast(scriptRoot, locals);
+        Input indexInput = new Input();
+        Output indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+        indexInput.expected = indexOutput.actual;
+        index.cast(indexInput, indexOutput);
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-        actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
-    }
+        output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        setup(classWriter, methodWriter, globals);
-        load(classWriter, methodWriter, globals);
-    }
+        BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
 
-    @Override
-    int accessElementCount() {
-        return 2;
+        braceSubDefNode.setChildNode(index.cast(indexOutput));
+
+        braceSubDefNode.setLocation(location);
+        braceSubDefNode.setExpressionType(output.actual);
+
+        output.expressionNode = braceSubDefNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
         return true;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        this.actual = actual;
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.dup();
-        index.write(classWriter, methodWriter, globals);
-        Type methodType = Type.getMethodType(
-                MethodWriter.getType(index.actual), Type.getType(Object.class), MethodWriter.getType(index.actual));
-        methodWriter.invokeDefCall("normalizeIndex", methodType, DefBootstrap.INDEX_NORMALIZE);
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        Type methodType =
-            Type.getMethodType(MethodWriter.getType(actual), Type.getType(Object.class), MethodWriter.getType(index.actual));
-        methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        Type methodType =
-            Type.getMethodType(
-                Type.getType(void.class), Type.getType(Object.class), MethodWriter.getType(index.actual), MethodWriter.getType(actual));
-        methodWriter.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 
     @Override

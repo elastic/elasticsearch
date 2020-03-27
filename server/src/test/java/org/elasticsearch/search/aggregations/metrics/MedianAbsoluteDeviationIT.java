@@ -126,7 +126,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         indexRandom(true, builders);
 
         prepareCreate("empty_bucket_idx")
-            .addMapping("type", "value", "type=integer")
+            .setMapping("value", "type=integer")
             .get();
 
         builders = new ArrayList<>();
@@ -562,7 +562,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
     public void testScriptCaching() throws Exception {
         assertAcked(
             prepareCreate("cache_test_idx")
-                .addMapping("type", "d", "type=long")
+                .setMapping("d", "type=long")
                 .setSettings(Settings.builder()
                     .put("requests.cache.enable", true)
                     .put("number_of_shards", 1)

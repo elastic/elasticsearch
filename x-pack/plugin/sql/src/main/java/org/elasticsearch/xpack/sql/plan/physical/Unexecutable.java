@@ -9,14 +9,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Executable;
-import org.elasticsearch.xpack.sql.session.SqlSession;
+import org.elasticsearch.xpack.sql.session.Session;
 
 
 // this is mainly a marker interface to validate a plan before being executed
 public interface Unexecutable extends Executable {
 
     @Override
-    default void execute(SqlSession session, ActionListener<Page> listener) {
+    default void execute(Session session, ActionListener<Page> listener) {
         throw new PlanningException("Current plan {} is not executable", this);
     }
 }

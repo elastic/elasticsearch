@@ -111,9 +111,9 @@ public class CombiIT extends ESIntegTestCase {
      */
     public void testSubAggregationForTopAggregationOnUnmappedField() throws Exception {
 
-        prepareCreate("idx").addMapping("type", jsonBuilder()
+        prepareCreate("idx").setMapping(jsonBuilder()
                 .startObject()
-                .startObject("type").startObject("properties")
+                .startObject("_doc").startObject("properties")
                     .startObject("name").field("type", "keyword").endObject()
                     .startObject("value").field("type", "integer").endObject()
                 .endObject().endObject()

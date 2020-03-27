@@ -20,97 +20,67 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.Scope.Variable;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.ForEachSubArrayNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a for-each loop for arrays.
  */
-final class SSubEachArray extends AStatement {
-    private final Variable variable;
-    private AExpression expression;
-    private final SBlock block;
+public class SSubEachArray extends AStatement {
 
-    private PainlessCast cast = null;
-    private Variable array = null;
-    private Variable index = null;
-    private Class<?> indexed = null;
+    protected final Variable variable;
+    protected final AExpression.Output expressionOutput;
+    protected final Output blockOutput;
 
-    SSubEachArray(Location location, Variable variable, AExpression expression, SBlock block) {
+    SSubEachArray(Location location, Variable variable, AExpression.Output expressionOutput, Output blockOutput) {
         super(location);
 
         this.variable = Objects.requireNonNull(variable);
-        this.expression = Objects.requireNonNull(expression);
-        this.block = block;
+        this.expressionOutput = Objects.requireNonNull(expressionOutput);
+        this.blockOutput = blockOutput;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
         // We must store the array and index as variables for securing slots on the stack, and
         // also add the location offset to make the names unique in case of nested for each loops.
-        array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(), true);
-        index = locals.addVariable(location, int.class, "#index" + location.getOffset(), true);
-        indexed = expression.actual.getComponentType();
-        cast = AnalyzerCaster.getLegalCast(location, indexed, variable.clazz, true, true);
-    }
+        Variable array = scope.defineVariable(location, expressionOutput.actual, "#array" + location.getOffset(), true);
+        Variable index = scope.defineVariable(location, int.class, "#index" + location.getOffset(), true);
+        Class<?> indexed = expressionOutput.actual.getComponentType();
+        PainlessCast cast = AnalyzerCaster.getLegalCast(location, indexed, variable.getType(), true, true);
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
+        ForEachSubArrayNode forEachSubArrayNode = new ForEachSubArrayNode();
+        forEachSubArrayNode.setConditionNode(expressionOutput.expressionNode);
+        forEachSubArrayNode.setBlockNode((BlockNode)blockOutput.statementNode);
+        forEachSubArrayNode.setLocation(location);
+        forEachSubArrayNode.setVariableType(variable.getType());
+        forEachSubArrayNode.setVariableName(variable.getName());
+        forEachSubArrayNode.setCast(cast);
+        forEachSubArrayNode.setArrayType(array.getType());
+        forEachSubArrayNode.setArrayName(array.getName());
+        forEachSubArrayNode.setIndexType(index.getType());
+        forEachSubArrayNode.setIndexName(index.getName());
+        forEachSubArrayNode.setIndexedType(indexed);
+        forEachSubArrayNode.setContinuous(false);
 
-        expression.write(classWriter, methodWriter, globals);
-        methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ISTORE), array.getSlot());
-        methodWriter.push(-1);
-        methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ISTORE), index.getSlot());
+        output.statementNode = forEachSubArrayNode;
 
-        Label begin = new Label();
-        Label end = new Label();
-
-        methodWriter.mark(begin);
-
-        methodWriter.visitIincInsn(index.getSlot(), 1);
-        methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ILOAD), index.getSlot());
-        methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ILOAD), array.getSlot());
-        methodWriter.arrayLength();
-        methodWriter.ifICmp(MethodWriter.GE, end);
-
-        methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ILOAD), array.getSlot());
-        methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ILOAD), index.getSlot());
-        methodWriter.arrayLoad(MethodWriter.getType(indexed));
-        methodWriter.writeCast(cast);
-        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
-
-        if (loopCounter != null) {
-            methodWriter.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
-        }
-
-        block.continu = begin;
-        block.brake = end;
-        block.write(classWriter, methodWriter, globals);
-
-        methodWriter.goTo(begin);
-        methodWriter.mark(end);
+        return output;
     }
 
     @Override
     public String toString() {
-        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, expression, block);
+        //return singleLineToString(variable.getCanonicalTypeName(), variable.getName(), expression, block);
+        return null;
     }
 }

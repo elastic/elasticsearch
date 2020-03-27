@@ -71,7 +71,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("old_index").addMapping("_doc", oldIndexMapping));
+        assertAcked(prepareCreate("old_index").setMapping(oldIndexMapping));
 
         XContentBuilder newIndexMapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -89,7 +89,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject();
-        assertAcked(prepareCreate("new_index").addMapping("_doc", newIndexMapping));
+        assertAcked(prepareCreate("new_index").setMapping(newIndexMapping));
         assertAcked(client().admin().indices().prepareAliases().addAlias("new_index", "current"));
     }
 
@@ -135,7 +135,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(routeLength.containsKey("double"));
         assertEquals(
-            new FieldCapabilities("route_length_miles", "double", true, true, Collections.emptyMap()),
+            new FieldCapabilities("route_length_miles", "double", true, true, null, null, null, Collections.emptyMap()),
             routeLength.get("double"));
     }
 
@@ -191,7 +191,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         assertTrue(newField.containsKey("long"));
         assertEquals(
-            new FieldCapabilities("new_field", "long", true, true, Collections.emptyMap()),
+            new FieldCapabilities("new_field", "long", true, true, null, null, null, Collections.emptyMap()),
             newField.get("long"));
     }
 

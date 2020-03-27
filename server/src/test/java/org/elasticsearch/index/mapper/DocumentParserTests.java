@@ -154,11 +154,15 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject());
         ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON));
         assertNull(doc.dynamicMappingsUpdate()); // no update!
-        String[] values = doc.rootDoc().getValues("foo.bar.baz");
-        assertEquals(3, values.length);
-        assertEquals("123", values[0]);
-        assertEquals("456", values[1]);
-        assertEquals("789", values[2]);
+
+        IndexableField[] fields = doc.rootDoc().getFields("foo.bar.baz");
+        assertEquals(6, fields.length);
+        assertEquals(123, fields[0].numericValue());
+        assertEquals("123", fields[1].stringValue());
+        assertEquals(456, fields[2].numericValue());
+        assertEquals("456", fields[3].stringValue());
+        assertEquals(789, fields[4].numericValue());
+        assertEquals("789", fields[5].stringValue());
     }
 
     public void testDotsWithExistingNestedMapper() throws Exception {
@@ -286,14 +290,14 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertNotNull(result.docs().get(0).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(0).getField(IdFieldMapper.NAME).binaryValue());
         assertEquals(IdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
-        assertNotNull(result.docs().get(0).getField(TypeFieldMapper.NAME));
-        assertEquals("__foo", result.docs().get(0).getField(TypeFieldMapper.NAME).stringValue());
+        assertNotNull(result.docs().get(0).getField(NestedPathFieldMapper.NAME));
+        assertEquals("foo", result.docs().get(0).getField(NestedPathFieldMapper.NAME).stringValue());
         assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
         // Root document:
         assertNotNull(result.docs().get(1).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(1).getField(IdFieldMapper.NAME).binaryValue());
         assertEquals(IdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
-        assertNull(result.docs().get(1).getField(TypeFieldMapper.NAME));
+        assertNull(result.docs().get(1).getField(NestedPathFieldMapper.NAME));
         assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
     }
 

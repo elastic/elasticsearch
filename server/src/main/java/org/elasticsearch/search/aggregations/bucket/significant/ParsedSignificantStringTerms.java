@@ -34,7 +34,7 @@ public class ParsedSignificantStringTerms extends ParsedSignificantTerms {
         return SignificantStringTerms.NAME;
     }
 
-    private static ObjectParser<ParsedSignificantStringTerms, Void> PARSER =
+    private static final ObjectParser<ParsedSignificantStringTerms, Void> PARSER =
             new ObjectParser<>(ParsedSignificantStringTerms.class.getSimpleName(), true, ParsedSignificantStringTerms::new);
     static {
         declareParsedSignificantTermsFields(PARSER, ParsedBucket::fromXContent);

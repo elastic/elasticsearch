@@ -286,7 +286,7 @@ GET /_search
 }
 --------------------------------------------------
 
-Also, accepts `analyzer`, <<mapping-boost,`boost`>>, `lenient` and `zero_terms_query` as explained
+Also, accepts `analyzer`, `boost`, `lenient` and `zero_terms_query` as explained
 in <<query-dsl-match-query>>, as well as `slop` which is explained in <<query-dsl-match-query-phrase>>.
 Type `phrase_prefix` additionally accepts `max_expansions`.
 

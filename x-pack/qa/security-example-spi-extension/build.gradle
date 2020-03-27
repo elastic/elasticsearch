@@ -28,6 +28,7 @@ testClusters.integTest {
   setting 'xpack.security.authc.realms.custom.custom.filtered_setting', 'should be filtered'
   setting 'xpack.security.authc.realms.file.esusers.order', '1'
   setting 'xpack.security.authc.realms.native.native.order', '2'
+  setting 'xpack.security.authc.realms.custom_role_mapping.role_map.order', '3'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

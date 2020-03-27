@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -65,8 +66,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -116,10 +121,12 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -158,9 +165,11 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.META_DATA_VERIFICATION;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class IndicesService extends AbstractLifecycleComponent
     implements IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>, IndexService.ShardStoreDeleter {
@@ -172,6 +181,11 @@ public class IndicesService extends AbstractLifecycleComponent
     public static final Setting<Boolean> INDICES_ID_FIELD_DATA_ENABLED_SETTING =
         Setting.boolSetting("indices.id_field_data.enabled", false, Property.Dynamic, Property.NodeScope);
 
+    public static final Setting<Boolean> WRITE_DANGLING_INDICES_INFO_SETTING = Setting.boolSetting(
+        "gateway.write_dangling_indices_info",
+        true,
+        Setting.Property.NodeScope
+    );
 
     /**
      * The node's settings.
@@ -208,6 +222,14 @@ public class IndicesService extends AbstractLifecycleComponent
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
+    private volatile boolean allowExpensiveQueries;
+
+    @Nullable
+    private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
+    private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
+    private final boolean nodeWriteDanglingIndicesInfo;
+    private ValuesSourceRegistry valuesSourceRegistry;
+
 
     @Override
     protected void doStart() {
@@ -221,12 +243,13 @@ public class IndicesService extends AbstractLifecycleComponent
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
                           ScriptService scriptService, ClusterService clusterService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
-                          Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories) {
+                          Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
+        this.valuesSourceRegistry = valuesSourceRegistry;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -289,12 +312,28 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
+
+        final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
+        nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);
+        danglingIndicesThreadPoolExecutor = nodeWriteDanglingIndicesInfo ? EsExecutors.newScaling(
+            nodeName + "/" + DANGLING_INDICES_UPDATE_THREAD_NAME,
+            1, 1,
+            0, TimeUnit.MILLISECONDS,
+            daemonThreadFactory(nodeName, DANGLING_INDICES_UPDATE_THREAD_NAME),
+            threadPool.getThreadContext()) : null;
+
+        this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
     }
+
+    private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
 
     @Override
     protected void doStop() {
+        ThreadPool.terminate(danglingIndicesThreadPoolExecutor, 10, TimeUnit.SECONDS);
+
         ExecutorService indicesStopExecutor =
-            Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory(settings, "indices_shutdown"));
+            Executors.newFixedThreadPool(5, daemonThreadFactory(settings, "indices_shutdown"));
 
         // Copy indices because we modify it asynchronously in the body of the loop
         final Set<Index> indices = this.indices.values().stream().map(s -> s.index()).collect(Collectors.toSet());
@@ -455,6 +494,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public IndexService indexService(Index index) {
         return indices.get(index.getUUID());
     }
+
     /**
      * Returns an IndexService for the specified index if exists otherwise a {@link IndexNotFoundException} is thrown.
      */
@@ -478,7 +518,8 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     @Override
     public synchronized IndexService createIndex(
-            final IndexMetaData indexMetaData, final List<IndexEventListener> builtInListeners) throws IOException {
+            final IndexMetaData indexMetaData, final List<IndexEventListener> builtInListeners,
+            final boolean writeDanglingIndices) throws IOException {
         ensureChangesAllowed();
         if (indexMetaData.getIndexUUID().equals(IndexMetaData.INDEX_UUID_NA_VALUE)) {
             throw new IllegalArgumentException("index must have a real UUID found value: [" + indexMetaData.getIndexUUID() + "]");
@@ -514,14 +555,59 @@ public class IndicesService extends AbstractLifecycleComponent
                         indexingMemoryController);
         boolean success = false;
         try {
+            if (writeDanglingIndices && nodeWriteDanglingIndicesInfo) {
+                indexService.addMetaDataListener(imd -> updateDanglingIndicesInfo(index));
+            }
             indexService.getIndexEventListener().afterIndexCreated(indexService);
             indices = Maps.copyMapWithAddedEntry(indices, index.getUUID(), indexService);
+            if (writeDanglingIndices) {
+                if (nodeWriteDanglingIndicesInfo) {
+                    updateDanglingIndicesInfo(index);
+                } else {
+                    indexService.deleteDanglingIndicesInfo();
+                }
+            }
             success = true;
             return indexService;
         } finally {
             if (success == false) {
                 indexService.close("plugins_failed", true);
             }
+        }
+    }
+
+    public <T, E extends Exception> T withTempIndexService(final IndexMetaData indexMetaData,
+                                                           CheckedFunction<IndexService, T, E> indexServiceConsumer) throws IOException, E {
+        final Index index = indexMetaData.getIndex();
+        if (hasIndex(index)) {
+            throw new ResourceAlreadyExistsException(index);
+        }
+        List<IndexEventListener> finalListeners = List.of(
+            // double check that shard is not created.
+            new IndexEventListener() {
+                @Override
+                public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
+                    assert false : "temp index should not trigger shard creation";
+                    throw new ElasticsearchException("temp index should not trigger shard creation [{}]", index);
+                }
+
+                @Override
+                public void onStoreCreated(ShardId shardId) {
+                    assert false : "temp index should not trigger store creation";
+                    throw new ElasticsearchException("temp index should not trigger store creation [{}]", index);
+                }
+            }
+        );
+        final IndexService indexService =
+            createIndexService(
+                CREATE_INDEX,
+                indexMetaData,
+                indicesQueryCache,
+                indicesFieldDataCache,
+                finalListeners,
+                indexingMemoryController);
+        try (Closeable dummy = () -> indexService.close("temp", false)) {
+            return indexServiceConsumer.apply(indexService);
         }
     }
 
@@ -543,7 +629,8 @@ public class IndicesService extends AbstractLifecycleComponent
             idxSettings.getNumberOfReplicas(),
             indexCreationContext);
 
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), directoryFactories);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
+                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -566,7 +653,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 mapperRegistry,
                 indicesFieldDataCache,
                 namedWriteableRegistry,
-                this::isIdFieldDataEnabled
+                this::isIdFieldDataEnabled,
+                valuesSourceRegistry
         );
     }
 
@@ -612,7 +700,8 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public synchronized MapperService createIndexMapperService(IndexMetaData indexMetaData) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopedSettings);
-        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), directoryFactories);
+        final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
+                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver);
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }
@@ -761,7 +850,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     throw new IllegalStateException("Can't delete unassigned index store for [" + indexName + "] - it's still part of " +
                                                     "the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
-                deleteIndexStore(reason, metaData, clusterState);
+                deleteIndexStore(reason, metaData);
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to delete unassigned index (reason [{}])",
                     metaData.getIndex(), reason), e);
@@ -775,7 +864,7 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * Package private for testing
      */
-    void deleteIndexStore(String reason, IndexMetaData metaData, ClusterState clusterState) throws IOException {
+    void deleteIndexStore(String reason, IndexMetaData metaData) throws IOException {
         if (nodeEnv.hasNodeFile()) {
             synchronized (this) {
                 Index index = metaData.getIndex();
@@ -783,15 +872,6 @@ public class IndicesService extends AbstractLifecycleComponent
                     String localUUid = indexService(index).indexUUID();
                     throw new IllegalStateException("Can't delete index store for [" + index.getName() +
                         "] - it's still part of the indices service [" + localUUid + "] [" + metaData.getIndexUUID() + "]");
-                }
-
-                if (clusterState.metaData().hasIndex(index.getName()) && (clusterState.nodes().getLocalNode().isMasterNode() == true)) {
-                    // we do not delete the store if it is a master eligible node and the index is still in the cluster state
-                    // because we want to keep the meta data for indices around even if no shards are left here
-                    final IndexMetaData idxMeta = clusterState.metaData().index(index.getName());
-                    throw new IllegalStateException("Can't delete index store for [" + index.getName() + "] - it's still part of the " +
-                                                    "cluster state [" + idxMeta.getIndexUUID() + "] [" + metaData.getIndexUUID() + "], " +
-                                                    "we are master eligible, so will keep the index metadata even if no shards are left.");
                 }
             }
             final IndexSettings indexSettings = buildIndexSettings(metaData);
@@ -870,13 +950,11 @@ public class IndicesService extends AbstractLifecycleComponent
         nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
-        // master nodes keep the index meta data, even if having no shards..
-        if (clusterState.nodes().getLocalNode().isMasterNode() == false &&
-                canDeleteIndexContents(shardId.getIndex(), indexSettings)) {
+        if (canDeleteIndexContents(shardId.getIndex(), indexSettings)) {
             if (nodeEnv.findAllShardIds(shardId.getIndex()).isEmpty()) {
                 try {
                     // note that deleteIndexStore have more safety checks and may throw an exception if index was concurrently created.
-                    deleteIndexStore("no longer used", metaData, clusterState);
+                    deleteIndexStore("no longer used", metaData);
                 } catch (Exception e) {
                     // wrap the exception to indicate we already deleted the shard
                     throw new ElasticsearchException("failed to delete unused index after deleting its last shard (" + shardId + ")", e);
@@ -1497,5 +1575,56 @@ public class IndicesService extends AbstractLifecycleComponent
             return Optional.of(errorMessage);
         }
         return Optional.empty();
+    }
+
+    private void updateDanglingIndicesInfo(Index index) {
+        assert DiscoveryNode.isDataNode(settings) : "dangling indices information should only be persisted on data nodes";
+        assert nodeWriteDanglingIndicesInfo : "writing dangling indices info is not enabled";
+        assert danglingIndicesThreadPoolExecutor != null : "executor for dangling indices info is not available";
+        if (danglingIndicesToWrite.add(index)) {
+            logger.trace("triggered dangling indices update for {}", index);
+            final long triggeredTimeMillis = threadPool.relativeTimeInMillis();
+            try {
+                danglingIndicesThreadPoolExecutor.execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index), e);
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        final boolean exists = danglingIndicesToWrite.remove(index);
+                        assert exists : "removed non-existing item for " + index;
+                        final IndexService indexService = indices.get(index.getUUID());
+                        if (indexService != null) {
+                            final long executedTimeMillis = threadPool.relativeTimeInMillis();
+                            logger.trace("writing out dangling indices state for index {}, triggered {} ago", index,
+                                TimeValue.timeValueMillis(Math.min(0L, executedTimeMillis - triggeredTimeMillis)));
+                            indexService.writeDanglingIndicesInfo();
+                            final long completedTimeMillis = threadPool.relativeTimeInMillis();
+                            logger.trace("writing out of dangling indices state for index {} completed after {}", index,
+                                TimeValue.timeValueMillis(Math.min(0L, completedTimeMillis - executedTimeMillis)));
+                        } else {
+                            logger.trace("omit writing dangling indices state for index {} as index is deallocated on this node", index);
+                        }
+                    }
+                });
+            } catch (EsRejectedExecutionException e) {
+                // ignore cases where we are shutting down..., there is really nothing interesting to be done here...
+                assert danglingIndicesThreadPoolExecutor.isShutdown();
+            }
+        } else {
+            logger.trace("dangling indices update already pending for {}", index);
+        }
+    }
+
+    private void setAllowExpensiveQueries(Boolean allowExpensiveQueries) {
+        this.allowExpensiveQueries = allowExpensiveQueries;
+    }
+
+    // visible for testing
+    public boolean allPendingDanglingIndicesWritten() {
+        return nodeWriteDanglingIndicesInfo == false ||
+            (danglingIndicesToWrite.isEmpty() && danglingIndicesThreadPoolExecutor.getActiveCount() == 0);
     }
 }

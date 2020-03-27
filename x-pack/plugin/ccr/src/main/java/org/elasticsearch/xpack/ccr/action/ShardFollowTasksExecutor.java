@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
@@ -75,6 +77,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
@@ -114,6 +117,21 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }
     }
 
+    private static final Assignment NO_ASSIGNMENT = new Assignment(null, "no nodes found with data and remote cluster client roles");
+
+    @Override
+    public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
+        final DiscoveryNode node = selectLeastLoadedNode(
+            clusterState,
+            ((Predicate<DiscoveryNode>) DiscoveryNode::isDataNode).and(DiscoveryNode::isRemoteClusterClient)
+        );
+        if (node == null) {
+            return NO_ASSIGNMENT;
+        } else {
+            return new Assignment(node.getId(), "node is the least loaded data node and remote cluster client");
+        }
+    }
+
     @Override
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                  PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask> taskInProgress,
@@ -132,16 +150,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final Index followerIndex = params.getFollowShardId().getIndex();
                 final Index leaderIndex = params.getLeaderShardId().getIndex();
                 final Supplier<TimeValue> timeout = () -> isStopped() ? TimeValue.MINUS_ONE : waitForMetadataTimeOut;
-
-                final Client remoteClient;
-                try {
-                    remoteClient = remoteClient(params);
-                } catch (NoSuchRemoteClusterException e) {
-                    errorHandler.accept(e);
-                    return;
-                }
-
-                CcrRequests.getIndexMetadata(remoteClient, leaderIndex, minRequiredMappingVersion, 0L, timeout, ActionListener.wrap(
+                final ActionListener<IndexMetaData> listener = ActionListener.wrap(
                     indexMetaData -> {
                         if (indexMetaData.mapping() == null) {
                             assert indexMetaData.getMappingVersion() == 1;
@@ -155,7 +164,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             errorHandler));
                     },
                     errorHandler
-                ));
+                );
+                try {
+                    CcrRequests.getIndexMetadata(remoteClient(params), leaderIndex, minRequiredMappingVersion, 0L, timeout, listener);
+                } catch (NoSuchRemoteClusterException e) {
+                    errorHandler.accept(e);
+                }
             }
 
             @Override
@@ -424,21 +438,27 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                         "{} background adding retention lease [{}] while following",
                                         params.getFollowShardId(),
                                         retentionLeaseId);
-                                CcrRetentionLeases.asyncAddRetentionLease(
+                                try {
+                                    final ActionListener<RetentionLeaseActions.Response> wrappedListener = ActionListener.wrap(
+                                        r -> {},
+                                        inner -> {
+                                            /*
+                                             * If this fails that the retention lease already exists, something highly unusual is
+                                             * going on. Log it, and renew again after another renew interval has passed.
+                                             */
+                                            final Throwable innerCause = ExceptionsHelper.unwrapCause(inner);
+                                            logRetentionLeaseFailure(retentionLeaseId, innerCause);
+                                        });
+                                    CcrRetentionLeases.asyncAddRetentionLease(
                                         params.getLeaderShardId(),
                                         retentionLeaseId,
                                         followerGlobalCheckpoint.getAsLong(),
                                         remoteClient(params),
-                                        ActionListener.wrap(
-                                                r -> {},
-                                                inner -> {
-                                                    /*
-                                                     * If this fails that the retention lease already exists, something highly unusual is
-                                                     * going on. Log it, and renew again after another renew interval has passed.
-                                                     */
-                                                    final Throwable innerCause = ExceptionsHelper.unwrapCause(inner);
-                                                    logRetentionLeaseFailure(retentionLeaseId, innerCause);
-                                                }));
+                                        wrappedListener);
+                                } catch (NoSuchRemoteClusterException rce) {
+                                    // we will attempt to renew again after another renew interval has passed
+                                    logRetentionLeaseFailure(retentionLeaseId, rce);
+                                }
                             } else {
                                  // if something else happened, we will attempt to renew again after another renew interval has passed
                             }

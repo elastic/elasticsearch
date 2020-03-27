@@ -50,7 +50,7 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        MappedFieldType fieldType = mapperService.fullName("name");
+        MappedFieldType fieldType = mapperService.fieldType("name");
         assertThat(fieldType.stored(), equalTo(true));
 
         boolean stored = false;
@@ -59,7 +59,7 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         }
         assertTrue(stored);
 
-        fieldType = mapperService.fullName("age");
+        fieldType = mapperService.fieldType("age");
         assertThat(fieldType.stored(), equalTo(true));
     }
 }

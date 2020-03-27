@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesService;
@@ -81,7 +80,6 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         String mapping = Strings // {}
                 .toString(XContentFactory.jsonBuilder()
                         .startObject()
-                        .startObject("type")
                         .startObject("properties")
                         .startObject("test-str")
                         .field("type", "keyword")
@@ -92,7 +90,6 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                         .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
                         .endObject() // test-num
                         .endObject() // properties
-                        .endObject() // type
                         .endObject());
         final double topLevelRate;
         final double lowLevelRate;
@@ -123,7 +120,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         logger.info("creating index: [test] using settings: [{}]", settings.build());
         CreateIndexResponse response = client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
+                .setMapping(mapping).execute().actionGet();
         final int numDocs;
         if (response.isShardsAcknowledged() == false) {
             /* some seeds just won't let you create the index at all and we enter a ping-pong mode

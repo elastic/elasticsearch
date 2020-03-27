@@ -22,7 +22,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -42,7 +41,6 @@ import static org.mockito.Mockito.when;
 
 public class RestInvalidateApiKeyActionTests extends ESTestCase {
     private final XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
-    private final RestController mockRestController = mock(RestController.class);
     private Settings settings = null;
     private ThreadPool threadPool = null;
 
@@ -56,6 +54,7 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                 .build();
         threadPool = new ThreadPool(settings);
         when(mockLicenseState.isSecurityAvailable()).thenReturn(true);
+        when(mockLicenseState.isSecurityEnabled()).thenReturn(true);
         when(mockLicenseState.isApiKeyServiceAllowed()).thenReturn(true);
     }
 
@@ -106,8 +105,7 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                 }
             }
         }) {
-            final RestInvalidateApiKeyAction restInvalidateApiKeyAction = new RestInvalidateApiKeyAction(Settings.EMPTY, mockRestController,
-                    mockLicenseState);
+            final RestInvalidateApiKeyAction restInvalidateApiKeyAction = new RestInvalidateApiKeyAction(Settings.EMPTY, mockLicenseState);
 
             restInvalidateApiKeyAction.handleRequest(restRequest, restChannel, client);
 
@@ -168,8 +166,7 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                 }
             }
         }) {
-            final RestInvalidateApiKeyAction restInvalidateApiKeyAction = new RestInvalidateApiKeyAction(Settings.EMPTY, mockRestController,
-                mockLicenseState);
+            final RestInvalidateApiKeyAction restInvalidateApiKeyAction = new RestInvalidateApiKeyAction(Settings.EMPTY, mockLicenseState);
 
             restInvalidateApiKeyAction.handleRequest(restRequest, restChannel, client);
 

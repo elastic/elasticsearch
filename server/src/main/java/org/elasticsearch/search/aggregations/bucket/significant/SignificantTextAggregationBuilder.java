@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -32,11 +31,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
@@ -69,11 +66,10 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
             DEFAULT_BUCKET_COUNT_THRESHOLDS);
     private SignificanceHeuristic significanceHeuristic = DEFAULT_SIGNIFICANCE_HEURISTIC;
 
-    public static Aggregator.Parser getParser(
-            ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry) {
-        ObjectParser<SignificantTextAggregationBuilder, Void> PARSER = new ObjectParser<>(
-                SignificantTextAggregationBuilder.NAME);
-
+    private static final ObjectParser<SignificantTextAggregationBuilder, Void> PARSER = new ObjectParser<>(
+                SignificantTextAggregationBuilder.NAME,
+                SignificanceHeuristic.class, SignificantTextAggregationBuilder::significanceHeuristic, null);
+    static {
         PARSER.declareInt(SignificantTextAggregationBuilder::shardSize,
                 TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME);
 
@@ -105,23 +101,9 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
                 IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD,
                 ObjectParser.ValueType.STRING_ARRAY);
-
-        for (String name : significanceHeuristicParserRegistry.getNames()) {
-            PARSER.declareObject(SignificantTextAggregationBuilder::significanceHeuristic,
-                    (p, context) -> {
-                        SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
-                                .lookupReturningNullIfNotFound(name, p.getDeprecationHandler());
-                        return significanceHeuristicParser.parse(p);
-                    }, new ParseField(name));
-        }
-        return new Aggregator.Parser() {
-            @Override
-            public AggregationBuilder parse(String aggregationName, XContentParser parser)
-                    throws IOException {
-                return PARSER.parse(parser,
-                        new SignificantTextAggregationBuilder(aggregationName, null), null);
-            }
-        };
+    }
+    public static SignificantTextAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new SignificantTextAggregationBuilder(aggregationName, null), null);
     }
 
     protected SignificantTextAggregationBuilder(SignificantTextAggregationBuilder clone,

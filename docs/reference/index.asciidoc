@@ -26,6 +26,8 @@ include::query-dsl.asciidoc[]
 
 include::modules/cross-cluster-search.asciidoc[]
 
+include::async-search.asciidoc[]
+
 include::scripting.asciidoc[]
 
 include::mapping.asciidoc[]
@@ -40,6 +42,14 @@ include::ingest.asciidoc[]
 
 include::ilm/index.asciidoc[]
 
+ifdef::permanently-unreleased-branch[]
+
+include::autoscaling/index.asciidoc[]
+
+include::eql/index.asciidoc[]
+
+endif::[]
+
 include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
@@ -49,6 +59,8 @@ include::frozen-indices.asciidoc[]
 include::data-rollup-transform.asciidoc[]
 
 include::high-availability.asciidoc[]
+
+include::snapshot-restore/index.asciidoc[]
 
 include::{xes-repo-dir}/security/index.asciidoc[]
 

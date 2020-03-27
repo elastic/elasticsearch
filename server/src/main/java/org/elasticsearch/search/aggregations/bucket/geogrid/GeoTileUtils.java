@@ -51,7 +51,7 @@ public final class GeoTileUtils {
      * Another consideration is that index optimizes lat/lng storage, loosing some precision.
      * E.g. hash lng=140.74779717298918D lat=45.61884022447444D == "18/233561/93659", but shown as "18/233561/93658"
      */
-    static final int MAX_ZOOM = 29;
+    public static final int MAX_ZOOM = 29;
 
     /**
      * Bit position of the zoom value within hash - zoom is stored in the most significant 6 bits of a long number.

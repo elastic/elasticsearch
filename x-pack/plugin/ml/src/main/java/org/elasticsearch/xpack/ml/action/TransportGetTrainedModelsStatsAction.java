@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -88,13 +89,18 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 responseBuilder.setExpandedIds(tuple.v2())
                     .setTotalModelCount(tuple.v1());
                 String[] ingestNodes = ingestNodes(clusterService.state());
-                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear().ingest(true);
+                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
+                    .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
                 executeAsyncWithOrigin(client, ML_ORIGIN, NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
             },
             listener::onFailure
         );
 
-        trainedModelProvider.expandIds(request.getResourceId(), request.isAllowNoResources(), request.getPageParams(), idsListener);
+        trainedModelProvider.expandIds(request.getResourceId(),
+            request.isAllowNoResources(),
+            request.getPageParams(),
+            Collections.emptySet(),
+            idsListener);
     }
 
     static Map<String, IngestStats> inferenceIngestStatsByPipelineId(NodesStatsResponse response,

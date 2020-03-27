@@ -41,8 +41,6 @@ quicker than stopping and deleting the {dfeed}.
 [[ml-delete-datafeed-example]]
 ==== {api-examples-title}
 
-The following example deletes the `datafeed-total-requests` {dfeed}:
-
 [source,console]
 --------------------------------------------------
 DELETE _ml/datafeeds/datafeed-total-requests

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -47,7 +49,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
@@ -64,7 +68,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.MappingsMerger;
-import org.elasticsearch.xpack.ml.dataframe.SourceDestValidator;
+import org.elasticsearch.xpack.ml.dataframe.SourceDestValidations;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -94,6 +98,7 @@ public class TransportStartDataFrameAnalyticsAction
     extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartDataFrameAnalyticsAction.class);
+    private static final String PRIMARY_SHARDS_INACTIVE = "not all primary shards are active";
 
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -101,6 +106,7 @@ public class TransportStartDataFrameAnalyticsAction
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsAuditor auditor;
+    private final SourceDestValidator sourceDestValidator;
 
     @Inject
     public TransportStartDataFrameAnalyticsAction(TransportService transportService, Client client, ClusterService clusterService,
@@ -117,6 +123,14 @@ public class TransportStartDataFrameAnalyticsAction
         this.configProvider = configProvider;
         this.memoryTracker = memoryTracker;
         this.auditor = Objects.requireNonNull(auditor);
+
+        this.sourceDestValidator = new SourceDestValidator(
+            indexNameExpressionResolver,
+            transportService.getRemoteClusterService(),
+            null,
+            clusterService.getNodeName(),
+            License.OperationMode.PLATINUM.description()
+        );
     }
 
     @Override
@@ -228,13 +242,13 @@ public class TransportStartDataFrameAnalyticsAction
 
     private void getStartContext(String id, ActionListener<StartContext> finalListener) {
 
-        // Step 6. Validate that there are analyzable data in the source index
+        // Step 7. Validate that there are analyzable data in the source index
         ActionListener<StartContext> validateMappingsMergeListener = ActionListener.wrap(
             startContext -> validateSourceIndexHasRows(startContext, finalListener),
             finalListener::onFailure
         );
 
-        // Step 5. Validate mappings can be merged
+        // Step 6. Validate mappings can be merged
         ActionListener<StartContext> toValidateMappingsListener = ActionListener.wrap(
             startContext -> MappingsMerger.mergeMappings(client, startContext.config.getHeaders(),
                 startContext.config.getSource(), ActionListener.wrap(
@@ -242,7 +256,7 @@ public class TransportStartDataFrameAnalyticsAction
             finalListener::onFailure
         );
 
-        // Step 4. Validate dest index is empty if task is starting for first time
+        // Step 5. Validate dest index is empty if task is starting for first time
         ActionListener<StartContext> toValidateDestEmptyListener = ActionListener.wrap(
             startContext -> {
                 switch (startContext.startingState) {
@@ -266,23 +280,30 @@ public class TransportStartDataFrameAnalyticsAction
             finalListener::onFailure
         );
 
-        // Step 3. Validate source and dest; check data extraction is possible
+        // Step 4. Check data extraction is possible
+        ActionListener<StartContext> toValidateExtractionPossibleListener = ActionListener.wrap(
+            startContext -> {
+                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, ActionListener.wrap(
+                    extractedFieldsDetector -> {
+                        startContext.extractedFields = extractedFieldsDetector.detect().v1();
+                        toValidateDestEmptyListener.onResponse(startContext);
+                    },
+                    finalListener::onFailure)
+                );
+            },
+            finalListener::onFailure
+        );
+
+        // Step 3. Validate source and dest
         ActionListener<StartContext> startContextListener = ActionListener.wrap(
             startContext -> {
                 // Validate the query parses
                 startContext.config.getSource().getParsedQuery();
 
                 // Validate source/dest are valid
-                new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(startContext.config);
-
-                // Validate extraction is possible
-                boolean isTaskRestarting = startContext.startingState != DataFrameAnalyticsTask.StartingState.FIRST_TIME;
-                new ExtractedFieldsDetectorFactory(client).createFromSource(startContext.config, isTaskRestarting, ActionListener.wrap(
-                    extractedFieldsDetector -> {
-                        startContext.extractedFields = extractedFieldsDetector.detect().v1();
-                        toValidateDestEmptyListener.onResponse(startContext);
-                    },
-                    finalListener::onFailure));
+                sourceDestValidator.validate(clusterService.state(), startContext.config.getSource().getIndex(),
+                    startContext.config.getDest().getIndex(), SourceDestValidations.ALL_VALIDATIONS, ActionListener.wrap(
+                        aBoolean -> toValidateExtractionPossibleListener.onResponse(startContext), finalListener::onFailure));
             },
             finalListener::onFailure
         );
@@ -391,8 +412,26 @@ public class TransportStartDataFrameAnalyticsAction
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchException(
-                        "Starting data frame analytics [" + task.getParams().getId() + "] timed out after [" + timeout + "]"));
+                    logger.error(
+                        () -> new ParameterizedMessage("[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
+                            task.getParams().getId(),
+                            timeout,
+                            predicate.assignmentExplanation));
+                    if (predicate.assignmentExplanation != null) {
+                        cancelAnalyticsStart(task,
+                            new ElasticsearchStatusException(
+                                "Could not start data frame analytics task, timed out after [{}] waiting for task assignment. "
+                                    + "Assignment explanation [{}]",
+                                RestStatus.TOO_MANY_REQUESTS,
+                                timeout,
+                                predicate.assignmentExplanation),
+                            listener);
+                    } else {
+                        listener.onFailure(new ElasticsearchException(
+                            "Starting data frame analytics [{}] timed out after [{}]",
+                            task.getParams().getId(),
+                            timeout));
+                    }
                 }
         });
     }
@@ -417,6 +456,7 @@ public class TransportStartDataFrameAnalyticsAction
     private static class AnalyticsPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
         private volatile Exception exception;
+        private volatile String assignmentExplanation;
 
         @Override
         public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
@@ -431,9 +471,15 @@ public class TransportStartDataFrameAnalyticsAction
                 return true;
             }
 
-            if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
-                assignment.isAssigned() == false) {
-                // Assignment has failed despite passing our "fast fail" validation
+            if (assignment != null
+                && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false
+                && assignment.isAssigned() == false) {
+                assignmentExplanation = assignment.getExplanation();
+                // Assignment failed due to primary shard check.
+                // This is hopefully intermittent and we should allow another assignment attempt.
+                if (assignmentExplanation.contains(PRIMARY_SHARDS_INACTIVE)) {
+                    return false;
+                }
                 exception = new ElasticsearchStatusException("Could not start data frame analytics task, allocation explanation [" +
                     assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
                 return true;
@@ -486,11 +532,16 @@ public class TransportStartDataFrameAnalyticsAction
         );
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, String... indexNames) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState,
+                                                            IndexNameExpressionResolver resolver,
+                                                            String... indexNames) {
         String[] concreteIndices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexNames);
         List<String> unavailableIndices = new ArrayList<>(concreteIndices.length);
         for (String index : concreteIndices) {
+            // This is OK as indices are created on demand
+            if (clusterState.metaData().hasIndex(index) == false) {
+                continue;
+            }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
             if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
                 unavailableIndices.add(index);
@@ -506,6 +557,7 @@ public class TransportStartDataFrameAnalyticsAction
         private final DataFrameAnalyticsManager manager;
         private final DataFrameAnalyticsAuditor auditor;
         private final MlMemoryTracker memoryTracker;
+        private final IndexNameExpressionResolver resolver;
 
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
@@ -513,13 +565,14 @@ public class TransportStartDataFrameAnalyticsAction
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
-                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker) {
+                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.client = Objects.requireNonNull(client);
             this.clusterService = Objects.requireNonNull(clusterService);
             this.manager = Objects.requireNonNull(manager);
             this.auditor = Objects.requireNonNull(auditor);
             this.memoryTracker = Objects.requireNonNull(memoryTracker);
+            this.resolver = Objects.requireNonNull(resolver);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
             this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
@@ -550,10 +603,19 @@ public class TransportStartDataFrameAnalyticsAction
 
             String id = params.getId();
 
-            List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, AnomalyDetectorsIndex.configIndexName());
+            List<String> unavailableIndices =
+                verifyIndicesPrimaryShardsAreActive(clusterState,
+                    resolver,
+                    AnomalyDetectorsIndex.configIndexName(),
+                    MlStatsIndex.indexPattern(),
+                    AnomalyDetectorsIndex.jobStateIndexPattern());
             if (unavailableIndices.size() != 0) {
-                String reason = "Not opening data frame analytics job [" + id +
-                    "], because not all primary shards are active for the following indices [" + String.join(",", unavailableIndices) + "]";
+                String reason = "Not opening data frame analytics job ["
+                    + id
+                    + "], because "
+                    + PRIMARY_SHARDS_INACTIVE
+                    + " for the following indices ["
+                    + String.join(",", unavailableIndices) + "]";
                 logger.debug(reason);
                 return new PersistentTasksCustomMetaData.Assignment(null, reason);
             }

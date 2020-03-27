@@ -64,10 +64,8 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
         Path config = internalCluster().getInstance(Environment.class).configFile();
         String synonymsFileName = "synonyms.txt";
         Path synonymsFile = config.resolve(synonymsFileName);
-        Files.createFile(synonymsFile);
-        assertTrue(Files.exists(synonymsFile));
         try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.CREATE), StandardCharsets.UTF_8))) {
+                new OutputStreamWriter(Files.newOutputStream(synonymsFile), StandardCharsets.UTF_8))) {
             out.println("foo, baz");
         }
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
@@ -78,7 +76,7 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
                 .put("analysis.filter.my_synonym_filter.type", "synonym")
                 .put("analysis.filter.my_synonym_filter.updateable", "true")
                 .put("analysis.filter.my_synonym_filter.synonyms_path", synonymsFileName))
-                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=my_synonym_analyzer"));
+                .setMapping("field", "type=text,analyzer=standard,search_analyzer=my_synonym_analyzer"));
 
         client().prepareIndex("test").setId("1").setSource("field", "foo").get();
         assertNoFailures(client().admin().indices().prepareRefresh("test").execute().actionGet());

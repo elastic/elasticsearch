@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[set-up-lifecycle-policy]]
-== Set up {ilm} policy
+== Create lifecycle policy
 
 In order for an index to use an {ilm} policy to manage its lifecycle we must
 first define a lifecycle policy for it to use. The following request creates a
@@ -67,6 +67,16 @@ PUT _template/my_template
 <1> This template will be applied to all indexes which have a name starting
 with `test-`
 <2> The template will set the policy to be used to `my_policy`
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/my_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 Now that a policy exists and is used in an index template we can create an
 initial index which will be managed by our policy:

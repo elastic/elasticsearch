@@ -42,6 +42,7 @@ public class LdapMetaDataResolverTests extends ESTestCase {
                 .putList(RealmSettings.getFullSettingKey(realmId.getName(),
                         LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply(LdapRealmSettings.LDAP_TYPE)),
                         "cn", "uid")
+                .put(RealmSettings.getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                 .build();
         RealmConfig config = new RealmConfig(realmId,
                 settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));

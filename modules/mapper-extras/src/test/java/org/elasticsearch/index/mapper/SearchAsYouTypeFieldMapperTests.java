@@ -257,15 +257,15 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             List<String> fields = new ArrayList<>();
             fields.add(path);
             final MapperService mapperService =
-                createIndex(index, Settings.EMPTY, "_doc", mapping).mapperService();
-            FieldType fieldType = mapperService.fullName(path + "._index_prefix");
+                createIndex(index, Settings.EMPTY, mapping).mapperService();
+            FieldType fieldType = mapperService.fieldType(path + "._index_prefix");
             assertThat(fieldType, instanceOf(PrefixFieldType.class));
             PrefixFieldType prefixFieldType = (PrefixFieldType) fieldType;
             assertEquals(path, prefixFieldType.parentField);
             for (int i = 2; i < shingleSize; i++) {
                 String name = path + "._" + i + "gram";
                 fields.add(name);
-                fieldType = mapperService.fullName(name);
+                fieldType = mapperService.fieldType(name);
                 assertThat(fieldType, instanceOf(ShingleFieldType.class));
                 ShingleFieldType ft = (ShingleFieldType) fieldType;
                 assertEquals(i, ft.shingleSize);

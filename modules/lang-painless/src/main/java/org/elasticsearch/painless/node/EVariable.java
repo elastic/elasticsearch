@@ -19,26 +19,21 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.Scope.Variable;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.VariableNode;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a variable load/store.
  */
-public final class EVariable extends AStoreable {
+public class EVariable extends AStoreable {
 
-    private final String name;
-
-    private Variable variable = null;
+    protected final String name;
 
     public EVariable(Location location, String name) {
         super(location);
@@ -47,54 +42,42 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
+        AStoreable.Input storeableInput = new AStoreable.Input();
+        storeableInput.read = input.read;
+        storeableInput.expected = input.expected;
+        storeableInput.explicit = input.explicit;
+        storeableInput.internal = input.internal;
+
+        return analyze(classNode, scriptRoot, scope, storeableInput);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        variable = locals.getVariable(location, name);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
-        if (write && variable.readonly) {
-            throw createError(new IllegalArgumentException("Variable [" + variable.name + "] is read-only."));
+        Variable variable = scope.getVariable(location, name);
+
+        if (input.write && variable.isFinal()) {
+            throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
         }
 
-        actual = variable.clazz;
-    }
+        output.actual = variable.getType();
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
-    }
+        VariableNode variableNode = new VariableNode();
 
-    @Override
-    int accessElementCount() {
-        return 0;
+        variableNode.setLocation(location);
+        variableNode.setExpressionType(output.actual);
+        variableNode.setName(name);
+
+        output.expressionNode = variableNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
         return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 
     @Override

@@ -85,72 +85,75 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
                 new IndicesStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indicesStats);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        assertEquals("{"
-                     + "\"cluster_uuid\":\"_cluster\","
-                     + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
-                     + "\"interval_ms\":1506593717631,"
-                     + "\"type\":\"indices_stats\","
-                     + "\"source_node\":{"
-                       + "\"uuid\":\"_uuid\","
-                       + "\"host\":\"_host\","
-                       + "\"transport_address\":\"_addr\","
-                       + "\"ip\":\"_ip\","
-                       + "\"name\":\"_name\","
-                       + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                      + "},"
-                     + "\"indices_stats\":{"
-                       + "\"_all\":{"
-                         + "\"primaries\":{"
-                           + "\"docs\":{"
-                             + "\"count\":2"
-                            + "},"
-                           + "\"store\":{"
-                             + "\"size_in_bytes\":4"
-                            + "},"
-                           + "\"indexing\":{"
-                             + "\"index_total\":6,"
-                             + "\"index_time_in_millis\":8,"
-                             + "\"is_throttled\":true,"
-                             + "\"throttle_time_in_millis\":10"
-                            + "},"
-                           + "\"search\":{"
-                             + "\"query_total\":12,"
-                             + "\"query_time_in_millis\":14"
-                          + "}"
-                          + "},"
-                         + "\"total\":{"
-                           + "\"docs\":{"
-                             + "\"count\":3"
-                            + "},"
-                           + "\"store\":{"
-                             + "\"size_in_bytes\":6"
-                            + "},"
-                           + "\"indexing\":{"
-                             + "\"index_total\":9,"
-                             + "\"index_time_in_millis\":12,"
-                             + "\"is_throttled\":true,"
-                             + "\"throttle_time_in_millis\":15"
-                            + "},"
-                           + "\"search\":{"
-                             + "\"query_total\":18,"
-                             + "\"query_time_in_millis\":21"
-                            + "}"
-                        + "}"
-                    + "}"
+        final String expected = XContentHelper.stripWhitespace(
+            "{"
+                + "  \"cluster_uuid\": \"_cluster\","
+                + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
+                + "  \"interval_ms\": 1506593717631,"
+                + "  \"type\": \"indices_stats\","
+                + "  \"source_node\": {"
+                + "    \"uuid\": \"_uuid\","
+                + "    \"host\": \"_host\","
+                + "    \"transport_address\": \"_addr\","
+                + "    \"ip\": \"_ip\","
+                + "    \"name\": \"_name\","
+                + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
+                + "  },"
+                + "  \"indices_stats\": {"
+                + "    \"_all\": {"
+                + "      \"primaries\": {"
+                + "        \"docs\": {"
+                + "          \"count\": 2"
+                + "        },"
+                + "        \"store\": {"
+                + "          \"size_in_bytes\": 4"
+                + "        },"
+                + "        \"indexing\": {"
+                + "          \"index_total\": 6,"
+                + "          \"index_time_in_millis\": 8,"
+                + "          \"is_throttled\": true,"
+                + "          \"throttle_time_in_millis\": 10"
+                + "        },"
+                + "        \"search\": {"
+                + "          \"query_total\": 12,"
+                + "          \"query_time_in_millis\": 14"
+                + "        }"
+                + "      },"
+                + "      \"total\": {"
+                + "        \"docs\": {"
+                + "          \"count\": 3"
+                + "        },"
+                + "        \"store\": {"
+                + "          \"size_in_bytes\": 6"
+                + "        },"
+                + "        \"indexing\": {"
+                + "          \"index_total\": 9,"
+                + "          \"index_time_in_millis\": 12,"
+                + "          \"is_throttled\": true,"
+                + "          \"throttle_time_in_millis\": 15"
+                + "        },"
+                + "        \"search\": {"
+                + "          \"query_total\": 18,"
+                + "          \"query_time_in_millis\": 21"
+                + "        }"
+                + "      }"
+                + "    }"
+                + "  }"
                 + "}"
-            + "}", xContent.utf8ToString());
+        );
+        assertEquals(expected, xContent.utf8ToString());
     }
 
     private CommonStats mockCommonStats() {
         final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
-        commonStats.getDocs().add(new DocsStats(1L, -1L, randomNonNegativeLong()));
+        commonStats.getDocs().add(new DocsStats(1L, 0L, randomNonNegativeLong()));
         commonStats.getStore().add(new StoreStats(2L));
 
-        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, -1L, -1L, -1L, -1L, -1L, -1L, true, 5L);
+        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(3L, 4L, 0L, 0L, 0L, 0L, 0L, 0L, true, 5L);
         commonStats.getIndexing().add(new IndexingStats(indexingStats));
 
-        final SearchStats.Stats searchStats = new SearchStats.Stats(6L, 7L, -1L, -1L, -1L, -1L, -1L, -1L, -1L, -1L, -1L, -1L);
-        commonStats.getSearch().add(new SearchStats(searchStats, -1L, null));
+        final SearchStats.Stats searchStats = new SearchStats.Stats(6L, 7L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        commonStats.getSearch().add(new SearchStats(searchStats, 0L, null));
 
         return commonStats;
     }

@@ -47,7 +47,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -246,17 +245,6 @@ public class Requests {
      */
     public static FlushRequest flushRequest(String... indices) {
         return new FlushRequest(indices);
-    }
-
-    /**
-     * Creates a synced flush indices request.
-     *
-     * @param indices The indices to sync flush. Use {@code null} or {@code _all} to execute against all indices
-     * @return The synced flush request
-     * @see org.elasticsearch.client.IndicesAdminClient#syncedFlush(SyncedFlushRequest)
-     */
-    public static SyncedFlushRequest syncedFlushRequest(String... indices) {
-        return new SyncedFlushRequest(indices);
     }
 
     /**

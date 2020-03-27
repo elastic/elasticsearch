@@ -52,7 +52,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -93,7 +93,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testNonNestedMappings() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
+            .setMapping(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                     .startObject("date")
                         .field("type", "date")
@@ -110,7 +110,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testEmptyNestedMappings() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject().endObject()));
+            .setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
@@ -121,7 +121,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testMappingParamAndNestedMismatch() throws Exception {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> prepareCreate("test")
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject()
+                .setMapping(XContentFactory.jsonBuilder().startObject()
                         .startObject("type2").endObject()
                     .endObject()).get());
         assertThat(e.getMessage(), startsWith("Failed to parse mapping: Root mapping definition has unsupported parameters"));
@@ -129,7 +129,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testEmptyMappings() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
+            .setMapping(XContentFactory.jsonBuilder().startObject()
                 .startObject("_doc").endObject()
             .endObject()));
 
@@ -303,7 +303,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             .addAlias(new Alias("alias1").writeIndex(true))
             .get());
 
-        assertThrows(client().admin().indices().prepareCreate("test-idx-2")
+        assertRequestBuilderThrows(client().admin().indices().prepareCreate("test-idx-2")
                 .setSettings(settings)
                 .addAlias(new Alias("alias1").writeIndex(true)),
             IllegalStateException.class);

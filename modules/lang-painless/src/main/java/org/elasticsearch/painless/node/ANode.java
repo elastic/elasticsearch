@@ -19,12 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,7 +28,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.lang.Math.max;
 import static java.util.Collections.emptyList;
@@ -54,24 +48,6 @@ public abstract class ANode {
     ANode(Location location) {
         this.location = Objects.requireNonNull(location);
     }
-
-    /**
-     * Adds all variable names referenced to the variable set.
-     * <p>
-     * This can be called at any time, e.g. to support lambda capture.
-     * @param variables set of variables referenced (any scope)
-     */
-    abstract void extractVariables(Set<String> variables);
-
-    /**
-     * Checks for errors and collects data for the writing phase.
-     */
-    abstract void analyze(ScriptRoot scriptRoot, Locals locals);
-
-    /**
-     * Writes ASM based on the data collected during the analysis phase.
-     */
-    abstract void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals);
 
     /**
      * Create an error with location information pointing to this node.

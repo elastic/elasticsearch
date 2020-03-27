@@ -19,28 +19,27 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BraceNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array load/store and defers to a child subnode.
  */
-public final class PBrace extends AStoreable {
+public class PBrace extends AStoreable {
 
-    private AExpression index;
+    protected final AExpression index;
 
-    private AStoreable sub = null;
+    // TODO: #54015
+    private boolean isDefOptimized = false;
 
     public PBrace(Location location, AExpression prefix, AExpression index) {
         super(location, prefix);
@@ -49,74 +48,66 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        prefix.extractVariables(variables);
-        index.extractVariables(variables);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
+        AStoreable.Input storeableInput = new AStoreable.Input();
+        storeableInput.read = input.read;
+        storeableInput.expected = input.expected;
+        storeableInput.explicit = input.explicit;
+        storeableInput.internal = input.internal;
+
+        return analyze(classNode, scriptRoot, scope, storeableInput);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        prefix.analyze(scriptRoot, locals);
-        prefix.expected = prefix.actual;
-        prefix = prefix.cast(scriptRoot, locals);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
-        if (prefix.actual.isArray()) {
-            sub = new PSubBrace(location, prefix.actual, index);
-        } else if (prefix.actual == def.class) {
+        Input prefixInput = new Input();
+        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
+        prefixInput.expected = prefixOutput.actual;
+        prefix.cast(prefixInput, prefixOutput);
+
+        AStoreable sub;
+
+        if (prefixOutput.actual.isArray()) {
+            sub = new PSubBrace(location, prefixOutput.actual, index);
+        } else if (prefixOutput.actual == def.class) {
             sub = new PSubDefArray(location, index);
-        } else if (Map.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubMapShortcut(location, prefix.actual, index);
-        } else if (List.class.isAssignableFrom(prefix.actual)) {
-            sub = new PSubListShortcut(location, prefix.actual, index);
+        } else if (Map.class.isAssignableFrom(prefixOutput.actual)) {
+            sub = new PSubMapShortcut(location, prefixOutput.actual, index);
+        } else if (List.class.isAssignableFrom(prefixOutput.actual)) {
+            sub = new PSubListShortcut(location, prefixOutput.actual, index);
         } else {
             throw createError(new IllegalArgumentException("Illegal array access on type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual) + "]."));
         }
 
-        sub.write = write;
-        sub.read = read;
-        sub.expected = expected;
-        sub.explicit = explicit;
-        sub.analyze(scriptRoot, locals);
-        actual = sub.actual;
-    }
+        isDefOptimized = sub.isDefOptimized();
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefix.write(classWriter, methodWriter, globals);
-        sub.write(classWriter, methodWriter, globals);
+        Input subInput = new Input();
+        subInput.write = input.write;
+        subInput.read = input.read;
+        subInput.expected = input.expected;
+        subInput.explicit = input.explicit;
+        Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
+        output.actual = subOutput.actual;
+
+        BraceNode braceNode = new BraceNode();
+
+        braceNode.setLeftNode(prefix.cast(prefixOutput));
+        braceNode.setRightNode(subOutput.expressionNode);
+
+        braceNode.setLocation(location);
+        braceNode.setExpressionType(output.actual);
+
+        output.expressionNode = braceNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
-        return sub.isDefOptimized();
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        sub.updateActual(actual);
-        this.actual = actual;
-    }
-
-    @Override
-    int accessElementCount() {
-        return sub.accessElementCount();
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefix.write(classWriter, methodWriter, globals);
-        sub.setup(classWriter, methodWriter, globals);
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        sub.load(classWriter, methodWriter, globals);
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        sub.store(classWriter, methodWriter, globals);
+        return isDefOptimized;
     }
 
     @Override

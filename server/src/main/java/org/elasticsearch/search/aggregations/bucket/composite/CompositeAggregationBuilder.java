@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -39,7 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class CompositeAggregationBuilder extends AbstractAggregationBuilder<CompositeAggregationBuilder> {
     public static final String NAME = "composite";
@@ -48,27 +48,17 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     public static final ParseField SIZE_FIELD_NAME = new ParseField("size");
     public static final ParseField SOURCES_FIELD_NAME = new ParseField("sources");
 
-    private static final Function<String, ConstructingObjectParser<CompositeAggregationBuilder, Void>> PARSER = name -> {
-        @SuppressWarnings("unchecked")
-        ConstructingObjectParser<CompositeAggregationBuilder, Void> parser = new ConstructingObjectParser<>(NAME, a -> {
-            CompositeAggregationBuilder builder = new CompositeAggregationBuilder(name, (List<CompositeValuesSourceBuilder<?>>)a[0]);
-            if (a[1] != null) {
-                builder.size((Integer)a[1]);
-            }
-            if (a[2] != null) {
-                builder.aggregateAfter((Map<String, Object>)a[2]);
-            }
-            return builder;
-        });
-        parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
+    public static final ConstructingObjectParser<CompositeAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
+            NAME, false, (args, name) -> {
+                @SuppressWarnings("unchecked")
+                List<CompositeValuesSourceBuilder<?>> sources = (List<CompositeValuesSourceBuilder<?>>) args[0];
+                return new CompositeAggregationBuilder(name, sources);
+            });
+    static {
+        PARSER.declareObjectArray(constructorArg(),
             (p, c) -> CompositeValuesSourceParserHelper.fromXContent(p), SOURCES_FIELD_NAME);
-        parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), SIZE_FIELD_NAME);
-        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, context) -> p.map(), AFTER_FIELD_NAME);
-        return parser;
-    };
-
-    public static CompositeAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.apply(aggregationName).parse(parser, null);
+        PARSER.declareInt(CompositeAggregationBuilder::size, SIZE_FIELD_NAME);
+        PARSER.declareObject(CompositeAggregationBuilder::aggregateAfter, (p, context) -> p.map(), AFTER_FIELD_NAME);
     }
 
     private List<CompositeValuesSourceBuilder<?>> sources;

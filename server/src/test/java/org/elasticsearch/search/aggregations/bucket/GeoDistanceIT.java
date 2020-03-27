@@ -81,11 +81,11 @@ public class GeoDistanceIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         prepareCreate("idx").setSettings(settings)
-                .addMapping("type", "location", "type=geo_point", "city", "type=keyword")
+                .setMapping("location", "type=geo_point", "city", "type=keyword")
                 .get();
 
         prepareCreate("idx-multi")
-                .addMapping("type", "location", "type=geo_point", "city", "type=keyword")
+                .setMapping("location", "type=geo_point", "city", "type=keyword")
                 .get();
 
         createIndex("idx_unmapped");
@@ -124,7 +124,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         }
         indexRandom(true, cities);
         prepareCreate("empty_bucket_idx")
-                .addMapping("type", "value", "type=integer", "location", "type=geo_point").get();
+                .setMapping("value", "type=integer", "location", "type=geo_point").get();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx").setId("" + i).setSource(jsonBuilder()
@@ -444,7 +444,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     public void testNoRangesInQuery()  {
         try {
             client().prepareSearch("idx")
-                .addAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)))
+                .addAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location"))
                 .get();
             fail();
         } catch (SearchPhaseExecutionException spee){

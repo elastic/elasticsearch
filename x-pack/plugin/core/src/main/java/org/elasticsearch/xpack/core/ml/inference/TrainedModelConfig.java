@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.inference;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -31,9 +31,13 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 
 public class TrainedModelConfig implements ToXContentObject, Writeable {
@@ -57,6 +61,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
     public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
     public static final ParseField LICENSE_LEVEL = new ParseField("license_level");
+    public static final ParseField DEFAULT_FIELD_MAP = new ParseField("default_field_map");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -87,6 +92,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             DEFINITION);
         parser.declareString(TrainedModelConfig.Builder::setLazyDefinition, COMPRESSED_DEFINITION);
         parser.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
+        parser.declareObject(TrainedModelConfig.Builder::setDefaultFieldMap, (p, c) -> p.mapStrings(), DEFAULT_FIELD_MAP);
         return parser;
     }
 
@@ -105,6 +111,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final long estimatedHeapMemory;
     private final long estimatedOperations;
     private final License.OperationMode licenseLevel;
+    private final Map<String, String> defaultFieldMap;
 
     private final LazyModelDefinition definition;
 
@@ -119,7 +126,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                        TrainedModelInput input,
                        Long estimatedHeapMemory,
                        Long estimatedOperations,
-                       String licenseLevel) {
+                       String licenseLevel,
+                       Map<String, String> defaultFieldMap) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.createdBy = ExceptionsHelper.requireNonNull(createdBy, CREATED_BY);
         this.version = ExceptionsHelper.requireNonNull(version, VERSION);
@@ -139,6 +147,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
         this.estimatedOperations = estimatedOperations;
         this.licenseLevel = License.OperationMode.parse(ExceptionsHelper.requireNonNull(licenseLevel, LICENSE_LEVEL));
+        this.defaultFieldMap = defaultFieldMap == null ? null : Collections.unmodifiableMap(defaultFieldMap);
     }
 
     public TrainedModelConfig(StreamInput in) throws IOException {
@@ -154,6 +163,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         estimatedHeapMemory = in.readVLong();
         estimatedOperations = in.readVLong();
         licenseLevel = License.OperationMode.parse(in.readString());
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            this.defaultFieldMap = in.readBoolean() ?
+                Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString)) :
+                null;
+        } else {
+            this.defaultFieldMap = null;
+        }
     }
 
     public String getModelId() {
@@ -184,12 +200,20 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return metadata;
     }
 
+    public Map<String, String> getDefaultFieldMap() {
+        return defaultFieldMap;
+    }
+
     @Nullable
     public String getCompressedDefinition() throws IOException {
         if (definition == null) {
             return null;
         }
         return definition.getCompressedString();
+    }
+
+    public void clearCompressed() {
+        definition.compressedString = null;
     }
 
     public TrainedModelConfig ensureParsedDefinition(NamedXContentRegistry xContentRegistry) throws IOException {
@@ -228,21 +252,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return licenseLevel;
     }
 
-    public boolean isAvailableWithLicense(XPackLicenseState licenseState) {
-        // Basic is always true
-        if (licenseLevel.equals(License.OperationMode.BASIC)) {
-            return true;
-        }
-
-        // The model license does not matter, this is the highest licensed level
-        if (licenseState.isActive() && XPackLicenseState.isPlatinumOrTrialOperationMode(licenseState.getOperationMode())) {
-            return true;
-        }
-
-        // catch the rest, if the license is active and is at least the required model license
-        return licenseState.isActive() && License.OperationMode.compare(licenseState.getOperationMode(), licenseLevel) >= 0;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
@@ -257,6 +266,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeVLong(estimatedHeapMemory);
         out.writeVLong(estimatedOperations);
         out.writeString(licenseLevel.description());
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            if (defaultFieldMap != null) {
+                out.writeBoolean(true);
+                out.writeMap(defaultFieldMap, StreamOutput::writeString, StreamOutput::writeString);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     @Override
@@ -271,7 +288,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
         // We don't store the definition in the same document as the configuration
         if ((params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) && definition != null) {
-            if (params.paramAsBoolean(DECOMPRESS_DEFINITION, true)) {
+            if (params.paramAsBoolean(DECOMPRESS_DEFINITION, false)) {
                 builder.field(DEFINITION.getPreferredName(), definition);
             } else {
                 builder.field(COMPRESSED_DEFINITION.getPreferredName(), definition.getCompressedString());
@@ -291,6 +308,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             new ByteSizeValue(estimatedHeapMemory));
         builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
         builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
+        if (defaultFieldMap != null && defaultFieldMap.isEmpty() == false) {
+            builder.field(DEFAULT_FIELD_MAP.getPreferredName(), defaultFieldMap);
+        }
         builder.endObject();
         return builder;
     }
@@ -316,6 +336,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
             Objects.equals(estimatedOperations, that.estimatedOperations) &&
             Objects.equals(licenseLevel, that.licenseLevel) &&
+            Objects.equals(defaultFieldMap, that.defaultFieldMap) &&
             Objects.equals(metadata, that.metadata);
     }
 
@@ -332,7 +353,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             estimatedHeapMemory,
             estimatedOperations,
             input,
-            licenseLevel);
+            licenseLevel,
+            defaultFieldMap);
     }
 
     public static class Builder {
@@ -348,11 +370,34 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private Long estimatedHeapMemory;
         private Long estimatedOperations;
         private LazyModelDefinition definition;
-        private String licenseLevel = License.OperationMode.PLATINUM.description();
+        private String licenseLevel;
+        private Map<String, String> defaultFieldMap;
+
+        public Builder() {}
+
+        public Builder(TrainedModelConfig config) {
+            this.modelId = config.getModelId();
+            this.createdBy = config.getCreatedBy();
+            this.version = config.getVersion();
+            this.createTime = config.getCreateTime();
+            this.definition = config.definition == null ? null : new LazyModelDefinition(config.definition);
+            this.description = config.getDescription();
+            this.tags = config.getTags();
+            this.metadata = config.getMetadata();
+            this.input = config.getInput();
+            this.estimatedOperations = config.estimatedOperations;
+            this.estimatedHeapMemory = config.estimatedHeapMemory;
+            this.licenseLevel = config.licenseLevel.description();
+            this.defaultFieldMap = config.defaultFieldMap == null ? null : new HashMap<>(config.defaultFieldMap);
+        }
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
             return this;
+        }
+
+        public String getModelId() {
+            return this.modelId;
         }
 
         public Builder setCreatedBy(String createdBy) {
@@ -402,6 +447,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 return this;
             }
             this.definition = LazyModelDefinition.fromCompressedString(definitionFromString);
+            return this;
+        }
+
+        public Builder clearDefinition() {
+            this.definition = null;
             return this;
         }
 
@@ -457,51 +507,105 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        // TODO move to REST level instead of here in the builder
-        public void validate() {
-            // We require a definition to be available here even though it will be stored in a different doc
-            ExceptionsHelper.requireNonNull(definition, DEFINITION);
-            ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
-
-            if (MlStrings.isValidId(modelId) == false) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, MODEL_ID.getPreferredName(), modelId));
-            }
-
-            if (MlStrings.hasValidLengthForId(modelId) == false) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.ID_TOO_LONG,
-                    MODEL_ID.getPreferredName(),
-                    modelId,
-                    MlStrings.ID_LENGTH_LIMIT));
-            }
-
-            checkIllegalSetting(version, VERSION.getPreferredName());
-            checkIllegalSetting(createdBy, CREATED_BY.getPreferredName());
-            checkIllegalSetting(createTime, CREATE_TIME.getPreferredName());
-            checkIllegalSetting(estimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName());
-            checkIllegalSetting(estimatedOperations, ESTIMATED_OPERATIONS.getPreferredName());
-            checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName());
+        public Builder setDefaultFieldMap(Map<String, String> defaultFieldMap) {
+            this.defaultFieldMap = defaultFieldMap;
+            return this;
         }
 
-        private static void checkIllegalSetting(Object value, String setting) {
-            if (value != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", setting);
+        public Builder validate() {
+            return validate(false);
+        }
+
+        /**
+         * Runs validations against the builder.
+         * @return The current builder object if validations are successful
+         * @throws ActionRequestValidationException when there are validation failures.
+         */
+        public Builder validate(boolean forCreation) {
+            // We require a definition to be available here even though it will be stored in a different doc
+            ActionRequestValidationException validationException = null;
+            if (definition == null) {
+                validationException = addValidationError("[" + DEFINITION.getPreferredName() + "] must not be null.", validationException);
             }
+            if (modelId == null) {
+                validationException = addValidationError("[" + MODEL_ID.getPreferredName() + "] must not be null.", validationException);
+            }
+
+            if (modelId != null && MlStrings.isValidId(modelId) == false) {
+                validationException = addValidationError(Messages.getMessage(Messages.INVALID_ID,
+                    TrainedModelConfig.MODEL_ID.getPreferredName(),
+                    modelId),
+                    validationException);
+            }
+            if (modelId != null && MlStrings.hasValidLengthForId(modelId) == false) {
+                validationException = addValidationError(Messages.getMessage(Messages.ID_TOO_LONG,
+                    TrainedModelConfig.MODEL_ID.getPreferredName(),
+                    modelId,
+                    MlStrings.ID_LENGTH_LIMIT), validationException);
+            }
+            List<String> badTags = tags.stream()
+                .filter(tag -> (MlStrings.isValidId(tag) && MlStrings.hasValidLengthForId(tag)) == false)
+                .collect(Collectors.toList());
+            if (badTags.isEmpty() == false) {
+                validationException = addValidationError(Messages.getMessage(Messages.INFERENCE_INVALID_TAGS,
+                    badTags,
+                    MlStrings.ID_LENGTH_LIMIT),
+                    validationException);
+            }
+
+            for(String tag : tags) {
+                if (tag.equals(modelId)) {
+                    validationException = addValidationError("none of the tags must equal the model_id", validationException);
+                    break;
+                }
+            }
+            if (input != null && input.getFieldNames().isEmpty()) {
+                validationException = addValidationError("[input.field_names] must not be empty", validationException);
+            }
+            if (forCreation) {
+                validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);
+                validationException = checkIllegalSetting(createdBy, CREATED_BY.getPreferredName(), validationException);
+                validationException = checkIllegalSetting(createTime, CREATE_TIME.getPreferredName(), validationException);
+                validationException = checkIllegalSetting(estimatedHeapMemory,
+                    ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
+                    validationException);
+                validationException = checkIllegalSetting(estimatedOperations,
+                    ESTIMATED_OPERATIONS.getPreferredName(),
+                    validationException);
+                validationException = checkIllegalSetting(licenseLevel, LICENSE_LEVEL.getPreferredName(), validationException);
+            }
+
+            if (validationException != null) {
+                throw validationException;
+            }
+
+            return this;
+        }
+
+        private static ActionRequestValidationException checkIllegalSetting(Object value,
+                                                                            String setting,
+                                                                            ActionRequestValidationException validationException) {
+            if (value != null) {
+                return addValidationError("illegal to set [" + setting + "] at inference model creation", validationException);
+            }
+            return validationException;
         }
 
         public TrainedModelConfig build() {
             return new TrainedModelConfig(
                 modelId,
-                createdBy,
-                version,
+                createdBy == null ? "user" : createdBy,
+                version == null ? Version.CURRENT : version,
                 description,
                 createTime == null ? Instant.now() : createTime,
                 definition,
                 tags,
                 metadata,
                 input,
-                estimatedHeapMemory,
-                estimatedOperations,
-                licenseLevel);
+                estimatedHeapMemory == null ? 0 : estimatedHeapMemory,
+                estimatedOperations == null ? 0 : estimatedOperations,
+                licenseLevel == null ? License.OperationMode.PLATINUM.description() : licenseLevel,
+                defaultFieldMap);
         }
     }
 
@@ -520,6 +624,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
             return new LazyModelDefinition(input.readString(), null);
+        }
+
+        private LazyModelDefinition(LazyModelDefinition definition) {
+            if (definition != null) {
+                this.compressedString = definition.compressedString;
+                this.parsedDefinition = definition.parsedDefinition;
+            }
         }
 
         private LazyModelDefinition(String compressedString, TrainedModelDefinition trainedModelDefinition) {

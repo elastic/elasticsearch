@@ -64,14 +64,14 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("test").setSettings(
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS).put(SETTING_NUMBER_OF_REPLICAS, 0)).addMapping(
-                "book", "author", "type=keyword", "name", "type=keyword", "genre",
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS).put(SETTING_NUMBER_OF_REPLICAS, 0)).setMapping(
+                "author", "type=keyword", "name", "type=keyword", "genre",
                 "type=keyword", "price", "type=float"));
         createIndex("idx_unmapped");
         // idx_unmapped_author is same as main index but missing author field
         assertAcked(prepareCreate("idx_unmapped_author").setSettings(
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, NUM_SHARDS).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("book", "name", "type=keyword", "genre", "type=keyword", "price",
+                .setMapping("name", "type=keyword", "genre", "type=keyword", "price",
                         "type=float"));
 
         ensureGreen();

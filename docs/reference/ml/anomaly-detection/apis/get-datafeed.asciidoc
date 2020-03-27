@@ -44,8 +44,11 @@ IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 `<feed_id>`::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
++
+--
 If you do not specify one of these options, the API returns information about
 all {dfeeds}.
+--
 
 [[ml-get-datafeed-query-parms]]
 ==== {api-query-parms-title}
@@ -57,56 +60,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 [[ml-get-datafeed-results]]
 ==== {api-response-body-title}
 
-The API returns an array of {dfeed} resources, which have the following
-properties:
-
-`aggregations`::
-(object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=aggregations]
-
-`chunking_config`::
-(object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=chunking-config]
-
-`datafeed_id`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
-
-`delayed_data_check_config`::
-(object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
-
-`frequency`::
-(<<time-units,time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=frequency]
-
-`indices`::
-(array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=indices]
-
-`job_id`::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-datafeed]
-
-`max_empty_searches`::
-(integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
-
-`query`::
-(object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=query]
-
-`query_delay`::
-(<<time-units,time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=query-delay]
-
-`script_fields`::
-(object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
-
-`scroll_size`::
-(unsigned integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
+The API returns an array of {dfeed} resources. For the full list of properties,
+see <<ml-put-datafeed-request-body,create {dfeeds} API>>.
 
 [[ml-get-datafeed-response-codes]]
 ==== {api-response-codes-title}
@@ -117,9 +72,6 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
 [[ml-get-datafeed-example]]
 ==== {api-examples-title}
-
-The following example gets configuration information for the
-`datafeed-high_sum_total_sales` {dfeed}:
 
 [source,console]
 --------------------------------------------------

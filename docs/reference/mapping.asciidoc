@@ -13,29 +13,22 @@ are stored and indexed. For instance, use mappings to define:
 * custom rules to control the mapping for
   <<dynamic-mapping,dynamically added fields>>.
 
-[float]
-[[mapping-type]]
-== Mapping Type
-
-Each index has one _mapping type_ which determines how the document will be
-indexed.
-
-deprecated::[6.0.0,See <<removal-of-types>>]
-
-A mapping type has:
+A mapping definition has:
 
 <<mapping-fields,Meta-fields>>::
 
 Meta-fields are used to customize how a document's metadata associated is
 treated. Examples of meta-fields include the document's
-<<mapping-index-field,`_index`>>, <<mapping-type-field,`_type`>>,
-<<mapping-id-field,`_id`>>,  and <<mapping-source-field,`_source`>> fields.
+<<mapping-index-field,`_index`>>, <<mapping-id-field,`_id`>>, and
+<<mapping-source-field,`_source`>> fields.
 
 <<mapping-types,Fields>> or _properties_::
 
-A mapping type contains a list of fields or `properties` pertinent to the
+A mapping contains a list of fields or `properties` pertinent to the
 document.
 
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name.
+For more details, please see <<removal-of-types>>.
 
 [float]
 [[field-datatypes]]

@@ -239,7 +239,7 @@ Time (UTC)].
 `unassigned.details`, `ud`::
 Details about why the shard became unassigned.
 
-`unassigned.for`, `ua`::
+`unassigned.for`, `uf`::
 Time at which the shard was requested to be unassigned in
 https://en.wikipedia.org/wiki/List_of_UTC_time_offsets[Coordinated Universal
 Time (UTC)].

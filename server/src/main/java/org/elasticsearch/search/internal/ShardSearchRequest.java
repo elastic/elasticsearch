@@ -39,14 +39,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -55,6 +60,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
+
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
  * Shard level request that represents a search.
@@ -75,7 +82,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final String preference;
     private final OriginalIndices originalIndices;
 
-    //these are the only two mutable fields, as they are subject to rewriting
+    private boolean canReturnNullResponseIfMatchNoDocs;
+    private SearchSortValuesAndFormats bottomSortValues;
+
+    //these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
 
@@ -167,7 +177,33 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         allowPartialSearchResults = in.readBoolean();
         indexRoutings = in.readStringArray();
         preference = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+            bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
+        } else {
+            canReturnNullResponseIfMatchNoDocs = false;
+            bottomSortValues = null;
+        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
+    }
+
+    public ShardSearchRequest(ShardSearchRequest clone) {
+        this.shardId = clone.shardId;
+        this.searchType = clone.searchType;
+        this.numberOfShards = clone.numberOfShards;
+        this.scroll = clone.scroll;
+        this.source = clone.source;
+        this.aliasFilter = clone.aliasFilter;
+        this.indexBoost = clone.indexBoost;
+        this.nowInMillis = clone.nowInMillis;
+        this.requestCache = clone.requestCache;
+        this.clusterAlias = clone.clusterAlias;
+        this.allowPartialSearchResults = clone.allowPartialSearchResults;
+        this.indexRoutings = clone.indexRoutings;
+        this.preference = clone.preference;
+        this.canReturnNullResponseIfMatchNoDocs = clone.canReturnNullResponseIfMatchNoDocs;
+        this.bottomSortValues = clone.bottomSortValues;
+        this.originalIndices = clone.originalIndices;
     }
 
     @Override
@@ -200,6 +236,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (asKey == false) {
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_7_0) && asKey == false) {
+            out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
+            out.writeOptionalWriteable(bottomSortValues);
         }
     }
 
@@ -276,6 +316,33 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     }
 
     /**
+     * Sets the bottom sort values that can be used by the searcher to filter documents
+     * that are after it. This value is computed by coordinating nodes that throttles the
+     * query phase. After a partial merge of successful shards the sort values of the
+     * bottom top document are passed as an hint on subsequent shard requests.
+     */
+    public void setBottomSortValues(SearchSortValuesAndFormats values) {
+        this.bottomSortValues = values;
+    }
+
+    public SearchSortValuesAndFormats getBottomSortValues() {
+        return bottomSortValues;
+    }
+
+    /**
+     * Returns true if the caller can handle null response {@link QuerySearchResult#nullInstance()}.
+     * Defaults to false since the coordinator node needs at least one shard response to build the global
+     * response.
+     */
+    public boolean canReturnNullResponseIfMatchNoDocs() {
+        return canReturnNullResponseIfMatchNoDocs;
+    }
+
+    public void canReturnNullResponseIfMatchNoDocs(boolean value) {
+        this.canReturnNullResponseIfMatchNoDocs = value;
+    }
+
+    /**
      * Returns the cache key for this shard search request, based on its content
      */
     public BytesReference cacheKey() throws IOException {
@@ -319,6 +386,27 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         public Rewriteable rewrite(QueryRewriteContext ctx) throws IOException {
             SearchSourceBuilder newSource = request.source() == null ? null : Rewriteable.rewrite(request.source(), ctx);
             AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
+
+            QueryShardContext shardContext = ctx.convertToShardContext();
+
+            FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
+            if (shardContext != null
+                    && primarySort != null
+                    && primarySort.isBottomSortShardDisjoint(shardContext, request.getBottomSortValues())) {
+                assert newSource != null : "source should contain a primary sort field";
+                newSource = newSource.shallowCopy();
+                int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
+                if (trackTotalHitsUpTo == TRACK_TOTAL_HITS_DISABLED
+                        && newSource.suggest() == null
+                        && newSource.aggregations() == null) {
+                    newSource.query(new MatchNoneQueryBuilder());
+                } else {
+                    newSource.size(0);
+                }
+                request.source(newSource);
+                request.setBottomSortValues(null);
+            }
+
             if (newSource == request.source() && newAliasFilter == request.getAliasFilter()) {
                 return this;
             } else {

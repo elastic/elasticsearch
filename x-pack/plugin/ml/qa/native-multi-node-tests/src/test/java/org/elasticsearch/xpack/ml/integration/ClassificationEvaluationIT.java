@@ -99,11 +99,11 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         String actualField = "fieldA";
         String predictedField = "fieldB";
         client().admin().indices().prepareCreate(indexName)
-            .setMapping(
+            .addMapping("_doc",
                 actualField, "type=keyword",
                 predictedField, "type=keyword")
             .get();
-        client().prepareIndex(indexName)
+        client().prepareIndex(indexName, "_doc")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setSource(
                 actualField, "crocodile",

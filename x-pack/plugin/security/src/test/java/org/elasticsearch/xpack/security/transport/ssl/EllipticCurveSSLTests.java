@@ -9,6 +9,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.junit.BeforeClass;
@@ -72,7 +73,7 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
             new SecureRandom());
         SSLSocketFactory socketFactory = sslContext.getSocketFactory();
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().setTransport(true).get();
-        TransportAddress address = randomFrom(response.getNodes()).getTransport().getAddress().publishAddress();
+        TransportAddress address = randomFrom(response.getNodes()).getInfo(TransportInfo.class).getAddress().publishAddress();
 
         final CountDownLatch latch = new CountDownLatch(1);
         try (SSLSocket sslSocket = AccessController.doPrivileged(new PrivilegedExceptionAction<SSLSocket>() {

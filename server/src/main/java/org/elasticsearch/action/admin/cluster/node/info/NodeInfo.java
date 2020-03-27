@@ -24,8 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -41,27 +39,12 @@ import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
  * Node information (static, does not change over time).
  */
 public class NodeInfo extends BaseNodeResponse {
-
-    // TODO: should this go into a global named registry?
-    private static NamedWriteableRegistry LOCAL_REGISTRY = new NamedWriteableRegistry(
-        List.of(
-            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "OsInfo", OsInfo::new),
-            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "ProcessInfo", ProcessInfo::new),
-            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "JvmInfo", JvmInfo::new),
-            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "ThreadPoolInfo", ThreadPoolInfo::new),
-            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "TransportInfo", TransportInfo::new),
-            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "HttpInfo", HttpInfo::new),
-            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "PluginsAndModules", PluginsAndModules::new),
-            new NamedWriteableRegistry.Entry(ReportingService.Info.class, "IngestInfo", IngestInfo::new)
-        )
-    );
 
     private Version version;
     private Build build;
@@ -87,24 +70,14 @@ public class NodeInfo extends BaseNodeResponse {
         if (in.readBoolean()) {
             settings = Settings.readSettingsFromStream(in);
         }
-        // TODO[wrb]: Change this to V_7_8_0
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            int numberOfWriteables = in.readVInt();
-            StreamInput awareStream = new NamedWriteableAwareStreamInput(in, LOCAL_REGISTRY);
-            for (int i = 0; i < numberOfWriteables; i++) {
-                ReportingService.Info info = awareStream.readNamedWriteable(ReportingService.Info.class);
-                infoMap.put(info.getClass(), info);
-            }
-        } else {
-            addInfoIfNonNull(OsInfo.class, in.readOptionalWriteable(OsInfo::new));
-            addInfoIfNonNull(ProcessInfo.class, in.readOptionalWriteable(ProcessInfo::new));
-            addInfoIfNonNull(JvmInfo.class, in.readOptionalWriteable(JvmInfo::new));
-            addInfoIfNonNull(ThreadPoolInfo.class, in.readOptionalWriteable(ThreadPoolInfo::new));
-            addInfoIfNonNull(TransportInfo.class, in.readOptionalWriteable(TransportInfo::new));
-            addInfoIfNonNull(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
-            addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
-            addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
-        }
+        addInfoIfNonNull(OsInfo.class, in.readOptionalWriteable(OsInfo::new));
+        addInfoIfNonNull(ProcessInfo.class, in.readOptionalWriteable(ProcessInfo::new));
+        addInfoIfNonNull(JvmInfo.class, in.readOptionalWriteable(JvmInfo::new));
+        addInfoIfNonNull(ThreadPoolInfo.class, in.readOptionalWriteable(ThreadPoolInfo::new));
+        addInfoIfNonNull(TransportInfo.class, in.readOptionalWriteable(TransportInfo::new));
+        addInfoIfNonNull(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
+        addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
+        addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
     }
 
     public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Settings settings,
@@ -161,55 +134,6 @@ public class NodeInfo extends BaseNodeResponse {
         return clazz.cast(infoMap.get(clazz));
     }
 
-    /**
-     * Operating System level information.
-     */
-    @Nullable
-    public OsInfo getOs() {
-        return getInfo(OsInfo.class);
-    }
-
-    /**
-     * Process level information.
-     */
-    @Nullable
-    public ProcessInfo getProcess() {
-        return getInfo(ProcessInfo.class);
-    }
-
-    /**
-     * JVM level information.
-     */
-    @Nullable
-    public JvmInfo getJvm() {
-        return getInfo(JvmInfo.class);
-    }
-
-    @Nullable
-    public ThreadPoolInfo getThreadPool() {
-        return getInfo(ThreadPoolInfo.class);
-    }
-
-    @Nullable
-    public TransportInfo getTransport() {
-        return getInfo(TransportInfo.class);
-    }
-
-    @Nullable
-    public HttpInfo getHttp() {
-        return getInfo(HttpInfo.class);
-    }
-
-    @Nullable
-    public PluginsAndModules getPlugins() {
-        return getInfo(PluginsAndModules.class);
-    }
-
-    @Nullable
-    public IngestInfo getIngest() {
-        return getInfo(IngestInfo.class);
-    }
-
     @Nullable
     public ByteSizeValue getTotalIndexingBuffer() {
         return totalIndexingBuffer;
@@ -238,23 +162,13 @@ public class NodeInfo extends BaseNodeResponse {
             out.writeBoolean(true);
             Settings.writeSettingsToStream(settings, out);
         }
-        // TODO[wrb]: Change this to V_7_8_0
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeVInt(infoMap.size());
-            // The NodesInfoResponse class controls the ordering of what goes to the user
-            for (Map.Entry<Class<? extends ReportingService.Info>, ReportingService.Info> entry : infoMap.entrySet()) {
-                ReportingService.Info value = entry.getValue();
-                out.writeNamedWriteable(value);
-            }
-        } else {
-            out.writeOptionalWriteable(getInfo(OsInfo.class));
-            out.writeOptionalWriteable(getInfo(ProcessInfo.class));
-            out.writeOptionalWriteable(getInfo(JvmInfo.class));
-            out.writeOptionalWriteable(getInfo(ThreadPoolInfo.class));
-            out.writeOptionalWriteable(getInfo(TransportInfo.class));
-            out.writeOptionalWriteable(getInfo(HttpInfo.class));
-            out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
-            out.writeOptionalWriteable(getInfo(IngestInfo.class));
-        }
+        out.writeOptionalWriteable(getInfo(OsInfo.class));
+        out.writeOptionalWriteable(getInfo(ProcessInfo.class));
+        out.writeOptionalWriteable(getInfo(JvmInfo.class));
+        out.writeOptionalWriteable(getInfo(ThreadPoolInfo.class));
+        out.writeOptionalWriteable(getInfo(TransportInfo.class));
+        out.writeOptionalWriteable(getInfo(HttpInfo.class));
+        out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
+        out.writeOptionalWriteable(getInfo(IngestInfo.class));
     }
 }

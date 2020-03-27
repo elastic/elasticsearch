@@ -30,6 +30,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.ingest.IngestInfo;
+import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.os.OsInfo;
+import org.elasticsearch.monitor.process.ProcessInfo;
+import org.elasticsearch.threadpool.ThreadPoolInfo;
+import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.List;
@@ -95,29 +102,29 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
                 builder.endObject();
             }
 
-            if (nodeInfo.getOs() != null) {
-                nodeInfo.getOs().toXContent(builder, params);
+            if (nodeInfo.getInfo(OsInfo.class) != null) {
+                nodeInfo.getInfo(OsInfo.class).toXContent(builder, params);
             }
-            if (nodeInfo.getProcess() != null) {
-                nodeInfo.getProcess().toXContent(builder, params);
+            if (nodeInfo.getInfo(ProcessInfo.class) != null) {
+                nodeInfo.getInfo(ProcessInfo.class).toXContent(builder, params);
             }
-            if (nodeInfo.getJvm() != null) {
-                nodeInfo.getJvm().toXContent(builder, params);
+            if (nodeInfo.getInfo(JvmInfo.class) != null) {
+                nodeInfo.getInfo(JvmInfo.class).toXContent(builder, params);
             }
-            if (nodeInfo.getThreadPool() != null) {
-                nodeInfo.getThreadPool().toXContent(builder, params);
+            if (nodeInfo.getInfo(ThreadPoolInfo.class) != null) {
+                nodeInfo.getInfo(ThreadPoolInfo.class).toXContent(builder, params);
             }
-            if (nodeInfo.getTransport() != null) {
-                nodeInfo.getTransport().toXContent(builder, params);
+            if (nodeInfo.getInfo(TransportInfo.class) != null) {
+                nodeInfo.getInfo(TransportInfo.class).toXContent(builder, params);
             }
-            if (nodeInfo.getHttp() != null) {
-                nodeInfo.getHttp().toXContent(builder, params);
+            if (nodeInfo.getInfo(HttpInfo.class) != null) {
+                nodeInfo.getInfo(HttpInfo.class).toXContent(builder, params);
             }
-            if (nodeInfo.getPlugins() != null) {
-                nodeInfo.getPlugins().toXContent(builder, params);
+            if (nodeInfo.getInfo(PluginsAndModules.class) != null) {
+                nodeInfo.getInfo(PluginsAndModules.class).toXContent(builder, params);
             }
-            if (nodeInfo.getIngest() != null) {
-                nodeInfo.getIngest().toXContent(builder, params);
+            if (nodeInfo.getInfo(IngestInfo.class) != null) {
+                nodeInfo.getInfo(IngestInfo.class).toXContent(builder, params);
             }
 
             builder.endObject();

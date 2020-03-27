@@ -31,6 +31,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -116,7 +117,7 @@ public class RetryTests extends ESIntegTestCase {
             }
             assertNotNull(masterNode);
 
-            TransportAddress address = masterNode.getHttp().getAddress().publishAddress();
+            TransportAddress address = masterNode.getInfo(HttpInfo.class).getAddress().publishAddress();
             RemoteInfo remote =
                 new RemoteInfo("http", address.getAddress(), address.getPort(), null,
                     new BytesArray("{\"match_all\":{}}"), null, null, emptyMap(),

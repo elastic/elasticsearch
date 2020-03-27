@@ -16,7 +16,7 @@ Closure checkDeps = { Configuration configuration ->
 }
 
 subprojects {
-  if (project.path.startsWith(':test:fixtures:')) {
+  if (project.path.startsWith(':test:fixtures:') || project.path.equals(':build-tools')) {
     // fixtures are allowed to use whatever dependencies they want...
     return
   }

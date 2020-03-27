@@ -35,7 +35,6 @@ privileges:
   
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 
-[role="child_attributes"]
 [[ml-get-dfanalytics-stats-path-params]]
 ==== {api-path-parms-title}
 

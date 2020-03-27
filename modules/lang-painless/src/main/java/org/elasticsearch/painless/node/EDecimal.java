@@ -79,9 +79,4 @@ public class EDecimal extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(value);
-    }
 }

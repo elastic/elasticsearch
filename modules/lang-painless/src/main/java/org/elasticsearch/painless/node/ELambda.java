@@ -240,9 +240,4 @@ public class ELambda extends AExpression implements ILambda {
         }
         return types;
     }
-
-    @Override
-    public String toString() {
-        return multilineToString(pairwiseToString(paramTypeStrs, paramNameStrs), statements);
-    }
 }

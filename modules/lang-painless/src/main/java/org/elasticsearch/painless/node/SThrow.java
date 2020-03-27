@@ -62,9 +62,4 @@ public class SThrow extends AStatement {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(expression);
-    }
 }

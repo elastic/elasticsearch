@@ -549,9 +549,13 @@ public abstract class ESRestTestCase extends ESTestCase {
                         adminClient().performRequest(new Request("DELETE", "_template/" + template));
                     }
                 }
+                adminClient().performRequest(new Request("DELETE", "_index_template/*"));
+                adminClient().performRequest(new Request("DELETE", "_component_template/*"));
             } else {
                 logger.debug("Clearing all templates");
                 adminClient().performRequest(new Request("DELETE", "_template/*"));
+                adminClient().performRequest(new Request("DELETE", "_index_template/*"));
+                adminClient().performRequest(new Request("DELETE", "_component_template/*"));
             }
         }
 

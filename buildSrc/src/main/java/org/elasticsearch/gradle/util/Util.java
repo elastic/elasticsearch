@@ -26,6 +26,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Locale;
 
 public class Util {
@@ -64,5 +66,13 @@ public class Util {
 
     public static String capitalize(String s) {
         return s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1);
+    }
+
+    public static URI getBuildSrcCodeSource() {
+        try {
+            return Util.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+        } catch (URISyntaxException e) {
+            throw new GradleException("Error determining build tools JAR location", e);
+        }
     }
 }

@@ -47,6 +47,19 @@ public class List {
     }
 
     /**
+     * Returns an unmodifiable list containing two elements.
+     *
+     * @param <T> the {@code List}'s element type
+     * @param e1 the first element
+     * @param e2 the second element
+     * @return a {@code List} containing the specified element
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> java.util.List<T> of(T e1, T e2) {
+        return List.of((T[]) new Object[]{e1, e2});
+    }
+
+    /**
      * Returns an unmodifiable list containing an arbitrary number of elements.
      *
      * @param entries the elements to be contained in the list

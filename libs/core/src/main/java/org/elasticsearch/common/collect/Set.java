@@ -48,6 +48,19 @@ public class Set {
     }
 
     /**
+     * Returns an unmodifiable set containing two elements.
+     *
+     * @param <T> the {@code Set}'s element type
+     * @param e1 the first element
+     * @param e2 the second element
+     * @return a {@code Set} containing the specified element
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> java.util.Set<T> of(T e1, T e2) {
+        return Set.of((T[]) new Object[]{e1, e2});
+    }
+
+    /**
      * Returns an unmodifiable set containing an arbitrary number of elements.
      *
      * @param entries the elements to be contained in the set

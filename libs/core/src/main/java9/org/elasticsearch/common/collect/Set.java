@@ -47,6 +47,18 @@ public class Set {
     /**
      * Delegates to the Java9 {@code Set.of()} method.
      *
+     * @param <T> the {@code Set}'s element type
+     * @param e1 the first element
+     * @param e2 the second element
+     * @return a {@code Set} containing the specified element
+     */
+    public static <T> java.util.Set<T> of(T e1, T e2) {
+        return java.util.Set.of(e1, e2);
+    }
+
+    /**
+     * Delegates to the Java9 {@code Set.of()} method.
+     *
      * @param entries the elements to be contained in the set
      * @param <T>     the {@code Set}'s element type
      * @return an unmodifiable set containing the specified elements.

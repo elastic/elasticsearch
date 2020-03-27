@@ -133,6 +133,10 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         } else {
             nonCachedExtensions = Collections.emptyList();
         }
+        if (randomBoolean()) {
+            indexSettingsBuilder.put(SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(),
+                new ByteSizeValue(randomLongBetween(10, 100_000)));
+        }
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(restoredIndexName, fsRepoName,
             snapshotInfo.snapshotId().getName(), indexName,
             indexSettingsBuilder.build(), Strings.EMPTY_ARRAY, true);

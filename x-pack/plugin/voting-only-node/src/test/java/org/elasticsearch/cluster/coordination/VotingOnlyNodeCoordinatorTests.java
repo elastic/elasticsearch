@@ -11,23 +11,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInterceptor;
-import org.junit.BeforeClass;
 
 import java.util.Collections;
-import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 
 public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase {
-
-    @BeforeClass
-    public static void setPossibleRolesWithVotingOnly() {
-        DiscoveryNode.setPossibleRoles(
-            Sets.union(DiscoveryNodeRole.BUILT_IN_ROLES, Sets.newHashSet(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)));
-    }
 
     @Override
     protected TransportInterceptor getTransportInterceptor(DiscoveryNode localNode, ThreadPool threadPool) {
@@ -66,8 +59,11 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
             UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
             masterEligible ? DiscoveryNodeRole.BUILT_IN_ROLES :
-                randomBoolean() ? emptySet() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE,
-                    DiscoveryNodeRole.MASTER_ROLE, VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE), Version.CURRENT);
+                randomBoolean() ? emptySet() : Stream.concat(
+                    DiscoveryNodeRole.BUILT_IN_ROLES.stream(),
+                    Stream.of(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE))
+                    .collect(Collectors.toSet()),
+            Version.CURRENT);
     }
 
 }

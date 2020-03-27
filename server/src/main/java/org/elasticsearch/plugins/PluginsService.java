@@ -31,6 +31,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -120,6 +121,7 @@ public class PluginsService {
             pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
             pluginsList.add(pluginInfo);
             pluginsNames.add(pluginInfo.getName());
+            DiscoveryNode.reloadSPI(pluginClass.getClassLoader());
         }
 
         Set<Bundle> seenBundles = new LinkedHashSet<>();
@@ -511,6 +513,7 @@ public class PluginsService {
             // note: already asserted above that extended plugins are loaded and extensible
             ExtensiblePlugin.class.cast(loaded.get(extendedPluginName)).reloadSPI(loader);
         }
+        DiscoveryNode.reloadSPI(loader);
 
         Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
         Plugin plugin = loadPlugin(pluginClass, settings, configPath);

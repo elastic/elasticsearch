@@ -355,6 +355,15 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
 
     };
 
+    public static class DiscoveryNodeRoleExtension implements org.elasticsearch.cluster.node.DiscoveryNodeRoleExtension {
+
+        @Override
+        public Set<DiscoveryNodeRole> roles() {
+            return Set.of(ML_ROLE);
+        }
+
+    }
+
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         if (this.enabled == false) {
@@ -367,11 +376,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
             parameters.ingestService);
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
         return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
-    }
-
-    @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        return Collections.singleton(ML_ROLE);
     }
 
     // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
@@ -989,4 +993,5 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
             new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, "Contains ML model configuration and statistics")
         );
     }
+
 }

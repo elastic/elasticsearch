@@ -167,6 +167,15 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     };
 
+    public static class DiscoveryNodeRoleExtension implements org.elasticsearch.cluster.node.DiscoveryNodeRoleExtension {
+
+        @Override
+        public Set<DiscoveryNodeRole> roles() {
+            return Set.of(TRANSFORM_ROLE);
+        }
+
+    }
+
     public Transform(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
@@ -372,11 +381,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        return Collections.singleton(TRANSFORM_ROLE);
-    }
-
-    @Override
     public void close() {
         if (transformServices.get() != null) {
             transformServices.get().getSchedulerEngine().stop();
@@ -394,4 +398,5 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
         );
     }
+
 }

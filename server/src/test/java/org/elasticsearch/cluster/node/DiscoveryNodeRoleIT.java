@@ -45,7 +45,12 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
         static final Setting<Boolean> NODE_ADDITIONAL_SETTING =
                 Setting.boolSetting("node.additional", true, Setting.Property.NodeScope);
 
-        static DiscoveryNodeRole ADDITIONAL_ROLE = new DiscoveryNodeRole("additional", "a") {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(NODE_ADDITIONAL_SETTING);
+        }
+
+        public static DiscoveryNodeRole ADDITIONAL_ROLE = new DiscoveryNodeRole("additional", "a") {
 
             @Override
             protected Setting<Boolean> roleSetting() {
@@ -54,14 +59,13 @@ public class DiscoveryNodeRoleIT extends ESIntegTestCase {
 
         };
 
-        @Override
-        public Set<DiscoveryNodeRole> getRoles() {
-            return Set.of(ADDITIONAL_ROLE);
-        }
+        public static class DiscoveryNodeRoleExtension implements org.elasticsearch.cluster.node.DiscoveryNodeRoleExtension {
 
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(NODE_ADDITIONAL_SETTING);
+            @Override
+            public Set<DiscoveryNodeRole> roles() {
+                return Set.of(ADDITIONAL_ROLE);
+            }
+
         }
 
     }

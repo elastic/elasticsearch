@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,17 +57,51 @@ import java.util.function.Supplier;
 
 public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, NetworkPlugin, ActionPlugin {
 
-    public static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
-        = Setting.boolSetting("node.voting_only", false, Setting.Property.NodeScope);
+    public static final Setting<Boolean> VOTING_ONLY_NODE_SETTING = Setting.boolSetting(
+        "node.voting_only",
+        false,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final Boolean value) {
+
+            }
+
+            @Override
+            public void validate(final Boolean value, Map<Setting<?>, Object> settings) {
+                if (value && (Boolean)settings.get(Node.NODE_MASTER_SETTING) == false) {
+                    throw new IllegalArgumentException("voting-only node must be master-eligible");
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(Node.NODE_MASTER_SETTING);
+                return settings.iterator();
+            }
+
+        },
+        Setting.Property.NodeScope);
 
     private static final String VOTING_ONLY_ELECTION_STRATEGY = "supports_voting_only";
 
-    static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
+    public static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
+
         @Override
         protected Setting<Boolean> roleSetting() {
             return VOTING_ONLY_NODE_SETTING;
         }
+
     };
+
+    public static class DiscoveryNodeRoleExtension implements org.elasticsearch.cluster.node.DiscoveryNodeRoleExtension {
+
+        @Override
+        public Set<DiscoveryNodeRole> roles() {
+            return Set.of(VOTING_ONLY_NODE_ROLE);
+        }
+
+    }
 
     private final Settings settings;
     private final SetOnce<ThreadPool> threadPool;
@@ -90,14 +125,6 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     @Override
     public List<Setting<?>> getSettings() {
         return Collections.singletonList(VOTING_ONLY_NODE_SETTING);
-    }
-
-    @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        if (isVotingOnlyNode && Node.NODE_MASTER_SETTING.get(settings) == false) {
-            throw new IllegalStateException("voting-only node must be master-eligible");
-        }
-        return Collections.singleton(VOTING_ONLY_NODE_ROLE);
     }
 
     @Override
@@ -229,4 +256,5 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
             }
         }
     }
+
 }

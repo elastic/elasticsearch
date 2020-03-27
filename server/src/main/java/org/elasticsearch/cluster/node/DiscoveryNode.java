@@ -36,10 +36,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 /**
@@ -451,20 +453,35 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     private static Map<String, DiscoveryNodeRole> roleNameToPossibleRoles;
 
-    public static void setPossibleRoles(final Set<DiscoveryNodeRole> possibleRoles) {
+    public static Set<String> getPossibleRoleNames() {
+        return roleNameToPossibleRoles.keySet();
+    }
+
+    static {
+        setPossibleRoles(DiscoveryNodeRole.BUILT_IN_ROLES);
+    }
+
+    static void setPossibleRoles(final Set<DiscoveryNodeRole> possibleRoles) {
         final Map<String, DiscoveryNodeRole> roleNameToPossibleRoles =
-                possibleRoles.stream().collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleName, Function.identity()));
+            possibleRoles.stream().collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleName, Function.identity()));
         // collect the abbreviation names into a map to ensure that there are not any duplicate abbreviations
         final Map<String, DiscoveryNodeRole> roleNameAbbreviationToPossibleRoles = roleNameToPossibleRoles.values()
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleNameAbbreviation, Function.identity()));
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleNameAbbreviation, Function.identity()));
         assert roleNameToPossibleRoles.size() == roleNameAbbreviationToPossibleRoles.size() :
-                "roles by name [" + roleNameToPossibleRoles + "], roles by name abbreviation [" + roleNameAbbreviationToPossibleRoles + "]";
+            "roles by name [" + roleNameToPossibleRoles + "], roles by name abbreviation [" + roleNameAbbreviationToPossibleRoles + "]";
         DiscoveryNode.roleNameToPossibleRoles = roleNameToPossibleRoles;
     }
 
-    public static Set<String> getPossibleRoleNames() {
-        return roleNameToPossibleRoles.keySet();
+    public static void reloadSPI(final ClassLoader loader) {
+        for (final DiscoveryNodeRoleExtension extension : ServiceLoader.load(DiscoveryNodeRoleExtension.class, loader)) {
+            final Set<DiscoveryNodeRole> possibleRoles = Stream.concat(
+                roleNameToPossibleRoles.values().stream(),
+                extension.roles().stream())
+                .collect(Collectors.toUnmodifiableSet());
+            setPossibleRoles(possibleRoles);
+        }
+
     }
 
     /**

@@ -37,6 +37,8 @@ public class AnnotationIndex {
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
 
+    private static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
+
     /**
      * Create the .ml-annotations index with correct mappings if it does not already
      * exist. This index is read and written by the UI results views, so needs to
@@ -45,11 +47,21 @@ public class AnnotationIndex {
     public static void createAnnotationsIndexIfNecessary(Settings settings, Client client, ClusterState state,
                                                          final ActionListener<Boolean> finalListener) {
 
+        boolean isHiddenAttributeAvailable = state.nodes().getMinNodeVersion().onOrAfter(HIDDEN_INTRODUCED_VERSION);
+
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
+            IndicesAliasesRequest.AliasActions addReadAliasAction =
+                IndicesAliasesRequest.AliasActions.add().index(INDEX_NAME).alias(READ_ALIAS_NAME);
+            IndicesAliasesRequest.AliasActions addWriteAliasAction =
+                IndicesAliasesRequest.AliasActions.add().index(INDEX_NAME).alias(WRITE_ALIAS_NAME);
+            if (isHiddenAttributeAvailable) {
+                addReadAliasAction.isHidden(true);
+                addWriteAliasAction.isHidden(true);
+            }
             final IndicesAliasesRequest request =
                 client.admin().indices().prepareAliases()
-                    .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(INDEX_NAME).alias(READ_ALIAS_NAME).isHidden(true))
-                    .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(INDEX_NAME).alias(WRITE_ALIAS_NAME).isHidden(true))
+                    .addAliasAction(addReadAliasAction)
+                    .addAliasAction(addWriteAliasAction)
                     .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
                 ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
@@ -63,13 +75,18 @@ public class AnnotationIndex {
             // Create the annotations index if it doesn't exist already.
             if (mlLookup.containsKey(INDEX_NAME) == false) {
 
+                Settings.Builder settingsBuilder =
+                    Settings.builder()
+                        .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1");
+                if (isHiddenAttributeAvailable) {
+                    settingsBuilder.put(IndexMetaData.SETTING_INDEX_HIDDEN, true);
+                }
+
                 CreateIndexRequest createIndexRequest =
                     new CreateIndexRequest(INDEX_NAME)
                         .mapping(SINGLE_MAPPING_NAME, annotationsMapping(), XContentType.JSON)
-                        .settings(Settings.builder()
-                            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                            .put(IndexMetaData.SETTING_INDEX_HIDDEN, true));
+                        .settings(settingsBuilder);
 
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
                     ActionListener.<CreateIndexResponse>wrap(

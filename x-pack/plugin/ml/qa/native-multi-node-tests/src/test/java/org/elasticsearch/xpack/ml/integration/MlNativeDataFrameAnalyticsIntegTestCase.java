@@ -314,7 +314,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
      * - allows dots (".") in the path elements provided as arguments
      * - supports implicit casting to the appropriate type
      */
+    @SuppressWarnings("unchecked")
     protected static <T> T getFieldValue(Map<String, Object> doc, String... path) {
-        return (T)extractValue(String.join(".", path), doc);
+        return (T) extractValue(String.join(".", path), doc);
     }
 }

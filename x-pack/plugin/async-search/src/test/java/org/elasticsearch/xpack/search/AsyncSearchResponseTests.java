@@ -10,10 +10,15 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -25,6 +30,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -126,5 +133,37 @@ public class AsyncSearchResponseTests extends ESTestCase {
         assertEquals(expected.isPartial(), actual.isPartial());
         assertEquals(expected.getStartTime(), actual.getStartTime());
         assertEquals(expected.getExpirationTime(), actual.getExpirationTime());
+    }
+
+    public void testToXContent() throws IOException {
+        Date date = new Date();
+        AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse("id", true, true, date.getTime(), date.getTime());
+
+        try ( XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.prettyPrint();
+            asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertEquals("{\n" +
+                "  \"id\" : \"id\",\n" +
+                "  \"is_partial\" : true,\n" +
+                "  \"is_running\" : true,\n" +
+                "  \"start_time_in_millis\" : " + date.getTime() + ",\n" +
+                "  \"expiration_time_in_millis\" : " + date.getTime() + "\n" +
+                "}", Strings.toString(builder));
+        }
+
+        try ( XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.prettyPrint();
+            builder.humanReadable(true);
+            asyncSearchResponse.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+            assertEquals("{\n" +
+                "  \"id\" : \"id\",\n" +
+                "  \"is_partial\" : true,\n" +
+                "  \"is_running\" : true,\n" +
+                "  \"start_time\" : \"" + XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime()) + "\",\n" +
+                "  \"start_time_in_millis\" : " + date.getTime() + ",\n" +
+                "  \"expiration_time\" : \"" + XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime()) + "\",\n" +
+                "  \"expiration_time_in_millis\" : " + date.getTime() + "\n" +
+                "}", Strings.toString(builder));
+        }
     }
 }

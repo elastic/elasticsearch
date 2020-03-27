@@ -200,6 +200,8 @@ public class Node implements Closeable {
         Setting.boolSetting("node.master", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_INGEST_SETTING =
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_REMOTE_CLUSTER_CLIENT =
+        Setting.boolSetting("node.remote_cluster_client", true, Property.NodeScope);
 
     /**
     * controls whether the node is allowed to persist things like metadata to disk
@@ -451,7 +453,8 @@ public class Node implements Closeable {
                 new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),
                     clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                     threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptService,
-                    clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories);
+                    clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories,
+                    searchModule.getValuesSourceRegistry());
 
             final AliasValidator aliasValidator = new AliasValidator();
 

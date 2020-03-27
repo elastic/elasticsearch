@@ -14,18 +14,21 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCountsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsageTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStatsTests;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCountsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStatsTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
@@ -68,5 +71,21 @@ public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireS
     @Override
     protected Writeable.Reader<Response> instanceReader() {
         return Response::new;
+    }
+
+    public void testStats_GivenNulls() {
+        Response.Stats stats = new Response.Stats(randomAlphaOfLength(10),
+            randomFrom(DataFrameAnalyticsState.values()),
+            null,
+            Collections.emptyList(),
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertThat(stats.getDataCounts(), equalTo(new DataCounts(stats.getId())));
+        assertThat(stats.getMemoryUsage(), equalTo(new MemoryUsage(stats.getId())));
     }
 }

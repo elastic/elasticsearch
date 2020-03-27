@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Scope.LambdaScope;
 import org.elasticsearch.painless.Scope.Variable;
+import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.LambdaNode;
@@ -59,26 +60,15 @@ import java.util.List;
  * <br>
  * {@code sort(list, lambda$0(capture))}
  */
-public final class ELambda extends AExpression implements ILambda {
+public class ELambda extends AExpression implements ILambda {
 
-    private final List<String> paramTypeStrs;
-    private final List<String> paramNameStrs;
-    private final List<AStatement> statements;
+    protected final List<String> paramTypeStrs;
+    protected final List<String> paramNameStrs;
+    protected final List<AStatement> statements;
 
-    // captured variables
+    // TODO: #54015
     private List<Variable> captures;
-    // static parent, static lambda
-    private FunctionRef ref;
-    // dynamic parent, deferred until link time
     private String defPointer;
-
-    private String name;
-    private Class<?> returnType;
-    private List<Class<?>> typeParameters;
-    private List<String> parameterNames;
-    private SBlock block;
-    private boolean methodEscape;
-    private int maxLoopCounter;
 
     public ELambda(Location location,
                    List<String> paramTypes, List<String> paramNames,
@@ -91,11 +81,18 @@ public final class ELambda extends AExpression implements ILambda {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        String name;
+        Class<?> returnType;
+        List<Class<?>> typeParametersWithCaptures;
+        List<String> parameterNames;
+        SBlock block;
+        int maxLoopCounter;
+        FunctionRef ref;
 
-        List<Class<?>> typeParameters = new ArrayList<>();
+        Output output = new Output();
+
+        List<Class<?>> typeParameters;
         PainlessMethod interfaceMethod;
         // inspect the target first, set interface method if we know it.
         if (input.expected == null) {
@@ -157,8 +154,8 @@ public final class ELambda extends AExpression implements ILambda {
 
         for (int index = 0; index < typeParameters.size(); ++index) {
             Class<?> type = typeParameters.get(index);
-            String name = paramNameStrs.get(index);
-            lambdaScope.defineVariable(location, type, name, true);
+            String paramName = paramNameStrs.get(index);
+            lambdaScope.defineVariable(location, type, paramName, true);
         }
 
         block = new SBlock(location, statements);
@@ -167,7 +164,7 @@ public final class ELambda extends AExpression implements ILambda {
         }
         AStatement.Input blockInput = new AStatement.Input();
         blockInput.lastSource = true;
-        AStatement.Output blockOutput = block.analyze(scriptRoot, lambdaScope, blockInput);
+        AStatement.Output blockOutput = block.analyze(classNode, scriptRoot, lambdaScope, blockInput);
 
         if (blockOutput.methodEscape == false) {
             throw createError(new IllegalArgumentException("not all paths return a value for lambda"));
@@ -177,18 +174,18 @@ public final class ELambda extends AExpression implements ILambda {
 
         // prepend capture list to lambda's arguments
         captures = new ArrayList<>(lambdaScope.getCaptures());
-        this.typeParameters = new ArrayList<>(captures.size() + typeParameters.size());
+        typeParametersWithCaptures = new ArrayList<>(captures.size() + typeParameters.size());
         parameterNames = new ArrayList<>(captures.size() + paramNameStrs.size());
         for (Variable var : captures) {
-            this.typeParameters.add(var.getType());
+            typeParametersWithCaptures.add(var.getType());
             parameterNames.add(var.getName());
         }
-        this.typeParameters.addAll(typeParameters);
+        typeParametersWithCaptures.addAll(typeParameters);
         parameterNames.addAll(paramNameStrs);
 
         // desugar lambda body into a synthetic method
         name = scriptRoot.getNextSyntheticName("lambda");
-        scriptRoot.getFunctionTable().addFunction(name, returnType, this.typeParameters, true, true);
+        scriptRoot.getFunctionTable().addFunction(name, returnType, typeParametersWithCaptures, true, true);
 
         // setup method reference to synthetic method
         if (input.expected == null) {
@@ -202,19 +199,12 @@ public final class ELambda extends AExpression implements ILambda {
             output.actual = input.expected;
         }
 
-        return output;
-    }
-
-    @Override
-    LambdaNode write(ClassNode classNode) {
         FunctionNode functionNode = new FunctionNode();
-
-        functionNode.setBlockNode(block.write(classNode));
-
+        functionNode.setBlockNode((BlockNode)blockOutput.statementNode);
         functionNode.setLocation(location);
         functionNode.setName(name);
         functionNode.setReturnType(returnType);
-        functionNode.getTypeParameters().addAll(typeParameters);
+        functionNode.getTypeParameters().addAll(typeParametersWithCaptures);
         functionNode.getParameterNames().addAll(parameterNames);
         functionNode.setStatic(true);
         functionNode.setVarArgs(false);
@@ -224,7 +214,6 @@ public final class ELambda extends AExpression implements ILambda {
         classNode.addFunctionNode(functionNode);
 
         LambdaNode lambdaNode = new LambdaNode();
-
         lambdaNode.setLocation(location);
         lambdaNode.setExpressionType(output.actual);
         lambdaNode.setFuncRef(ref);
@@ -233,7 +222,9 @@ public final class ELambda extends AExpression implements ILambda {
             lambdaNode.addCapture(capture.getName());
         }
 
-        return lambdaNode;
+        output.expressionNode = lambdaNode;
+
+        return output;
     }
 
     @Override

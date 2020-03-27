@@ -58,6 +58,7 @@ public final class TransformInternalIndex {
      * version 3 (7.5): rename to .transform-internal-xxx
      * version 4 (7.6): state::should_stop_at_checkpoint
      *                  checkpoint::checkpoint
+     * version 5 (7.7): stats::processing_time_in_ms, stats::processing_total
      */
 
     // constants for mappings
@@ -101,9 +102,10 @@ public final class TransformInternalIndex {
                     // the audits are expected to be small
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                    .put(IndexMetaData.SETTING_INDEX_HIDDEN, true)
             )
             .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(auditMappings()))
-            .putAlias(AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))
+            .putAlias(AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS).isHidden(true))
             .build();
         return transformTemplate;
     }
@@ -237,10 +239,16 @@ public final class TransformInternalIndex {
                      .startObject(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())
                         .field(TYPE, LONG)
                     .endObject()
+                    .startObject(TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName())
+                        .field(TYPE, LONG)
+                     .endObject()
                      .startObject(TransformIndexerStats.INDEX_TOTAL.getPreferredName())
                         .field(TYPE, LONG)
                     .endObject()
                      .startObject(TransformIndexerStats.SEARCH_TOTAL.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                    .startObject(TransformIndexerStats.PROCESSING_TOTAL.getPreferredName())
                         .field(TYPE, LONG)
                     .endObject()
                      .startObject(TransformIndexerStats.SEARCH_FAILURES.getPreferredName())

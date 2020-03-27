@@ -43,7 +43,7 @@
       async_search.submit:
         index: test-*
         batched_reduce_size: 2
-        wait_for_completion: 10s
+        wait_for_completion_timeout: 10s
         body:
           query:
             match_all: {}
@@ -54,7 +54,6 @@
           sort: max
 
   - is_false: id
-  - match:  { version:                          6 }
   - match:  { is_partial:                   false }
   - length: { response.hits.hits:               3 }
   - match:  { response.hits.hits.0._source.max: 1 }
@@ -64,8 +63,8 @@
       async_search.submit:
         index: test-*
         batched_reduce_size: 2
-        wait_for_completion: 10s
-        clean_on_completion: false
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
         body:
           aggs:
             max:
@@ -73,8 +72,6 @@
                 field: max
           sort: max
 
-  - set:    { id:                              id }
-  - match:  { version:                          6 }
   - match:  { is_partial:                   false }
   - length: { response.hits.hits:               3 }
   - match:  { response.hits.hits.0._source.max: 1 }
@@ -85,8 +82,8 @@
       async_search.submit:
         index: test-*
         batched_reduce_size: 2
-        wait_for_completion: 10s
-        clean_on_completion: false
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
         typed_keys: true
         body:
           aggs:
@@ -96,8 +93,8 @@
           sort: max
 
   - set:    { id:                                  id }
-  - match:  { version:                              6 }
   - match:  { is_partial:                       false }
+  - is_false: response._clusters
   - length: { response.hits.hits:                   3 }
   - match:  { response.hits.hits.0._source.max:     1 }
   - match:  { response.aggregations.max#max.value:  3.0 }
@@ -106,8 +103,8 @@
       async_search.get:
         id: "$id"
 
-  - match:  { version:                            6 }
   - match:  { is_partial:                     false }
+  - is_false: response._clusters
   - length: { response.hits.hits:                 3 }
   - match:  { response.hits.hits.0._source.max:   1 }
   - match:  { response.aggregations.max.value:    3.0 }
@@ -118,8 +115,8 @@
         id: "$id"
         typed_keys: true
 
-  - match:  { version:                              6 }
   - match:  { is_partial:                       false }
+  - is_false: response._clusters
   - length: { response.hits.hits:                   3 }
   - match:  { response.hits.hits.0._source.max:     1 }
   - match:  { response.aggregations.max#max.value:  3.0 }

@@ -1350,7 +1350,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             SortedMap<String, IndexAbstraction> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                IndexAbstraction existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new IndexAbstraction.Index(indexMetaData));
+                IndexAbstraction existing =
+                    aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new IndexAbstraction.Index(indexMetaData));
                 assert existing == null : "duplicate for " + indexMetaData.getIndex();
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {

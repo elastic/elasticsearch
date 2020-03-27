@@ -47,6 +47,7 @@ public class AnnotationPersister {
      * @return tuple of the form (annotation id, annotation object)
      */
     public Tuple<String, Annotation> persistAnnotation(@Nullable String annotationId, Annotation annotation, String errorMessage) {
+        Objects.requireNonNull(annotation);
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             IndexRequest indexRequest =
                 new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME)

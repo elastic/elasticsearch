@@ -65,7 +65,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.isNull;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -382,7 +381,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).persistModelSnapshot(eq(modelSnapshot), eq(WriteRequest.RefreshPolicy.IMMEDIATE), any());
 
         ArgumentCaptor<Annotation> annotationCaptor = ArgumentCaptor.forClass(Annotation.class);
-        verify(annotationPersister).persistAnnotation(isNull(String.class), annotationCaptor.capture(), any());
+        verify(annotationPersister).persistAnnotation(
+            eq(ModelSnapshot.annotationDocumentId(modelSnapshot)), annotationCaptor.capture(), any());
         Annotation annotation = annotationCaptor.getValue();
         Annotation expectedAnnotation =
             new Annotation(

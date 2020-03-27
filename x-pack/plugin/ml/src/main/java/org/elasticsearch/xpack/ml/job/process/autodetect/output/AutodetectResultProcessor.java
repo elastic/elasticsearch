@@ -280,7 +280,7 @@ public class AutodetectResultProcessor {
                 updateModelSnapshotOnJob(modelSnapshot);
             }
             annotationPersister.persistAnnotation(
-                null,
+                ModelSnapshot.annotationDocumentId(modelSnapshot),
                 createModelSnapshotAnnotation(modelSnapshot),
                 "[" + jobId + "] failed to create annotation for model snapshot.");
         }

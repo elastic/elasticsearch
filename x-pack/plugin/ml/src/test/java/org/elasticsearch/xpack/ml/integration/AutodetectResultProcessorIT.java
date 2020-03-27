@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
@@ -88,6 +89,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -157,10 +160,12 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     @After
-    public void deleteJob() {
+    public void deleteJob() throws Exception {
         DeleteJobAction.Request request = new DeleteJobAction.Request(JOB_ID);
         AcknowledgedResponse response = client().execute(DeleteJobAction.INSTANCE, request).actionGet();
         assertTrue(response.isAcknowledged());
+        // Verify that deleting job also deletes associated model snapshots annotations
+        assertThat(getAnnotations(), empty());
     }
 
     public void testProcessResults() throws Exception {
@@ -216,6 +221,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertEquals(modelSnapshot, persistedModelSnapshot.results().get(0));
         assertEquals(Collections.singletonList(modelSnapshot), capturedUpdateModelSnapshotOnJobRequests);
 
+        // Verify that creating model snapshot also creates associated annotation
         List<Annotation> annotations = getAnnotations();
         assertThat(annotations, hasSize(1));
         assertThat(annotations.get(0).getAnnotation(), is(equalTo("Job model snapshot stored")));
@@ -223,6 +229,28 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
+    }
+
+    public void testProcessResults_ModelSnapshot() throws Exception {
+        ModelSnapshot modelSnapshot = createModelSnapshot();
+        ResultsBuilder resultsBuilder = new ResultsBuilder().addModelSnapshot(modelSnapshot);
+        when(process.readAutodetectResults()).thenReturn(resultsBuilder.build().iterator());
+
+        resultProcessor.process();
+        resultProcessor.awaitCompletion();
+
+        QueryPage<ModelSnapshot> persistedModelSnapshot = getModelSnapshots();
+        assertThat(persistedModelSnapshot.count(), is(equalTo(1L)));
+        assertThat(persistedModelSnapshot.results(), contains(modelSnapshot));
+
+        // Verify that creating model snapshot also creates associated annotation
+        List<Annotation> annotations = getAnnotations();
+        assertThat(annotations, hasSize(1));
+        assertThat(annotations.get(0).getAnnotation(), is(equalTo("Job model snapshot stored")));
+
+        // Verify that deleting model snapshot also deletes associated annotation
+        deleteModelSnapshot(JOB_ID, modelSnapshot.getSnapshotId());
+        assertThat(getAnnotations(), empty());
     }
 
     public void testProcessResults_TimingStats() throws Exception {
@@ -648,6 +676,12 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         try (XContentParser parser = createParser(jsonXContent, source)) {
             return Annotation.PARSER.parse(parser, null);
         }
+    }
+
+    private void deleteModelSnapshot(String jobId, String snapshotId) {
+        DeleteModelSnapshotAction.Request request = new DeleteModelSnapshotAction.Request(jobId, snapshotId);
+        AcknowledgedResponse response = client().execute(DeleteModelSnapshotAction.INSTANCE, request).actionGet();
+        assertThat(response.isAcknowledged(), is(true));
     }
 
     private Optional<Quantiles> getQuantiles() throws Exception {

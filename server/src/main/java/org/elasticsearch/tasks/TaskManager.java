@@ -418,7 +418,6 @@ public class TaskManager implements ClusterStateApplier {
             return holder.startBan(onEmptyChildNodes);
         } else {
             logger.warn("Trying to cancel task without registered cancellable task " + taskId);
-            assert false : "Should not start ban for non cancellable task";
             // We still need to set ban on local node for persistent tasks
             onEmptyChildNodes.run();
             return Collections.emptySet();

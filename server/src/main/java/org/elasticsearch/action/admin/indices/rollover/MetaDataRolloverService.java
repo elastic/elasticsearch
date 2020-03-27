@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexSpace;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
@@ -77,7 +77,7 @@ public class MetaDataRolloverService {
                                                boolean silent) throws Exception {
         final MetaData metaData = currentState.metaData();
         validate(metaData, aliasName);
-        final IndexSpace alias = metaData.getIndexSpaceLookup().get(aliasName);
+        final IndexAbstraction alias = metaData.getIndicesLookup().get(aliasName);
         final IndexMetaData indexMetaData = alias.getWriteIndex();
         final AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias.getName());
         final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
@@ -174,15 +174,15 @@ public class MetaDataRolloverService {
     }
 
     static void validate(MetaData metaData, String aliasName) {
-        final IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(aliasName);
-        if (indexSpace == null) {
+        final IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(aliasName);
+        if (indexAbstraction == null) {
             throw new IllegalArgumentException("source alias does not exist");
         }
-        if (indexSpace.getType() != IndexSpace.Type.ALIAS) {
+        if (indexAbstraction.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("source alias is not an alias");
         }
-        if (indexSpace.getWriteIndex() == null) {
-            throw new IllegalArgumentException("source alias [" + indexSpace.getName() + "] does not point to a write index");
+        if (indexAbstraction.getWriteIndex() == null) {
+            throw new IllegalArgumentException("source alias [" + indexAbstraction.getName() + "] does not point to a write index");
         }
     }
 }

@@ -21,7 +21,7 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexSpace;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
@@ -439,9 +439,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     private static Index resolveSecurityIndex(MetaData metaData) {
-        final IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(SECURITY_MAIN_ALIAS);
-        if (indexSpace != null) {
-            return indexSpace.getIndices().get(0).getIndex();
+        final IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
+        if (indexAbstraction != null) {
+            return indexAbstraction.getIndices().get(0).getIndex();
         }
         return null;
     }

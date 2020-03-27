@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexSpace;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -83,8 +83,8 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(nodeSettings(), new HashSet<>(Collections.singletonList(
                 MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION)));
         MetaData metaData = mock(MetaData.class);
-        SortedMap<String, IndexSpace> indexSpaceSortedMap = new TreeMap<>();
-        when(metaData.getIndexSpaceLookup()).thenReturn(indexSpaceSortedMap);
+        SortedMap<String, IndexAbstraction> indexSpaceSortedMap = new TreeMap<>();
+        when(metaData.getIndicesLookup()).thenReturn(indexSpaceSortedMap);
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.getMetaData()).thenReturn(metaData);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

@@ -23,7 +23,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexSpace;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -182,8 +182,8 @@ public class ILMHistoryStore implements Closeable {
     @SuppressWarnings("unchecked")
     static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> listener) {
         final String initialHistoryIndexName = ILM_HISTORY_INDEX_PREFIX + "000001";
-        final IndexSpace ilmHistory = state.metaData().getIndexSpaceLookup().get(ILM_HISTORY_ALIAS);
-        final IndexSpace initialHistoryIndex = state.metaData().getIndexSpaceLookup().get(initialHistoryIndexName);
+        final IndexAbstraction ilmHistory = state.metaData().getIndicesLookup().get(ILM_HISTORY_ALIAS);
+        final IndexAbstraction initialHistoryIndex = state.metaData().getIndicesLookup().get(initialHistoryIndexName);
 
         if (ilmHistory == null && initialHistoryIndex == null) {
             // No alias or index exists with the expected names, so create the index with appropriate alias
@@ -222,7 +222,7 @@ public class ILMHistoryStore implements Closeable {
             // alias does not exist but initial index does, something is broken
             listener.onFailure(new IllegalStateException("ILM history index [" + initialHistoryIndexName +
                 "] already exists but does not have alias [" + ILM_HISTORY_ALIAS + "]"));
-        } else if (ilmHistory.getType() == IndexSpace.Type.ALIAS) {
+        } else if (ilmHistory.getType() == IndexAbstraction.Type.ALIAS) {
             if (ilmHistory.getWriteIndex() != null) {
                 // The alias exists and has a write index, so we're good
                 listener.onResponse(false);
@@ -230,7 +230,7 @@ public class ILMHistoryStore implements Closeable {
                 // The alias does not have a write index, so we can't index into it
                 listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS + "does not have a write index"));
             }
-        } else if (ilmHistory.getType() != IndexSpace.Type.ALIAS) {
+        } else if (ilmHistory.getType() != IndexAbstraction.Type.ALIAS) {
             // This is not an alias, error out
             listener.onFailure(new IllegalStateException("ILM history alias [" + ILM_HISTORY_ALIAS +
                 "] already exists as concrete index"));

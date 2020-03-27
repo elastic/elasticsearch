@@ -48,7 +48,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexSpace;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -281,16 +281,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             IndexMetaData indexMetaData = metaData.indices().get(originalRequest.index());
             // check the alias for the index request (this is how normal index requests are modeled)
             if (indexMetaData == null && indexRequest.index() != null) {
-                IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(indexRequest.index());
-                if (indexSpace != null) {
-                    indexMetaData = indexSpace.getWriteIndex();
+                IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(indexRequest.index());
+                if (indexAbstraction != null) {
+                    indexMetaData = indexAbstraction.getWriteIndex();
                 }
             }
             // check the alias for the action request (this is how upserts are modeled)
             if (indexMetaData == null && originalRequest.index() != null) {
-                IndexSpace indexSpace = metaData.getIndexSpaceLookup().get(originalRequest.index());
-                if (indexSpace != null) {
-                    indexMetaData = indexSpace.getWriteIndex();
+                IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(originalRequest.index());
+                if (indexAbstraction != null) {
+                    indexMetaData = indexAbstraction.getWriteIndex();
                 }
             }
             if (indexMetaData != null) {

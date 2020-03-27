@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexSpace;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.CheckedSupplier;
@@ -147,13 +147,13 @@ public class ElasticsearchMappings {
     public static void addDocMappingIfMissing(String alias,
                                               CheckedSupplier<String, IOException> mappingSupplier,
                                               Client client, ClusterState state, ActionListener<Boolean> listener) {
-        IndexSpace indexSpace = state.metaData().getIndexSpaceLookup().get(alias);
-        if (indexSpace == null) {
+        IndexAbstraction indexAbstraction = state.metaData().getIndicesLookup().get(alias);
+        if (indexAbstraction == null) {
             // The index has never been created yet
             listener.onResponse(true);
             return;
         }
-        String[] concreteIndices = indexSpace.getIndices().stream().map(IndexMetaData::getIndex).map(Index::getName)
+        String[] concreteIndices = indexAbstraction.getIndices().stream().map(IndexMetaData::getIndex).map(Index::getName)
             .toArray(String[]::new);
 
         String[] indicesThatRequireAnUpdate;

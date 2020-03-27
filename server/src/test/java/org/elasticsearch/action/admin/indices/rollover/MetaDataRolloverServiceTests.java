@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexSpace;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
@@ -341,7 +341,7 @@ public class MetaDataRolloverServiceTests extends ESTestCase {
             IndexMetaData rolloverIndexMetaData = rolloverMetaData.index(newIndexName);
             assertThat(rolloverIndexMetaData.getNumberOfShards(), equalTo(numberOfShards));
 
-            IndexSpace alias = rolloverMetaData.getIndexSpaceLookup().get(aliasName);
+            IndexAbstraction alias = rolloverMetaData.getIndicesLookup().get(aliasName);
             assertThat(alias.getIndices(), hasSize(2));
             assertThat(alias.getIndices(), hasItem(rolloverMetaData.index(sourceIndexName)));
             assertThat(alias.getIndices(), hasItem(rolloverIndexMetaData));

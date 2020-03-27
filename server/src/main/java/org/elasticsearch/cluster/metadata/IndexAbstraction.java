@@ -34,57 +34,57 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_HIDDEN_SETTING;
 
 /**
- * An index space is a reference to one or more concrete indices.
- * An index space has a unique name and encapsulates all the  {@link IndexMetaData} instances it is pointing to.
+ * An index abstraction is a reference to one or more concrete indices.
+ * An index abstraction has a unique name and encapsulates all the  {@link IndexMetaData} instances it is pointing to.
  * Also depending on type it may refer to a single or many concrete indices and may or may not have a write index.
  */
-public interface IndexSpace {
+public interface IndexAbstraction {
 
     /**
-     * @return the type of the index space
+     * @return the type of the index abstraction
      */
     Type getType();
 
     /**
-     * @return the name of the index space
+     * @return the name of the index abstraction
      */
     String getName();
 
     /**
-     * @return All {@link IndexMetaData} of all concrete indices this index space is referring to.
+     * @return All {@link IndexMetaData} of all concrete indices this index abstraction is referring to.
      */
     List<IndexMetaData> getIndices();
 
     /**
-     * A write index is a dedicated concrete index, that accepts all the new documents that belong to an index space.
+     * A write index is a dedicated concrete index, that accepts all the new documents that belong to an index abstraction.
      *
-     * A write index may also be a regular concrete index of a index space and may therefore also be returned
-     * by {@link #getIndices()}. An index space may also not have a dedicated write index.
+     * A write index may also be a regular concrete index of a index abstraction and may therefore also be returned
+     * by {@link #getIndices()}. An index abstraction may also not have a dedicated write index.
      *
-     * @return the write index of this index space or
-     * <code>null</code> if this index space doesn't have a write index.
+     * @return the write index of this index abstraction or
+     * <code>null</code> if this index abstraction doesn't have a write index.
      */
     @Nullable
     IndexMetaData getWriteIndex();
 
     /**
-     * @return whether this index space is hidden or not
+     * @return whether this index abstraction is hidden or not
      */
     boolean isHidden();
 
     /**
-     * An index space type.
+     * An index abstraction type.
      */
     enum Type {
 
         /**
-         * An index space that refers to a single concrete index.
+         * An index abstraction that refers to a single concrete index.
          * This concrete index is also the write index.
          */
         INDEX,
 
         /**
-         * An index space that refers to an alias.
+         * An index abstraction that refers to an alias.
          * An alias typically refers to many concrete indices and
          * may have a write index.
          */
@@ -95,7 +95,7 @@ public interface IndexSpace {
     /**
      * Represents an concrete index and encapsulates its {@link IndexMetaData}
      */
-    class Index implements IndexSpace {
+    class Index implements IndexAbstraction {
 
         private final IndexMetaData concreteIndex;
 
@@ -132,7 +132,7 @@ public interface IndexSpace {
     /**
      * Represents an alias and groups all {@link IndexMetaData} instances sharing the same alias name together.
      */
-    class Alias implements IndexSpace {
+    class Alias implements IndexAbstraction {
 
         private final String aliasName;
         private final List<IndexMetaData> referenceIndexMetaDatas;

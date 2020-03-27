@@ -184,14 +184,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     private final String[] allClosedIndices;
     private final String[] visibleClosedIndices;
 
-    private final SortedMap<String, IndexSpace> indexSpaceLookup;
+    private final SortedMap<String, IndexAbstraction> indicesLookup;
 
     MetaData(String clusterUUID, boolean clusterUUIDCommitted, long version, CoordinationMetaData coordinationMetaData,
              Settings transientSettings, Settings persistentSettings, DiffableStringMap hashesOfConsistentSettings,
              ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates,
              ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] visibleIndices, String[] allOpenIndices,
              String[] visibleOpenIndices, String[] allClosedIndices, String[] visibleClosedIndices,
-             SortedMap<String, IndexSpace> indexSpaceLookup) {
+             SortedMap<String, IndexAbstraction> indicesLookup) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
         this.version = version;
@@ -220,7 +220,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         this.visibleOpenIndices = visibleOpenIndices;
         this.allClosedIndices = allClosedIndices;
         this.visibleClosedIndices = visibleClosedIndices;
-        this.indexSpaceLookup = indexSpaceLookup;
+        this.indicesLookup = indicesLookup;
     }
 
     public long version() {
@@ -263,9 +263,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     public boolean hasAlias(String alias) {
-        IndexSpace indexSpace = getIndexSpaceLookup().get(alias);
-        if (indexSpace != null) {
-            return indexSpace.getType() == IndexSpace.Type.ALIAS;
+        IndexAbstraction indexAbstraction = getIndicesLookup().get(alias);
+        if (indexAbstraction != null) {
+            return indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
         } else {
             return false;
         }
@@ -286,8 +286,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return true;
     }
 
-    public SortedMap<String, IndexSpace> getIndexSpaceLookup() {
-        return indexSpaceLookup;
+    public SortedMap<String, IndexAbstraction> getIndicesLookup() {
+        return indicesLookup;
     }
 
     /**
@@ -531,8 +531,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return routing;
         }
 
-        IndexSpace result = getIndexSpaceLookup().get(aliasOrIndex);
-        if (result == null || result.getType() != IndexSpace.Type.ALIAS) {
+        IndexAbstraction result = getIndicesLookup().get(aliasOrIndex);
+        if (result == null || result.getType() != IndexAbstraction.Type.ALIAS) {
             return routing;
         }
         IndexMetaData writeIndex = result.getWriteIndex();
@@ -567,11 +567,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return routing;
         }
 
-        IndexSpace result = getIndexSpaceLookup().get(aliasOrIndex);
-        if (result == null || result.getType() != IndexSpace.Type.ALIAS) {
+        IndexAbstraction result = getIndicesLookup().get(aliasOrIndex);
+        if (result == null || result.getType() != IndexAbstraction.Type.ALIAS) {
             return routing;
         }
-        IndexSpace.Alias alias = (IndexSpace.Alias) result;
+        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) result;
         if (result.getIndices().size() > 1) {
             rejectSingleIndexOperation(aliasOrIndex, result);
         }
@@ -593,7 +593,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         return routing;
     }
 
-    private void rejectSingleIndexOperation(String aliasOrIndex, IndexSpace result) {
+    private void rejectSingleIndexOperation(String aliasOrIndex, IndexAbstraction result) {
         String[] indexNames = new String[result.getIndices().size()];
         int i = 0;
         for (IndexMetaData indexMetaData : result.getIndices()) {
@@ -608,7 +608,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     public boolean hasConcreteIndex(String index) {
-        return getIndexSpaceLookup().containsKey(index);
+        return getIndicesLookup().containsKey(index);
     }
 
     public IndexMetaData index(String index) {
@@ -1326,9 +1326,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             }
 
-            SortedMap<String, IndexSpace> aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup());
+            SortedMap<String, IndexAbstraction> indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup());
 
-            validateDataStreams(aliasAndIndexLookup);
+            validateDataStreams(indicesLookup);
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
@@ -1343,44 +1343,44 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             return new MetaData(clusterUUID, clusterUUIDCommitted, version, coordinationMetaData, transientSettings, persistentSettings,
                 hashesOfConsistentSettings, indices.build(), templates.build(), customs.build(), allIndicesArray, visibleIndicesArray,
-                allOpenIndicesArray, visibleOpenIndicesArray, allClosedIndicesArray, visibleClosedIndicesArray, aliasAndIndexLookup);
+                allOpenIndicesArray, visibleOpenIndicesArray, allClosedIndicesArray, visibleClosedIndicesArray, indicesLookup);
         }
 
-        private SortedMap<String, IndexSpace> buildAliasAndIndexLookup() {
-            SortedMap<String, IndexSpace> aliasAndIndexLookup = new TreeMap<>();
+        private SortedMap<String, IndexAbstraction> buildIndicesLookup() {
+            SortedMap<String, IndexAbstraction> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
-                IndexSpace existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new IndexSpace.Index(indexMetaData));
+                IndexAbstraction existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new IndexAbstraction.Index(indexMetaData));
                 assert existing == null : "duplicate for " + indexMetaData.getIndex();
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
                     aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
                         if (alias == null) {
-                            return new IndexSpace.Alias(aliasMetaData, indexMetaData);
+                            return new IndexAbstraction.Alias(aliasMetaData, indexMetaData);
                         } else {
-                            assert alias.getType() == IndexSpace.Type.ALIAS : alias.getClass().getName();
-                            ((IndexSpace.Alias) alias).addIndex(indexMetaData);
+                            assert alias.getType() == IndexAbstraction.Type.ALIAS : alias.getClass().getName();
+                            ((IndexAbstraction.Alias) alias).addIndex(indexMetaData);
                             return alias;
                         }
                     });
                 }
             }
             aliasAndIndexLookup.values().stream()
-                .filter(aliasOrIndex -> aliasOrIndex.getType() == IndexSpace.Type.ALIAS)
-                .forEach(alias -> ((IndexSpace.Alias) alias).computeAndValidateAliasProperties());
+                .filter(aliasOrIndex -> aliasOrIndex.getType() == IndexAbstraction.Type.ALIAS)
+                .forEach(alias -> ((IndexAbstraction.Alias) alias).computeAndValidateAliasProperties());
             return aliasAndIndexLookup;
         }
 
-        private void validateDataStreams(SortedMap<String, IndexSpace> aliasAndIndexLookup) {
+        private void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup) {
             DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
-                    if (aliasAndIndexLookup.containsKey(ds.getName())) {
+                    if (indicesLookup.containsKey(ds.getName())) {
                         throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
                     }
 
-                    SortedMap<?, ?> map = aliasAndIndexLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
+                    SortedMap<?, ?> map = indicesLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
                     if (map.size() != 0) {
                         throw new IllegalStateException("data stream [" + ds.getName() +
                             "] could create backing indices that conflict with " + map.size() + " existing index(s) or alias(s)" +

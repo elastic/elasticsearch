@@ -22,8 +22,8 @@ package org.elasticsearch.example;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexSpace;
-import org.elasticsearch.cluster.metadata.IndexSpace.Index;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction.Index;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -130,7 +130,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     public void testAuthorizeIndexAction() {
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
-        Map<String, IndexSpace> indexSpaceMap = new HashMap<>();
+        Map<String, IndexAbstraction> indexSpaceMap = new HashMap<>();
         indexSpaceMap.put("index", new Index(IndexMetaData.builder("index")
             .settings(Settings.builder().put("index.version.created", Version.CURRENT))
             .numberOfShards(1)

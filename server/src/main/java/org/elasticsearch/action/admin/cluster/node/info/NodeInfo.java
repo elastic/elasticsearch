@@ -36,16 +36,13 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Node information (static, does not change over time).

@@ -78,7 +78,7 @@ public class Between extends ScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        return isBoolean(greedy, sourceText(), Expressions.ParamOrdinal.FIFTH);
+        return isBoolean(caseSensitive, sourceText(), Expressions.ParamOrdinal.FIFTH);
     }
 
     @Override

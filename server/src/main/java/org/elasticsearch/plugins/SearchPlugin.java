@@ -42,7 +42,9 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.rescore.Rescorer;
@@ -52,11 +54,14 @@ import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -260,6 +265,7 @@ public interface SearchPlugin {
      */
     class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, ContextParser<String, ? extends AggregationBuilder>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
+        private final List<AggregatorImplementation> aggregatorImplementations = new ArrayList<>(1);
         private Consumer<ValuesSourceRegistry> aggregatorRegistrar;
 
         /**
@@ -355,10 +361,70 @@ public interface SearchPlugin {
         /**
          * Set the function to register the {@link org.elasticsearch.search.aggregations.support.ValuesSource} to aggregator mappings for
          * this aggregation
+         * @deprecated call {@link #implementAggregator(AggregatorSupplier, Predicate)} and frinds directly
          */
+        @Deprecated
         public AggregationSpec setAggregatorRegistrar(Consumer<ValuesSourceRegistry> aggregatorRegistrar) {
             this.aggregatorRegistrar = aggregatorRegistrar;
             return this;
+        }
+
+        /**
+         * Configure an {@link Aggregator} implementation.
+         */
+        public AggregationSpec implementAggregator(AggregatorSupplier aggregatorSupplier, Predicate<ValuesSourceType> appliesTo) {
+            aggregatorImplementations.add(new AggregatorImplementation(appliesTo, aggregatorSupplier));
+            return this;
+        }
+
+        /**
+         * Configure an {@link Aggregator} implementation for any of a list of {@link ValuesSourceType}s.
+         */
+        public AggregationSpec implementAggregatorFor(AggregatorSupplier aggregatorSupplier, ValuesSourceType... appliesTo) {
+            Collection<ValuesSourceType> types = List.of(appliesTo); 
+            return implementAggregator(aggregatorSupplier, types::contains);
+        }
+
+        /**
+         * Configure an {@link Aggregator} for all {@link ValuesSourceType}s.
+         */
+        public AggregationSpec implementAggregatorForAllValues(AggregatorSupplier aggregatorSupplier) {
+            return implementAggregator(aggregatorSupplier, candidate -> true);
+        }
+
+        /**
+         * Configuration for building {@link Aggregator}s.
+         */
+        public List<AggregatorImplementation> getAggregatorImplementations() {
+            return aggregatorImplementations;
+        }
+
+        /**
+         * Configuration for how {@link Aggregator}s are built.
+         */
+        public static class AggregatorImplementation {
+            private final Predicate<ValuesSourceType> appliesTo;
+            private final AggregatorSupplier aggregatorSupplier;
+
+            public AggregatorImplementation(Predicate<ValuesSourceType> appliesTo, AggregatorSupplier aggregatorSupplier) {
+                super();
+                this.appliesTo = appliesTo;
+                this.aggregatorSupplier = aggregatorSupplier;
+            }
+
+            /**
+             * Matches {@linkplain ValuesSourceType}s that this implementation supports.
+             */
+            public Predicate<ValuesSourceType> getAppliesTo() {
+                return appliesTo;
+            }
+
+            /**
+             * The factory for the {@link Aggregator} implementation.
+             */
+            public AggregatorSupplier getAggregatorSupplier() {
+                return aggregatorSupplier;
+            }
         }
     }
 

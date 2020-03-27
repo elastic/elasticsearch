@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -31,23 +32,25 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.BOOLEAN;
+import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.DATE;
+import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.NUMERIC;
+
 public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, AvgAggregationBuilder> {
     public static final String NAME = "avg";
-
-    public static final ObjectParser<AvgAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, AvgAggregationBuilder::new);
+    private static final ObjectParser<AvgAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, AvgAggregationBuilder::new);
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        AvgAggregatorFactory.registerAggregators(valuesSourceRegistry);
-    }
+    public static final AggregationSpec SPEC = new AggregationSpec(NAME, AvgAggregationBuilder::new, PARSER)
+        .addResultReader(InternalAvg::new)
+        .implementAggregatorFor(AvgAggregatorFactory.IMPLEMENTATION, NUMERIC, DATE, BOOLEAN);
 
     public AvgAggregationBuilder(String name) {
         super(name);
@@ -65,7 +68,7 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     /**
      * Read from a stream.
      */
-    public AvgAggregationBuilder(StreamInput in) throws IOException {
+    private AvgAggregationBuilder(StreamInput in) throws IOException {
         super(in);
     }
 

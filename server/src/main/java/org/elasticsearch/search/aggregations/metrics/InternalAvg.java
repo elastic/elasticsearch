@@ -45,7 +45,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     /**
      * Read from a stream.
      */
-    public InternalAvg(StreamInput in) throws IOException {
+    InternalAvg(StreamInput in) throws IOException {
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         sum = in.readDouble();

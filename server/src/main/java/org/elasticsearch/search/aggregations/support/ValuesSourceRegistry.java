@@ -24,6 +24,9 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
+import org.elasticsearch.plugins.SearchPlugin.AggregationSpec.AggregatorImplementation;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
@@ -31,6 +34,9 @@ import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toUnmodifiableMap;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to {@link AggregatorSupplier}s.  DO NOT directly
@@ -40,7 +46,13 @@ import java.util.function.Predicate;
  */
 public class ValuesSourceRegistry {
     // Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType
-    private Map<String, List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>>> aggregatorRegistry = Map.of();
+    private Map<String, List<AggregatorImplementation>> aggregatorRegistry;
+
+    public ValuesSourceRegistry(List<SearchPlugin.AggregationSpec> aggregations) {
+        aggregatorRegistry = aggregations.stream()
+            .filter(agg -> false == agg.getAggregatorImplementations().isEmpty())
+            .collect(toUnmodifiableMap(agg -> agg.getName().getPreferredName(), AggregationSpec::getAggregatorImplementations));
+    }
 
     /**
      * Register a ValuesSource to Aggregator mapping.
@@ -59,15 +71,10 @@ public class ValuesSourceRegistry {
      */
     public synchronized void register(String aggregationName, Predicate<ValuesSourceType> appliesTo,
                                       AggregatorSupplier aggregatorSupplier) {
-        AbstractMap.SimpleEntry[] mappings;
-        if (aggregatorRegistry.containsKey(aggregationName)) {
-            List currentMappings = aggregatorRegistry.get(aggregationName);
-            mappings = (AbstractMap.SimpleEntry[]) currentMappings.toArray(new AbstractMap.SimpleEntry[currentMappings.size() + 1]);
-        } else {
-            mappings = new AbstractMap.SimpleEntry[1];
-        }
-        mappings[mappings.length - 1] = new AbstractMap.SimpleEntry<>(appliesTo, aggregatorSupplier);
-        aggregatorRegistry = copyAndAdd(aggregatorRegistry,new AbstractMap.SimpleEntry<>(aggregationName, List.of(mappings)));
+        List<AggregatorImplementation> current = aggregatorRegistry.getOrDefault(aggregationName, emptyList());
+        AggregatorImplementation[] next = current.toArray(new AggregatorImplementation[current.size() + 1]);
+        next[current.size()] = new AggregatorImplementation(appliesTo, aggregatorSupplier);
+        aggregatorRegistry = copyAndAdd(aggregatorRegistry, new AbstractMap.SimpleEntry<>(aggregationName, List.of(next)));
     }
 
     /**
@@ -115,10 +122,10 @@ public class ValuesSourceRegistry {
     }
 
     private AggregatorSupplier findMatchingSuppier(ValuesSourceType valuesSourceType,
-                                                   List<Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier>> supportedTypes) {
-        for (Map.Entry<Predicate<ValuesSourceType>, AggregatorSupplier> candidate : supportedTypes) {
-            if (candidate.getKey().test(valuesSourceType)) {
-                return candidate.getValue();
+                                                   List<AggregatorImplementation> supportedTypes) {
+        for (AggregatorImplementation candidate : supportedTypes) {
+            if (candidate.getAppliesTo().test(valuesSourceType)) {
+                return candidate.getAggregatorSupplier();
             }
         }
         return null;
@@ -169,8 +176,8 @@ public class ValuesSourceRegistry {
         }
     }
 
-    private static <K, V> Map copyAndAdd(Map<K, V>  source, Map.Entry<K, V>  newValue) {
-        Map.Entry[] entries;
+    private static <K, V> Map<K, V> copyAndAdd(Map<K, V>  source, Map.Entry<K, V>  newValue) {
+        Map.Entry<K, V>[] entries;
         if (source.containsKey(newValue.getKey())) {
             // Replace with new value
             entries = new Map.Entry[source.size()];

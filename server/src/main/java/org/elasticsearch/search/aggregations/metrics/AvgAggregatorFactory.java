@@ -27,12 +27,10 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -40,27 +38,22 @@ import java.util.List;
 import java.util.Map;
 
 class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
+    static final MetricAggregatorSupplier IMPLEMENTATION = new MetricAggregatorSupplier() {
+        @Override
+        public Aggregator build(String name,
+                                ValuesSource valuesSource,
+                                DocValueFormat formatter,
+                                SearchContext context,
+                                Aggregator parent,
+                                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            return new AvgAggregator(name, (Numeric) valuesSource, formatter, context, parent, pipelineAggregators, metaData);
+        }
+    };
 
     AvgAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                          Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
-    }
-
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(AvgAggregationBuilder.NAME,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            new MetricAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name,
-                                        ValuesSource valuesSource,
-                                        DocValueFormat formatter,
-                                        SearchContext context,
-                                        Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-                    return new AvgAggregator(name, (Numeric) valuesSource, formatter, context, parent, pipelineAggregators, metaData);
-                }
-            });
     }
 
     @Override

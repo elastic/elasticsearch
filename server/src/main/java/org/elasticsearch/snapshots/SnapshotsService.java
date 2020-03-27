@@ -1166,10 +1166,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (snapshotInfo == null) {
                     failSnapshotCompletionListeners(snapshot, failure);
                 } else {
-                    try {
-                        ActionListener.onResponse(snapshotCompletionListeners.remove(snapshot), snapshotInfo);
-                    } catch (Exception e) {
-                        logger.warn("Failed to notify listeners", e);
+                    final List<ActionListener<SnapshotInfo>> completionListeners = snapshotCompletionListeners.remove(snapshot);
+                    if (completionListeners != null) {
+                        try {
+                            ActionListener.onResponse(completionListeners, snapshotInfo);
+                        } catch (Exception e) {
+                            logger.warn("Failed to notify listeners", e);
+                        }
                     }
                     endingSnapshots.remove(snapshot);
                 }

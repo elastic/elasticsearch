@@ -406,7 +406,7 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
-     * Start reject new child requests as the parent task was cancelled.
+     * Start rejecting new child requests as the parent task was cancelled.
      *
      * @param taskId            the parent task id
      * @param onEmptyChildNodes called when all child nodes are unregistered (i.e, all child tasks are completed or failed)

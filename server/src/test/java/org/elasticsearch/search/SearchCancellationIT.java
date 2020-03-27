@@ -39,9 +39,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.LeafFieldsLookup;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -125,12 +123,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         logger.info("Cancelling search");
         ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks()
             .setTaskId(searchTask.getTaskId()).execute();
-        assertBusy(() -> {
-            for (String node : internalCluster().getNodeNames()) {
-                final TaskManager taskManager = internalCluster().getInstance(TransportService.class, node).getTaskManager();
-                assertTrue(taskManager.childTasksCancelledOrBanned(searchTask.getTaskId()));
-            }
-        });
+        ensureChildTasksCancelledOrBanned(searchTask.getTaskId());
         return cancelFuture;
     }
 

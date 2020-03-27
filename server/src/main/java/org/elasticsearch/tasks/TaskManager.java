@@ -139,12 +139,19 @@ public class TaskManager implements ClusterStateApplier {
     public <Request extends ActionRequest, Response extends ActionResponse>
     Task registerAndExecute(String type, TransportAction<Request, Response> action, Request request,
                             BiConsumer<Task, Response> onResponse, BiConsumer<Task, Exception> onFailure) {
+        final Releasable unregisterChildNode;
+        if (request.getParentTask().isSet()) {
+            unregisterChildNode = registerChildNode(request.getParentTask().getId(), lastDiscoveryNodes.getLocalNode());
+        } else {
+            unregisterChildNode = () -> {};
+        }
         Task task = register(type, action.actionName, request);
         // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
         action.execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
                 try {
+                    unregisterChildNode.close();
                     unregister(task);
                 } finally {
                     onResponse.accept(task, response);
@@ -154,6 +161,7 @@ public class TaskManager implements ClusterStateApplier {
             @Override
             public void onFailure(Exception e) {
                 try {
+                    unregisterChildNode.close();
                     unregister(task);
                 } finally {
                     onFailure.accept(task, e);
@@ -396,6 +404,7 @@ public class TaskManager implements ClusterStateApplier {
         return cancellableTasks.values().stream().noneMatch(task -> task.hasParent(parentTaskId));
     }
 
+    // TODO: add reason and callback
     public Set<DiscoveryNode> startBanOnChildrenNodes(long taskId) {
         CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {

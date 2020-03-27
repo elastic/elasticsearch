@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -17,6 +19,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.junit.Before;
 
@@ -190,8 +193,11 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
         SearchResponseIterator it =
             assertBlockingIterator(indexName, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
         initial = it.next();
-        deleteAsyncSearch(initial.getId());
+        ActionFuture<AcknowledgedResponse> cancelFuture =
+            client().execute(DeleteAsyncSearchAction.INSTANCE, new DeleteAsyncSearchAction.Request(initial.getId()));
+        ensureChildTasksCancelledOrBanned(AsyncSearchId.decode(initial.getId()).getTaskId());
         it.close();
+        cancelFuture.actionGet();
         ensureTaskCompletion(initial.getId());
         ensureTaskRemoval(initial.getId());
     }
@@ -200,8 +206,12 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
         SearchResponseIterator it =
             assertBlockingIterator(indexName, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2);
         AsyncSearchResponse response = it.next();
-        deleteAsyncSearch(response.getId());
+        AsyncSearchId searchId = AsyncSearchId.decode(response.getId());
+        ActionFuture<AcknowledgedResponse> deleteFuture = client()
+            .execute(DeleteAsyncSearchAction.INSTANCE, new DeleteAsyncSearchAction.Request(response.getId()));
+        ensureChildTasksCancelledOrBanned(searchId.getTaskId());
         it.close();
+        deleteFuture.actionGet();
         ensureTaskCompletion(response.getId());
         ensureTaskRemoval(response.getId());
     }

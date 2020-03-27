@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -293,6 +294,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
         protected void startChildTask(TaskId parentTaskId, ChildRequest childRequest, ActionListener<ChildResponse> listener) {
             childRequest.setParentTask(parentTaskId);
+            final CountDownLatch completeLatch = completedLatches.get(childRequest);
             transportService.getThreadPool().generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -301,30 +303,38 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
                 @Override
                 protected void doRun() {
-                    transportService.sendRequest(childRequest.targetNode, TransportChildAction.ACTION.name(), childRequest,
-                        new TransportResponseHandler<>() {
-                            @Override
-                            public void handleResponse(TransportResponse response) {
-                                listener.onResponse(null);
-                                completedLatches.get(childRequest).countDown();
-                            }
+                    LatchedActionListener<ChildResponse> latchedListener = new LatchedActionListener<>(listener, completeLatch);
+                    if (client.getLocalNodeId().equals(childRequest.targetNode.getId()) && randomBoolean()) {
+                        try {
+                            client.executeLocally(TransportChildAction.ACTION, childRequest, latchedListener);
+                        } catch (TaskCancelledException e) {
+                            latchedListener.onFailure(new TransportException(e));
+                        }
+                    } else {
+                        transportService.sendRequest(childRequest.targetNode, TransportChildAction.ACTION.name(), childRequest,
+                            new TransportResponseHandler<>() {
 
-                            @Override
-                            public void handleException(TransportException exp) {
-                                listener.onFailure(exp);
-                                completedLatches.get(childRequest).countDown();
-                            }
+                                @Override
+                                public void handleResponse(TransportResponse response) {
+                                    latchedListener.onResponse(new ChildResponse());
+                                }
 
-                            @Override
-                            public String executor() {
-                                return ThreadPool.Names.SAME;
-                            }
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    latchedListener.onFailure(exp);
+                                }
 
-                            @Override
-                            public TransportResponse read(StreamInput in) {
-                                return TransportResponse.Empty.INSTANCE;
-                            }
-                        });
+                                @Override
+                                public String executor() {
+                                    return ThreadPool.Names.SAME;
+                                }
+
+                                @Override
+                                public TransportResponse read(StreamInput in) {
+                                    return TransportResponse.Empty.INSTANCE;
+                                }
+                            });
+                    }
                 }
             });
         }

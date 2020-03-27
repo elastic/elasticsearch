@@ -51,10 +51,6 @@ public class SExpression extends AStatement {
         expressionInput.read = input.lastSource && !isVoid;
         AExpression.Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
 
-        if ((input.lastSource == false || isVoid) && expressionOutput.statement == false) {
-            throw createError(new IllegalArgumentException("Not a statement."));
-        }
-
         boolean rtn = input.lastSource && isVoid == false && expressionOutput.actual != void.class;
 
         expressionInput.expected = rtn ? rtnType : expressionOutput.actual;

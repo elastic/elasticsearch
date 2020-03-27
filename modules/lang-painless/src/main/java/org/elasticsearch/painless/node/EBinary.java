@@ -51,6 +51,11 @@ public class EBinary extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
+
         Class<?> promote = null;            // promoted type
         Class<?> shiftDistance = null;      // for shifts, the rhs is promoted independently
         boolean originallyExplicit = input.explicit; // record whether there was originally an explicit cast

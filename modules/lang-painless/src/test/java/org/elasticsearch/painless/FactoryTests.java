@@ -272,6 +272,6 @@ public class FactoryTests extends ScriptTestCase {
     public void testVoidReturn() {
         IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("void_return_test", "1 + 1", VoidReturnTestScript.CONTEXT, Collections.emptyMap()));
-        assertEquals(iae.getMessage(), "Not a statement.");
+        assertEquals(iae.getMessage(), "result not used from addition operation [+]");
     }
 }

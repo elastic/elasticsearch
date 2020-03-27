@@ -91,8 +91,6 @@ public class ENewObj extends AExpression {
             argumentOutputs.add(expressionOutput);
         }
 
-        output.statement = true;
-
         NewObjectNode newObjectNode = new NewObjectNode();
 
         for (int i = 0; i < arguments.size(); ++ i) {

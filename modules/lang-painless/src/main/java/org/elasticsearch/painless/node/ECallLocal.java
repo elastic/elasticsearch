@@ -167,8 +167,6 @@ public class ECallLocal extends AExpression {
             argumentOutputs.add(argumentOutput);
         }
 
-        output.statement = true;
-
         MemberCallNode memberCallNode = new MemberCallNode();
 
         for (int argument = 0; argument < arguments.size(); ++argument) {

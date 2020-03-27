@@ -66,13 +66,6 @@ public abstract class AExpression extends ANode {
     public static class Output {
 
         /**
-         * Set to true when an expression can be considered a stand alone
-         * statement.  Used to prevent extraneous bytecode. This is always
-         * set by the node as output.
-         */
-        boolean statement = false;
-
-        /**
          * Set to the actual type this node is.  Note this variable is always
          * set by the node as output and should only be read from outside of the
          * node itself.  <b>Also, actual can always be read after a cast is

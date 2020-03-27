@@ -226,7 +226,6 @@ public class EAssignment extends AExpression {
             throw new IllegalStateException("Illegal tree structure.");
         }
 
-        output.statement = true;
         output.actual = input.read ? leftOutput.actual : void.class;
 
         AssignmentNode assignmentNode = new AssignmentNode();

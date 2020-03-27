@@ -62,10 +62,6 @@ public class SFor extends AStatement {
                 initializerInput.read = false;
                 initializerExpressionOutput = initializer.analyze(classNode, scriptRoot, scope, initializerInput);
 
-                if (initializerExpressionOutput.statement == false) {
-                    throw createError(new IllegalArgumentException("Not a statement."));
-                }
-
                 initializerInput.expected = initializerExpressionOutput.actual;
                 initializer.cast(initializerInput, initializerExpressionOutput);
             } else {
@@ -104,10 +100,6 @@ public class SFor extends AStatement {
             AExpression.Input afterthoughtInput = new AExpression.Input();
             afterthoughtInput.read = false;
             afterthoughtOutput = afterthought.analyze(classNode, scriptRoot, scope, afterthoughtInput);
-
-            if (afterthoughtOutput.statement == false) {
-                throw createError(new IllegalArgumentException("Not a statement."));
-            }
 
             afterthoughtInput.expected = afterthoughtOutput.actual;
             afterthought.cast(afterthoughtInput, afterthoughtOutput);

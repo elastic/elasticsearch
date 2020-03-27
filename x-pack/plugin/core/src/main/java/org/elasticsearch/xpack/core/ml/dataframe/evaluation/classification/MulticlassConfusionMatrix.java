@@ -142,7 +142,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
         if (result.get() == null) {  // These are steps 2, 3, 4 etc.
             KeyedFilter[] keyedFiltersPredicted =
                 topActualClassNames.get().stream()
-                    .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
+                    .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(predictedField, className).lenient(true)))
                     .toArray(KeyedFilter[]::new);
             // Knowing exactly how many buckets does each aggregation use, we can choose the size of the batch so that
             // too_many_buckets_exception exception is not thrown.
@@ -153,7 +153,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
                 topActualClassNames.get().stream()
                     .skip(actualClasses.size())
                     .limit(actualClassesPerBatch)
-                    .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(actualField, className)))
+                    .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(actualField, className).lenient(true)))
                     .toArray(KeyedFilter[]::new);
             if (keyedFiltersActual.length > 0) {
                 return Tuple.tuple(

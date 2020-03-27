@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -72,7 +73,6 @@ import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -285,7 +285,7 @@ public class MetaDataCreateIndexService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return applyCreateIndexRequest(currentState, request);
+                    return applyCreateIndexRequest(currentState, request, false);
                 }
 
                 @Override
@@ -304,11 +304,9 @@ public class MetaDataCreateIndexService {
      * Handles the cluster state transition to a version that reflects the {@link CreateIndexClusterStateUpdateRequest}.
      * All the requested changes are firstly validated before mutating the {@link ClusterState}.
      */
-    public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request) throws Exception {
+    public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
+                                                boolean silent) throws Exception {
         logger.trace("executing IndexCreationTask for [{}] against cluster state version [{}]", request, currentState.version());
-        Index createdIndex = null;
-        String removalExtraInfo = null;
-        IndexRemovalReason removalReason = IndexRemovalReason.FAILURE;
 
         validate(request, currentState);
 
@@ -339,16 +337,19 @@ public class MetaDataCreateIndexService {
         settingsBuilder.remove(IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
         final Settings indexSettings = settingsBuilder.build();
 
-        try {
-            final IndexService indexService = validateActiveShardCountAndCreateIndexService(request.index(), request.waitForActiveShards(),
-                indexSettings, routingNumShards, indicesService);
-            // create the index here (on the master) to validate it can be created, as well as adding the mapping
-            createdIndex = indexService.index();
+        final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());
+        tmpImdBuilder.setRoutingNumShards(routingNumShards);
+        tmpImdBuilder.settings(indexSettings);
 
+        // Set up everything, now locally create the index to see that things are ok, and apply
+        IndexMetaData tmpImd = tmpImdBuilder.build();
+        validateActiveShardCount(request.waitForActiveShards(), tmpImd);
+        // create the index here (on the master) to validate it can be created, as well as adding the mapping
+        return indicesService.<ClusterState, Exception>withTempIndexService(tmpImd, indexService -> {
             try {
                 updateIndexMappingsAndBuildSortOrder(indexService, mappings, sourceMetaData);
             } catch (Exception e) {
-                removalExtraInfo = "failed on parsing mappings on index creation";
+                logger.debug("failed on parsing mappings on index creation [{}]", request.index());
                 throw e;
             }
 
@@ -364,28 +365,18 @@ public class MetaDataCreateIndexService {
                 indexMetaData = buildIndexMetaData(request.index(), aliases, indexService.mapperService()::documentMapper, indexSettings,
                     routingNumShards, sourceMetaData);
             } catch (Exception e) {
-                removalExtraInfo = "failed to build index metadata";
+                logger.info("failed to build index metadata [{}]", request.index());
                 throw e;
             }
 
-            logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}",
+            logger.log(silent ? Level.DEBUG : Level.INFO, "[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}",
                 request.index(), request.cause(), templates.stream().map(IndexTemplateMetaData::getName).collect(toList()),
                 indexMetaData.getNumberOfShards(), indexMetaData.getNumberOfReplicas(), mappings.keySet());
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetaData.getIndex(),
                 indexMetaData.getSettings());
-            final ClusterState updatedState = clusterStateCreateIndex(currentState, request.blocks(), indexMetaData,
-                allocationService::reroute);
-
-            removalExtraInfo = "cleaning up after validating index on master";
-            removalReason = IndexRemovalReason.NO_LONGER_ASSIGNED;
-            return updatedState;
-        } finally {
-            if (createdIndex != null) {
-                // Index was already partially created - need to clean up
-                indicesService.removeIndex(createdIndex, removalReason, removalExtraInfo);
-            }
-        }
+            return clusterStateCreateIndex(currentState, request.blocks(), indexMetaData, allocationService::reroute);
+        });
     }
 
     /**
@@ -676,24 +667,15 @@ public class MetaDataCreateIndexService {
         }
     }
 
-    private static IndexService validateActiveShardCountAndCreateIndexService(String indexName, ActiveShardCount waitForActiveShards,
-                                                                              Settings indexSettings, int routingNumShards,
-                                                                              IndicesService indicesService) throws IOException {
-        final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(indexName);
-        tmpImdBuilder.setRoutingNumShards(routingNumShards);
-        tmpImdBuilder.settings(indexSettings);
-
-        // Set up everything, now locally create the index to see that things are ok, and apply
-        IndexMetaData tmpImd = tmpImdBuilder.build();
+    private static void validateActiveShardCount(ActiveShardCount waitForActiveShards, IndexMetaData indexMetaData) {
         if (waitForActiveShards == ActiveShardCount.DEFAULT) {
-            waitForActiveShards = tmpImd.getWaitForActiveShards();
+            waitForActiveShards = indexMetaData.getWaitForActiveShards();
         }
-        if (waitForActiveShards.validate(tmpImd.getNumberOfReplicas()) == false) {
+        if (waitForActiveShards.validate(indexMetaData.getNumberOfReplicas()) == false) {
             throw new IllegalArgumentException("invalid wait_for_active_shards[" + waitForActiveShards +
                 "]: cannot be greater than number of shard copies [" +
-                (tmpImd.getNumberOfReplicas() + 1) + "]");
+                (indexMetaData.getNumberOfReplicas() + 1) + "]");
         }
-        return indicesService.createIndex(tmpImd, Collections.emptyList(), false);
     }
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {

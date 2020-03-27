@@ -366,8 +366,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testCheckValid_GivenNegativeQueryDelay() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
-                () -> conf.setQueryDelay(TimeValue.timeValueMillis(-10)));
-        assertEquals("query_delay cannot be less than 0. Value = -10", e.getMessage());
+                () -> conf.setQueryDelay(TimeValue.timeValueMillis(-1)));
+        assertEquals("query_delay cannot be less than 0. Value = -1", e.getMessage());
     }
 
     public void testCheckValid_GivenZeroFrequency() {

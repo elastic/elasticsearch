@@ -390,7 +390,7 @@ public class CcrStatsResponseTests extends ESTestCase {
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    randomLong(),
+                    randomNonNegativeLong(),
                     readExceptions,
                     randomBoolean() ? new ElasticsearchException("fatal error") : null));
             }

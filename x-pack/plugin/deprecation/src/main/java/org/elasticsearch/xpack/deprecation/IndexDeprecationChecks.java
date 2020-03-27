@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -218,8 +217,7 @@ public class IndexDeprecationChecks {
         String setting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey();
         String value = indexMetaData.getSettings().get(setting);
         if (Strings.isNullOrEmpty(value) == false) {
-            TimeValue parsedValue = TimeValue.parseTimeValue(value, setting);
-            if (parsedValue.getNanos() < 0) {
+            if (value.startsWith("-")) {
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                     "Negative values for " + setting + " are deprecated and should be set to 0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html" +

@@ -19,17 +19,17 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+
+import java.io.IOException;
 
 public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> {
 
     @Override
     protected SnapshotStats createTestInstance() {
         long startTime = randomNonNegativeLong();
-        long time = randomNonNegativeLong();
+        long time = randomLongBetween(0, Long.MAX_VALUE - startTime);
         int incrementalFileCount = randomIntBetween(0, Integer.MAX_VALUE);
         int totalFileCount = randomIntBetween(0, Integer.MAX_VALUE);
         int processedFileCount = randomIntBetween(0, Integer.MAX_VALUE);

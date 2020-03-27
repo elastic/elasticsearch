@@ -169,7 +169,7 @@ import java.util.List;
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     public static SClass buildPainlessTree(ScriptClassInfo mainMethod, String sourceName,
-                                            String sourceText, CompilerSettings settings, PainlessLookup painlessLookup) {
+                                           String sourceText, CompilerSettings settings, PainlessLookup painlessLookup) {
         return new Walker(mainMethod, sourceName, sourceText, settings, painlessLookup).source;
     }
 

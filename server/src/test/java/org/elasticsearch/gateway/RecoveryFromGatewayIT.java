@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -309,7 +310,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
 
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[]{firstNode})).get();
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY,
+                                                    Strings.EMPTY_ARRAY, new String[]{firstNode}, TimeValue.timeValueSeconds(30))).get();
 
         internalCluster().fullRestart(new RestartCallback() {
             @Override

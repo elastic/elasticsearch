@@ -110,15 +110,15 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder()
             .add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode).localNodeId(localNode.getId())).build();
 
-        assertThat(makeRequest("_all").resolveVotingConfigExclusions(clusterState),
+        assertThat(makeRequestWithNodeDescriptions("_all").resolveVotingConfigExclusions(clusterState),
                 containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion));
-        assertThat(makeRequest("_local").resolveVotingConfigExclusions(clusterState),
+        assertThat(makeRequestWithNodeDescriptions("_local").resolveVotingConfigExclusions(clusterState),
                 contains(localNodeExclusion));
-        assertThat(makeRequest("other*").resolveVotingConfigExclusions(clusterState),
+        assertThat(makeRequestWithNodeDescriptions("other*").resolveVotingConfigExclusions(clusterState),
                 containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
 
         assertThat(expectThrows(IllegalArgumentException.class,
-            () -> makeRequest("not-a-node").resolveVotingConfigExclusions(clusterState)).getMessage(),
+            () -> makeRequestWithNodeDescriptions("not-a-node").resolveVotingConfigExclusions(clusterState)).getMessage(),
             equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes"));
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
@@ -316,16 +316,17 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
                 .coordinationMetaData(CoordinationMetaData.builder().addVotingConfigExclusion(otherNode1Exclusion).build()));
         final ClusterState clusterState = builder.build();
 
-        assertThat(makeRequest("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 2, "setting.name"),
+        assertThat(makeRequestWithNodeDescriptions("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 2, "setting.name"),
                 contains(localNodeExclusion));
         assertThat(expectThrows(IllegalArgumentException.class,
-            () -> makeRequest("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 1, "setting.name")).getMessage(),
+            () -> makeRequestWithNodeDescriptions("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 1, "setting.name"))
+                                                            .getMessage(),
             equalTo("add voting config exclusions request for [_local] would add [1] exclusions to the existing [1] which would " +
                 "exceed the maximum of [1] set by [setting.name]"));
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
-    private static AddVotingConfigExclusionsRequest makeRequest(String... descriptions) {
-        return new AddVotingConfigExclusionsRequest(descriptions);
+    private static AddVotingConfigExclusionsRequest makeRequestWithNodeDescriptions(String... descriptions) {
+        return new AddVotingConfigExclusionsRequest(descriptions, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30));
     }
 }

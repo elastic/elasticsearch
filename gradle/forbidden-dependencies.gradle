@@ -16,6 +16,10 @@ Closure checkDeps = { Configuration configuration ->
 }
 
 subprojects {
+  if (project.path.startsWith(':test:fixtures:')) {
+    // fixtures are allowed to use whatever dependencies they want...
+    return
+  }
   pluginManager.withPlugin('java') {
     checkDeps(configurations.compileClasspath)
     checkDeps(configurations.testCompileClasspath)

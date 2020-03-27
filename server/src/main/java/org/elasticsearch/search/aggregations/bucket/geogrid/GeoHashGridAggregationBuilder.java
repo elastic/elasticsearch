@@ -30,9 +30,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geohash_grid";
@@ -53,6 +53,10 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
         super(in);
     }
 
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        GeoHashGridAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    }
+
     @Override
     public GeoGridAggregationBuilder precision(int precision) {
         this.precision = GeoUtils.checkPrecisionRange(precision);
@@ -60,8 +64,8 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> createFactory(
-            String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize,
+    protected ValuesSourceAggregatorFactory createFactory(
+        String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
             GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
             AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {

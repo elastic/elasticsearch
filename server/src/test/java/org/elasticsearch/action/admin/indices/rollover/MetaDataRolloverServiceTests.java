@@ -357,7 +357,13 @@ public class MetaDataRolloverServiceTests extends ESTestCase {
         }
     }
 
-    private IndicesService mockIndicesServices() throws java.io.IOException {
+    private IndicesService mockIndicesServices() throws Exception {
+        /*
+         * Throws Exception because Eclipse uses the lower bound for
+         * CheckedFunction's exception type so it thinks the "when" call
+         * can throw Exception. javac seems to be ok inferring something
+         * else.
+         */
         IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.withTempIndexService(any(IndexMetaData.class), any(CheckedFunction.class)))
             .then(invocationOnMock -> {

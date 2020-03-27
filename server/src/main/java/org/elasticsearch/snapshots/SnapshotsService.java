@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
@@ -1144,6 +1145,52 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(String source, Exception e) {
+                if (failure == null
+                    && ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
+                    waitForNewMasterToRemoveSnapshotFromCS();
+                } else {
+                    fail(e);
+                }
+            }
+
+            // Wait for snapshot to disappear from cluster state. If we call this method the snapshot has been successfully
+            // written to the repository and all that's left is removing its job from the cluster state.
+            // On a best effort basis, we wait for the next master to remove the job from the cluster state, waiting for the default
+            // timeout.
+            private void waitForNewMasterToRemoveSnapshotFromCS() {
+                logger.debug("[{}] successfully written to the repository. Waiting for new master to remove snapshot from cluster state",
+                    snapshot);
+                final ClusterStateObserver observer =
+                    new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        resolveSnapshotCompletionListeners(snapshot, snapshotInfo);
+                        if (listener != null) {
+                            listener.onResponse(snapshotInfo);
+                        }
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        fail(new SnapshotException(snapshot, "node closed"));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        fail(new SnapshotException(snapshot,
+                            "timed out waiting for new master to remove snapshot job from cluster state"));
+                    }
+                }, state -> {
+                    final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+                    if (snapshotsInProgress == null) {
+                        return true;
+                    }
+                    return snapshotsInProgress.entries().stream().noneMatch(entry -> entry.snapshot().equals(snapshot));
+                });
+            }
+
+            private void fail(Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to remove snapshot metadata", snapshot), e);
                 failSnapshotCompletionListeners(
                     snapshot, new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e));
@@ -1166,21 +1213,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (snapshotInfo == null) {
                     failSnapshotCompletionListeners(snapshot, failure);
                 } else {
-                    final List<ActionListener<SnapshotInfo>> completionListeners = snapshotCompletionListeners.remove(snapshot);
-                    if (completionListeners != null) {
-                        try {
-                            ActionListener.onResponse(completionListeners, snapshotInfo);
-                        } catch (Exception e) {
-                            logger.warn("Failed to notify listeners", e);
-                        }
-                    }
-                    endingSnapshots.remove(snapshot);
+                    resolveSnapshotCompletionListeners(snapshot, snapshotInfo);
                 }
                 if (listener != null) {
                     listener.onResponse(snapshotInfo);
                 }
             }
         });
+    }
+
+    private void resolveSnapshotCompletionListeners(Snapshot snapshot, @Nullable SnapshotInfo snapshotInfo) {
+        final List<ActionListener<SnapshotInfo>> completionListeners = snapshotCompletionListeners.remove(snapshot);
+        if (completionListeners != null) {
+            try {
+                ActionListener.onResponse(completionListeners, snapshotInfo);
+            } catch (Exception e) {
+                logger.warn("Failed to notify listeners", e);
+            }
+        }
+        endingSnapshots.remove(snapshot);
     }
 
     private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e) {

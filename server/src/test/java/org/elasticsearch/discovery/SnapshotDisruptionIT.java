@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -35,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
-import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -53,8 +51,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -238,17 +234,8 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         ensureStableCluster(4, masterNode1);
         logger.info("--> done");
 
-        try {
-            future.get();
-            fail("Should have failed because the node disconnected from the cluster during snapshot finalization");
-        } catch (Exception ex) {
-            final SnapshotException sne = (SnapshotException) ExceptionsHelper.unwrap(ex, SnapshotException.class);
-            assertNotNull(sne);
-            assertThat(
-                sne.getMessage(), either(endsWith(" Failed to remove snapshot from cluster state")).or(endsWith(" no longer master")));
-            assertThat(sne.getSnapshotName(), is(snapshot));
-        }
-
+        final CreateSnapshotResponse createSnapshotResponse = future.get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
         assertAllSnapshotsCompleted();
     }
 

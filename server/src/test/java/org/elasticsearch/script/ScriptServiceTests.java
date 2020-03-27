@@ -263,6 +263,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.cacheStats().getGeneralStats().getCacheEvictions());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54324")
     public void testContextCacheStats() throws IOException {
         ScriptContext<?> contextA = randomFrom(contexts.values());
         String aRate = "2/10m";

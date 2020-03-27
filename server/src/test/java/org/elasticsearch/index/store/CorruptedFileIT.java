@@ -28,6 +28,7 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -649,7 +650,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertTrue(shardRouting.primary());
         assertTrue(shardRouting.assignedToNode());
         String nodeId = shardRouting.currentNodeId();
-        NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
+        NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId)
+            .addMetric(NodesStatsRequest.Metric.FS.metricName())
+            .get();
         Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
         for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {
             String path = info.getPath();
@@ -690,7 +693,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {
-        NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
+        NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId())
+            .addMetric(NodesStatsRequest.Metric.FS.metricName())
+            .get();
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         final Index test = state.metaData().index("test").getIndex();
         assertThat(routing.toString(), nodeStatses.getNodes().size(), equalTo(1));

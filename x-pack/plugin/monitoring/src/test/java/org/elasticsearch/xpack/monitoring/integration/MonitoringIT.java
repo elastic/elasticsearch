@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.integration;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
@@ -400,7 +401,9 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertBusy(() -> {
             try {
                 // now wait until Monitoring has actually stopped
-                final NodesStatsResponse response = client().admin().cluster().prepareNodesStats().clear().setThreadPool(true).get();
+                final NodesStatsResponse response = client().admin().cluster().prepareNodesStats().clear()
+                    .addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName())
+                    .get();
 
                 for (final NodeStats nodeStats : response.getNodes()) {
                     boolean foundBulkThreads = false;

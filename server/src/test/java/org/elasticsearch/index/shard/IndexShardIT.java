@@ -24,6 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -560,7 +561,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         long usedMem = acctBreaker.getUsed();
         assertThat(usedMem, greaterThan(0L));
-        NodesStatsResponse response = client().admin().cluster().prepareNodesStats().setIndices(true).setBreaker(true).get();
+        NodesStatsResponse response = client().admin().cluster().prepareNodesStats()
+            .setIndices(true)
+            .addMetric(NodesStatsRequest.Metric.BREAKER.metricName())
+            .get();
         NodeStats stats = response.getNodes().get(0);
         assertNotNull(stats);
         SegmentsStats segmentsStats = stats.getIndices().getSegments();

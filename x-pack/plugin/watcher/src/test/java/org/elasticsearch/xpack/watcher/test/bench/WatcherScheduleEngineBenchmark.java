@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.test.bench;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -173,7 +174,9 @@ public class WatcherScheduleEngineBenchmark {
                         public void run() {
                             try {
                                 while (start.get()) {
-                                    NodesStatsResponse response = client.admin().cluster().prepareNodesStats("_master").setJvm(true).get();
+                                    NodesStatsResponse response = client.admin().cluster().prepareNodesStats("_master")
+                                        .addMetric(NodesStatsRequest.Metric.JVM.metricName())
+                                        .get();
                                     ByteSizeValue heapUsed = response.getNodes().get(0).getJvm().getMem().getHeapUsed();
                                     jvmUsedHeapSpace.inc(heapUsed.getBytes());
                                     Thread.sleep(1000);
@@ -187,7 +190,9 @@ public class WatcherScheduleEngineBenchmark {
                     start.set(false);
                     sampleThread.join();
 
-                    NodesStatsResponse response = client.admin().cluster().prepareNodesStats().setThreadPool(true).get();
+                    NodesStatsResponse response = client.admin().cluster().prepareNodesStats()
+                        .addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName())
+                        .get();
                     for (NodeStats nodeStats : response.getNodes()) {
                         for (ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
                             if ("watcher".equals(threadPoolStats.getName())) {

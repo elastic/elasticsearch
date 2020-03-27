@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -95,7 +96,9 @@ public class IngestRestartIT extends ESIntegTestCase {
         );
         assertTrue(e.getMessage().contains("this script always fails"));
 
-        NodesStatsResponse r = client().admin().cluster().prepareNodesStats(internalCluster().getNodeNames()).setIngest(true).get();
+        NodesStatsResponse r = client().admin().cluster().prepareNodesStats(internalCluster().getNodeNames())
+            .addMetric(NodesStatsRequest.Metric.INGEST.metricName())
+            .get();
         int nodeCount = r.getNodes().size();
         for (int k = 0; k < nodeCount; k++) {
             List<IngestStats.ProcessorStat> stats = r.getNodes().get(k).getIngestStats().getProcessorStats().get(pipelineId);

@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -193,7 +194,9 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
         assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
 
-        NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().setOs(true).get();
+        NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats()
+            .addMetric(NodesStatsRequest.Metric.OS.metricName())
+            .get();
         long total = 0;
         long free = 0;
         long used = 0;

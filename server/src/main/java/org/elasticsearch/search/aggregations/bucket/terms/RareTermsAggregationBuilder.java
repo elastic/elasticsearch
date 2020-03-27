@@ -29,18 +29,17 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, RareTermsAggregationBuilder> {
+public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<RareTermsAggregationBuilder> {
     public static final String NAME = "rare_terms";
 
     private static final ParseField MAX_DOC_COUNT_FIELD_NAME = new ParseField("max_doc_count");
@@ -48,9 +47,9 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     private static final int MAX_MAX_DOC_COUNT = 100;
     public static final ObjectParser<RareTermsAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, name -> new RareTermsAggregationBuilder(name, null));
+            ObjectParser.fromBuilder(NAME, RareTermsAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareLong(RareTermsAggregationBuilder::maxDocCount, MAX_DOC_COUNT_FIELD_NAME);
 
         PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
@@ -62,17 +61,26 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         PARSER.declareDouble(RareTermsAggregationBuilder::setPrecision, PRECISION);
     }
 
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        RareTermsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    }
+
     private IncludeExclude includeExclude = null;
     private int maxDocCount = 1;
     private double precision = 0.001;
 
-    public RareTermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, CoreValuesSourceType.ANY, valueType);
+    public RareTermsAggregationBuilder(String name) {
+        super(name);
     }
 
     private RareTermsAggregationBuilder(RareTermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
         this.includeExclude = clone.includeExclude;
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.BYTES;
     }
 
     @Override
@@ -84,7 +92,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
      * Read from a stream.
      */
     public RareTermsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY);
+        super(in);
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         maxDocCount = in.readVInt();
     }
@@ -157,10 +165,10 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                     ValuesSourceConfig<ValuesSource> config,
-                                                                     AggregatorFactory parent,
-                                                                     Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       Builder subFactoriesBuilder) throws IOException {
         return new RareTermsAggregatorFactory(name, config, includeExclude,
             queryShardContext, parent, subFactoriesBuilder, metaData, maxDocCount, precision);
     }

@@ -30,8 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.io.IOException;
@@ -41,6 +39,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * A request to add voting config exclusions for certain master-eligible nodes, and wait for these nodes to be removed from the voting
@@ -112,67 +111,47 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
 
     Set<VotingConfigExclusion> resolveVotingConfigExclusions(ClusterState currentState) {
         final DiscoveryNodes allNodes = currentState.nodes();
-        Set<VotingConfigExclusion> allProcessedNodes = null;
+        Set<VotingConfigExclusion> newVotingConfigExclusions = new HashSet<>();
 
         if (nodeDescriptions.length >= 1) {
-            allProcessedNodes = Arrays.stream(allNodes.resolveNodes(nodeDescriptions)).map(allNodes::get)
-                                    .filter(DiscoveryNode::isMasterNode).map(VotingConfigExclusion::new).collect(Collectors.toSet());
+            newVotingConfigExclusions = Arrays.stream(allNodes.resolveNodes(nodeDescriptions)).map(allNodes::get)
+                .filter(DiscoveryNode::isMasterNode).map(VotingConfigExclusion::new).collect(Collectors.toSet());
 
-            if (allProcessedNodes.isEmpty()) {
+            if (newVotingConfigExclusions.isEmpty()) {
                 throw new IllegalArgumentException("add voting config exclusions request for " + Arrays.asList(nodeDescriptions)
                     + " matched no master-eligible nodes");
             }
+        } else if (nodeIds.length >= 1) {
+            for (String nodeId : nodeIds) {
+                if (allNodes.nodeExists(nodeId)) {
+                    DiscoveryNode discoveryNode = allNodes.get(nodeId);
+                    if (discoveryNode.isMasterNode()) {
+                        newVotingConfigExclusions.add(new VotingConfigExclusion(discoveryNode));
+                    }
+                }
+                else {
+                    newVotingConfigExclusions.add(new VotingConfigExclusion(nodeId, VotingConfigExclusion.MISSING_VALUE_MARKER));
+                }
+            }
         } else {
-            Set<VotingConfigExclusion> resolvedVotingConfigExclusions;
-            Set<VotingConfigExclusion> unresolvedVotingConfigExclusions;
+            Map<String, String> existingNodeNameId = StreamSupport.stream(allNodes.spliterator(), false)
+                                                                .collect(Collectors.toMap(DiscoveryNode::getName, DiscoveryNode::getId));
 
-            Set<String> resolvedNodes = new HashSet<>(nodeIds.length);
-            Set<String> unresolvedNodes = new HashSet<>();
-
-            if (nodeIds.length >= 1) {
-                for (String nodeId : nodeIds) {
-                    if (allNodes.nodeExists(nodeId)) {
-                        resolvedNodes.add(nodeId);
-                    }
-                    else {
-                        unresolvedNodes.add(nodeId);
+            for (String nodeName : nodeNames) {
+                if (existingNodeNameId.containsKey(nodeName)){
+                    DiscoveryNode discoveryNode = allNodes.get(existingNodeNameId.get(nodeName));
+                    if (discoveryNode.isMasterNode()) {
+                        newVotingConfigExclusions.add(new VotingConfigExclusion(discoveryNode));
                     }
                 }
-
-                unresolvedVotingConfigExclusions = unresolvedNodes.stream()
-                    .map(nodeId -> new VotingConfigExclusion(nodeId, VotingConfigExclusion.MISSING_VALUE_MARKER))
-                    .collect(Collectors.toSet());
+                else {
+                    newVotingConfigExclusions.add(new VotingConfigExclusion(VotingConfigExclusion.MISSING_VALUE_MARKER, nodeName));
+                }
             }
-            else {
-                Map<String, String> existingNodesNameId = new HashMap<>();
-                for (DiscoveryNode node : allNodes) {
-                    if (node.isMasterNode()) {
-                        existingNodesNameId.put(node.getName(), node.getId());
-                    }
-                }
-
-                for (String nodeName : nodeNames) {
-                    if (existingNodesNameId.containsKey(nodeName)){
-                        resolvedNodes.add(existingNodesNameId.get(nodeName));
-                    }
-                    else {
-                        unresolvedNodes.add(nodeName);
-                    }
-                }
-
-                unresolvedVotingConfigExclusions = unresolvedNodes.stream()
-                    .map(nodeName -> new VotingConfigExclusion(VotingConfigExclusion.MISSING_VALUE_MARKER, nodeName))
-                    .collect(Collectors.toSet());
-            }
-
-            resolvedVotingConfigExclusions = resolvedNodes.stream()
-                .map(allNodes::get).filter(DiscoveryNode::isMasterNode).map(VotingConfigExclusion::new).collect(Collectors.toSet());
-
-            allProcessedNodes = Sets.newHashSet(Iterables.concat(resolvedVotingConfigExclusions, unresolvedVotingConfigExclusions));
         }
 
-        allProcessedNodes.removeIf(n -> currentState.getVotingConfigExclusions().contains(n));
-        return allProcessedNodes;
+        newVotingConfigExclusions.removeIf(n -> currentState.getVotingConfigExclusions().contains(n));
+        return newVotingConfigExclusions;
     }
 
     Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(ClusterState currentState, int maxExclusionsCount,

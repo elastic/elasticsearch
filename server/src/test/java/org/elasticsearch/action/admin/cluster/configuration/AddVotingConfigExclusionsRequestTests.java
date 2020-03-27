@@ -197,7 +197,6 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
                     containsInAnyOrder(node1Exclusion, unresolvableVotingConfigExclusion));
     }
 
-
     public void testResolveByNodeNames() {
         final DiscoveryNode node1 = new DiscoveryNode(
             "nodeName1",
@@ -318,7 +317,7 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
         final ClusterState clusterState = builder.build();
 
         assertThat(makeRequest("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 2, "setting.name"),
-            contains(localNodeExclusion));
+                contains(localNodeExclusion));
         assertThat(expectThrows(IllegalArgumentException.class,
             () -> makeRequest("_local").resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 1, "setting.name")).getMessage(),
             equalTo("add voting config exclusions request for [_local] would add [1] exclusions to the existing [1] which would " +

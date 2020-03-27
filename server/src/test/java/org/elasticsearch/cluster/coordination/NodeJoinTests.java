@@ -113,8 +113,6 @@ public class NodeJoinTests extends ESTestCase {
                         .term(term)
                         .lastAcceptedConfiguration(config)
                         .lastCommittedConfiguration(config)
-                        .addVotingConfigExclusion(new CoordinationMetaData.VotingConfigExclusion(
-                            CoordinationMetaData.VotingConfigExclusion.MISSING_VALUE_MARKER, "knownNodeName"))
                     .build()))
             .version(version)
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
@@ -384,8 +382,11 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
 
-        setupFakeMasterServiceAndCoordinator(initialTerm, initialState(initialNode, initialTerm, initialVersion,
-                                                new VotingConfiguration(Collections.singleton(initialNode.getId()))));
+        CoordinationMetaData.VotingConfigExclusion votingConfigExclusion = new CoordinationMetaData.VotingConfigExclusion(
+                                                        CoordinationMetaData.VotingConfigExclusion.MISSING_VALUE_MARKER, "knownNodeName");
+
+        setupFakeMasterServiceAndCoordinator(initialTerm, buildStateWithVotingConfigExclusion(initialNode, initialTerm,
+                                                                                                initialVersion, votingConfigExclusion));
 
         DiscoveryNode knownJoiningNode = new DiscoveryNode("knownNodeName", "newNodeId", buildNewFakeTransportAddress(),
                                                             emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
@@ -398,6 +399,19 @@ public class NodeJoinTests extends ESTestCase {
         assertTrue(MasterServiceTests.discoveryState(masterService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
             return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
         }));
+    }
+
+    private ClusterState buildStateWithVotingConfigExclusion(DiscoveryNode initialNode,
+                                                             long initialTerm,
+                                                             long initialVersion,
+                                                             CoordinationMetaData.VotingConfigExclusion votingConfigExclusion) {
+        ClusterState initialState = initialState(initialNode, initialTerm, initialVersion,
+                                                    new VotingConfiguration(Collections.singleton(initialNode.getId())));
+        MetaData newMetaData = MetaData.builder(initialState.metaData())
+                                        .coordinationMetaData(CoordinationMetaData.builder(initialState.coordinationMetaData())
+                                                                        .addVotingConfigExclusion(votingConfigExclusion).build()).build();
+
+        return ClusterState.builder(initialState).metaData(newMetaData).build();
     }
 
     private void handleStartJoinFrom(DiscoveryNode node, long term) throws Exception {

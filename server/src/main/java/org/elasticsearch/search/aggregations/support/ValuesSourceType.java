@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 
+import java.time.ZoneId;
 import java.util.function.LongSupplier;
 
 /**
@@ -70,4 +71,18 @@ public interface ValuesSourceType {
      */
     ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
                                 LongSupplier now);
+
+    /**
+     * This method provides a hook for specifying a type-specific formatter.  When {@link ValuesSourceConfig} can resolve a
+     * {@link org.elasticsearch.index.mapper.MappedFieldType}, it prefers to get the formatter from there.  Only when a field can't be
+     * resolved (which is to say script cases and unmapped field cases), it will fall back to calling this method on whatever
+     * {@link ValuesSourceType} it was able to resolve to.
+     *
+     * @param format - User supplied format string (Optional)
+     * @param tz - User supplied time zone (Optional)
+     * @return - A formatter object, configured with the passed in settings if appropriate.
+     */
+    default DocValueFormat getFormatter(String format, ZoneId tz) {
+        return DocValueFormat.RAW;
+    }
 }

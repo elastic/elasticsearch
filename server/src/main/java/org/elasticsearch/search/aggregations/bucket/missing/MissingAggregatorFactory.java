@@ -33,10 +33,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    public MissingAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+    public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
+                                    AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                    Map<String, Object> metaData) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 

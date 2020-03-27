@@ -165,7 +165,9 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
                 assertThat(stats.getStats().size(), greaterThan(0));
                 for (SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : stats.getStats()) {
                     for (String ext : nonCachedExtensions) {
-                        assertFalse(indexInputStats.getFileName(), indexInputStats.getFileName().endsWith(ext));
+                        if (indexInputStats.getFileName().endsWith(ext)) {
+                            assertFalse(indexInputStats.getFileName(), indexInputStats.getOpenCount() > 0);
+                        }
                     }
                 }
             }

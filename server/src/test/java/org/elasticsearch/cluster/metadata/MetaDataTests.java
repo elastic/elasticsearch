@@ -34,7 +34,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,6 +43,8 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -226,6 +227,39 @@ public class MetaDataTests extends ESTestCase {
         assertThat(exception.getMessage(), startsWith("alias [" + alias + "] has more than one write index ["));
     }
 
+    public void testValidateHiddenAliasConsistency() {
+        String alias = randomAlphaOfLength(5);
+        String indexA = randomAlphaOfLength(6);
+        String indexB = randomAlphaOfLength(7);
+
+        {
+            Exception ex = expectThrows(IllegalStateException.class,
+                () -> buildMetadataWithHiddenIndexMix(alias, indexA, true, indexB, randomFrom(false, null)).build());
+            assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));
+        }
+
+        {
+            Exception ex = expectThrows(IllegalStateException.class,
+                () -> buildMetadataWithHiddenIndexMix(alias, indexA, randomFrom(false, null), indexB, true).build());
+            assertThat(ex.getMessage(), containsString("has is_hidden set to true on indices"));
+        }
+    }
+
+    private MetaData.Builder buildMetadataWithHiddenIndexMix(String aliasName, String indexAName, Boolean indexAHidden,
+                                                             String indexBName, Boolean indexBHidden) {
+        IndexMetaData.Builder indexAMeta = IndexMetaData.builder(indexAName)
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder(aliasName).isHidden(indexAHidden).build());
+        IndexMetaData.Builder indexBMeta = IndexMetaData.builder(indexBName)
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder(aliasName).isHidden(indexBHidden).build());
+        return MetaData.builder().put(indexAMeta).put(indexBMeta);
+    }
+
     public void testResolveIndexRouting() {
         IndexMetaData.Builder builder = IndexMetaData.builder("index")
                 .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -365,7 +399,7 @@ public class MetaDataTests extends ESTestCase {
                 .endObject()
             .endObject());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, metadata)) {
-            MetaData.Builder.fromXContent(parser, randomBoolean());
+            MetaData.Builder.fromXContent(parser);
             fail();
         } catch (IllegalArgumentException e) {
             assertEquals("Unexpected field [random]", e.getMessage());
@@ -404,7 +438,7 @@ public class MetaDataTests extends ESTestCase {
         final MetaData originalMeta = MetaData.builder().indexGraveyard(graveyard).build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        MetaData.FORMAT.toXContent(builder, originalMeta);
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final MetaData fromXContentMeta = MetaData.fromXContent(parser);
@@ -417,7 +451,7 @@ public class MetaDataTests extends ESTestCase {
             .clusterUUIDCommitted(randomBoolean()).build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        MetaData.FORMAT.toXContent(builder, originalMeta);
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             final MetaData fromXContentMeta = MetaData.fromXContent(parser);
@@ -470,7 +504,7 @@ public class MetaDataTests extends ESTestCase {
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        metaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        MetaData.FORMAT.toXContent(builder, metaData);
         builder.endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
@@ -690,7 +724,7 @@ public class MetaDataTests extends ESTestCase {
         }
     }
 
-    private IndexMetaData.Builder buildIndexMetaData(String name, String alias, Boolean writeIndex) {
+    private static IndexMetaData.Builder buildIndexMetaData(String name, String alias, Boolean writeIndex) {
         return IndexMetaData.builder(name)
             .settings(settings(Version.CURRENT)).creationDate(randomNonNegativeLong())
             .putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex))
@@ -872,5 +906,85 @@ public class MetaDataTests extends ESTestCase {
         mapBuilder.put(key, null);
         final ImmutableOpenMap<String, MetaData.Custom> map = mapBuilder.build();
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+    }
+
+    public void testBuilderRejectsDataStreamThatConflictsWithIndex() {
+        final String dataStreamName = "my-data-stream";
+        MetaData.Builder b = MetaData.builder()
+            .put(IndexMetaData.builder(dataStreamName)
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build(), false)
+            .put(new DataStream(dataStreamName, "ts", Collections.emptyList()));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "] conflicts with existing index or alias"));
+    }
+
+    public void testBuilderRejectsDataStreamThatConflictsWithAlias() {
+        final String dataStreamName = "my-data-stream";
+        MetaData.Builder b = MetaData.builder()
+            .put(IndexMetaData.builder(dataStreamName + "z")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .putAlias(AliasMetaData.builder(dataStreamName).build())
+                .build(), false)
+            .put(new DataStream(dataStreamName, "ts", Collections.emptyList()));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "] conflicts with existing index or alias"));
+    }
+
+    public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
+        final String dataStreamName = "my-data-stream";
+        final String conflictingIndex = dataStreamName + "-00001";
+        MetaData.Builder b = MetaData.builder()
+            .put(IndexMetaData.builder(conflictingIndex)
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build(), false)
+            .put(new DataStream(dataStreamName, "ts", Collections.emptyList()));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
+            "] could create backing indices that conflict with 1 existing index(s) or alias(s) including '" + conflictingIndex + "'"));
+    }
+
+    public void testSerialization() throws IOException {
+        final MetaData orig = randomMetaData();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        orig.writeTo(out);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        final MetaData fromStreamMeta = MetaData.readFrom(new NamedWriteableAwareStreamInput(out.bytes().streamInput(),
+            namedWriteableRegistry));
+        assertTrue(MetaData.isGlobalStateEquals(orig, fromStreamMeta));
+    }
+
+    public static MetaData randomMetaData() {
+        return MetaData.builder()
+            .put(buildIndexMetaData("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
+            .put(IndexTemplateMetaData.builder("template" + randomAlphaOfLength(3))
+                .patterns(Arrays.asList("bar-*", "foo-*"))
+                .settings(Settings.builder()
+                    .put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5))
+                    .build())
+                .build())
+            .persistentSettings(Settings.builder()
+                .put("setting" + randomAlphaOfLength(3), randomAlphaOfLength(4))
+                .build())
+            .transientSettings(Settings.builder()
+                .put("other_setting" + randomAlphaOfLength(3), randomAlphaOfLength(4))
+                .build())
+            .clusterUUID("uuid" + randomAlphaOfLength(3))
+            .clusterUUIDCommitted(randomBoolean())
+            .indexGraveyard(IndexGraveyardTests.createRandom())
+            .version(randomNonNegativeLong())
+            .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
+            .put("index_template_v2_" + randomAlphaOfLength(3), IndexTemplateV2Tests.randomInstance())
+            .put(DataStreamTests.randomInstance())
+            .build();
     }
 }

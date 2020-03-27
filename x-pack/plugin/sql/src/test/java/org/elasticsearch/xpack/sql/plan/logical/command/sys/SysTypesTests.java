@@ -46,7 +46,7 @@ public class SysTypesTests extends ESTestCase {
         Command cmd = sql("SYS TYPES").v1();
 
         List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT", "FLOAT", "DOUBLE", "SCALED_FLOAT",
-                "IP", "KEYWORD", "TEXT", "BOOLEAN", "DATE", "TIME", "DATETIME",
+                "CONSTANT_KEYWORD", "IP", "KEYWORD", "TEXT", "BOOLEAN", "DATE", "TIME", "DATETIME",
                 "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
                 "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
                 "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
@@ -107,7 +107,9 @@ public class SysTypesTests extends ESTestCase {
 
         cmd.execute(session(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
-            assertEquals(3, r.size());
+            assertEquals(4, r.size());
+            assertEquals("CONSTANT_KEYWORD", r.column(0));
+            assertTrue(r.advanceRow());
             assertEquals("IP", r.column(0));
             assertTrue(r.advanceRow());
             assertEquals("KEYWORD", r.column(0));

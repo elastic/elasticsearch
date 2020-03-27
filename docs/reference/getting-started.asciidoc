@@ -25,7 +25,7 @@ Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
 {beats}, and {ls}.
 
 TIP: The fastest way to get started with {es} is to
-https://www.elastic.co/cloud/elasticsearch-service/signup[start a free 14-day
+{ess-trial}[start a free 14-day
 trial of {ess}] in the cloud.
 --
 
@@ -33,7 +33,7 @@ trial of {ess}] in the cloud.
 == Get {es} up and running
 
 To take {es} for a test drive, you can create a 
-https://www.elastic.co/cloud/elasticsearch-service/signup[hosted deployment]  on 
+{ess-trial}[hosted deployment]  on 
 the {ess} or set up a multi-node {es} cluster on your own
 Linux, macOS, or Windows machine.
 
@@ -46,7 +46,7 @@ a three-node {es} cluster along with Kibana and APM.
 
 To create a deployment:
 
-. Sign up for a https://www.elastic.co/cloud/elasticsearch-service/signup[free trial] 
+. Sign up for a {ess-trial}[free trial] 
 and verify your email address.
 . Set a password for your account.
 . Click **Create Deployment**.

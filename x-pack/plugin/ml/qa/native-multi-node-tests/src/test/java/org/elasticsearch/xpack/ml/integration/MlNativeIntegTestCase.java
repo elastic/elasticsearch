@@ -27,18 +27,23 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 
 import java.io.IOException;
@@ -72,7 +77,12 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateMachineLearning.class, Netty4Plugin.class, ReindexPlugin.class);
+        return Arrays.asList(
+            LocalStateMachineLearning.class,
+            Netty4Plugin.class,
+            ReindexPlugin.class,
+            // ILM is required for .ml-state template index settings
+            IndexLifecycle.class);
     }
 
     @Override
@@ -114,6 +124,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         builder.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        builder.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         builder.put(Environment.PATH_HOME_SETTING.getKey(), home);
         builder.put("xpack.security.transport.ssl.enabled", true);
@@ -148,9 +159,17 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             new DeleteExpiredDataAction.Request()).get();
 
         // We need to refresh to ensure the deletion is visible
-        client().admin().indices().prepareRefresh("*").get();
+        refresh("*");
 
         return response;
+    }
+
+    protected PutFilterAction.Response putMlFilter(MlFilter filter) {
+        return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
+    }
+
+    protected GetFiltersAction.Response getMlFilters() {
+        return client().execute(GetFiltersAction.INSTANCE, new GetFiltersAction.Request()).actionGet();
     }
 
     @Override

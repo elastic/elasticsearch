@@ -19,7 +19,7 @@
 package org.elasticsearch.gradle.precommit;
 
 import groovy.lang.Closure;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;
@@ -65,7 +65,7 @@ public class TestingConventionsTasks extends DefaultTask {
     public TestingConventionsTasks() {
         setDescription("Tests various testing conventions");
         // Run only after everything is compiled
-        Boilerplate.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getOutput().getClassesDirs()));
+        GradleUtils.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getOutput().getClassesDirs()));
         naming = getProject().container(TestingConventionRule.class);
     }
 
@@ -81,7 +81,7 @@ public class TestingConventionsTasks extends DefaultTask {
     @Input
     public Map<String, File> getTestClassNames() {
         if (testClassNames == null) {
-            testClassNames = Boilerplate.getJavaSourceSets(getProject())
+            testClassNames = GradleUtils.getJavaSourceSets(getProject())
                 .getByName("test")
                 .getOutput()
                 .getClassesDirs()
@@ -110,7 +110,7 @@ public class TestingConventionsTasks extends DefaultTask {
 
     @Input
     public Set<String> getMainClassNamedLikeTests() {
-        SourceSetContainer javaSourceSets = Boilerplate.getJavaSourceSets(getProject());
+        SourceSetContainer javaSourceSets = GradleUtils.getJavaSourceSets(getProject());
         if (javaSourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME) == null) {
             // some test projects don't have a main source set
             return Collections.emptySet();
@@ -250,7 +250,7 @@ public class TestingConventionsTasks extends DefaultTask {
             Files.write(getSuccessMarker().toPath(), new byte[] {}, StandardOpenOption.CREATE);
         } else {
             getLogger().error(problems);
-            throw new IllegalStateException("Testing conventions are not honored");
+            throw new IllegalStateException(String.format("Testing conventions [%s] are not honored", problems));
         }
     }
 
@@ -351,7 +351,7 @@ public class TestingConventionsTasks extends DefaultTask {
         // running the tests.
         return getProject().files(
             getProject().getConfigurations().getByName("testRuntime").resolve(),
-            Boilerplate.getJavaSourceSets(getProject())
+            GradleUtils.getJavaSourceSets(getProject())
                 .stream()
                 .flatMap(sourceSet -> sourceSet.getOutput().getClassesDirs().getFiles().stream())
                 .collect(Collectors.toList())

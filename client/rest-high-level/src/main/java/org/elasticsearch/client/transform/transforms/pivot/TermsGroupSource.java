@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 
@@ -31,19 +32,23 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class TermsGroupSource extends SingleGroupSource implements ToXContentObject {
 
-    private static final ConstructingObjectParser<TermsGroupSource, Void> PARSER =
-            new ConstructingObjectParser<>("terms_group_source", true, args -> new TermsGroupSource((String) args[0]));
+    private static final ConstructingObjectParser<TermsGroupSource, Void> PARSER = new ConstructingObjectParser<>(
+        "terms_group_source",
+        true,
+        args -> new TermsGroupSource((String) args[0], (Script) args[1])
+    );
 
     static {
         PARSER.declareString(optionalConstructorArg(), FIELD);
+        Script.declareScript(PARSER, optionalConstructorArg(), SCRIPT);
     }
 
     public static TermsGroupSource fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    TermsGroupSource(final String field) {
-        super(field);
+    TermsGroupSource(final String field, final Script script) {
+        super(field, script);
     }
 
     @Override
@@ -54,9 +59,7 @@ public class TermsGroupSource extends SingleGroupSource implements ToXContentObj
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        if (field != null) {
-            builder.field(FIELD.getPreferredName(), field);
-        }
+        super.innerXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -68,6 +71,7 @@ public class TermsGroupSource extends SingleGroupSource implements ToXContentObj
     public static class Builder {
 
         private String field;
+        private Script script;
 
         /**
          * The field with which to construct the date histogram grouping
@@ -79,8 +83,18 @@ public class TermsGroupSource extends SingleGroupSource implements ToXContentObj
             return this;
         }
 
+        /**
+         * The script with which to construct the terms grouping
+         * @param script The script
+         * @return The {@link Builder} with the script set.
+         */
+        public Builder setScript(Script script) {
+            this.script = script;
+            return this;
+        }
+
         public TermsGroupSource build() {
-            return new TermsGroupSource(field);
+            return new TermsGroupSource(field, script);
         }
     }
 }

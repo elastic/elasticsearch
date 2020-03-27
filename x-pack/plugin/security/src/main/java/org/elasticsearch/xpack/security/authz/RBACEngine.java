@@ -32,6 +32,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -44,6 +47,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
@@ -176,7 +180,7 @@ public class RBACEngine implements AuthorizationEngine {
                 return sameUsername;
             } else if (request instanceof GetApiKeyRequest) {
                 GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
-                if (authentication.getAuthenticatedBy().getType().equals(ApiKeyService.API_KEY_REALM_TYPE)) {
+                if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
                     assert authentication.getLookedUpBy() == null : "runAs not supported for api key authentication";
                     // if authenticated by API key then the request must also contain same API key id
                     String authenticatedApiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
@@ -239,17 +243,18 @@ public class RBACEngine implements AuthorizationEngine {
             // need to validate that the action is allowed and then move on
             authorizeIndexActionName(action, authorizationInfo, null, listener);
         } else if (request instanceof IndicesRequest == false && request instanceof IndicesAliasesRequest == false) {
-            // scroll is special
-            // some APIs are indices requests that are not actually associated with indices. For example,
-            // search scroll request, is categorized under the indices context, but doesn't hold indices names
-            // (in this case, the security check on the indices was done on the search request that initialized
-            // the scroll. Given that scroll is implemented using a context on the node holding the shard, we
-            // piggyback on it and enhance the context with the original authentication. This serves as our method
-            // to validate the scroll id only stays with the same user!
-            // note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
-            // indices permission as it's categorized under cluster. This is why the scroll check is performed
-            // even before checking if the user has any indices permission.
             if (isScrollRelatedAction(action)) {
+                // scroll is special
+                // some APIs are indices requests that are not actually associated with indices. For example,
+                // search scroll request, is categorized under the indices context, but doesn't hold indices names
+                // (in this case, the security check on the indices was done on the search request that initialized
+                // the scroll. Given that scroll is implemented using a context on the node holding the shard, we
+                // piggyback on it and enhance the context with the original authentication. This serves as our method
+                // to validate the scroll id only stays with the same user!
+                // note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
+                // indices permission as it's categorized under cluster. This is why the scroll check is performed
+                // even before checking if the user has any indices permission.
+
                 // if the action is a search scroll action, we first authorize that the user can execute the action for some
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
@@ -261,11 +266,22 @@ public class RBACEngine implements AuthorizationEngine {
                     // information such as the index and the incoming address of the request
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
+            } else if (isAsyncSearchRelatedAction(action)) {
+                if (SubmitAsyncSearchAction.NAME.equals(action)) {
+                    // we check if the user has any indices permission when submitting an async-search request in order to be
+                    // able to fail the request early. Fine grained index-level permissions are handled by the search action
+                    // that is triggered internally by the submit API.
+                    authorizeIndexActionName(action, authorizationInfo, null, listener);
+                } else {
+                    // async-search actions other than submit have a custom security layer that checks if the current user is
+                    // the same as the user that submitted the original request so we can skip security here.
+                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                }
             } else {
-                assert false :
-                    "only scroll related requests are known indices api that don't support retrieving the indices they relate to";
-                listener.onFailure(new IllegalStateException("only scroll related requests are known indices api that don't support " +
-                    "retrieving the indices they relate to"));
+                assert false : "only scroll and async-search related requests are known indices api that don't " +
+                    "support retrieving the indices they relate to";
+                listener.onFailure(new IllegalStateException("only scroll and async-search related requests are known indices " +
+                    "api that don't support retrieving the indices they relate to"));
             }
         } else if (request instanceof IndicesRequest &&
             IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request)) {
@@ -527,8 +543,8 @@ public class RBACEngine implements AuthorizationEngine {
         // Ensure that the user is not authenticated with an access token or an API key.
         // Also ensure that the user was authenticated by a realm that we can change a password for. The native realm is an internal realm
         // and right now only one can exist in the realm configuration - if this changes we should update this check
-        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
-        return (authType.equals(Authentication.AuthenticationType.REALM)
+        final AuthenticationType authType = authentication.getAuthenticationType();
+        return (authType.equals(AuthenticationType.REALM)
             && (ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType)));
     }
 
@@ -569,5 +585,11 @@ public class RBACEngine implements AuthorizationEngine {
             action.equals(ClearScrollAction.NAME) ||
             action.equals("indices:data/read/sql/close_cursor") ||
             action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+    }
+
+    private static boolean isAsyncSearchRelatedAction(String action) {
+        return action.equals(SubmitAsyncSearchAction.NAME) ||
+            action.equals(GetAsyncSearchAction.NAME) ||
+            action.equals(DeleteAsyncSearchAction.NAME);
     }
 }

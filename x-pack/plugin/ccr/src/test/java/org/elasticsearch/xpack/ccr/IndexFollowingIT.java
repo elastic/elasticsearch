@@ -605,7 +605,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(1, ByteSizeUnit.BYTES));
+        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 1024), ByteSizeUnit.BYTES));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
@@ -618,7 +618,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
         }
 
-        assertBusy(assertTask(1, firstBatchNumDocsPerShard));
+        assertBusy(assertTask(1, firstBatchNumDocsPerShard), 60, TimeUnit.SECONDS);
         for (int i = 0; i < numDocs; i++) {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
@@ -992,6 +992,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(false));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54204")
     public void testUpdateAnalysisLeaderIndexSettings() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, 0);
         assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));

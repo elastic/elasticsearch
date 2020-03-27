@@ -132,6 +132,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                                                 final HttpTransportOptions httpTransportOptions) {
                 StorageOptions options = super.createStorageOptions(clientSettings, httpTransportOptions);
                 return options.toBuilder()
+                    .setHost(options.getHost())
+                    .setCredentials(options.getCredentials())
                     .setRetrySettings(RetrySettings.newBuilder()
                         .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
                         .setInitialRetryDelay(Duration.ofMillis(10L))
@@ -197,6 +199,35 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         try (InputStream inputStream = blobContainer.readBlob("read_blob_max_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
             assertThat(countDown.isCountedDown(), is(true));
+        }
+    }
+
+    public void testReadLargeBlobWithRetries() throws Exception {
+        final int maxRetries = randomIntBetween(2, 10);
+        final AtomicInteger countDown = new AtomicInteger(maxRetries);
+
+        // SDK reads in 2 MB chunks so we use twice that to simulate 2 chunks
+        final byte[] bytes = randomBytes(1 << 22);
+        httpServer.createContext("/download/storage/v1/b/bucket/o/large_blob_retries", exchange -> {
+            Streams.readFully(exchange.getRequestBody());
+            exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+            final String[] range = exchange.getRequestHeaders().get("Range").get(0).substring("bytes=".length()).split("-");
+            final int offset = Integer.parseInt(range[0]);
+            final int end = Integer.parseInt(range[1]);
+            final byte[] chunk = Arrays.copyOfRange(bytes, offset, Math.min(end + 1, bytes.length));
+            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), chunk.length);
+            if (randomBoolean() && countDown.decrementAndGet() >= 0) {
+                exchange.getResponseBody().write(chunk, 0, chunk.length - 1);
+                exchange.close();
+                return;
+            }
+            exchange.getResponseBody().write(chunk);
+            exchange.close();
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null);
+        try (InputStream inputStream = blobContainer.readBlob("large_blob_retries")) {
+            assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
     }
 
@@ -302,7 +333,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
 
     public void testWriteLargeBlob() throws IOException {
         // See {@link BaseWriteChannel#DEFAULT_CHUNK_SIZE}
-        final int defaultChunkSize = 8 * 256 * 1024;
+        final int defaultChunkSize = 60 * 256 * 1024;
         final int nbChunks = randomIntBetween(3, 5);
         final int lastChunkSize = randomIntBetween(1, defaultChunkSize - 1);
         final int totalChunks = nbChunks + 1;

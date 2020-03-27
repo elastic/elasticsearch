@@ -27,7 +27,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -67,7 +67,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     }
 
     private SortedNumericDocValues loadDocValues(LeafReaderContext context) {
-        final AtomicNumericFieldData data = indexFieldData.load(context);
+        final LeafNumericFieldData data = indexFieldData.load(context);
         SortedNumericDocValues values;
         if (data instanceof SortedNumericDVIndexFieldData.NanoSecondFieldData) {
             values = ((SortedNumericDVIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
@@ -76,7 +76,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         }
         return converter != null ? converter.apply(values) : values;
     }
-    
+
     private NumericDocValues getNumericDocValues(LeafReaderContext context, long missingValue) throws IOException {
         final SortedNumericDocValues values = loadDocValues(context);
         if (nested == null) {
@@ -104,23 +104,29 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format) {
-        return new BucketedSort.ForLongs(bigArrays, sortOrder, format) {
+    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
+            int bucketSize, BucketedSort.ExtraData extra) {
+        return new BucketedSort.ForLongs(bigArrays, sortOrder, format, bucketSize, extra) {
             private final long lMissingValue = (Long) missingObject(missingValue, sortOrder == SortOrder.DESC);
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
-                return new Leaf() {
-                    private final NumericDocValues values = getNumericDocValues(ctx, lMissingValue);
+                return new Leaf(ctx) {
+                    private final NumericDocValues docValues = getNumericDocValues(ctx, lMissingValue);
+                    private long docValue;
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
-                        return values.advanceExact(doc);
+                        if (docValues.advanceExact(doc)) {
+                            docValue = docValues.longValue();
+                            return true;
+                        }
+                        return false;
                     }
 
                     @Override
-                    protected long docValue() throws IOException {
-                        return values.longValue();
+                    protected long docValue() {
+                        return docValue;
                     }
                 };
             }

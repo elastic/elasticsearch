@@ -108,7 +108,8 @@ public class AsyncSearchDocumentationIT extends ESRestHighLevelClientTestCase {
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::asyncsearch-submit-execute-async
-        client.asyncSearch().submitAsync(request, RequestOptions.DEFAULT, listener);  // <1>
+        client.asyncSearch()
+            .submitAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::asyncsearch-submit-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -171,7 +172,8 @@ public class AsyncSearchDocumentationIT extends ESRestHighLevelClientTestCase {
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::asyncsearch-get-execute-async
-        client.asyncSearch().getAsync(request, RequestOptions.DEFAULT, listener);  // <1>
+        client.asyncSearch()
+            .getAsync(request, RequestOptions.DEFAULT, listener);  // <1>
         // end::asyncsearch-get-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -193,8 +195,9 @@ public class AsyncSearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::asyncsearch-delete-request
 
         // tag::asyncsearch-delete-execute
-        AcknowledgedResponse response = client.asyncSearch()
-                .delete(new DeleteAsyncSearchRequest(id), RequestOptions.DEFAULT);  // <1>
+        AcknowledgedResponse response = client.asyncSearch() // <1>
+                .delete(new DeleteAsyncSearchRequest(id),
+                        RequestOptions.DEFAULT);
         // end::asyncsearch-delete-execute
 
         assertNotNull(response);
@@ -225,7 +228,8 @@ public class AsyncSearchDocumentationIT extends ESRestHighLevelClientTestCase {
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::asyncsearch-delete-execute-async
-        client.asyncSearch().deleteAsync(request, RequestOptions.DEFAULT, listener);  // <1>
+        client.asyncSearch()
+            .deleteAsync(request, RequestOptions.DEFAULT, listener);  // <1>
         // end::asyncsearch-delete-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));

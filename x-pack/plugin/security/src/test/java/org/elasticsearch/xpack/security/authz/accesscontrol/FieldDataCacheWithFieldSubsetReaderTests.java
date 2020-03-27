@@ -23,12 +23,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -61,7 +61,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         String name = "_field";
         indexFieldDataCache = new DummyAccountingFieldDataCache();
         sortedSetDVOrdinalsIndexFieldData = new SortedSetDVOrdinalsIndexFieldData(indexSettings,indexFieldDataCache,  name,
-                circuitBreakerService, AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+                circuitBreakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
         pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, name, indexFieldDataCache,
                 circuitBreakerService, TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
@@ -95,7 +95,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
     public void testSortedSetDVOrdinalsIndexFieldData_global() throws Exception {
         assertThat(indexFieldDataCache.topLevelBuilds, equalTo(0));
         IndexOrdinalsFieldData global = sortedSetDVOrdinalsIndexFieldData.loadGlobal(ir);
-        AtomicOrdinalsFieldData atomic = global.load(ir.leaves().get(0));
+        LeafOrdinalsFieldData atomic = global.load(ir.leaves().get(0));
         assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(numDocs));
         assertThat(indexFieldDataCache.topLevelBuilds, equalTo(1));
 
@@ -108,13 +108,13 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
 
     public void testSortedSetDVOrdinalsIndexFieldData_segment() throws Exception {
         for (LeafReaderContext context : ir.leaves()) {
-            AtomicOrdinalsFieldData atomic = sortedSetDVOrdinalsIndexFieldData.load(context);
+            LeafOrdinalsFieldData atomic = sortedSetDVOrdinalsIndexFieldData.load(context);
             assertThat(atomic.getOrdinalsValues().getValueCount(), greaterThanOrEqualTo(1L));
         }
 
         DirectoryReader ir = FieldSubsetReader.wrap(this.ir, new CharacterRunAutomaton(Automata.makeEmpty()));
         for (LeafReaderContext context : ir.leaves()) {
-            AtomicOrdinalsFieldData atomic = sortedSetDVOrdinalsIndexFieldData.load(context);
+            LeafOrdinalsFieldData atomic = sortedSetDVOrdinalsIndexFieldData.load(context);
             assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0L));
         }
         // dv based field data doesn't use index field data cache, so in the end noting should have been added
@@ -124,7 +124,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
     public void testPagedBytesIndexFieldData_global() throws Exception {
         assertThat(indexFieldDataCache.topLevelBuilds, equalTo(0));
         IndexOrdinalsFieldData global = pagedBytesIndexFieldData.loadGlobal(ir);
-        AtomicOrdinalsFieldData atomic = global.load(ir.leaves().get(0));
+        LeafOrdinalsFieldData atomic = global.load(ir.leaves().get(0));
         assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(numDocs));
         assertThat(indexFieldDataCache.topLevelBuilds, equalTo(1));
 
@@ -138,14 +138,14 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
     public void testPagedBytesIndexFieldData_segment() throws Exception {
         assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(0));
         for (LeafReaderContext context : ir.leaves()) {
-            AtomicOrdinalsFieldData atomic = pagedBytesIndexFieldData.load(context);
+            LeafOrdinalsFieldData atomic = pagedBytesIndexFieldData.load(context);
             assertThat(atomic.getOrdinalsValues().getValueCount(), greaterThanOrEqualTo(1L));
         }
         assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(ir.leaves().size()));
 
         DirectoryReader ir = FieldSubsetReader.wrap(this.ir, new CharacterRunAutomaton(Automata.makeEmpty()));
         for (LeafReaderContext context : ir.leaves()) {
-            AtomicOrdinalsFieldData atomic = pagedBytesIndexFieldData.load(context);
+            LeafOrdinalsFieldData atomic = pagedBytesIndexFieldData.load(context);
             assertThat(atomic.getOrdinalsValues().getValueCount(), equalTo(0L));
         }
         assertThat(indexFieldDataCache.leafLevelBuilds, equalTo(ir.leaves().size()));
@@ -168,15 +168,15 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         private int topLevelBuilds = 0;
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData)
+        public <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData)
                 throws Exception {
             leafLevelBuilds++;
             return indexFieldData.loadDirect(context);
         }
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
-                                                                                            IFD indexFieldData) throws Exception {
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
+                                                                                          IFD indexFieldData) throws Exception {
             topLevelBuilds++;
             return (IFD) indexFieldData.localGlobalDirect(indexReader);
         }

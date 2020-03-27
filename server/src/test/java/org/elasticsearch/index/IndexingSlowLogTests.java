@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class IndexingSlowLogTests extends ESTestCase {
@@ -70,6 +71,20 @@ public class IndexingSlowLogTests extends ESTestCase {
         // Turning on document logging logs the whole thing
         p =  IndexingSlowLogMessage.of(index, pd, 10, true, Integer.MAX_VALUE);
         assertThat(p.get("source"), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
+    }
+
+    public void testEmptyRoutingField() throws IOException {
+        BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder()
+                                                                 .startObject().field("foo", "bar").endObject());
+        ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
+            null, null, source, XContentType.JSON, null);
+        Index index = new Index("foo", "123");
+
+        ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
+        assertThat(p.get("routing"), nullValue());
+
+        assertThat(p.asString(), containsString("routing[]"));
     }
 
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {

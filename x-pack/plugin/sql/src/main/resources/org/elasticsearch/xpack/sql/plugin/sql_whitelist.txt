@@ -21,10 +21,6 @@ class java.time.OffsetTime {
 }
 
 class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils {
-}
-
-class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
-
 #
 # Utilities
 # 
@@ -53,7 +49,20 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Boolean not(Boolean)
   Boolean isNull(Object)
   Boolean isNotNull(Object)
+  
+#
+# Regex
+#
+  Boolean regex(String, String)
 
+#
+# Math
+#
+  Number neg(Number)
+  
+}
+
+class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
 #
 # Conditional
 #
@@ -118,7 +127,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Integer weekOfYear(Object, String)
   ZonedDateTime dateAdd(String, Integer, Object, String)
   Integer dateDiff(String, Object, Object, String)
-  ZonedDateTime dateTrunc(String, Object, String)
+  def dateTrunc(String, Object, String)
   Integer datePart(String, Object, String)
   IntervalDayTime intervalDayTime(String, String)
   IntervalYearMonth intervalYearMonth(String, String)

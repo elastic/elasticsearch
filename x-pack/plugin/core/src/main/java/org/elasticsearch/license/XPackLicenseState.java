@@ -402,8 +402,7 @@ public class XPackLicenseState {
     }
 
     /**
-     * @return true if authentication and authorization should be enabled. this does not indicate what realms are available
-     * @see #allowedRealmType() for the enabled realms
+     * @return true if authentication and authorization should be enabled.
      */
     public boolean isAuthAllowed() {
         return isAllowedBySecurityAndLicense(OperationMode.BASIC, false, true);
@@ -438,38 +437,12 @@ public class XPackLicenseState {
         return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, false, true);
     }
 
-    /** Classes of realms that may be available based on the license type. */
-    public enum AllowedRealmType {
-        NONE,
-        NATIVE,
-        DEFAULT,
-        ALL
+    public boolean areAllRealmsAllowed() {
+        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, false, true);
     }
 
-    /**
-     * @return the type of realms that are enabled based on the license {@link OperationMode}
-     */
-    public AllowedRealmType allowedRealmType() {
-        return executeAgainstStatus(status -> {
-            final boolean isSecurityCurrentlyEnabled = isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
-            if (isSecurityCurrentlyEnabled) {
-                switch (status.mode) {
-                    case PLATINUM:
-                    case ENTERPRISE:
-                    case TRIAL:
-                        return AllowedRealmType.ALL;
-                    case GOLD:
-                        return AllowedRealmType.DEFAULT;
-                    case BASIC:
-                    case STANDARD:
-                        return AllowedRealmType.NATIVE;
-                    default:
-                        return AllowedRealmType.NONE;
-                }
-            } else {
-                return AllowedRealmType.NONE;
-            }
-        });
+    public boolean areStandardRealmsAllowed() {
+        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false, true);
     }
 
     public boolean isCustomRoleProvidersAllowed() {
@@ -614,6 +587,16 @@ public class XPackLicenseState {
         return allowForAllLicenses();
     }
 
+
+    /**
+     * Determine if Wildcard support should be enabled.
+     * <p>
+     *  Wildcard is available for all license types except {@link OperationMode#MISSING}
+     */
+    public synchronized boolean isWildcardAllowed() {
+        return status.active;
+    }
+
     public boolean isOdbcAllowed() {
         return isAllowedByLicense(OperationMode.PLATINUM);
     }
@@ -638,22 +621,11 @@ public class XPackLicenseState {
     }
 
     /**
-     * @return true if security has been disabled due it being the default setting for this license type.
-     *  The conditions necessary for this are:
-     *         <ul>
-     *             <li>A trial or basic license</li>
-     *             <li>xpack.security.enabled not specified as a setting</li>
-     *         </ul>
+     * Returns whether security is enabled, taking into account the default enabled state
+     * based on the current license level.
      */
-    public boolean isSecurityDisabledByLicenseDefaults() {
-        return checkAgainstStatus(status -> {
-            switch (status.mode) {
-                case TRIAL:
-                case BASIC:
-                    return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
-            }
-            return false;
-        });
+    public boolean isSecurityEnabled() {
+        return isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
     }
 
     public static boolean isTransportTlsRequired(License license, Settings settings) {

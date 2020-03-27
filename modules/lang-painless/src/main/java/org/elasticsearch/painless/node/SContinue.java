@@ -28,16 +28,15 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 /**
  * Represents a continue statement.
  */
-public final class SContinue extends AStatement {
+public class SContinue extends AStatement {
 
     public SContinue(Location location) {
         super(location);
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         if (input.inLoop == false) {
             throw createError(new IllegalArgumentException("Continue statement outside of a loop."));
@@ -51,16 +50,12 @@ public final class SContinue extends AStatement {
         output.anyContinue = true;
         output.statementCount = 1;
 
-        return output;
-    }
-
-    @Override
-    ContinueNode write(ClassNode classNode) {
         ContinueNode continueNode = new ContinueNode();
-
         continueNode.setLocation(location);
 
-        return continueNode;
+        output.statementNode = continueNode;
+
+        return output;
     }
 
     @Override

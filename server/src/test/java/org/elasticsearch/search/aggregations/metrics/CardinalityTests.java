@@ -20,13 +20,12 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 
 public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggregationBuilder> {
 
     @Override
     protected final CardinalityAggregationBuilder createTestAggregatorBuilder() {
-        CardinalityAggregationBuilder factory = new CardinalityAggregationBuilder(randomAlphaOfLengthBetween(3, 10), null);
+        CardinalityAggregationBuilder factory = new CardinalityAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         String field = randomNumericField();
         randomFieldOrScript(factory, field);
         if (randomBoolean()) {

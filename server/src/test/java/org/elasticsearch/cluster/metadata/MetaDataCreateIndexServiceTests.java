@@ -128,7 +128,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         queryShardContext = new QueryShardContext(0,
             new IndexSettings(IndexMetaData.builder("test").settings(indexSettings).build(), indexSettings),
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> randomNonNegativeLong(), null, null, () -> true);
+            null, null, () -> randomNonNegativeLong(), null, null, () -> true, null);
     }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
@@ -609,41 +609,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("pattern: [.pattern-test*], description: [test-1]"));
             assertThat(exception.getMessage(), containsString("pattern: [.pattern-test-overlapping], description: [test-2]"));
 
-        } finally {
-            testThreadPool.shutdown();
-        }
-    }
-
-    public void testIndexNameExclusionsList() {
-        // this test case should be removed when DOT_INDICES_EXCLUSIONS is empty
-        List<String> excludedNames = Arrays.asList(
-            ".data-frame-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
-            ".transform-notifications-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT)
-        );
-
-        ThreadPool testThreadPool = new TestThreadPool(getTestName());
-        try {
-            MetaDataCreateIndexService checkerService = new MetaDataCreateIndexService(
-                Settings.EMPTY,
-                ClusterServiceUtils.createClusterService(testThreadPool),
-                null,
-                null,
-                null,
-                null,
-                null,
-                testThreadPool,
-                null,
-                Collections.emptyList(),
-                false
-            );
-
-            excludedNames.forEach(name -> {
-                checkerService.validateDotIndex(name, ClusterState.EMPTY_STATE, false);
-            });
-
-            excludedNames.forEach(name -> {
-                expectThrows(AssertionError.class, () -> checkerService.validateDotIndex(name, ClusterState.EMPTY_STATE, true));
-            });
         } finally {
             testThreadPool.shutdown();
         }

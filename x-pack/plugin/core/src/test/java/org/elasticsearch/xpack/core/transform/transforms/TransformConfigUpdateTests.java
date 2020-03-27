@@ -21,9 +21,9 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformConfigUpdateTests extends AbstractSerializingTransformTestCase<TransformConfigUpdate> {
@@ -181,6 +181,11 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
 
         @Override
         public String getWriteableName() {
+            return "foo";
+        }
+
+        @Override
+        public String getField() {
             return "foo";
         }
 

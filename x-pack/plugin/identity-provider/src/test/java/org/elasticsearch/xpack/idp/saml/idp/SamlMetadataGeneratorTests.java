@@ -101,7 +101,6 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         assertValidXml(xml);
     }
 
-
     public void testGenerateAndSignMetadata() throws Exception {
         SamlServiceProvider sp = mock(SamlServiceProvider.class);
         when(sp.getEntityId()).thenReturn("https://sp.org");

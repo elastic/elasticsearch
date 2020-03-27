@@ -83,7 +83,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
             NodesStatsRequest.Metric.SCRIPT.containedIn(metrics),
             NodesStatsRequest.Metric.DISCOVERY.containedIn(metrics),
             NodesStatsRequest.Metric.INGEST.containedIn(metrics),
-            NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics));
+            NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
+            NodesStatsRequest.Metric.SCRIPT_CACHE.containedIn(metrics));
     }
 
     public static class NodeStatsRequest extends BaseNodeRequest {

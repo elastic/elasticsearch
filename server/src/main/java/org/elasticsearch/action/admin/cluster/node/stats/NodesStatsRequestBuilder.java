@@ -150,6 +150,14 @@ public class NodesStatsRequestBuilder
     }
 
     /**
+     * Should script context cache statistics be returned
+     */
+    public NodesStatsRequestBuilder setScriptCache(boolean scriptCache) {
+        addOrRemoveMetric(scriptCache, NodesStatsRequest.Metric.SCRIPT_CACHE);
+        return this;
+    }
+
+    /**
      * Helper method for adding metrics to a request
      */
     private void addOrRemoveMetric(boolean includeMetric, NodesStatsRequest.Metric metric) {

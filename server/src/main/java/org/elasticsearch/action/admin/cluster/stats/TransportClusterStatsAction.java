@@ -27,7 +27,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -45,6 +44,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -139,7 +139,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
     }
 
-    public static class ClusterStatsNodeRequest extends BaseNodeRequest {
+    public static class ClusterStatsNodeRequest extends TransportRequest {
 
         ClusterStatsRequest request;
 

@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +31,7 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
         super(NAME, NodesDeprecationCheckResponse::new);
     }
 
-    public static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends TransportRequest {
 
         NodesDeprecationCheckRequest request;
 

@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.security.action.realm;
 
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -85,7 +85,7 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
         out.writeStringArrayNullable(usernames);
     }
 
-    public static class Node extends BaseNodeRequest {
+    public static class Node extends TransportRequest {
 
         private String[] realms;
         private String[] usernames;

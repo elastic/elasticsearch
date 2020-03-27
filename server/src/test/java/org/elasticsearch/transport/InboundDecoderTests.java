@@ -109,7 +109,7 @@ public class InboundDecoderTests extends ESTestCase {
     public void testDecodePreHeaderSizeVariableInt() throws IOException {
         // TODO: Can delete test on 9.0
         boolean isRequest = randomBoolean();
-        boolean isCompressed = false;
+        boolean isCompressed = randomBoolean();
         String action = "test-request";
         long requestId = randomNonNegativeLong();
         final Version preHeaderVariableInt = Version.V_7_5_0;

@@ -19,41 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Relation;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalOrder;
-import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import static java.util.Map.entry;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -64,16 +30,44 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Map.entry;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 /**
  * A builder for histograms on date fields.
  */
-public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, DateHistogramAggregationBuilder>
+public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<DateHistogramAggregationBuilder>
         implements MultiBucketAggregationBuilder, DateIntervalConsumer {
 
     public static final String NAME = "date_histogram";
-    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS = Map.ofEntries(
             entry("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY),
@@ -93,11 +87,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             entry("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
             entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE));
 
-    private static final ObjectParser<DateHistogramAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<DateHistogramAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, DateHistogramAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(DateHistogramAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true, true);
-
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
         DateIntervalWrapper.declareIntervalFields(PARSER);
 
         PARSER.declareField(DateHistogramAggregationBuilder::offset, p -> {
@@ -119,8 +112,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
                 Histogram.ORDER_FIELD);
     }
 
-    public static DateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new DateHistogramAggregationBuilder(aggregationName), null);
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        DateHistogramAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();
@@ -132,7 +125,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Create a new builder with the given name. */
     public DateHistogramAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.ANY, ValueType.DATE);
+        super(name);
     }
 
     protected DateHistogramAggregationBuilder(DateHistogramAggregationBuilder clone,
@@ -153,7 +146,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY, ValueType.DATE);
+        super(in);
         order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
@@ -163,9 +156,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceType resolveScriptAny(Script script) {
-        // TODO: No idea how we'd support Range scripts here.
-        return CoreValuesSourceType.NUMERIC;
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.DATE;
     }
 
 
@@ -287,7 +279,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     /**
-     * Parse the string specification of an offset. 
+     * Parse the string specification of an offset.
      */
     public static long parseStringOffset(String offset) {
         if (offset.charAt(0) == '-') {
@@ -458,7 +450,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         Instant instant = null;
         final IndexNumericFieldData fieldData = context.getForField(ft);
         for (LeafReaderContext ctx : reader.leaves()) {
-            AtomicNumericFieldData leafFD = fieldData.load(ctx);
+            LeafNumericFieldData leafFD = fieldData.load(ctx);
             SortedNumericDocValues values = leafFD.getLongValues();
             if (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 instant = Instant.ofEpochMilli(values.nextValue());
@@ -521,10 +513,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                        ValuesSourceConfig<ValuesSource> config,
-                                                                        AggregatorFactory parent,
-                                                                        Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
         final ZoneId rewrittenTimeZone = rewriteTimeZone(queryShardContext);

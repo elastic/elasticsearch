@@ -28,6 +28,8 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,24 +38,21 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
 /**
  * Represents and object instantiation.
  */
-public final class ENewObj extends AExpression {
+public class ENewObj extends AExpression {
 
-    private final String type;
-    private final List<AExpression> arguments;
-
-    private PainlessConstructor constructor;
+    protected final String type;
+    protected final List<AExpression> arguments;
 
     public ENewObj(Location location, String type, List<AExpression> arguments) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
-        this.arguments = Objects.requireNonNull(arguments);
+        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
@@ -61,7 +60,7 @@ public final class ENewObj extends AExpression {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, arguments.size());
+        PainlessConstructor constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, arguments.size());
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
@@ -79,27 +78,25 @@ public final class ENewObj extends AExpression {
                     "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + arguments.size() + "]."));
         }
 
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
+        List<Output> argumentOutputs = new ArrayList<>();
+
+        for (int i = 0; i < arguments.size(); ++i) {
+            AExpression expression = arguments.get(i);
 
             Input expressionInput = new Input();
-            expressionInput.expected = types[argument];
+            expressionInput.expected = types[i];
             expressionInput.internal = true;
-            expression.analyze(scriptRoot, scope, expressionInput);
-            expression.cast();
+            Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            expression.cast(expressionInput, expressionOutput);
+            argumentOutputs.add(expressionOutput);
         }
 
         output.statement = true;
 
-        return output;
-    }
-
-    @Override
-    NewObjectNode write(ClassNode classNode) {
         NewObjectNode newObjectNode = new NewObjectNode();
 
-        for (AExpression argument : arguments) {
-            newObjectNode.addArgumentNode(argument.cast(argument.write(classNode)));
+        for (int i = 0; i < arguments.size(); ++ i) {
+            newObjectNode.addArgumentNode(arguments.get(i).cast(argumentOutputs.get(i)));
         }
 
         newObjectNode.setLocation(location);
@@ -107,7 +104,9 @@ public final class ENewObj extends AExpression {
         newObjectNode.setRead(input.read);
         newObjectNode.setConstructor(constructor);
 
-        return newObjectNode;
+        output.expressionNode = newObjectNode;
+
+        return output;
     }
 
     @Override

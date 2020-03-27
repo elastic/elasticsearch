@@ -73,6 +73,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return Node.NODE_INGEST_SETTING.get(settings);
     }
 
+    public static boolean isRemoteClusterClient(final Settings settings) {
+        return Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
+    }
+
     private final String nodeName;
     private final String nodeId;
     private final String ephemeralId;
@@ -281,7 +285,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         } else {
             // an old node will only understand legacy roles since pluggable roles is a new concept
             final List<DiscoveryNodeRole> rolesToWrite =
-                    roles.stream().filter(DiscoveryNodeRole.BUILT_IN_ROLES::contains).collect(Collectors.toUnmodifiableList());
+                    roles.stream().filter(DiscoveryNodeRole.LEGACY_ROLES::contains).collect(Collectors.toUnmodifiableList());
             out.writeVInt(rolesToWrite.size());
             for (final DiscoveryNodeRole role : rolesToWrite) {
                 if (role == DiscoveryNodeRole.MASTER_ROLE) {
@@ -354,6 +358,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public boolean isIngestNode() {
         return roles.contains(DiscoveryNodeRole.INGEST_ROLE);
+    }
+
+    /**
+     * Returns whether or not the node can be a remote cluster client.
+     *
+     * @return true if the node can be a remote cluster client, false otherwise
+     */
+    public boolean isRemoteClusterClient() {
+        return roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
     }
 
     /**

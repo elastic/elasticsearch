@@ -26,30 +26,33 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a method call.
  */
-final class PSubCallInvoke extends AExpression {
+public class PSubCallInvoke extends AExpression {
 
-    private final PainlessMethod method;
-    private final Class<?> box;
-    private final List<AExpression> arguments;
+    protected final PainlessMethod method;
+    protected final Class<?> box;
+    protected final List<AExpression> arguments;
 
     PSubCallInvoke(Location location, PainlessMethod method, Class<?> box, List<AExpression> arguments) {
         super(location);
 
         this.method = Objects.requireNonNull(method);
         this.box = box;
-        this.arguments = Objects.requireNonNull(arguments);
+        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
+        List<Output> argumentOutputs = new ArrayList<>();
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
@@ -57,22 +60,18 @@ final class PSubCallInvoke extends AExpression {
             Input expressionInput = new Input();
             expressionInput.expected = method.typeParameters.get(argument);
             expressionInput.internal = true;
-            expression.analyze(scriptRoot, scope, expressionInput);
-            expression.cast();
+            Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            expression.cast(expressionInput, expressionOutput);
+            argumentOutputs.add(expressionOutput);
         }
 
         output.statement = true;
         output.actual = method.returnType;
 
-        return output;
-    }
-
-    @Override
-    CallSubNode write(ClassNode classNode) {
         CallSubNode callSubNode = new CallSubNode();
 
-        for (AExpression argument : arguments) {
-            callSubNode.addArgumentNode(argument.cast(argument.write(classNode)));
+        for (int argument = 0; argument < arguments.size(); ++ argument) {
+            callSubNode.addArgumentNode(arguments.get(argument).cast(argumentOutputs.get(argument)));
         }
 
         callSubNode.setLocation(location);
@@ -80,7 +79,9 @@ final class PSubCallInvoke extends AExpression {
         callSubNode.setMethod(method);
         callSubNode .setBox(box);
 
-        return callSubNode;
+        output.expressionNode = callSubNode;
+
+        return output;
     }
 
     @Override

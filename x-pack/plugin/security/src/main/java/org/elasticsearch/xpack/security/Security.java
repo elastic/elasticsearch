@@ -1088,7 +1088,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return List.of(
             new SystemIndexDescriptor(SECURITY_MAIN_ALIAS, "Contains Security configuration"),
             new SystemIndexDescriptor(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, "Contains Security configuration"),

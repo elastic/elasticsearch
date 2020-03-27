@@ -132,7 +132,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             response -> {
                 addDataFrameAnalyticsUsage(response, analyticsUsage);
                 String[] ingestNodes = ingestNodes(state);
-                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear().ingest(true);
+                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
+                    .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
                 client.execute(NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
             },
             listener::onFailure

@@ -80,8 +80,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
     public static final Setting<Boolean> SNAPSHOT_CACHE_ENABLED_SETTING =
         Setting.boolSetting("index.store.snapshot.cache.enabled", true, Setting.Property.IndexScope);
     // The file extensions that are blacklisted from the cache
-    public static final Setting<List<String>> SNAPSHOT_CACHE_BLACKLIST_SETTING =
-        Setting.listSetting("index.store.snapshot.cache.blacklist", Collections.emptyList(), Function.identity(),
+    public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING =
+        Setting.listSetting("index.store.snapshot.cache.excluded_file_types", Collections.emptyList(), Function.identity(),
             Setting.Property.IndexScope, Setting.Property.NodeScope);
     public static final Setting<ByteSizeValue> SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING =
         Setting.byteSizeSetting("index.store.snapshot.uncached_chunk_size", new ByteSizeValue(-1, ByteSizeUnit.BYTES),
@@ -106,7 +106,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
             SNAPSHOT_SNAPSHOT_ID_SETTING,
             SNAPSHOT_INDEX_ID_SETTING,
             SNAPSHOT_CACHE_ENABLED_SETTING,
-            SNAPSHOT_CACHE_BLACKLIST_SETTING,
+            SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING

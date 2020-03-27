@@ -45,7 +45,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_BLACKLIST_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
@@ -75,7 +75,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final Map<String, IndexInputStats> stats;
     private final CacheService cacheService;
     private final boolean useCache;
-    private final Set<String> blacklistedFileExtensions;
+    private final Set<String> excludedFileTypes;
     private final long uncachedChunkSize;
     private final Path cacheDir;
     private final AtomicBoolean closed;
@@ -103,7 +103,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.cacheDir = Objects.requireNonNull(cacheDir);
         this.closed = new AtomicBoolean(false);
         this.useCache = SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings);
-        this.blacklistedFileExtensions = new HashSet<>(SNAPSHOT_CACHE_BLACKLIST_SETTING.get(indexSettings));
+        this.excludedFileTypes = new HashSet<>(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.get(indexSettings));
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes() < 0 ?
             blobContainer.readBlobPreferredLength() :
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
@@ -233,16 +233,16 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         ensureOpen();
         final BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfo(name);
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
-        if (useCache && isBlackListedFromCache(name) == false) {
+        if (useCache && isExcludedFromCache(name) == false) {
             return new CacheBufferedIndexInput(this, fileInfo, context, inputStats);
         } else {
             return new SearchableSnapshotIndexInput(blobContainer, fileInfo, context, uncachedChunkSize, BufferedIndexInput.BUFFER_SIZE);
         }
     }
 
-    private boolean isBlackListedFromCache(String name) {
+    private boolean isExcludedFromCache(String name) {
         final String ext = IndexFileNames.getExtension(name);
-        return ext != null && blacklistedFileExtensions.contains(ext);
+        return ext != null && excludedFileTypes.contains(ext);
     }
 
     @Override

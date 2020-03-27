@@ -129,7 +129,7 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         final List<String> nonCachedExtensions;
         if (randomBoolean()) {
             nonCachedExtensions = randomSubsetOf(Arrays.asList("fdt", "fdx", "nvd", "dvd", "tip", "cfs", "dim"));
-            indexSettingsBuilder.putList(SearchableSnapshots.SNAPSHOT_CACHE_BLACKLIST_SETTING.getKey(), nonCachedExtensions);
+            indexSettingsBuilder.putList(SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), nonCachedExtensions);
         } else {
             nonCachedExtensions = Collections.emptyList();
         }
@@ -166,7 +166,7 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
                 for (SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : stats.getStats()) {
                     for (String ext : nonCachedExtensions) {
                         if (indexInputStats.getFileName().endsWith(ext)) {
-                            assertFalse(indexInputStats.getFileName(), indexInputStats.getOpenCount() > 0);
+                            assertEquals(indexInputStats.getFileName(), 0, indexInputStats.getOpenCount());
                         }
                     }
                 }

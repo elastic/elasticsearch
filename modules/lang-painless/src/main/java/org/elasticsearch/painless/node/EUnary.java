@@ -100,9 +100,4 @@ public class EUnary extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(operation.symbol, child);
-    }
 }

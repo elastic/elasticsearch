@@ -16,26 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.transport;
 
-package org.elasticsearch.common.compress;
-
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public interface Compressor {
+public class TestResponse extends TransportResponse {
 
-    boolean isCompressed(BytesReference bytes);
+    String value;
 
-    int headerLength();
+    public TestResponse(String value) {
+        this.value = value;
+    }
 
-    StreamInput streamInput(StreamInput in) throws IOException;
+    public TestResponse(StreamInput in) throws IOException {
+        super(in);
+        this.value = in.readString();
+    }
 
-    /**
-     * Creates a new stream output that compresses the contents and writes to the provided stream
-     * output. Closing the returned {@link StreamOutput} will close the provided stream output.
-     */
-    StreamOutput streamOutput(StreamOutput out) throws IOException;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(value);
+    }
 }

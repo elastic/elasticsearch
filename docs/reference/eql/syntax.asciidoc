@@ -295,3 +295,49 @@ dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
 to convert data types, perform math, manipulate strings, and more.
 
 For a list of supported functions, see <<eql-function-ref>>.
+
+[TIP]
+====
+Using functions in EQL queries can result in slower search speeds. If you
+often use functions to transform indexed data, you can speed up search by making
+these changes during indexing instead. However, that often means slower index
+speeds.
+
+.*Example*
+[%collapsible]
+=====
+An index contains the `file.path` field. `file.path` contains the full path to a
+file, including the file extension.
+
+When running EQL searches, users often use the `endsWith` function with the
+`file.path` field to match file extensions:
+
+[source,eql]
+----
+file where endsWith(file.path,".exe") or endsWith(file.path,".dll")
+----
+
+While this works, it can be repetitive to write and can slow search speeds. To
+speed up search, you can do the following instead:
+
+. <<indices-put-mapping,Add a new field>>, `file.extension`, to the index. The
+  `file.extension` field will contain only the file extension from the
+  `file.path` field.
+. Use an <<ingest,ingest pipeline>> containing the <<grok-processor,`grok`>>
+  processor or another preprocessor tool to extract the file extension from the
+  `file.path` field before indexing.
+. Index the extracted file extension to the `file.extension` field.
+
+These changes may slow indexing but allow for faster searches. Users
+can use the `file.extension` field instead of multiple `endsWith` function
+calls:
+
+[source,eql]
+----
+file where file.extension in ("exe", "dll")
+----
+=====
+
+We recommend testing and benchmarking any indexing changes before deploying them
+in production. See <<tune-for-indexing-speed>> and <<tune-for-search-speed>>.
+====

@@ -45,6 +45,7 @@ apply from: 'gradle/build-scan.gradle'
 apply from: 'gradle/build-complete.gradle'
 apply from: 'gradle/runtime-jdk-provision.gradle'
 apply from: 'gradle/ide.gradle'
+apply from: 'gradle/formatting.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -62,8 +63,6 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
   licenseCommit = "v${version}"
 }
 String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
-
-apply from: 'gradle/formatting.gradle'
 
 subprojects {
   // Default to the apache license

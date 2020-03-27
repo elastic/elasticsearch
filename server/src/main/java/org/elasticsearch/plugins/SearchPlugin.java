@@ -42,6 +42,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.rescore.Rescorer;
@@ -55,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -110,6 +112,13 @@ public interface SearchPlugin {
      * The new {@link Aggregation}s added by this plugin.
      */
     default List<AggregationSpec> getAggregations() {
+        return emptyList();
+    }
+    /**
+     * Allows plugins to register new aggregations using aggregation names that are already defined
+     * in Core, as long as the new aggregations target different ValuesSourceTypes
+     */
+    default List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
         return emptyList();
     }
     /**
@@ -251,6 +260,7 @@ public interface SearchPlugin {
      */
     class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, ContextParser<String, ? extends AggregationBuilder>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
+        private Consumer<ValuesSourceRegistry> aggregatorRegistrar;
 
         /**
          * Specification for an {@link Aggregation}.
@@ -332,6 +342,23 @@ public interface SearchPlugin {
          */
         public Map<String, Writeable.Reader<? extends InternalAggregation>> getResultReaders() {
             return resultReaders;
+        }
+
+        /**
+         * Get the function to register the {@link org.elasticsearch.search.aggregations.support.ValuesSource} to aggregator mappings for
+         * this aggregation
+         */
+        public Consumer<ValuesSourceRegistry> getAggregatorRegistrar() {
+            return aggregatorRegistrar;
+        }
+
+        /**
+         * Set the function to register the {@link org.elasticsearch.search.aggregations.support.ValuesSource} to aggregator mappings for
+         * this aggregation
+         */
+        public AggregationSpec setAggregatorRegistrar(Consumer<ValuesSourceRegistry> aggregatorRegistrar) {
+            this.aggregatorRegistrar = aggregatorRegistrar;
+            return this;
         }
     }
 

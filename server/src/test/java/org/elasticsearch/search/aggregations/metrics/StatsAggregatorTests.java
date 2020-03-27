@@ -72,6 +72,8 @@ public class StatsAggregatorTests extends AggregatorTestCase {
     private static final String VALUE_SCRIPT_NAME = "value_script";
     private static final String FIELD_SCRIPT_NAME = "field_script";
 
+    // TODO: Script tests, should fail with defaultValuesSourceType disabled.
+
     public void testEmpty() throws IOException {
         final MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
         ft.setName("field");

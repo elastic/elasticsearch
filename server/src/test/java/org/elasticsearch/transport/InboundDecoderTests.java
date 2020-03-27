@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class InboundDecoderTests extends ESTestCase {
 
@@ -110,7 +109,7 @@ public class InboundDecoderTests extends ESTestCase {
     public void testDecodePreHeaderSizeVariableInt() throws IOException {
         // TODO: Can delete test on 9.0
         boolean isRequest = randomBoolean();
-        boolean isCompressed = randomBoolean();
+        boolean isCompressed = false;
         String action = "test-request";
         long requestId = randomNonNegativeLong();
         final Version preHeaderVariableInt = Version.V_7_5_0;
@@ -147,20 +146,12 @@ public class InboundDecoderTests extends ESTestCase {
         assertTrue(header.needsToReadVariableHeader());
         fragments.clear();
 
-        final BytesReference bytes2 = totalBytes.slice(bytesConsumed, 2);
+        final BytesReference bytes2 = totalBytes.slice(bytesConsumed, totalBytes.length() - bytesConsumed);
         final ReleasableBytesReference releasable2 = ReleasableBytesReference.wrap(bytes2);
         int bytesConsumed2 = decoder.decode(releasable2, fragments::add);
-        assertEquals(0, fragments.size());
-        assertEquals(2, bytesConsumed2);
-
-        final BytesReference bytes3 = totalBytes.slice(bytesConsumed + 2, totalBytes.length() - bytesConsumed - bytesConsumed2);
-        final ReleasableBytesReference releasable3 = ReleasableBytesReference.wrap(bytes3);
-        int bytesConsumed3 = decoder.decode(releasable3, fragments::add);
-        assertEquals(totalBytes.length() - bytesConsumed - bytesConsumed2, bytesConsumed3);
-
-        final Object exception = fragments.get(0);
-
-        assertThat(exception, instanceOf(IllegalStateException.class));
+        assertEquals(2, fragments.size());
+        assertEquals(InboundDecoder.END_CONTENT, fragments.get(fragments.size() - 1));
+        assertEquals(totalBytes.length() - bytesConsumed, bytesConsumed2);
     }
 
     public void testDecodeHandshakeCompatibility() throws IOException {

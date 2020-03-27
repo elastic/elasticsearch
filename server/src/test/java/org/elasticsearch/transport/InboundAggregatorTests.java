@@ -140,6 +140,7 @@ public class InboundAggregatorTests extends ESTestCase {
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             threadContext.writeTo(streamOutput);
+            streamOutput.writeStringArray(new String[0]);
             streamOutput.writeString("action_name");
             streamOutput.write(randomByteArrayOfLength(10));
 

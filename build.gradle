@@ -118,6 +118,9 @@ subprojects {
       ':distribution:tools:plugin-cli',
       ':qa:os',
       ':qa:wildfly',
+      ':qa:die-with-dignity',
+      ':qa:logging-config',
+      ':qa:evil-tests',
       ':x-pack:plugin:autoscaling',
       ':x-pack:plugin:enrich',
       ':x-pack:plugin:logstash'

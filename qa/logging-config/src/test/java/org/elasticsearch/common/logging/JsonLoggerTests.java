@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * This test confirms JSON log structure is properly formatted and can be parsed.
- * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>
+ * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>.
  * When running from IDE set -Dtests.security.manager=false
  */
 public class JsonLoggerTests extends ESTestCase {
@@ -72,8 +72,7 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     @Override
-    public void setUp() throws Exception
-    {
+    public void setUp() throws Exception {
         super.setUp();
         LogConfigurator.registerErrorListener();
         setupLogging("json_layout");
@@ -465,11 +464,9 @@ public class JsonLoggerTests extends ESTestCase {
 
             @Override
             protected Boolean featureValueOf(JsonLogLine actual) {
-                boolean value = true;
-                for (Map.Entry<Function<JsonLogLine,Object>, Object> supplierObjectEntry : map.entrySet()) {
-                    value &= Objects.equals(supplierObjectEntry.getKey().apply(actual), supplierObjectEntry.getValue());
-                }
-                return value;
+                return map.entrySet()
+                    .stream()
+                    .allMatch(entry -> Objects.equals(entry.getKey().apply(actual), entry.getValue()));
             }
         };
     }

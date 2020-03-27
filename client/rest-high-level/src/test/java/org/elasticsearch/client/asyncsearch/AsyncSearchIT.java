@@ -36,7 +36,7 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
         SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(sourceBuilder, index);
-        submitRequest.setCleanOnCompletion(false);
+        submitRequest.setKeepOnCompletion(true);
         AsyncSearchResponse submitResponse = highLevelClient().asyncSearch().submit(submitRequest, RequestOptions.DEFAULT);
         assertNotNull(submitResponse.getId());
         assertFalse(submitResponse.isPartial());

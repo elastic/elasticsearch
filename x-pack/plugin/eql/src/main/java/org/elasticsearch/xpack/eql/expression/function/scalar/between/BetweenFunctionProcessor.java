@@ -66,14 +66,8 @@ public class BetweenFunctionProcessor implements Processor {
         String str = source.toString();
         String strRight = right.toString();
         String strLeft = left.toString();
-        boolean bGreedy = false;
-        if (greedy != null) {
-            bGreedy = ((Boolean) greedy).booleanValue();
-        }
-        boolean bCaseSensitive = false;
-        if (greedy != null) {
-            bCaseSensitive = ((Boolean) caseSensitive).booleanValue();
-        }
+        boolean bGreedy = (greedy == null) ? false : ((Boolean) greedy).booleanValue();
+        boolean bCaseSensitive = (caseSensitive == null) ? false : ((Boolean) caseSensitive).booleanValue();
         return BetweenUtils.between(str, strLeft, strRight, bGreedy, bCaseSensitive);
     }
 

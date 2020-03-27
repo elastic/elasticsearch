@@ -6,38 +6,23 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.between;
 
-import org.elasticsearch.test.ESTestCase;
-
-import java.util.concurrent.Callable;
+import org.apache.directory.api.util.Strings;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BetweenUtilsTests extends ESTestCase {
-
-    protected static final int NUMBER_OF_TEST_RUNS = 20;
-
-    private static void run(Callable<Void> callable) throws Exception {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            callable.call();
-        }
-    }
-
+public class BetweenUtilsTests extends BetweenBaseTestCase {
     public void testNullOrEmptyString() throws Exception {
         run(() -> {
-            String string = randomBoolean() ? null : "";
             String left = randomAlphaOfLength(10);
             String right = randomAlphaOfLength(10);
             boolean greedy = randomBoolean();
             boolean caseSensitive = randomBoolean();
-            if (string == null) {
-                assertNull(BetweenUtils.between(string, left, right, greedy, caseSensitive));
-            } else {
-                assertThat(BetweenUtils.between(string, left, right, greedy, caseSensitive), equalTo(string));
-            }
+
+            String string = randomBoolean() ? null : Strings.EMPTY_STRING;
+            assertThat(BetweenUtils.between(string, left, right, greedy, caseSensitive), equalTo(string));
             return null;
         });
     }
-
 
     public void testEmptyNullLeftRight() throws Exception {
         run(() -> {
@@ -51,9 +36,8 @@ public class BetweenUtilsTests extends ESTestCase {
         });
     }
 
-
     // Test from EQL doc https://eql.readthedocs.io/en/latest/query-guide/functions.html
-    public void testBasicEQLExamples() throws Exception {
+    public void testBasicEQLExamples() {
         assertThat(BetweenUtils.between("welcome to event query language", " ", " ", false, false),
                 equalTo("to"));
         assertThat(BetweenUtils.between("welcome to event query language", " ", " ", true, false),

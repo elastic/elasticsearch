@@ -40,7 +40,7 @@ public class Between extends ScalarFunction implements OptionalArgument {
     private final Expression source, left, right, greedy, caseSensitive;
 
     public Between(Source source, Expression src, Expression left, Expression right, Expression greedy, Expression caseSensitive) {
-        super(source, Arrays.asList(src, left, right, toDefault(source, greedy), toDefault(source, caseSensitive)));
+        super(source, Arrays.asList(src, left, right, toDefault(greedy), toDefault(caseSensitive)));
         this.source = src;
         this.left = left;
         this.right = right;
@@ -48,7 +48,7 @@ public class Between extends ScalarFunction implements OptionalArgument {
         this.caseSensitive = arguments().get(4);
     }
 
-    private static Expression toDefault(Source source, Expression exp) {
+    private static Expression toDefault(Expression exp) {
         return exp != null ? exp : Literal.FALSE;
     }
 

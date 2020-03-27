@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteRollupJobAction extends BaseRestHandler {
@@ -25,7 +24,7 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(DELETE, "/_rollup/job/{id}"));
+        return List.of(new Route(DELETE, "/_rollup/job/{id}"));
     }
 
     @Override

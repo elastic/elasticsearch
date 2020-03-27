@@ -177,11 +177,13 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         Optional<SequenceNumbers.CommitInfo> safeCommit = shard.store().findSafeIndexCommit(globalCheckpoint);
         assertTrue(safeCommit.isPresent());
         int expectedTotalLocal = 0;
-        try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot(safeCommit.get().localCheckpoint + 1, globalCheckpoint)) {
-            Translog.Operation op;
-            while ((op = snapshot.next()) != null) {
-                if (op.seqNo() <= globalCheckpoint) {
-                    expectedTotalLocal++;
+        if (safeCommit.get().localCheckpoint < globalCheckpoint) {
+            try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot(safeCommit.get().localCheckpoint + 1, globalCheckpoint)) {
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    if (op.seqNo() <= globalCheckpoint) {
+                        expectedTotalLocal++;
+                    }
                 }
             }
         }

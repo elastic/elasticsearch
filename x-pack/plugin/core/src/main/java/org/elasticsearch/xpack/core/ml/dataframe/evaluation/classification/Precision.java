@@ -30,14 +30,13 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -58,16 +57,11 @@ public class Precision implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("precision");
 
-    private static final String PAINLESS_TEMPLATE = "doc[''{0}''].value == doc[''{1}''].value";
     private static final String AGG_NAME_PREFIX = "classification_precision_";
     static final String ACTUAL_CLASSES_NAMES_AGG_NAME = AGG_NAME_PREFIX + "by_actual_class";
     static final String BY_PREDICTED_CLASS_AGG_NAME = AGG_NAME_PREFIX + "by_predicted_class";
     static final String PER_PREDICTED_CLASS_PRECISION_AGG_NAME = AGG_NAME_PREFIX + "per_predicted_class_precision";
     static final String AVG_PRECISION_AGG_NAME = AGG_NAME_PREFIX + "avg_precision";
-
-    private static Script buildScript(Object...args) {
-        return new Script(new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args));
-    }
 
     private static final ObjectParser<Precision, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Precision::new);
 
@@ -96,7 +90,9 @@ public class Precision implements EvaluationMetric {
     }
 
     @Override
-    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
+    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
+                                                                                        String actualField,
+                                                                                        String predictedField) {
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
         this.actualField.trySet(actualField);
         if (topActualClassNames.get() == null) {  // This is step 1
@@ -111,9 +107,9 @@ public class Precision implements EvaluationMetric {
         if (result.get() == null) {  // This is step 2
             KeyedFilter[] keyedFiltersPredicted =
                 topActualClassNames.get().stream()
-                    .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
+                    .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(predictedField, className).lenient(true)))
                     .toArray(KeyedFilter[]::new);
-            Script script = buildScript(actualField, predictedField);
+            Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
             return Tuple.tuple(
                 List.of(
                     AggregationBuilders.filters(BY_PREDICTED_CLASS_AGG_NAME, keyedFiltersPredicted)

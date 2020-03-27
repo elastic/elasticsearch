@@ -46,11 +46,12 @@ public class SearchIndexNameMatcher implements Predicate<String> {
      */
     public SearchIndexNameMatcher(String indexName,
                                   String clusterAlias,
-                                  ClusterService clusterService) {
+                                  ClusterService clusterService,
+                                  IndexNameExpressionResolver expressionResolver) {
         this.indexName = indexName;
         this.clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) ? null : clusterAlias;
         this.clusterService = clusterService;
-        this.expressionResolver = new IndexNameExpressionResolver();
+        this.expressionResolver = expressionResolver;
     }
 
     /**

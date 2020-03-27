@@ -49,8 +49,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -77,11 +75,11 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_search"),
             new Route(POST, "/_search"),
             new Route(GET, "/{index}/_search"),
-            new Route(POST, "/{index}/_search")));
+            new Route(POST, "/{index}/_search"));
     }
 
     @Override
@@ -130,7 +128,9 @@ public class RestSearchAction extends BaseRestHandler {
 
         final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
         searchRequest.setBatchedReduceSize(batchedReduceSize);
-        searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", searchRequest.getPreFilterShardSize()));
+        if (request.hasParam("pre_filter_shard_size")) {
+            searchRequest.setPreFilterShardSize(request.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE));
+        }
 
         if (request.hasParam("max_concurrent_shard_requests")) {
             // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
@@ -156,7 +156,7 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.searchType(searchType);
         }
         parseSearchSource(searchRequest.source(), request, setSize);
-        searchRequest.requestCache(request.paramAsBoolean("request_cache", null));
+        searchRequest.requestCache(request.paramAsBoolean("request_cache", searchRequest.requestCache()));
 
         String scroll = request.param("scroll");
         if (scroll != null) {
@@ -166,7 +166,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-        searchRequest.setCcsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", true));
+        searchRequest.setCcsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips()));
 
         checkRestTotalHits(request, searchRequest);
     }

@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -30,9 +28,6 @@ public class RestFlushJobAction extends BaseRestHandler {
     private static final String DEFAULT_ADVANCE_TIME = "";
     private static final String DEFAULT_SKIP_TIME = "";
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestFlushJobAction.class));
-
     @Override
     public List<Route> routes() {
         return Collections.emptyList();
@@ -43,8 +38,7 @@ public class RestFlushJobAction extends BaseRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
             new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush",
-                deprecationLogger)
+                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush")
         );
     }
 

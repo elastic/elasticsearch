@@ -25,6 +25,8 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -44,12 +46,16 @@ public class ScriptRoot {
 
     protected boolean deterministic = true;
     protected Set<String> usedVariables = Collections.emptySet();
+    protected Map<String, Object> staticConstants = new HashMap<>();
 
     public ScriptRoot(PainlessLookup painlessLookup, CompilerSettings compilerSettings, ScriptClassInfo scriptClassInfo, SClass classRoot) {
         this.painlessLookup = Objects.requireNonNull(painlessLookup);
         this.compilerSettings = Objects.requireNonNull(compilerSettings);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
         this.classNode = Objects.requireNonNull(classRoot);
+
+        staticConstants.put("$DEFINITION", painlessLookup);
+        staticConstants.put("$FUNCTIONS", functionTable);
     }
 
     public PainlessLookup getPainlessLookup() {
@@ -92,6 +98,14 @@ public class ScriptRoot {
     }
 
     public Set<String> getUsedVariables() {
-        return usedVariables;
+        return Collections.unmodifiableSet(usedVariables);
+    }
+
+    public void addStaticConstant(String name, Object constant) {
+        staticConstants.put(name, constant);
+    }
+
+    public Map<String, Object> getStaticConstants() {
+        return Collections.unmodifiableMap(staticConstants);
     }
 }

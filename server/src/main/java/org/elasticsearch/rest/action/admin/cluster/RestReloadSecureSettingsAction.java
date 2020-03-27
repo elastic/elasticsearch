@@ -39,8 +39,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestReloadSecureSettingsAction extends BaseRestHandler {
@@ -60,9 +58,9 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_nodes/reload_secure_settings"),
-            new Route(POST, "/_nodes/{nodeId}/reload_secure_settings")));
+            new Route(POST, "/_nodes/{nodeId}/reload_secure_settings"));
     }
 
     @Override

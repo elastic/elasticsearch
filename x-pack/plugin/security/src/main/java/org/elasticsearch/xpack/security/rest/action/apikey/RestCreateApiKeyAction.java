@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -39,9 +37,9 @@ public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/_security/api_key"),
-            new Route(PUT, "/_security/api_key")));
+            new Route(PUT, "/_security/api_key"));
     }
 
     @Override

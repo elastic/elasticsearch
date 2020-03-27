@@ -87,9 +87,9 @@ public abstract class Scope {
     public static class FunctionScope extends Scope {
 
         protected final Class<?> returnType;
-        protected final Set<String> usedVariables = new HashSet<>();
 
         public FunctionScope(Class<?> returnType) {
+            super(new HashSet<>());
             this.returnType = Objects.requireNonNull(returnType);
         }
 
@@ -128,10 +128,6 @@ public abstract class Scope {
         public String getReturnCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(returnType);
         }
-
-        public Set<String> getUsedVariables() {
-            return Collections.unmodifiableSet(usedVariables);
-        }
     }
 
     /**
@@ -150,6 +146,7 @@ public abstract class Scope {
         protected final Set<Variable> captures = new HashSet<>();
 
         protected LambdaScope(Scope parent, Class<?> returnType) {
+            super(parent.usedVariables);
             this.parent = parent;
             this.returnType = returnType;
         }
@@ -180,6 +177,8 @@ public abstract class Scope {
                 variable = parent.getVariable(location, name);
                 variable = new Variable(variable.getType(), variable.getName(), true);
                 captures.add(variable);
+            } else {
+                usedVariables.add(name);
             }
 
             return variable;
@@ -213,6 +212,7 @@ public abstract class Scope {
         protected final Scope parent;
 
         protected BlockScope(Scope parent) {
+            super(parent.usedVariables);
             this.parent = parent;
         }
 
@@ -238,6 +238,8 @@ public abstract class Scope {
 
             if (variable == null) {
                 variable = parent.getVariable(location, name);
+            } else {
+                usedVariables.add(name);
             }
 
             return variable;
@@ -263,9 +265,10 @@ public abstract class Scope {
     }
 
     protected final Map<String, Variable> variables = new HashMap<>();
+    protected final Set<String> usedVariables;
 
-    protected Scope() {
-        // do nothing
+    protected Scope(Set<String> usedVariables) {
+        this.usedVariables = usedVariables;
     }
 
     /**
@@ -311,5 +314,14 @@ public abstract class Scope {
 
     public Variable getInternalVariable(Location location, String name) {
         return getVariable(location, "#" + name);
+    }
+
+    /**
+     * Returns the set of variables used within a top-level {@link FunctionScope}
+     * including local variables no longer in scope upon completion of writing a
+     * function to ASM bytecode.
+     */
+    public Set<String> getUsedVariables() {
+        return Collections.unmodifiableSet(usedVariables);
     }
 }

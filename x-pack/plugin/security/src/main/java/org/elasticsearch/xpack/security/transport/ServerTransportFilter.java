@@ -27,7 +27,6 @@ import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -100,7 +99,7 @@ final class ServerTransportFilter {
         }
 
         final Version version = transportChannel.getVersion();
-        authcService.authenticate(securityAction, request, (User)null, ActionListener.wrap((authentication) -> {
+        authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
                     SystemUser.is(authentication.getUser()) == false) {

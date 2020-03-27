@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction.Reques
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction.INSTANCE;
 
@@ -22,9 +20,9 @@ public class RestGetAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_ccr/auto_follow/{name}"),
-            new Route(GET, "/_ccr/auto_follow")));
+            new Route(GET, "/_ccr/auto_follow"));
     }
 
     @Override

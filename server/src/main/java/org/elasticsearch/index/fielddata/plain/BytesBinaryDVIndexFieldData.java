@@ -23,6 +23,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -31,11 +32,14 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
-public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BytesBinaryDVAtomicFieldData> {
+public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BytesBinaryDVLeafFieldData> {
 
     public BytesBinaryDVIndexFieldData(Index index, String fieldName) {
         super(index, fieldName);
@@ -47,16 +51,22 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
     }
 
     @Override
-    public BytesBinaryDVAtomicFieldData load(LeafReaderContext context) {
+    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+        throw new IllegalArgumentException("can't sort on binary field");
+    }
+
+    @Override
+    public BytesBinaryDVLeafFieldData load(LeafReaderContext context) {
         try {
-            return new BytesBinaryDVAtomicFieldData(DocValues.getBinary(context.reader(), fieldName));
+            return new BytesBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }
     }
 
     @Override
-    public BytesBinaryDVAtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public BytesBinaryDVLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

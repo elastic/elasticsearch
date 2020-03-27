@@ -50,9 +50,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     private String error(IndexResolution getIndexResult, String sql) {
         Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
-        assertTrue(e.getMessage().startsWith("Found "));
-        String header = "Found 1 problem(s)\nline ";
-        return e.getMessage().substring(header.length());
+        String message = e.getMessage();
+        assertTrue(message.startsWith("Found "));
+        String pattern = "\nline ";
+        int index = message.indexOf(pattern);
+        return message.substring(index + pattern.length());
     }
 
     private LogicalPlan accept(String sql) {
@@ -213,8 +215,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testDateTruncInvalidArgs() {
         assertEquals("1:8: first argument of [DATE_TRUNC(int, date)] must be [string], found value [int] type [integer]",
             error("SELECT DATE_TRUNC(int, date) FROM test"));
-        assertEquals("1:8: second argument of [DATE_TRUNC(keyword, keyword)] must be [date or datetime], found value [keyword] " +
-                "type [keyword]", error("SELECT DATE_TRUNC(keyword, keyword) FROM test"));
+        assertEquals("1:8: second argument of [DATE_TRUNC(keyword, keyword)] must be [date, datetime or an interval data type]," +
+            " found value [keyword] type [keyword]", error("SELECT DATE_TRUNC(keyword, keyword) FROM test"));
         assertEquals("1:8: first argument of [DATE_TRUNC('invalid', keyword)] must be one of [MILLENNIUM, CENTURY, DECADE, " + "" +
                 "YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
                 "or their aliases; found value ['invalid']",
@@ -455,6 +457,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByAggregate() {
         assertEquals("1:36: Cannot use an aggregate [AVG] for grouping",
                 error("SELECT AVG(int) FROM test GROUP BY AVG(int)"));
+        assertEquals("1:65: Cannot use an aggregate [AVG] for grouping",
+                error("SELECT ROUND(AVG(int),2), AVG(int), COUNT(*) FROM test GROUP BY AVG(int) ORDER BY AVG(int)"));
     }
 
     public void testStarOnNested() {
@@ -531,11 +535,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:26: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT * FROM test WHERE unsupported > 1"));
     }
-    
+
     public void testValidRootFieldWithUnsupportedChildren() {
         accept("SELECT x FROM test");
     }
-    
+
     public void testUnsupportedTypeInHierarchy() {
         assertEquals("1:8: Cannot use field [x.y.z.w] with unsupported type [foobar] in hierarchy (field [y])",
                 error("SELECT x.y.z.w FROM test"));

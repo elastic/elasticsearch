@@ -12,7 +12,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ccr.action.PauseFollowAction.INSTANCE;
 import static org.elasticsearch.xpack.core.ccr.action.PauseFollowAction.Request;
@@ -21,7 +20,7 @@ public class RestPauseFollowAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/{index}/_ccr/pause_follow"));
+        return List.of(new Route(POST, "/{index}/_ccr/pause_follow"));
     }
 
     @Override

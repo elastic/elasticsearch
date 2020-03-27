@@ -26,8 +26,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -35,9 +33,9 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, Protocol.SQL_QUERY_REST_ENDPOINT),
-            new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT)));
+            new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT));
     }
 
     @Override
@@ -62,7 +60,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          */
         String accept = null;
 
-        if ((Mode.isDriver(sqlRequest.requestInfo().mode()) || sqlRequest.requestInfo().mode() == Mode.CLI)
+        if (Mode.isDedicatedClient(sqlRequest.requestInfo().mode())
                 && (sqlRequest.binaryCommunication() == null || sqlRequest.binaryCommunication())) {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
             accept = XContentType.CBOR.name();

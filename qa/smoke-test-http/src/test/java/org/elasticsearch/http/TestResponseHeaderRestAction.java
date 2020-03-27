@@ -27,14 +27,13 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class TestResponseHeaderRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_protected"));
+        return List.of(new Route(GET, "/_protected"));
     }
 
     @Override

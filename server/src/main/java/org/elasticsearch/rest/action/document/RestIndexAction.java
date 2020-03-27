@@ -34,9 +34,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.singletonList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -44,9 +41,9 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(POST, "/{index}/_doc/{id}"),
-            new Route(PUT, "/{index}/_doc/{id}")));
+            new Route(PUT, "/{index}/_doc/{id}"));
     }
 
     @Override
@@ -63,9 +60,9 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
+            return List.of(
                 new Route(POST, "/{index}/_create/{id}"),
-                new Route(PUT, "/{index}/_create/{id}")));
+                new Route(PUT, "/{index}/_create/{id}"));
         }
 
         @Override
@@ -97,7 +94,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return singletonList(new Route(POST, "/{index}/_doc"));
+            return List.of(new Route(POST, "/{index}/_doc"));
         }
 
         @Override

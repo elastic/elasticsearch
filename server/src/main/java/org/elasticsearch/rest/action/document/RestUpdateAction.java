@@ -34,14 +34,13 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(POST, "/{index}/_update/{id}"));
+        return List.of(new Route(POST, "/{index}/_update/{id}"));
     }
 
     @Override

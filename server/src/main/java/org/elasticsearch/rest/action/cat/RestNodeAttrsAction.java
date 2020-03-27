@@ -37,14 +37,13 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodeAttrsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_cat/nodeattrs"));
+        return List.of(new Route(GET, "/_cat/nodeattrs"));
     }
 
     @Override
@@ -68,7 +67,8 @@ public class RestNodeAttrsAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().jvm(false).os(false).process(true);
+                nodesInfoRequest.clear()
+                    .addMetric(NodesInfoRequest.Metric.PROCESS.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestResponseListener<NodesInfoResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(NodesInfoResponse nodesInfoResponse) throws Exception {

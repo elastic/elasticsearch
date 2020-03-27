@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
@@ -36,7 +35,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "/_security/privilege/_builtin"));
+        return List.of(new Route(GET, "/_security/privilege/_builtin"));
     }
 
     @Override

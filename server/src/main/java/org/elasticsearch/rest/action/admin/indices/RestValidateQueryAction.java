@@ -37,8 +37,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -47,11 +45,11 @@ public class RestValidateQueryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_validate/query"),
             new Route(POST, "/_validate/query"),
             new Route(GET, "/{index}/_validate/query"),
-            new Route(POST, "/{index}/_validate/query")));
+            new Route(POST, "/{index}/_validate/query"));
     }
 
     @Override

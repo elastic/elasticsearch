@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -395,5 +396,14 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     "have discovered [] which is not a quorum; " +
                     "discovery will continue using [] from hosts providers and [" + otherMasterNode + ", " + localNode +
                     "] from last-known cluster state; node term 0, last-accepted version 0 in term 0")));
+
+        assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, GatewayMetaState.STALE_STATE_CONFIG_NODE_ID), emptyList(),
+                emptyList(), 0L, electionStrategy).getDescription(),
+            is("master not discovered or elected yet, an election requires one or more nodes that have already participated as " +
+                "master-eligible nodes in the cluster but this node was not master-eligible the last time it joined the cluster, " +
+                "have discovered [] which is not a quorum; " +
+                "discovery will continue using [] from hosts providers and [" + localNode +
+                "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
+
     }
 }

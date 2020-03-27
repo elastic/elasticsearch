@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.eql.EqlClientException;
-import org.elasticsearch.xpack.eql.common.Failure;
+import org.elasticsearch.xpack.ql.common.Failure;
 
 import java.util.Collection;
 

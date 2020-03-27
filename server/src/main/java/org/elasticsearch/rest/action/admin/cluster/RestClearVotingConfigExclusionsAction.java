@@ -29,14 +29,13 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestClearVotingConfigExclusionsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(DELETE, "/_cluster/voting_config_exclusions"));
+        return List.of(new Route(DELETE, "/_cluster/voting_config_exclusions"));
     }
 
     @Override

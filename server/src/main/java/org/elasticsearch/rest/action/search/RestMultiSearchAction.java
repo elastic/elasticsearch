@@ -43,8 +43,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -67,11 +65,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_msearch"),
             new Route(POST, "/_msearch"),
             new Route(GET, "/{index}/_msearch"),
-            new Route(POST, "/{index}/_msearch")));
+            new Route(POST, "/{index}/_msearch"));
     }
 
     @Override
@@ -96,7 +94,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
 
-        int preFilterShardSize = restRequest.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE);
+        Integer preFilterShardSize = null;
+        if (restRequest.hasParam("pre_filter_shard_size")) {
+            preFilterShardSize = restRequest.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE);
+        }
 
         final Integer maxConcurrentShardRequests;
         if (restRequest.hasParam("max_concurrent_shard_requests")) {
@@ -113,10 +114,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();
-        preFilterShardSize = Math.max(1, preFilterShardSize / (requests.size()+1));
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
-            request.setPreFilterShardSize(Math.min(preFilterShardSize, request.getPreFilterShardSize()));
+            if (preFilterShardSize != null && request.getPreFilterShardSize() == null) {
+                request.setPreFilterShardSize(preFilterShardSize);
+            }
             if (maxConcurrentShardRequests != null) {
                 request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
             }

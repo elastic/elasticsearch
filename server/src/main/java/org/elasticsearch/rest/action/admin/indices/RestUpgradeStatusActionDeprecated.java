@@ -33,8 +33,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.action.admin.indices.RestUpgradeActionDeprecated.UPGRADE_API_DEPRECATION_MESSAGE;
 
@@ -45,9 +43,9 @@ public class RestUpgradeStatusActionDeprecated extends BaseRestHandler {
 
     @Override
     public List<DeprecatedRoute> deprecatedRoutes() {
-        return unmodifiableList(asList(
-            new DeprecatedRoute(GET, "/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger),
-            new DeprecatedRoute(GET, "/{index}/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger)));
+        return List.of(
+            new DeprecatedRoute(GET, "/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE),
+            new DeprecatedRoute(GET, "/{index}/_upgrade", UPGRADE_API_DEPRECATION_MESSAGE));
     }
 
     @Override

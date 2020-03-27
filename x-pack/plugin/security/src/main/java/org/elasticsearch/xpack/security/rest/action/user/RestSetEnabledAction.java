@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -21,7 +19,6 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -33,8 +30,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * enabled or disabled.
  */
 public class RestSetEnabledAction extends SecurityBaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSetEnabledAction.class));
 
     public RestSetEnabledAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -48,16 +43,16 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
     @Override
     public List<ReplacedRoute> replacedRoutes() {
         // TODO: remove deprecated endpoint in 8.0.0
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new ReplacedRoute(POST, "/_security/user/{username}/_enable",
-                POST, "/_xpack/security/user/{username}/_enable", deprecationLogger),
+                POST, "/_xpack/security/user/{username}/_enable"),
             new ReplacedRoute(PUT, "/_security/user/{username}/_enable",
-                PUT, "/_xpack/security/user/{username}/_enable", deprecationLogger),
+                PUT, "/_xpack/security/user/{username}/_enable"),
             new ReplacedRoute(POST, "/_security/user/{username}/_disable",
-                POST, "/_xpack/security/user/{username}/_disable", deprecationLogger),
+                POST, "/_xpack/security/user/{username}/_disable"),
             new ReplacedRoute(PUT, "/_security/user/{username}/_disable",
-                PUT, "/_xpack/security/user/{username}/_disable", deprecationLogger)
-        ));
+                PUT, "/_xpack/security/user/{username}/_disable")
+        );
     }
 
     @Override

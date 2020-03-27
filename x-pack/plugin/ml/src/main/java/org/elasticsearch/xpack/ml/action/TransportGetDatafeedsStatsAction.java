@@ -92,7 +92,7 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                                 .collect(Collectors.toList());
                             jobResultsProvider.datafeedTimingStats(
                                 jobIds,
-                                timingStatsByJobId -> {
+                                ActionListener.wrap(timingStatsByJobId -> {
                                     List<GetDatafeedsStatsAction.Response.DatafeedStats> results = expandedIds.stream()
                                         .map(datafeedId -> {
                                             DatafeedConfig config = existingConfigs.get(datafeedId);
@@ -111,7 +111,7 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                                         new QueryPage<>(results, results.size(), DatafeedConfig.RESULTS_FIELD);
                                     listener.onResponse(new GetDatafeedsStatsAction.Response(statsPage));
                                 },
-                                listener::onFailure);
+                                listener::onFailure));
                         },
                         listener::onFailure)
                 );

@@ -14,14 +14,13 @@ import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(DELETE, "/_ilm/policy/{name}"));
+        return List.of(new Route(DELETE, "/_ilm/policy/{name}"));
     }
 
     @Override

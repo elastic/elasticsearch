@@ -1,0 +1,32 @@
+[role="xpack"]
+[testenv="basic"]
+[[eql-limitations]]
+== EQL limitations
+++++
+<titleabbrev>Limitations</titleabbrev>
+++++
+
+experimental::[]
+
+[discrete]
+[[eql-unsupported-syntax]]
+=== Unsupported syntax
+
+{es} supports a subset of {eql-ref}/index.html[EQL syntax]. {es} cannot run EQL
+queries that contain:
+
+* Array functions:
+** {eql-ref}/functions.html#arrayContains[`arrayContains`]
+** {eql-ref}/functions.html#arrayCount[`arrayCount`]
+** {eql-ref}/functions.html#arraySearch[`arraySearch`]
+
+* {eql-ref}/joins.html[Joins]
+
+* {eql-ref}/basic-syntax.html#event-relationships[Lineage-related keywords]:
+** `child of`
+** `descendant of`
+** `event of`
+
+* {eql-ref}/pipes.html[Pipes]
+
+* {eql-ref}/sequences.html[Sequences]

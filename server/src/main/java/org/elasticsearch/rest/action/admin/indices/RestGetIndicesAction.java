@@ -33,8 +33,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
@@ -45,9 +43,9 @@ public class RestGetIndicesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/{index}"),
-            new Route(HEAD, "/{index}")));
+            new Route(HEAD, "/{index}"));
     }
 
     @Override

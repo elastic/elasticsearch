@@ -32,8 +32,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -44,9 +42,9 @@ public class RestExplainAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/{index}/_explain/{id}"),
-            new Route(POST, "/{index}/_explain/{id}")));
+            new Route(POST, "/{index}/_explain/{id}"));
     }
 
     @Override

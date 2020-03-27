@@ -31,8 +31,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
@@ -51,8 +49,8 @@ public class RestCancelTasksAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(POST, "/_tasks/_cancel"),
-            new Route(POST, "/_tasks/{task_id}/_cancel")));
+        return List.of(new Route(POST, "/_tasks/_cancel"),
+            new Route(POST, "/_tasks/{task_id}/_cancel"));
     }
 
     @Override

@@ -47,17 +47,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestThreadPoolAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cat/thread_pool"),
-            new Route(GET, "/_cat/thread_pool/{thread_pool_patterns}")));
+            new Route(GET, "/_cat/thread_pool/{thread_pool_patterns}"));
     }
 
     @Override
@@ -82,12 +80,14 @@ public class RestThreadPoolAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().process(true).threadPool(true);
+                nodesInfoRequest.clear().addMetrics(
+                        NodesInfoRequest.Metric.PROCESS.metricName(),
+                        NodesInfoRequest.Metric.THREAD_POOL.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().threadPool(true);
+                        nodesStatsRequest.clear().addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName());
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {

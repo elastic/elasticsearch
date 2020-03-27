@@ -39,8 +39,6 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
@@ -48,9 +46,9 @@ public class RestAllocationAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
+        return List.of(
             new Route(GET, "/_cat/allocation"),
-            new Route(GET, "/_cat/allocation/{nodes}")));
+            new Route(GET, "/_cat/allocation/{nodes}"));
     }
 
     @Override
@@ -75,7 +73,8 @@ public class RestAllocationAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse state) {
                 NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
-                statsRequest.clear().fs(true).indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
+                statsRequest.clear().addMetric(NodesStatsRequest.Metric.FS.metricName())
+                    .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                     @Override

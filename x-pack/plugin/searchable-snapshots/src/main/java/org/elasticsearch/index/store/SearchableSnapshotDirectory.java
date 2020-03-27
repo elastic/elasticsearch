@@ -99,7 +99,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.closed = new AtomicBoolean(false);
         this.useCache = SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings);
         this.blacklistedFileExtensions = new HashSet<>(SNAPSHOT_CACHE_BLACKLIST_SETTING.get(indexSettings));
-        this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).equals(ByteSizeValue.ZERO) ?
+        this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes() < 0 ?
             blobContainer.readBlobPreferredLength() :
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
     }

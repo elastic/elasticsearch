@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -83,7 +84,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         Setting.listSetting("index.store.snapshot.cache.blacklist", Collections.emptyList(), Function.identity(),
             Setting.Property.IndexScope, Setting.Property.NodeScope);
     public static final Setting<ByteSizeValue> SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING =
-        Setting.byteSizeSetting("index.store.snapshot.uncached_chunk_size", ByteSizeValue.ZERO,
+        Setting.byteSizeSetting("index.store.snapshot.uncached_chunk_size", new ByteSizeValue(-1, ByteSizeUnit.BYTES),
             Setting.Property.IndexScope, Setting.Property.NodeScope);
 
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";

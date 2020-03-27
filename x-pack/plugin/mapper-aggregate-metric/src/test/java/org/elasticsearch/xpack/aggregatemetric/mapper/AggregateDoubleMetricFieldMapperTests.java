@@ -44,29 +44,45 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testParseValue() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-                .startObject("properties").startObject("metric")
-                    .field("type", CONTENT_TYPE)
-                    .field(METRICS_FIELD,  new String[] {"min", "max", "sum", "value_count" })
-                .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max", "sum", "value_count" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
         Mapper fieldMapper = defaultMapper.mappers().getMapper("metric");
         assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startObject("metric")
-                    .field("min", 10.1)
-                    .field("max", 50.0)
-                    .field("sum", 43)
-                    .field("value_count", 14)
-                .endObject().endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = defaultMapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("metric")
+                        .field("min", 10.1)
+                        .field("max", 50.0)
+                        .field("sum", 43)
+                        .field("value_count", 14)
+                        .endObject()
+                        .endObject()
+                ),
+                XContentType.JSON
+            )
+        );
 
         assertThat(doc.rootDoc().getField("metric._min"), notNullValue());
     }
@@ -77,16 +93,23 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testInvalidMapping() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping)));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().documentMapperParser().parse("_doc", new CompressedXContent(mapping))
+        );
         assertThat(e.getMessage(), containsString("Property [metrics] must be set for field [metric]."));
     }
 
@@ -96,25 +119,36 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testParseEmptyValue() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"min", "max", "sum"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max", "sum" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject().startObject("metric")
-                    .endObject().endObject()),
-                XContentType.JSON)));
-        assertThat(e.getCause().getMessage(),
-            containsString("Aggregate metric field [metric] must contain all metrics"));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> defaultMapper.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().startObject("metric").endObject().endObject()),
+                    XContentType.JSON
+                )
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("Aggregate metric field [metric] must contain all metrics"));
     }
 
     /**
@@ -124,23 +158,33 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testParseEmptyValueIgnoreMalformed() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(IGNORE_MALFORMED_FIELD, true)
-            .field(METRICS_FIELD,  new String[] {"min", "max", "sum"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(IGNORE_MALFORMED_FIELD, true)
+                .field(METRICS_FIELD, new String[] { "min", "max", "sum" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startObject("metric")
-                .endObject().endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = defaultMapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().startObject("metric").endObject().endObject()),
+                XContentType.JSON
+            )
+        );
 
         assertThat(doc.rootDoc().getField("metric"), nullValue());
     }
@@ -151,16 +195,24 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testUnsupportedMetric() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"min", "max", "unsupported" })
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max", "unsupported" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> createIndex("test").mapperService().documentMapperParser().parse("_doc", new CompressedXContent(mapping)));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().documentMapperParser().parse("_doc", new CompressedXContent(mapping))
+        );
         assertThat(e.getMessage(), containsString("Metric [unsupported] is not supported."));
     }
 
@@ -170,28 +222,45 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testUnmappedMetric() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"min", "max"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startObject("metric")
-                .field("min", 10.0)
-                .field("max", 50.0)
-                .field("sum", 43)
-                .endObject().endObject()),
-            XContentType.JSON)));
-        assertThat(e.getCause().getMessage(),
-            containsString("Aggregate metric [sum] does not exist in the mapping of field [metric]"));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> defaultMapper.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("metric")
+                            .field("min", 10.0)
+                            .field("max", 50.0)
+                            .field("sum", 43)
+                            .endObject()
+                            .endObject()
+                    ),
+                    XContentType.JSON
+                )
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("Aggregate metric [sum] does not exist in the mapping of field [metric]"));
     }
 
     /**
@@ -201,26 +270,42 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testUnmappedMetricWithIgnoreMalformed() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"min", "max"})
-            .field(IGNORE_MALFORMED_FIELD, true)
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max" })
+                .field(IGNORE_MALFORMED_FIELD, true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startObject("metric")
-                .field("min", 10.0)
-                .field("max", 50.0)
-                .field("sum", 43)
-                .endObject().endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = defaultMapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("metric")
+                        .field("min", 10.0)
+                        .field("max", 50.0)
+                        .field("sum", 43)
+                        .endObject()
+                        .endObject()
+                ),
+                XContentType.JSON
+            )
+        );
 
         assertNull(doc.rootDoc().getField("metric.min"));
     }
@@ -232,27 +317,44 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testMissingMetric() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"min", "max", "sum"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max", "sum" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject().startObject("metric")
-                    .field("min", 10.0)
-                    .field("max", 50.0)
-                    .endObject().endObject()),
-                XContentType.JSON)));
-        assertThat(e.getCause().getMessage(),
-            containsString("Aggregate metric field [metric] must contain all metrics [min, max, sum]"));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> defaultMapper.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("metric")
+                            .field("min", 10.0)
+                            .field("max", 50.0)
+                            .endObject()
+                            .endObject()
+                    ),
+                    XContentType.JSON
+                )
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("Aggregate metric field [metric] must contain all metrics [min, max, sum]"));
     }
 
     /**
@@ -262,25 +364,41 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testMissingMetricWithIgnoreMalformed() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"min", "max", "sum"})
-            .field(IGNORE_MALFORMED_FIELD, true)
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max", "sum" })
+                .field(IGNORE_MALFORMED_FIELD, true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startObject("metric")
-                .field("min", 10.0)
-                .field("max", 50.0)
-                .endObject().endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = defaultMapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("metric")
+                        .field("min", 10.0)
+                        .field("max", 50.0)
+                        .endObject()
+                        .endObject()
+                ),
+                XContentType.JSON
+            )
+        );
 
         assertNull(doc.rootDoc().getField("metric.min"));
     }
@@ -291,26 +409,41 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testInvalidMetricValue() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"min"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject().startObject("metric")
-                    .field("min", "10.0")
-                    .endObject().endObject()),
-                XContentType.JSON)));
-        assertThat(e.getCause().getMessage(),
-            containsString("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> defaultMapper.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder().startObject().startObject("metric").field("min", "10.0").endObject().endObject()
+                    ),
+                    XContentType.JSON
+                )
+            )
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]")
+        );
     }
 
     /**
@@ -320,24 +453,35 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testInvalidMetricValueIgnoreMalformed() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"min"})
-            .field(IGNORE_MALFORMED_FIELD, true)
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min" })
+                .field(IGNORE_MALFORMED_FIELD, true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject().startObject("metric")
-                    .field("min", "10.0")
-                    .endObject().endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = defaultMapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder().startObject().startObject("metric").field("min", "10.0").endObject().endObject()
+                ),
+                XContentType.JSON
+            )
+        );
         assertThat(doc.rootDoc().getField("metric"), nullValue());
     }
 
@@ -347,26 +491,46 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testNegativeValueCount() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"value_count"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "value_count" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject().startObject("metric")
-                    .field("value_count", -55) // value_count cannot be negative value
-                    .endObject().endObject()),
-                XContentType.JSON)));
-        assertThat(e.getCause().getMessage(),
-            containsString("Aggregate metric [value_count] of field [metric] cannot be a negative number"));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> defaultMapper.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("metric")
+                            .field("value_count", -55) // value_count cannot be negative value
+                            .endObject()
+                            .endObject()
+                    ),
+                    XContentType.JSON
+                )
+            )
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Aggregate metric [value_count] of field [metric] cannot be a negative number")
+        );
     }
 
     /**
@@ -376,24 +540,40 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testNegativeValueCountIgnoreMalformed() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(IGNORE_MALFORMED_FIELD, true)
-            .field(METRICS_FIELD,  new String[] {"value_count"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(IGNORE_MALFORMED_FIELD, true)
+                .field(METRICS_FIELD, new String[] { "value_count" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject().startObject("metric")
-                    .field("value_count", -55) // value_count cannot be negative value
-                    .endObject().endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = defaultMapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("metric")
+                        .field("value_count", -55) // value_count cannot be negative value
+                        .endObject()
+                        .endObject()
+                ),
+                XContentType.JSON
+            )
+        );
 
         assertThat(doc.rootDoc().getField("metric"), nullValue());
     }
@@ -404,26 +584,37 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testValueCountDouble() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"value_count" })
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "value_count" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
         Mapper fieldMapper = defaultMapper.mappers().getMapper("metric");
         assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startObject("metric")
-                .field("value_count", 77.0)
-                .endObject().endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = defaultMapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder().startObject().startObject("metric").field("value_count", 77.0).endObject().endObject()
+                ),
+                XContentType.JSON
+            )
+        );
 
         assertThat(doc.rootDoc().getField("metric._value_count"), notNullValue());
     }
@@ -434,27 +625,49 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testInvalidDoubleValueCount() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"value_count"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "value_count" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject().startObject("metric")
-                    .field("value_count", 45.43) // Only integers can be a value_count
-                    .endObject().endObject()),
-                XContentType.JSON)));
-        assertThat(e.getCause().getMessage(),
-            containsString("failed to parse field [metric._value_count] of type [integer] in document with id '1'." +
-                " Preview of field's value: '45.43'"));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> defaultMapper.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("metric")
+                            .field("value_count", 45.43) // Only integers can be a value_count
+                            .endObject()
+                            .endObject()
+                    ),
+                    XContentType.JSON
+                )
+            )
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "failed to parse field [metric._value_count] of type [integer] in document with id '1'."
+                    + " Preview of field's value: '45.43'"
+            )
+        );
     }
 
     /**
@@ -463,33 +676,56 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testParseArrayValue() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"min", "max"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
-        Exception e = expectThrows(MapperParsingException.class,
-            () ->defaultMapper.parse(new SourceToParse("test", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder()
-                    .startObject().startArray("metric")
-                    .startObject()
-                        .field("min", 10.0)
-                        .field("max", 50.0)
-                    .endObject().startObject()
-                        .field("min", 11.0)
-                        .field("max", 51.0)
-                    .endObject()
-                    .endArray().endObject()),
-                XContentType.JSON)));
-        assertThat(e.getCause().getMessage(),
-            containsString("Field [metric] of type [aggregate_metric_double] does not support " +
-                "indexing multiple values for the same field in the same document"));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> defaultMapper.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startArray("metric")
+                            .startObject()
+                            .field("min", 10.0)
+                            .field("max", 50.0)
+                            .endObject()
+                            .startObject()
+                            .field("min", 11.0)
+                            .field("max", 51.0)
+                            .endObject()
+                            .endArray()
+                            .endObject()
+                    ),
+                    XContentType.JSON
+                )
+            )
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "Field [metric] of type [aggregate_metric_double] does not support "
+                    + "indexing multiple values for the same field in the same document"
+            )
+        );
     }
 
     /**
@@ -498,16 +734,23 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testExplicitDefaultMetric() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"value_count", "sum"})
-            .field(DEFAULT_METRIC, "sum")
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "value_count", "sum" })
+                .field(DEFAULT_METRIC, "sum")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
         Mapper fieldMapper = defaultMapper.mappers().getMapper("metric");
@@ -521,21 +764,30 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testImplicitDefaultMetricSingleMetric() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"value_count"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "value_count" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
         Mapper fieldMapper = defaultMapper.mappers().getMapper("metric");
         assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
-        assertEquals(AggregateDoubleMetricFieldMapper.Metric.value_count,
-            ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric.value());
+        assertEquals(
+            AggregateDoubleMetricFieldMapper.Metric.value_count,
+            ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric.value()
+        );
     }
 
     /**
@@ -544,15 +796,22 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testImplicitDefaultMetric() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"value_count", "sum", "max"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "value_count", "sum", "max" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
             .parse("_doc", new CompressedXContent(mapping));
 
         Mapper fieldMapper = defaultMapper.mappers().getMapper("metric");
@@ -567,17 +826,24 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testMissingDefaultMetric() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"value_count", "sum"})
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "value_count", "sum" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> createIndex("test").mapperService().documentMapperParser()
-            .parse("_doc", new CompressedXContent(mapping)));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().documentMapperParser().parse("_doc", new CompressedXContent(mapping))
+        );
         assertThat(e.getMessage(), containsString("Property [default_metric] must be set for field [metric]."));
     }
 
@@ -587,18 +853,25 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testInvalidDefaultMetric() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"value_count", "sum"})
-            .field(DEFAULT_METRIC, "invalid_metric")
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "value_count", "sum" })
+                .field(DEFAULT_METRIC, "invalid_metric")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> createIndex("test").mapperService().documentMapperParser()
-                .parse("_doc", new CompressedXContent(mapping)));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().documentMapperParser().parse("_doc", new CompressedXContent(mapping))
+        );
         assertThat(e.getMessage(), containsString("Metric [invalid_metric] is not supported."));
     }
 
@@ -609,18 +882,25 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
     public void testUndefinedDefaultMetric() throws Exception {
         ensureGreen();
 
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("_doc")
-            .startObject("properties").startObject("metric")
-            .field("type", CONTENT_TYPE)
-            .field(METRICS_FIELD,  new String[] {"value_count", "sum"})
-            .field(DEFAULT_METRIC, "min")
-            .endObject().endObject()
-            .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "value_count", "sum" })
+                .field(DEFAULT_METRIC, "min")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> createIndex("test").mapperService().documentMapperParser()
-                .parse("_doc", new CompressedXContent(mapping)));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().documentMapperParser().parse("_doc", new CompressedXContent(mapping))
+        );
         assertThat(e.getMessage(), containsString("Metric [min] is not defined in the metrics field."));
     }
 

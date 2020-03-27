@@ -27,7 +27,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
     protected MappedFieldType createDefaultFieldType() {
         AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType();
         EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields = new EnumMap<>(Metric.class);
-        for (Metric m : List.of(Metric.min, Metric.max) ) {
+        for (Metric m : List.of(Metric.min, Metric.max)) {
             String fieldName = "foo" + "._" + m.name();
             NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
             subfield.setName(fieldName);
@@ -52,8 +52,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     public void testRangeQuery() throws Exception {
         final MappedFieldType fieldType = createDefaultFieldType();
-        Query query = fieldType.rangeQuery(10.1, 100.1, true, true,
-            null, null, null, null);
+        Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, null);
         assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
     }
 }

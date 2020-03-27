@@ -117,7 +117,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             adaptiveSelectionStats = null;
         }
-        adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
         } else {

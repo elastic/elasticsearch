@@ -212,7 +212,7 @@ public class MetaDataRolloverServiceTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("source alias [" + aliasWithNoWriteIndex + "] does not point to a write index"));
         exception = expectThrows(IllegalArgumentException.class, () ->
             MetaDataRolloverService.validate(metaData, randomFrom(index1, index2)));
-        assertThat(exception.getMessage(), equalTo("source alias is not an alias"));
+        assertThat(exception.getMessage(), equalTo("source alias is a [concrete index], but an [alias] was expected"));
         exception = expectThrows(IllegalArgumentException.class, () ->
             MetaDataRolloverService.validate(metaData, randomAlphaOfLength(5))
         );
@@ -342,6 +342,7 @@ public class MetaDataRolloverServiceTests extends ESTestCase {
             assertThat(rolloverIndexMetaData.getNumberOfShards(), equalTo(numberOfShards));
 
             IndexAbstraction alias = rolloverMetaData.getIndicesLookup().get(aliasName);
+            assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
             assertThat(alias.getIndices(), hasSize(2));
             assertThat(alias.getIndices(), hasItem(rolloverMetaData.index(sourceIndexName)));
             assertThat(alias.getIndices(), hasItem(rolloverIndexMetaData));

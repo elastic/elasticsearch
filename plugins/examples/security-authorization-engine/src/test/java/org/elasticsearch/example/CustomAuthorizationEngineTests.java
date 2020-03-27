@@ -130,8 +130,8 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     public void testAuthorizeIndexAction() {
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
-        Map<String, IndexAbstraction> indexSpaceMap = new HashMap<>();
-        indexSpaceMap.put("index", new Index(IndexMetaData.builder("index")
+        Map<String, IndexAbstraction> indicesMap = new HashMap<>();
+        indicesMap.put("index", new Index(IndexMetaData.builder("index")
             .settings(Settings.builder().put("index.version.created", Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -148,7 +148,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
                 listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                indexSpaceMap, resultFuture);
+                indicesMap, resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(true));
             assertThat(result.isAuditable(), is(true));
@@ -169,7 +169,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
                 listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                indexSpaceMap, resultFuture);
+                indicesMap, resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(false));
             assertThat(result.isAuditable(), is(true));

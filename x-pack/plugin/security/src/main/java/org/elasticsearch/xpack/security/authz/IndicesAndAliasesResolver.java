@@ -232,8 +232,9 @@ class IndicesAndAliasesResolver {
         final String resolvedAliasOrIndex;
         if (indexAbstraction == null) {
             resolvedAliasOrIndex = concreteIndexName;
-        } else if (indexAbstraction.getType() != IndexAbstraction.Type.INDEX) {
-            throw new IllegalStateException("concrete index [" + concreteIndexName + "] is not an index but should be");
+        } else if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
+            throw new IllegalStateException("concrete index [" + concreteIndexName + "] is a [" +
+                indexAbstraction.getType().getDisplayName() + "], but a concrete index is expected");
         } else if (authorizedIndicesList.contains(concreteIndexName)) {
             // user is authorized to put mappings for this index
             resolvedAliasOrIndex = concreteIndexName;

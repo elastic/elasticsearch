@@ -179,7 +179,8 @@ public class MetaDataRolloverService {
             throw new IllegalArgumentException("source alias does not exist");
         }
         if (indexAbstraction.getType() != IndexAbstraction.Type.ALIAS) {
-            throw new IllegalArgumentException("source alias is not an alias");
+            throw new IllegalArgumentException("source alias is a [" + indexAbstraction.getType().getDisplayName() +
+                "], but an [" + IndexAbstraction.Type.ALIAS.getDisplayName() + "] was expected");
         }
         if (indexAbstraction.getWriteIndex() == null) {
             throw new IllegalArgumentException("source alias [" + indexAbstraction.getName() + "] does not point to a write index");

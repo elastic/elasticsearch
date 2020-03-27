@@ -80,15 +80,24 @@ public interface IndexAbstraction {
          * An index abstraction that refers to a single concrete index.
          * This concrete index is also the write index.
          */
-        INDEX,
+        CONCRETE_INDEX("concrete index"),
 
         /**
          * An index abstraction that refers to an alias.
          * An alias typically refers to many concrete indices and
          * may have a write index.
          */
-        ALIAS
+        ALIAS("alias");
 
+        private final String displayName;
+
+        Type(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
     }
 
     /**
@@ -109,7 +118,7 @@ public interface IndexAbstraction {
 
         @Override
         public Type getType() {
-            return Type.INDEX;
+            return Type.CONCRETE_INDEX;
         }
 
         @Override

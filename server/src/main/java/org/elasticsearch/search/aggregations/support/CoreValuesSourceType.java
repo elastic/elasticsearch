@@ -75,6 +75,19 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             Number missing = docValueFormat.parseDouble(rawMissing.toString(), false, now);
             return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
         }
+
+        @Override
+        public DocValueFormat getFormatter(String format, ZoneId tz) {
+            if (tz != null) {
+                throw new IllegalArgumentException("TimeZone cannot be applied to Numeric Value Type formatter");
+            }
+            if (format == null) {
+                return DocValueFormat.RAW;
+            } else {
+                return new DocValueFormat.Decimal(format);
+            }
+
+        }
     },
     BYTES() {
         @Override

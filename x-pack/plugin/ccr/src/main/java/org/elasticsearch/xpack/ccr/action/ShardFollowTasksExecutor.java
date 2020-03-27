@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
@@ -75,6 +77,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
@@ -111,6 +114,21 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
         if (routingTable.shard(params.getFollowShardId().id()).primaryShard().started() == false) {
             throw new IllegalArgumentException("Not all copies of follow shard are started");
+        }
+    }
+
+    private static final Assignment NO_ASSIGNMENT = new Assignment(null, "no nodes found with data and remote cluster client roles");
+
+    @Override
+    public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
+        final DiscoveryNode node = selectLeastLoadedNode(
+            clusterState,
+            ((Predicate<DiscoveryNode>) DiscoveryNode::isDataNode).and(DiscoveryNode::isRemoteClusterClient)
+        );
+        if (node == null) {
+            return NO_ASSIGNMENT;
+        } else {
+            return new Assignment(node.getId(), "node is the least loaded data node and remote cluster client");
         }
     }
 

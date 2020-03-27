@@ -94,12 +94,12 @@ public class SearchResponseMergerTests extends ESTestCase {
     }
 
     public void testMergeTookInMillis() throws InterruptedException {
-        long currentRelativeTime = randomLong();
+        long currentRelativeTime = randomNonNegativeLong();
         SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
         SearchResponseMerger merger = new SearchResponseMerger(randomIntBetween(0, 1000), randomIntBetween(0, 10000),
             SearchContext.TRACK_TOTAL_HITS_ACCURATE, timeProvider, emptyReduceContextBuilder());
         for (int i = 0; i < numResponses; i++) {
-            SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, randomLong(),
+            SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, randomNonNegativeLong(),
                 ShardSearchFailure.EMPTY_ARRAY, SearchResponseTests.randomClusters());
             addResponse(merger, searchResponse);
         }
@@ -399,7 +399,7 @@ public class SearchResponseMergerTests extends ESTestCase {
     }
 
     public void testMergeSearchHits() throws InterruptedException {
-        final long currentRelativeTime = randomLong();
+        final long currentRelativeTime = randomNonNegativeLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
         final int size = randomIntBetween(0, 100);
         final int from = size > 0 ? randomIntBetween(0, 100) : 0;
@@ -557,7 +557,7 @@ public class SearchResponseMergerTests extends ESTestCase {
     }
 
     public void testMergeNoResponsesAdded() {
-        long currentRelativeTime = randomLong();
+        long currentRelativeTime = randomNonNegativeLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
         SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, emptyReduceContextBuilder());
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();

@@ -357,21 +357,11 @@ public class AutodetectProcessManager implements ClusterStateListener {
         if (updateParams.getFilter() == null) {
             filterListener.onResponse(null);
         } else {
-            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request();
-            getFilterRequest.setFilterId(updateParams.getFilter().getId());
-            executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest,
-                    new ActionListener<GetFiltersAction.Response>() {
-
-                @Override
-                public void onResponse(GetFiltersAction.Response response) {
-                    filterListener.onResponse(response.getFilters().results().get(0));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    handler.accept(e);
-                }
-            });
+            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(updateParams.getFilter().getId());
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest, ActionListener.wrap(
+                getFilterResponse -> filterListener.onResponse(getFilterResponse.getFilters().results().get(0)),
+                handler::accept
+            ));
         }
     }
 

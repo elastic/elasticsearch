@@ -81,6 +81,11 @@ public final class TestUtils {
             }
 
             @Override
+            public long readBlobPreferredLength() {
+                return Long.MAX_VALUE;
+            }
+
+            @Override
             public Map<String, BlobMetaData> listBlobs() {
                 throw unsupportedException();
             }

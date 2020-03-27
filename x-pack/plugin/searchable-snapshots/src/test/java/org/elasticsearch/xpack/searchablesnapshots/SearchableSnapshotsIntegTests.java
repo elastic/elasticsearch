@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -122,12 +123,23 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         final boolean cacheEnabled = randomBoolean();
         logger.info("--> restoring index [{}] with cache [{}]", restoredIndexName, cacheEnabled ? "enabled" : "disabled");
 
+        Settings.Builder indexSettingsBuilder = Settings.builder()
+            .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled)
+            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString());
+        final List<String> nonCachedExtensions;
+        if (randomBoolean()) {
+            nonCachedExtensions = randomSubsetOf(Arrays.asList("fdt", "fdx", "nvd", "dvd", "tip", "cfs", "dim"));
+            indexSettingsBuilder.putList(SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), nonCachedExtensions);
+        } else {
+            nonCachedExtensions = Collections.emptyList();
+        }
+        if (randomBoolean()) {
+            indexSettingsBuilder.put(SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(),
+                new ByteSizeValue(randomLongBetween(10, 100_000)));
+        }
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(restoredIndexName, fsRepoName,
             snapshotInfo.snapshotId().getName(), indexName,
-            Settings.builder()
-                .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
-                .build(), Strings.EMPTY_ARRAY, true);
+            indexSettingsBuilder.build(), Strings.EMPTY_ARRAY, true);
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
@@ -151,6 +163,13 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
             for (SearchableSnapshotShardStats stats : statsResponse.getStats()) {
                 assertThat(stats.getShardRouting().getIndexName(), equalTo(restoredIndexName));
                 assertThat(stats.getStats().size(), greaterThan(0));
+                for (SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : stats.getStats()) {
+                    for (String ext : nonCachedExtensions) {
+                        if (indexInputStats.getFileName().endsWith(ext)) {
+                            assertEquals(indexInputStats.getFileName(), 0, indexInputStats.getOpenCount());
+                        }
+                    }
+                }
             }
         } else {
             expectThrows(ResourceNotFoundException.class, future::actionGet);

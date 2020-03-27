@@ -507,6 +507,7 @@ tag::data-frame-analytics-stats[]
 An array of statistics objects for {dfanalytics-jobs}, which are
 sorted by the `id` value in ascending order.
 
+[role="child_attributes"]
 //Begin analysis_stats
 `analysis_stats`::
 (object)

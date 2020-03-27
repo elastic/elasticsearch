@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.store.cache.SparseFileTracker;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;

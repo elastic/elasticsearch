@@ -49,6 +49,8 @@ import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
+import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
@@ -941,6 +943,34 @@ public final class IndicesClient {
         return restHighLevelClient.performRequestAsyncAndParseEntity(validateQueryRequest,
             IndicesRequestConverters::validateQuery, options,
             ValidateQueryResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Gets component templates using the Components Templates API
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param getComponentTemplatesRequest the request
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetComponentTemplatesResponse getComponentTemplate(GetComponentTemplatesRequest getComponentTemplatesRequest,
+                                                              RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getComponentTemplatesRequest,
+            IndicesRequestConverters::getComponentTemplates,
+            options, GetComponentTemplatesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously gets component templates using the Components Templates API
+     * @param getComponentTemplatesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getComponentTemplateAsync(GetComponentTemplatesRequest getComponentTemplatesRequest, RequestOptions options,
+                                             ActionListener<GetComponentTemplatesResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getComponentTemplatesRequest,
+            IndicesRequestConverters::getComponentTemplates,
+            options, GetComponentTemplatesResponse::fromXContent, listener, emptySet());
     }
 
     /**

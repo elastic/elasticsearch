@@ -67,7 +67,6 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
             builder.field("component_template");
             e.getValue().toXContent(builder, null);
             builder.endObject();
-            builder.endObject();
         }
         builder.endArray();
         builder.endObject();

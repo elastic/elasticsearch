@@ -42,6 +42,7 @@ import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
@@ -425,6 +426,19 @@ final class IndicesRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params();
         params.withIndicesOptions(getAliasesRequest.indicesOptions());
         params.withLocal(getAliasesRequest.local());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getComponentTemplates(GetComponentTemplatesRequest getComponentTemplatesRequest){
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_component_template")
+            .addCommaSeparatedPathParts(getComponentTemplatesRequest.names())
+            .build();
+        final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        final RequestConverters.Params params = new RequestConverters.Params();
+        params.withLocal(getComponentTemplatesRequest.isLocal());
+        params.withMasterTimeout(getComponentTemplatesRequest.getMasterNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }

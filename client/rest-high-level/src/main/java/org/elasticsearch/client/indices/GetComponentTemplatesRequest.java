@@ -51,7 +51,7 @@ public class GetComponentTemplatesRequest implements Validatable {
     }
 
     /**
-     * Create a request to read the content of one or more index templates. If no template names are provided, all templates will be read
+     * Create a request to read the content of one or more component templates. If no template names are provided, all templates will be read
      *
      * @param names the names of templates to read
      */
@@ -64,7 +64,7 @@ public class GetComponentTemplatesRequest implements Validatable {
     }
 
     /**
-     * @return the names of index templates this request is requesting
+     * @return the names of component templates this request is requesting
      */
     public List<String> names() {
         return names;

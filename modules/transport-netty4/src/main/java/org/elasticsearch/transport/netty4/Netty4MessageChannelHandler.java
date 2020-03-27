@@ -53,7 +53,8 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     Netty4MessageChannelHandler(PageCacheRecycler recycler, Netty4Transport transport) {
         this.transport = transport;
-        this.pipeline = new InboundPipeline(transport.getVersion(), recycler, transport::inboundMessage, transport::inboundDecodeException);
+        this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, transport::inboundMessage,
+            transport::inboundDecodeException);
     }
 
     @Override

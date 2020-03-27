@@ -54,6 +54,7 @@ public class OutboundHandlerTests extends ESTestCase {
     private final TransportRequestOptions options = TransportRequestOptions.EMPTY;
     private final AtomicReference<Tuple<Header, BytesReference>> message = new AtomicReference<>();
     private InboundPipeline pipeline;
+    private StatsTracker statsTracker;
     private OutboundHandler handler;
     private FakeTcpChannel channel;
     private DiscoveryNode node;
@@ -64,9 +65,10 @@ public class OutboundHandlerTests extends ESTestCase {
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
-        handler = new OutboundHandler("node", Version.CURRENT, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
+        statsTracker = new StatsTracker();
+        handler = new OutboundHandler("node", Version.CURRENT, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
 
-        pipeline = new InboundPipeline(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE, (c, m) -> {
+        pipeline = new InboundPipeline(Version.CURRENT, new StatsTracker(), PageCacheRecycler.NON_RECYCLING_INSTANCE, (c, m) -> {
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
                 Streams.copy(m.openOrGetStreamInput(), streamOutput);
                 message.set(new Tuple<>(m.getHeader(), streamOutput.bytes()));

@@ -41,7 +41,8 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
 
     public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
         this.channel = channel;
-        this.pipeline = new InboundPipeline(transport.getVersion(), recycler, transport::inboundMessage, transport::inboundDecodeException);
+        this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, transport::inboundMessage,
+            transport::inboundDecodeException);
     }
 
     @Override

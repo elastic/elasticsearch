@@ -80,7 +80,7 @@ public class InboundPipelineTests extends ESTestCase {
         };
 
         final PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, recycler, messageHandler, errorHandler);
+        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, new StatsTracker(), recycler, messageHandler, errorHandler);
 
         final int iterations = randomIntBetween(100, 500);
         long totalMessages = 0;

@@ -31,12 +31,12 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -136,7 +137,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+            Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
             clusterService.getNodeName(),
@@ -298,8 +299,14 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
-        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> TransformIndex.createDestinationIndex(client, Clock.systemUTC(), config, mappings, listener),
+        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(mappings -> {
+            TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                mappings,
+                config.getId(),
+                Clock.systemUTC()
+            );
+            TransformIndex.createDestinationIndex(client, config, generateddestIndexSettings, listener);
+        },
             deduceTargetMappingsException -> listener.onFailure(
                 new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
             )

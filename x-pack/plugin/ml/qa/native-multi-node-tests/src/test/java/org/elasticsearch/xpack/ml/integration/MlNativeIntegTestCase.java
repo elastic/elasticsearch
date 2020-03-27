@@ -32,12 +32,15 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -159,6 +162,14 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         refresh("*");
 
         return response;
+    }
+
+    protected PutFilterAction.Response putMlFilter(MlFilter filter) {
+        return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
+    }
+
+    protected GetFiltersAction.Response getMlFilters() {
+        return client().execute(GetFiltersAction.INSTANCE, new GetFiltersAction.Request()).actionGet();
     }
 
     @Override

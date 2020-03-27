@@ -19,6 +19,8 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.is;
+
 public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
     @Override
@@ -72,6 +74,9 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
             .getAliases();
         if (aliases != null) {
             for (ObjectObjectCursor<String, List<AliasMetaData>> entry : aliases) {
+                for (AliasMetaData aliasMetaData : entry.value) {
+                    assertThat("Annotations aliases should be hidden but are not: " + aliases, aliasMetaData.isHidden(), is(true));
+                }
                 count += entry.value.size();
             }
         }

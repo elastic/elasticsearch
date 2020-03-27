@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -123,7 +123,7 @@ public class QueryShardContextTests extends ESTestCase {
         IndexFieldData<?> forField = context.getForField(mapper.fieldType());
         String expected = clusterAlias == null ? context.getIndexSettings().getIndexMetaData().getIndex().getName()
             : clusterAlias + ":" + context.getIndexSettings().getIndex().getName();
-        assertEquals(expected, ((AbstractAtomicOrdinalsFieldData)forField.load(null)).getOrdinalsValues().lookupOrd(0).utf8ToString());
+        assertEquals(expected, ((AbstractLeafOrdinalsFieldData)forField.load(null)).getOrdinalsValues().lookupOrd(0).utf8ToString());
     }
 
     public void testGetFullyQualifiedIndex() {
@@ -153,6 +153,6 @@ public class QueryShardContextTests extends ESTestCase {
                 (mappedFieldType, idxName) ->
                     mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null),
                 mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> nowInMillis, clusterAlias, null, () -> true);
+            null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
     }
 }

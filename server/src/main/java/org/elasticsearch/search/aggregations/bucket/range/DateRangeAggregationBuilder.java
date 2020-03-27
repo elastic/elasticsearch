@@ -27,9 +27,11 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -38,10 +40,10 @@ import java.util.Map;
 public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeAggregationBuilder, RangeAggregator.Range> {
     public static final String NAME = "date_range";
 
-    private static final ObjectParser<DateRangeAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<DateRangeAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME,  DateRangeAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(DateRangeAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
         PARSER.declareBoolean(DateRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {
@@ -51,12 +53,13 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         }, (p, c) -> DateRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new DateRangeAggregationBuilder(aggregationName), null);
-    }
 
     private static RangeAggregator.Range parseRange(XContentParser parser) throws IOException {
         return RangeAggregator.Range.fromXContent(parser);
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        AbstractRangeAggregatorFactory.registerAggregators(valuesSourceRegistry, NAME);
     }
 
     public DateRangeAggregationBuilder(String name) {
@@ -82,6 +85,11 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.DATE;
     }
 
     /**
@@ -288,7 +296,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     @Override
-    protected DateRangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
+    protected DateRangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                     AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
         // the decision of whether to cache the request

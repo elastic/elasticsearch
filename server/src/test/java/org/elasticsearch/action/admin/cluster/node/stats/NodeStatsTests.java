@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
+import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
-import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -35,6 +35,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.node.AdaptiveSelectionStats;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.script.ScriptCacheStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -311,6 +312,34 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(aStats.responseTime, bStats.responseTime, 0.01);
                     });
                 }
+                ScriptCacheStats scriptCacheStats = nodeStats.getScriptCacheStats();
+                ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
+                if (scriptCacheStats == null) {
+                    assertNull(deserializedScriptCacheStats);
+                } else {
+                    Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
+                    long evictions = 0;
+                    long limited = 0;
+                    long compilations = 0;
+                    Map<String, ScriptStats> stats = scriptCacheStats.getContextStats();
+                    for (String context: stats.keySet()) {
+                        ScriptStats deserStats = deserialized.get(context);
+                        ScriptStats generatedStats = stats.get(context);
+
+                        evictions += generatedStats.getCacheEvictions();
+                        assertEquals(generatedStats.getCacheEvictions(), deserStats.getCacheEvictions());
+
+                        limited += generatedStats.getCompilationLimitTriggered();
+                        assertEquals(generatedStats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
+
+                        compilations += generatedStats.getCompilations();
+                        assertEquals(generatedStats.getCompilations(), deserStats.getCompilations());
+                    }
+                    ScriptStats sum = deserializedScriptCacheStats.sum();
+                    assertEquals(evictions, sum.getCacheEvictions());
+                    assertEquals(limited, sum.getCompilationLimitTriggered());
+                    assertEquals(compilations, sum.getCompilations());
+                }
             }
         }
     }
@@ -485,10 +514,20 @@ public class NodeStatsTests extends ESTestCase {
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
+        ScriptCacheStats scriptCacheStats = null;
+        if (frequently()) {
+            int numContents = randomIntBetween(0, 20);
+            Map<String,ScriptStats> stats = new HashMap<>(numContents);
+            for (int i = 0; i < numContents; i++) {
+                String context = randomValueOtherThanMany(stats::containsKey, () -> randomAlphaOfLength(12));
+                stats.put(context, new ScriptStats(randomLongBetween(0, 1024), randomLongBetween(0, 1024), randomLongBetween(0, 1024)));
+            }
+            scriptCacheStats = new ScriptCacheStats(stats);
+        }
         //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
-                ingestStats, adaptiveSelectionStats);
+                ingestStats, adaptiveSelectionStats, scriptCacheStats);
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

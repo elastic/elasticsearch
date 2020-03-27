@@ -38,12 +38,13 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
 /**
  * Represents a field load/store and defers to a child subnode.
  */
-public final class PField extends AStoreable {
+public class PField extends AStoreable {
 
-    private final boolean nullSafe;
-    private final String value;
+    protected final boolean nullSafe;
+    protected final String value;
 
-    private AStoreable sub = null;
+    // TODO: #54015
+    private boolean isDefOptimized;
 
     public PField(Location location, AExpression prefix, boolean nullSafe, String value) {
         super(location, prefix);
@@ -53,24 +54,26 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
         AStoreable.Input storeableInput = new AStoreable.Input();
         storeableInput.read = input.read;
         storeableInput.expected = input.expected;
         storeableInput.explicit = input.explicit;
         storeableInput.internal = input.internal;
 
-        return analyze(scriptRoot, scope, storeableInput);
+        return analyze(classNode, scriptRoot, scope, storeableInput);
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
-        Output prefixOutput = prefix.analyze(scriptRoot, scope, new Input());
-        prefix.input.expected = prefixOutput.actual;
-        prefix.cast();
+        Input prefixInput = new Input();
+        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
+        prefixInput.expected = prefixOutput.actual;
+        prefix.cast(prefixInput, prefixOutput);
+
+        AStoreable sub = null;
 
         if (prefixOutput.actual.isArray()) {
             sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual), value);
@@ -99,7 +102,7 @@ public final class PField extends AStoreable {
                             location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
-                    index.analyze(scriptRoot, scope, new Input());
+                    index.analyze(classNode, scriptRoot, scope, new Input());
 
                     if (Map.class.isAssignableFrom(prefixOutput.actual)) {
                         sub = new PSubMapShortcut(location, prefixOutput.actual, index);
@@ -119,6 +122,8 @@ public final class PField extends AStoreable {
             }
         }
 
+        isDefOptimized = sub.isDefOptimized();
+
         if (nullSafe) {
             sub = new PSubNullSafeField(location, sub);
         }
@@ -128,34 +133,25 @@ public final class PField extends AStoreable {
         subInput.read = input.read;
         subInput.expected = input.expected;
         subInput.explicit = input.explicit;
-        Output subOutput = sub.analyze(scriptRoot, scope, subInput);
+        Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
         output.actual = subOutput.actual;
+
+        DotNode dotNode = new DotNode();
+
+        dotNode.setLeftNode(prefix.cast(prefixOutput));
+        dotNode.setRightNode(subOutput.expressionNode);
+
+        dotNode.setLocation(location);
+        dotNode.setExpressionType(output.actual);
+
+        output.expressionNode = dotNode;
 
         return output;
     }
 
     @Override
-    DotNode write(ClassNode classNode) {
-        DotNode dotNode = new DotNode();
-
-        dotNode.setLeftNode(prefix.cast(prefix.write(classNode)));
-        dotNode.setRightNode(sub.write(classNode));
-
-        dotNode.setLocation(location);
-        dotNode.setExpressionType(output.actual);
-
-        return dotNode;
-    }
-
-    @Override
     boolean isDefOptimized() {
-        return sub.isDefOptimized();
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        sub.updateActual(actual);
-        this.output.actual = actual;
+        return isDefOptimized;
     }
 
     @Override

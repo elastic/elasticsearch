@@ -46,17 +46,6 @@ A single cluster will support up to 1,000 {transforms}. When using the
 is returned. Use the `size` and `from` parameters to enumerate through the full 
 list.
 
-
-[float]
-[[transform-node-assignment-limitations]]
-==== {transforms-cap} node assignment not configurable
-
-{transforms-cap} persistent tasks are assigned to the data node running
-fewest persistent tasks at the time of assignment. This cannot be customized.
-It means that if {transforms} are being used then `xpack.transform.enabled`
-must be set to `true` (which is the default) on every data node in the cluster.
-
-
 [float]
 [[transform-aggresponse-limitations]]
 ==== Aggregation responses may be incompatible with destination index mappings
@@ -217,3 +206,10 @@ this entity will not be updated.
 If using a `sync.time.field` that represents the data ingest time and using a 
 zero second or very small `sync.time.delay`, then it is more likely that this 
 issue will occur.
+
+[[transform-date-nanos]]
+==== Support for date nanoseconds data type
+
+If your data uses the <<date_nanos,date nanosecond data type>>, aggregations
+are nonetheless on millisecond resolution. This limitation also affects the
+aggregations in your {transforms}.

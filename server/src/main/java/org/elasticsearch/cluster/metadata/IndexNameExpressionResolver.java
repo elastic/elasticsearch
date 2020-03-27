@@ -767,7 +767,8 @@ public class IndexNameExpressionResolver {
         private static boolean aliasOrIndexExists(IndicesOptions options, MetaData metaData, String expression) {
             IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(expression);
             //treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
-            return indexAbstraction != null && (options.ignoreAliases() == false || indexAbstraction.getType() != IndexAbstraction.Type.ALIAS);
+            return indexAbstraction != null && (options.ignoreAliases() == false ||
+                indexAbstraction.getType() != IndexAbstraction.Type.ALIAS);
         }
 
         private static IndexNotFoundException indexNotFoundException(String expression) {

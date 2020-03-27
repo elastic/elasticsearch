@@ -81,8 +81,7 @@ public class ReleasableBytesReferenceTests extends AbstractBytesReferenceTestCas
             assertThat(length, equalTo(ref.length()));
             delegate = ref;
         }
-        return new ReleasableBytesReference(delegate, () -> {
-        });
+        return ReleasableBytesReference.wrap(delegate);
     }
 
     @Override

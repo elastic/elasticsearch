@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -178,9 +179,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                         .build())
                 .build())
             .build();
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(nodes.getMinNodeVersion()).thenReturn(JobResultsProvider.HIDDEN_INTRODUCED_VERSION);
         clusterState = mock(ClusterState.class);
         when(clusterState.getMetaData()).thenReturn(metaData);
         when(clusterState.metaData()).thenReturn(metaData);
+        when(clusterState.nodes()).thenReturn(nodes);
         nativeStorageProvider = mock(NativeStorageProvider.class);
 
         doAnswer(invocationOnMock -> {

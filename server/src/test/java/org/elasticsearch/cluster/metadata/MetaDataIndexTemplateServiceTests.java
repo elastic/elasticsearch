@@ -374,7 +374,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     /**
      * Test that if we have a pre-existing v1 and v2 template, and we update the existing v1
-     * template *AND* change
+     * template *AND* change the index patterns that an error is generated
      */
     public void testUpdatingV1NonStarWithChangedPatternsTemplateGeneratesError() {
         IndexTemplateMetaData v1Template = IndexTemplateMetaData.builder("v1-template")

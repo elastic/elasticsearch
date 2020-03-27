@@ -208,6 +208,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54285")
     public void testSpInitiatedSsoFailsForMalformedRequest() throws Exception {
         String acsUrl = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/saml/acs";
         String entityId = SP_ENTITY_ID;

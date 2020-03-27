@@ -131,7 +131,8 @@ class PluginBuildPlugin implements Plugin<Project> {
         }
         createIntegTestTask(project)
         createBundleTasks(project, extension)
-        project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
+        project.configurations.getByName('default')
+            .extendsFrom(project.configurations.getByName('runtimeClasspath'))
         // allow running ES with this plugin in the foreground of a build
         project.tasks.register('run', RunTask) {
             dependsOn(project.tasks.bundlePlugin)

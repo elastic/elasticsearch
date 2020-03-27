@@ -1,0 +1,74 @@
+---
+"Put template":
+  - do:
+      indices.put_template:
+        include_type_name: true
+        name: test
+        body:
+          index_patterns: test-*
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                field:
+                  type: keyword
+
+  - do:
+      indices.get_template:
+        include_type_name: true
+        name: test
+        flat_settings: true
+
+  - match: {test.index_patterns: ["test-*"]}
+  - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+  - match: {test.mappings: {_doc: {properties: {field: {type: keyword}}}}}
+
+---
+"Put multiple template":
+  - do:
+      indices.put_template:
+        include_type_name: true
+        name: test
+        body:
+          index_patterns: [test-*, test2-*]
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                field:
+                  type: text
+
+  - do:
+      indices.get_template:
+        include_type_name: true
+        name: test
+        flat_settings: true
+
+  - match: {test.index_patterns: ["test-*", "test2-*"]}
+  - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+  - match: {test.mappings: {_doc: {properties: {field: {type: text}}}}}
+
+---
+"Put template with empty mappings":
+  - do:
+      indices.put_template:
+        include_type_name: true
+        name: test
+        body:
+          index_patterns: test-*
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+          mappings: {}
+
+  - do:
+      indices.get_template:
+        include_type_name: true
+        name: test
+        flat_settings: true
+
+  - match: {test.mappings: {}}

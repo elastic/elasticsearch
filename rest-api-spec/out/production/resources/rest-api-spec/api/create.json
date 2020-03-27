@@ -1,0 +1,100 @@
+{
+  "create":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html",
+      "description":"Creates a new document in the index.\n\nReturns a 409 response when a document with a same ID already exists in the index."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_create/{id}",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"Document ID"
+            },
+            "index":{
+              "type":"string",
+              "description":"The name of the index"
+            }
+          }
+        },
+        {
+          "path":"/{index}/{type}/{id}/_create",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"Document ID"
+            },
+            "index":{
+              "type":"string",
+              "description":"The name of the index"
+            },
+            "type":{
+              "type":"string",
+              "description":"The type of the document",
+              "deprecated":true
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"Specifying types in urls has been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{
+      "wait_for_active_shards":{
+        "type":"string",
+        "description":"Sets the number of shard copies that must be active before proceeding with the index operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
+      },
+      "refresh":{
+        "type":"enum",
+        "options":[
+          "true",
+          "false",
+          "wait_for"
+        ],
+        "description":"If `true` then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes."
+      },
+      "routing":{
+        "type":"string",
+        "description":"Specific routing value"
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout"
+      },
+      "version":{
+        "type":"number",
+        "description":"Explicit version number for concurrency control"
+      },
+      "version_type":{
+        "type":"enum",
+        "options":[
+          "internal",
+          "external",
+          "external_gte"
+        ],
+        "description":"Specific version type"
+      },
+      "pipeline":{
+        "type":"string",
+        "description":"The pipeline id to preprocess incoming documents with"
+      }
+    },
+    "body":{
+      "description":"The document",
+      "required":true
+    }
+  }
+}

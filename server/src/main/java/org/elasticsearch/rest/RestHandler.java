@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.rest.RestRequest.Method;
@@ -89,8 +90,8 @@ public interface RestHandler {
         return Collections.emptyList();
     }
 
-    default boolean compatibilityRequired(){
-        return false;
+    default String compatibleWithVersion(){
+        return ""+ Version.CURRENT.major;
     }
 
     class Route {

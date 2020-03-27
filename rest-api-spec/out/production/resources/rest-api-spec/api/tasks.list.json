@@ -1,0 +1,55 @@
+{
+  "tasks.list":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
+      "description":"Returns a list of tasks."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_tasks",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "nodes":{
+        "type":"list",
+        "description":"A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+      },
+      "actions":{
+        "type":"list",
+        "description":"A comma-separated list of actions that should be returned. Leave empty to return all."
+      },
+      "detailed":{
+        "type":"boolean",
+        "description":"Return detailed task information (default: false)"
+      },
+      "parent_task_id":{
+        "type":"string",
+        "description":"Return tasks with specified parent task id (node_id:task_number). Set to -1 to return all."
+      },
+      "wait_for_completion":{
+        "type":"boolean",
+        "description":"Wait for the matching tasks to complete (default: false)"
+      },
+      "group_by":{
+        "type":"enum",
+        "description":"Group tasks by nodes or parent/child relationships",
+        "options":[
+          "nodes",
+          "parents",
+          "none"
+        ],
+        "default":"nodes"
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout"
+      }
+    }
+  }
+}

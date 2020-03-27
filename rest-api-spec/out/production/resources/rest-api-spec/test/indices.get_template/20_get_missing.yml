@@ -1,0 +1,13 @@
+setup:
+  - do:
+      indices.delete_template:
+        name:   '*'
+        ignore: 404
+---
+"Get missing template":
+
+  - do:
+      catch:  missing
+      indices.get_template:
+        name: test
+

@@ -19,11 +19,14 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Encapsulate multiple handlers for the same path, allowing different handlers for different HTTP verbs.
@@ -31,13 +34,14 @@ import java.util.Set;
 final class MethodHandlers {
 
     private final String path;
-    private final Map<RestRequest.Method, RestHandler> methodHandlers;
+    //TODO maybe we should aim for having a type for version instead of string/byte
+    private final Map<Tuple<RestRequest.Method,String>, RestHandler> methodHandlers;
 
-    MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
+    MethodHandlers(String path, RestHandler handler, String version, RestRequest.Method... methods) {
         this.path = path;
         this.methodHandlers = new HashMap<>(methods.length);
         for (RestRequest.Method method : methods) {
-            methodHandlers.put(method, handler);
+            methodHandlers.put(Tuple.tuple(method, version), handler);
         }
     }
 
@@ -45,9 +49,9 @@ final class MethodHandlers {
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    MethodHandlers addMethods(RestHandler handler, RestRequest.Method... methods) {
+    MethodHandlers addMethods(RestHandler handler, String version, RestRequest.Method... methods) {
         for (RestRequest.Method method : methods) {
-            RestHandler existing = methodHandlers.putIfAbsent(method, handler);
+            RestHandler existing = methodHandlers.putIfAbsent(Tuple.tuple(method, version), handler);
             if (existing != null) {
                 throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
             }
@@ -63,10 +67,17 @@ final class MethodHandlers {
         return methodHandlers.get(method);
     }
 
+    @Nullable
+    RestHandler getHandler(RestRequest.Method method, String version) {
+        return methodHandlers.get(Tuple.tuple(method,version));
+    }
+
     /**
      * Return a set of all valid HTTP methods for the particular path
      */
     Set<RestRequest.Method> getValidMethods() {
-        return methodHandlers.keySet();
+        return methodHandlers.keySet().stream()
+            .map(Tuple::v1)
+            .collect(Collectors.toSet());
     }
 }

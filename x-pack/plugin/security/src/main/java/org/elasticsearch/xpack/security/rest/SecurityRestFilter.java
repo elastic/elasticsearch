@@ -129,7 +129,7 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     @Override
-    public boolean compatibilityRequired() {
-        return restHandler.compatibilityRequired();
+    public String compatibleWithVersion() {
+        return restHandler.compatibleWithVersion();
     }
 }

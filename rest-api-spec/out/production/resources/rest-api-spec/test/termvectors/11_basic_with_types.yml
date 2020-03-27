@@ -1,0 +1,36 @@
+setup:
+  - do:
+      indices.create:
+          include_type_name: true
+          index: testidx
+          body:
+            mappings:
+              testtype:
+                "properties":
+                  "text":
+                     "type" : "text"
+                     "term_vector" : "with_positions_offsets"
+  - do:
+      index:
+        index: testidx
+        type:  testtype
+        id:    testing_document
+        body:
+            "text" : "The quick brown fox is brown."
+  - do:
+      indices.refresh: {}
+
+---
+"Basic tests for termvector get":
+
+  - do:
+      termvectors:
+        index: testidx
+        type:  testtype
+        id:    testing_document
+        "term_statistics" : true
+
+
+  - match: {term_vectors.text.field_statistics.sum_doc_freq: 5}
+  - match: {term_vectors.text.terms.brown.doc_freq: 1}
+  - match: {term_vectors.text.terms.brown.tokens.0.start_offset: 10}

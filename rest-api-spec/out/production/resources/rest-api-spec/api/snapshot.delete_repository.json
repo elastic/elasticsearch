@@ -1,0 +1,35 @@
+{
+  "snapshot.delete_repository":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+      "description":"Deletes a repository."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_snapshot/{repository}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "repository":{
+              "type":"list",
+              "description":"A comma-separated list of repository names"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "master_timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout for connection to master node"
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout"
+      }
+    }
+  }
+}

@@ -1,0 +1,489 @@
+
+---
+"Help":
+  - skip:
+      version: " - 7.3.99"
+      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
+  - do:
+      cat.aliases:
+        help: true
+
+  - match:
+      $body: |
+        /^  alias            .+   \n
+            index            .+   \n
+            filter           .+   \n
+            routing.index    .+   \n
+            routing.search   .+   \n
+            is_write_index   .+   \n
+        $/
+
+---
+"Help (pre 7.4.0)":
+  - skip:
+      version: "7.4.0 - "
+      features: node_selector
+      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
+  - do:
+      node_selector:
+        version: " - 7.3.99"
+      cat.aliases:
+        help: true
+
+  - match:
+      $body: |
+               /^  alias            .+   \n
+                   index            .+   \n
+                   filter           .+   \n
+                   routing.index    .+   \n
+                   routing.search   .+   \n
+               $/
+
+---
+"Empty cluster":
+
+  - do:
+      cat.aliases: {}
+
+  - match:
+      $body: |
+            /^
+            $/
+
+---
+"Simple alias":
+  - skip:
+      version: " - 7.3.99"
+      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
+  - do:
+        indices.create:
+            index: test
+
+  - do:
+        indices.put_alias:
+            index: test
+            name:  test_alias
+
+  - do:
+      cat.aliases: {}
+
+  - match:
+      $body: |
+                /^
+                    test_alias          \s+
+                    test                \s+
+                    -                   \s+
+                    -                   \s+
+                    -                   \s+
+                    -                   \s+
+                $/
+
+---
+"Simple alias (pre 7.4.0)":
+  - skip:
+      version: "7.4.0 - "
+      features: node_selector
+      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
+  - do:
+      indices.create:
+        index: test
+
+  - do:
+      indices.put_alias:
+        index: test
+        name:  test_alias
+
+  - do:
+      node_selector:
+        version: " - 7.3.99"
+      cat.aliases: {}
+
+  - match:
+      $body: |
+        /^
+            test_alias          \s+
+            test                \s+
+            -                   \s+
+            -                   \s+
+            -                   \s+
+        $/
+
+---
+"Complex alias":
+  - skip:
+      version: " - 7.3.99"
+      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
+  - do:
+        indices.create:
+            index: test
+            body:
+                mappings:
+                    properties:
+                        foo:
+                            type: text
+
+  - do:
+        indices.put_alias:
+            index: test
+            name:  test_alias
+            body:
+                index_routing:  ir
+                search_routing: "sr1,sr2"
+                is_write_index: true
+                filter:
+                    term:
+                        foo: bar
+  - do:
+      cat.aliases: {}
+
+  - match:
+      $body: |
+                /^
+                    test_alias          \s+
+                    test                \s+
+                    [*]                 \s+
+                    ir                  \s+
+                    sr1,sr2             \s+
+                    true                \s+
+                $/
+
+---
+"Complex alias (pre 7.4.0)":
+  - skip:
+      version: "7.4.0 - "
+      features: node_selector
+      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: text
+
+  - do:
+      indices.put_alias:
+        index: test
+        name:  test_alias
+        body:
+          index_routing:  ir
+          search_routing: "sr1,sr2"
+          filter:
+            term:
+              foo: bar
+  - do:
+      node_selector:
+        version: " - 7.3.99"
+      cat.aliases: {}
+
+  - match:
+      $body: |
+        /^
+            test_alias          \s+
+            test                \s+
+            [*]                 \s+
+            ir                  \s+
+            sr1,sr2             \s+
+        $/
+
+---
+"Alias name":
+
+  - do:
+        indices.create:
+            index: test
+
+  - do:
+        indices.put_alias:
+            index: test
+            name:  test_1
+
+  - do:
+        indices.put_alias:
+            index: test
+            name:  test_2
+
+  - do:
+      cat.aliases:
+        name: test_1
+
+  - match:
+      $body: /^test_1 .+ \n$/
+
+  - do:
+      cat.aliases:
+        name: test_2
+
+  - match:
+      $body: /^test_2 .+ \n$/
+
+  - do:
+      cat.aliases:
+        name: test_*
+
+  - match:
+      $body: / (^|\n)test_1 .+ \n/
+
+  - match:
+      $body: / (^|\n)test_2 .+ \n/
+
+---
+"Multiple alias names":
+
+  - do:
+        indices.create:
+            index: test
+
+  - do:
+        indices.create:
+            index: test2
+  - do:
+        indices.create:
+            index: test3
+
+  - do:
+        indices.put_alias:
+            index: test
+            name: foo
+
+  - do:
+        indices.put_alias:
+            index: test2
+            name: bar
+  - do:
+        indices.put_alias:
+            index: test3
+            name: baz
+
+  - do:
+        cat.aliases:
+            name: foo,bar
+            v: true
+            h: [alias, index]
+            s: [index]
+
+  - match:
+      $body: |
+               /^  alias \s+ index \n
+                   foo   \s+ test  \n
+                   bar   \s+ test2
+               $/
+
+---
+"Column headers":
+  - skip:
+      version: " - 7.3.99"
+      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
+  - do:
+        indices.create:
+            index: test
+
+  - do:
+        indices.put_alias:
+            index: test
+            name:  test_1
+
+  - do:
+        cat.aliases:
+            v: true
+
+  - match:
+      $body: |
+               /^  alias           \s+
+                   index           \s+
+                   filter          \s+
+                   routing.index   \s+
+                   routing.search  \s+
+                   is_write_index
+                   \n
+                   test_1          \s+
+                   test            \s+
+                   -               \s+
+                   -               \s+
+                   -               \s+
+                   -               \s+
+               $/
+
+---
+"Column headers (pre 7.4.0)":
+  - skip:
+      version: "7.4.0 - "
+      features: node_selector
+      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
+  - do:
+      indices.create:
+        index: test
+
+  - do:
+      indices.put_alias:
+        index: test
+        name:  test_1
+
+  - do:
+      node_selector:
+        version: " - 7.3.99"
+      cat.aliases:
+        v: true
+
+  - match:
+      $body: |
+        /^  alias           \s+
+            index           \s+
+            filter          \s+
+            routing.index   \s+
+            routing.search
+            \n
+            test_1          \s+
+            test            \s+
+            -               \s+
+            -               \s+
+            -               \s+
+        $/
+
+---
+"Select columns":
+
+  - do:
+        indices.create:
+            index: test
+
+  - do:
+        indices.put_alias:
+            index: test
+            name:  test_1
+
+  - do:
+        cat.aliases:
+            h:      [index, alias]
+
+  - match:
+      $body: /^ test \s+ test_1 \s+ $/
+
+
+  - do:
+        cat.aliases:
+            h:      [index, alias]
+            v:      true
+  - match:
+      $body: |
+            /^
+                index \s+ alias \n
+                test  \s+ test_1 \n
+            $/
+
+---
+"Alias against closed index":
+  - skip:
+      version: " - 7.3.99"
+      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          aliases:
+            test_alias: {}
+
+  - do:
+      indices.close:
+        index: test_index
+
+  - do:
+      cat.aliases: {}
+
+  - match:
+      $body: |
+                /^
+                    test_alias          \s+
+                    test_index          \s+
+                    -                   \s+
+                    -                   \s+
+                    -                   \s+
+                    -                   \s+
+                $/
+
+---
+"Alias against closed index (pre 7.4.0)":
+  - skip:
+      version: "7.4.0 - "
+      features: node_selector
+      reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          aliases:
+            test_alias: {}
+
+  - do:
+      indices.close:
+        index: test_index
+
+  - do:
+      node_selector:
+        version: " - 7.3.99"
+      cat.aliases: {}
+
+  - match:
+      $body: |
+        /^
+            test_alias          \s+
+            test_index          \s+
+            -                   \s+
+            -                   \s+
+            -                   \s+
+        $/
+
+---
+"Alias sorting":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          aliases:
+            test_alias: {}
+            my_alias: {}
+
+  - do:
+      indices.create:
+        index: other_index
+        body:
+          aliases:
+            other_alias: {}
+
+  - do:
+      cat.aliases:
+        h:      [alias, index]
+        s:      [index, alias]
+
+  - match:
+      $body: |
+            /^
+                other_alias \s+ other_index\n
+                my_alias \s+ test_index\n
+                test_alias \s+ test_index\n
+            $/
+
+  - do:
+      cat.aliases:
+        h:      [alias, index]
+        s:      [index, "a:desc"]
+
+  - match:
+      $body: |
+            /^
+                other_alias \s+ other_index\n
+                test_alias \s+ test_index\n
+                my_alias \s+ test_index\n
+            $/

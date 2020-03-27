@@ -1,0 +1,31 @@
+{
+  "get_script":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
+      "description":"Returns a script."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_scripts/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"Script ID"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "master_timeout":{
+        "type":"time",
+        "description":"Specify timeout for connection to master"
+      }
+    }
+  }
+}

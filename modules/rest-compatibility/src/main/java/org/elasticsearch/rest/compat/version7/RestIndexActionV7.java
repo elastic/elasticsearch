@@ -63,8 +63,8 @@ public class RestIndexActionV7 {
         }
 
         @Override
-        public boolean compatibilityRequired() {
-            return true;
+        public String compatibleWithVersion() {
+            return String.valueOf(Version.V_7_0_0.major);
         }
     }
 
@@ -84,8 +84,8 @@ public class RestIndexActionV7 {
         }
 
         @Override
-        public boolean compatibilityRequired() {
-            return true;
+        public String compatibleWithVersion() {
+            return String.valueOf(Version.V_7_0_0.major);
         }
     }
 
@@ -108,8 +108,8 @@ public class RestIndexActionV7 {
         }
 
         @Override
-        public boolean compatibilityRequired() {
-            return true;
+        public String compatibleWithVersion() {
+            return String.valueOf(Version.V_7_0_0.major);
         }
     }
 }

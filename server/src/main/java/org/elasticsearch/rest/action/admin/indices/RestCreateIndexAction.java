@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
@@ -31,7 +30,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,13 +57,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
         if (request.hasContent()) {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
                 request.getXContentType()).v2();
-            if(isV7Compatible(request)){
-                request.param(INCLUDE_TYPE_NAME_PARAMETER);//just consume, it is not replaced with _doc
-                sourceAsMap = prepareMappingsV7(sourceAsMap, request);
-            }else {
-                sourceAsMap = prepareMappings(sourceAsMap);
-            }
-
+            sourceAsMap = prepareMappings(sourceAsMap);
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
 
@@ -75,9 +67,6 @@ public class RestCreateIndexAction extends BaseRestHandler {
         return channel -> client.admin().indices().create(createIndexRequest, new RestToXContentListener<>(channel));
     }
 
-    private boolean isV7Compatible(RestRequest request) {
-        return request.isCompatible(""+ Version.V_7_0_0.major);
-    }
 
     static Map<String, Object> prepareMappings(Map<String, Object> source) {
         if (source.containsKey("mappings") == false
@@ -95,27 +84,5 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
         newSource.put("mappings", singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
         return newSource;
-    }
-
-    static Map<String, Object> prepareMappingsV7(Map<String, Object> source, RestRequest request) {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
-
-        if (includeTypeName && mappings.size() == 1) {
-            //no matter what the type was, replace it with _doc
-            Map<String, Object> newSource = new HashMap<>();
-
-            String typeName = mappings.keySet().iterator().next();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> typedMappings = (Map<String, Object>) mappings.get(typeName);
-
-            newSource.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, typedMappings));
-            return newSource;
-        }else{
-            return prepareMappings(source);
-        }
     }
 }

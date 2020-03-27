@@ -1,0 +1,140 @@
+---
+"Create a typeless index while there is a typed template":
+
+ - skip:
+      version: " - 6.6.99"
+      reason: Merging typeless/typed mappings/templates was added in 6.7
+
+ - do:
+      indices.put_template:
+          include_type_name: true
+          name: test_template
+          body:
+              index_patterns: test-*
+              mappings:
+                  my_type:
+                      properties:
+                          foo:
+                              type: keyword
+
+ - do:
+      indices.create:
+          index: test-1
+          body:
+              mappings:
+                  properties:
+                      bar:
+                          type: "long"
+
+ - do:
+      indices.get_mapping:
+          include_type_name: true
+          index: test-1
+
+ - is_true: test-1.mappings._doc # the index creation call won
+ - is_false: test-1.mappings.my_type
+ - is_true: test-1.mappings._doc.properties.foo
+ - is_true: test-1.mappings._doc.properties.bar
+
+---
+"Create a typed index while there is a typeless template":
+
+ - skip:
+      version: " - 6.6.99"
+      reason: Merging typeless/typed mappings/templates was added in 6.7
+
+ - do:
+      indices.put_template:
+          include_type_name: false
+          name: test_template
+          body:
+              index_patterns: test-*
+              mappings:
+                  properties:
+                      foo:
+                          type: keyword
+
+ - do:
+      indices.create: 
+          include_type_name: true
+          index: test-1
+          body:
+              mappings:
+                  my_type:
+                      properties:
+                          bar:
+                              type: "long"
+
+ - do:
+      indices.get_mapping:
+          include_type_name: true
+          index: test-1
+
+ - is_true: test-1.mappings.my_type # the index creation call won
+ - is_false: test-1.mappings._doc
+ - is_true: test-1.mappings.my_type.properties.foo
+ - is_true: test-1.mappings.my_type.properties.bar
+
+---
+"Implicitly create a typed index while there is a typeless template":
+
+ - skip:
+      version: " - 6.99.99"
+      reason: include_type_name only supported as of 6.7
+
+ - do:
+      indices.put_template:
+          include_type_name: false
+          name: test_template
+          body:
+              index_patterns: test-*
+              mappings:
+                  properties:
+                      foo:
+                          type: keyword
+
+ - do:
+      catch: /the final mapping would have more than 1 type/
+      index:
+          index: test-1
+          type: my_type
+          body: { bar: 42 }
+
+---
+"Implicitly create a typeless index while there is a typed template":
+
+ - skip:
+      version: " - 6.99.99"
+      reason: needs typeless index operations to work on typed indices
+
+ - do:
+      indices.put_template:
+          include_type_name: true
+          name: test_template
+          body:
+              index_patterns: test-*
+              mappings:
+                  my_type:
+                      properties:
+                          foo:
+                              type: keyword
+
+ - do:
+      index:
+          index: test-1
+          body: { bar: 42 }
+
+# ensures dynamic mapping update is visible to get_mapping
+ - do:
+     cluster.health:
+         wait_for_events: normal
+
+ - do:
+      indices.get_mapping:
+          include_type_name: true
+          index: test-1
+
+ - is_true: test-1.mappings.my_type # the template is honored
+ - is_false: test-1.mappings._doc
+ - is_true: test-1.mappings.my_type.properties.foo
+ - is_true: test-1.mappings.my_type.properties.bar

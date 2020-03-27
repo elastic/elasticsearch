@@ -1,0 +1,168 @@
+---
+"Basic test for aliases":
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.exists_alias:
+        name: test_alias
+
+  - is_false: ''
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index
+                alias: test_alias
+                routing: routing_value
+                filter:
+                  ids:
+                    values: ["1", "2", "3"]
+
+  - do:
+      indices.exists_alias:
+        name: test_alias
+
+  - is_true: ''
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias
+
+  - match: {test_index.aliases.test_alias: {filter: { ids : { values: ["1", "2", "3"]}}, 'index_routing': 'routing_value', 'search_routing': 'routing_value'}}
+
+---
+"Basic test for multiple aliases":
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.exists_alias:
+        name: test_alias1
+
+  - is_false: ''
+
+  - do:
+      indices.exists_alias:
+        name: test_alias2
+
+  - is_false: ''
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                indices: [test_index]
+                aliases: [test_alias1, test_alias2]
+                routing: routing_value
+
+  - do:
+      indices.exists_alias:
+        name: test_alias1
+
+  - is_true: ''
+
+  - do:
+      indices.exists_alias:
+        name: test_alias2
+
+  - is_true: ''
+
+  - do:
+      indices.get_alias:
+        index: test_index
+
+  - match: {test_index.aliases.test_alias1: {'index_routing': 'routing_value', 'search_routing': 'routing_value'}}
+  - match: {test_index.aliases.test_alias2: {'index_routing': 'routing_value', 'search_routing': 'routing_value'}}
+
+---
+"Remove alias":
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+      indices.exists_alias:
+        name: test_alias1
+  - is_false: ''
+  - do:
+      indices.exists_alias:
+        name: test_alias2
+  - is_false: ''
+  - do:
+      indices.exists_alias:
+        name: test_alias3
+  - is_false: ''
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index
+                aliases: [test_alias1, test_alias2]
+  - do:
+      indices.exists_alias:
+        name: test_alias1
+  - is_true: ''
+  - do:
+      indices.exists_alias:
+        name: test_alias2
+  - is_true: ''
+  - do:
+      indices.exists_alias:
+        name: test_alias3
+  - is_false: ''
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                alias: test_alias1
+            - add:
+                index: test_index
+                alias: test_alias3
+  - do:
+      indices.exists_alias:
+        name: test_alias1
+  - is_false: ''
+  - do:
+      indices.exists_alias:
+        name: test_alias2
+  - is_true: ''
+  - do:
+      indices.exists_alias:
+        name: test_alias3
+  - is_true: ''
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: test_index
+                alias: test_alias2
+            - remove:
+                index: test_index
+                alias: test_alias3
+  - do:
+      indices.exists_alias:
+        name: test_alias1
+  - is_false: ''
+  - do:
+      indices.exists_alias:
+        name: test_alias2
+  - is_false: ''
+  - do:
+      indices.exists_alias:
+        name: test_alias3
+  - is_false: ''

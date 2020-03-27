@@ -1,0 +1,35 @@
+{
+  "tasks.get":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
+      "description":"Returns information about a task."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_tasks/{task_id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "task_id":{
+              "type":"string",
+              "description":"Return the task with specified id (node_id:task_number)"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "wait_for_completion":{
+        "type":"boolean",
+        "description":"Wait for the matching tasks to complete (default: false)"
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout"
+      }
+    }
+  }
+}

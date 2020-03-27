@@ -1,0 +1,158 @@
+---
+"Index Sort":
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.sort.field: rank
+          mappings:
+            properties:
+              rank:
+                type:     integer
+
+  - do:
+      index:
+        index: test
+        id:    "1"
+        body:  { "rank": 4 }
+
+  - do:
+      index:
+        index: test
+        id:    "2"
+        body:  { "rank": 1 }
+
+  - do:
+      index:
+        index: test
+        id:    "3"
+        body:  { "rank": 3 }
+
+  - do:
+      index:
+        index: test
+        id:    "4"
+        body:  { "rank": 2 }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      index:
+        index: test
+        id:    "5"
+        body:  { "rank": 8 }
+
+  - do:
+      index:
+        index: test
+        id:    "6"
+        body:  { "rank": 6 }
+
+  - do:
+      index:
+        index: test
+        id:    "7"
+        body:  { "rank": 5 }
+
+  - do:
+      index:
+        index: test
+        id:    "8"
+        body:  { "rank": 7 }
+
+  - do:
+      index:
+        index: test
+        id:    "8"
+        body:  { "rank": 7 }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          sort: ["rank"]
+          size: 1
+
+  - match: {hits.total: 8 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          sort: ["rank"]
+          query: {"range": { "rank": { "from": 0 } } }
+          track_total_hits: false
+          size: 1
+
+  - match: {hits.total: -1 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._id: "2" }
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          sort: _doc
+
+  - match: {hits.total: 8 }
+  - length: {hits.hits: 8 }
+  - match: {hits.hits.0._id: "2" }
+  - match: {hits.hits.1._id: "4" }
+  - match: {hits.hits.2._id: "3" }
+  - match: {hits.hits.3._id: "1" }
+  - match: {hits.hits.4._id: "7" }
+  - match: {hits.hits.5._id: "6" }
+  - match: {hits.hits.6._id: "8" }
+  - match: {hits.hits.7._id: "5" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          sort: ["rank"]
+          query: {"range": { "rank": { "from": 0 } } }
+          track_total_hits: false
+          size: 3
+
+  - match: {hits.total: -1 }
+  - length: {hits.hits: 3 }
+  - match: {hits.hits.0._id: "2" }
+  - match: {hits.hits.1._id: "4" }
+  - match: {hits.hits.2._id: "3" }
+
+  - do:
+      catch:      /disabling \[track_total_hits\] is not allowed in a scroll context/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        scroll: 1m
+        body:
+          sort: ["rank"]
+          query: {"range": { "rank": { "from": 0 } } }
+          track_total_hits: false
+          size: 3

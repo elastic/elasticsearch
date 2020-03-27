@@ -1,0 +1,31 @@
+---
+"Metadata Fields":
+
+  - skip:
+      version:  "all"
+      reason:   "Update doesn't return metadata fields, waiting for #3259"
+
+  - do:
+      indices.create:
+          index: test_1
+
+  - do:
+      update:
+          index:  test_1
+          id:     1
+          parent: 5
+          fields: [ _routing ]
+          body:
+            doc:    { foo: baz }
+            upsert: { foo: bar }
+
+  - match:   { get._routing: "5" }
+
+  - do:
+      get:
+          index:  test_1
+          id:     1
+          parent: 5
+          stored_fields: [ _routing ]
+
+

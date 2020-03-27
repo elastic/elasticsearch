@@ -1,0 +1,8 @@
+---
+"get task test":
+  # Note that this gets much better testing in reindex's tests because it actually saves the task
+  - do:
+      catch: missing
+      tasks.get:
+        task_id: foo:1
+  - match: {error.reason: "/task.\\[foo:1\\].belongs.to.the.node.\\[foo\\].which.isn't.part.of.the.cluster.and.there.is.no.record.of.the.task/"}

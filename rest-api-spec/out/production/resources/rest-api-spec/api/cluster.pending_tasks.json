@@ -1,0 +1,29 @@
+{
+  "cluster.pending_tasks":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-pending.html",
+      "description":"Returns a list of any cluster-level changes (e.g. create index, update mapping,\nallocate or fail shard) which have not yet been executed."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_cluster/pending_tasks",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "local":{
+        "type":"boolean",
+        "description":"Return local information, do not retrieve the state from master node (default: false)"
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Specify timeout for connection to master"
+      }
+    }
+  }
+}

@@ -1,0 +1,42 @@
+---
+setup:
+  - do:
+      indices.create:
+          include_type_name: true
+          index: test_1
+          body:
+              settings:
+                  index.mapping.nested_objects.limit: 2
+              mappings:
+                  test_type:
+                      properties:
+                          nested1:
+                              type: nested
+
+---
+"Indexing a doc with No. nested objects less or equal to index.mapping.nested_objects.limit should succeed":
+  - skip:
+      version: " - 6.99.99"
+      reason:  index.mapping.nested_objects setting has been added in 7.0.0
+  - do:
+      create:
+          index:  test_1
+          type:   test_type
+          id:     1
+          body:
+              "nested1" : [ { "foo": "bar" }, { "foo": "bar2" } ]
+  - match:   { _version: 1}
+
+---
+"Indexing a doc with No. nested objects more than index.mapping.nested_objects.limit should fail":
+  - skip:
+      version: " - 6.99.99"
+      reason:  index.mapping.nested_objects setting has been added in 7.0.0
+  - do:
+      catch: /The number of nested documents has exceeded the allowed limit of \[2\]. This limit can be set by changing the \[index.mapping.nested_objects.limit\] index level setting\./
+      create:
+          index:  test_1
+          type:   test_type
+          id:     1
+          body:
+              "nested1" : [ { "foo": "bar" }, { "foo": "bar2" }, { "foo": "bar3" } ]

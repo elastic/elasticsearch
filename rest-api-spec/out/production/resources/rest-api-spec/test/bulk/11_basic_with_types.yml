@@ -1,0 +1,120 @@
+---
+"Array of objects":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id
+          - f1: v1
+            f2: 42
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id2
+          - f1: v2
+            f2: 47
+
+  - do:
+      count:
+        index: test_index
+
+  - match: {count: 2}
+
+---
+"Empty _id":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test
+              _type: type
+              _id: ''
+          - f: 1
+          - index:
+              _index: test
+              _type: type
+              _id: id
+          - f: 2
+          - index:
+              _index: test
+              _type: type
+          - f: 3
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: illegal_argument_exception }
+  - match: { items.0.index.error.reason: if _id is specified it must not be empty }
+  - match: { items.1.index.result: created }
+  - match: { items.2.index.result: created }
+
+  - do:
+      count:
+        index: test
+
+  - match: { count: 2 }
+
+---
+"Empty _id with op_type create":
+  - skip:
+      version: " - 7.4.99"
+      reason: "auto id + op type create only supported since 7.5"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test
+              _type: type
+              _id: ''
+          - f: 1
+          - index:
+              _index: test
+              _type: type
+              _id: id
+          - f: 2
+          - index:
+              _index: test
+              _type: type
+          - f: 3
+          - create:
+              _index: test
+              _type: type
+          - f: 4
+          - index:
+              _index: test
+              _type: type
+              op_type: create
+          - f: 5
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: illegal_argument_exception }
+  - match: { items.0.index.error.reason: if _id is specified it must not be empty }
+  - match: { items.1.index.result: created }
+  - match: { items.2.index.result: created }
+  - match: { items.3.create.result: created }
+  - match: { items.4.create.result: created }
+
+  - do:
+      count:
+        index: test
+
+  - match: { count: 4 }
+
+---
+"empty action":
+  - skip:
+      features: headers
+
+  - do:
+      catch: /Malformed action\/metadata line \[3\], expected FIELD_NAME but found \[END_OBJECT\]/
+      headers:
+        Content-Type: application/json
+      bulk:
+        body: |
+           {"index": {"_index": "test_index", "_type": "test_type", "_id": "test_id"}}
+           {"f1": "v1", "f2": 42}
+           {}

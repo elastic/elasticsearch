@@ -1,0 +1,44 @@
+{
+  "ingest.simulate":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html",
+      "description":"Allows to simulate a pipeline with example documents."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ingest/pipeline/_simulate",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path":"/_ingest/pipeline/{id}/_simulate",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"Pipeline ID"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "verbose":{
+        "type":"boolean",
+        "description":"Verbose mode. Display data output for each processor in executed pipeline",
+        "default":false
+      }
+    },
+    "body":{
+      "description":"The simulate definition",
+      "required":true
+    }
+  }
+}

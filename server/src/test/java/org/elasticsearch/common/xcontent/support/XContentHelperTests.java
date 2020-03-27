@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -111,25 +112,14 @@ public class XContentHelperTests extends ESTestCase {
 
         for (XContentType xContentType : XContentType.values()) {
 
-            // TODO how to deal with embedded objects?
-
             XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
-            builder.startObject();
-                builder.startObject("level1");
-                    builder.startObject("level2");
-                        builder.startObject("object");
-                            builder.field("text", "string");
-                            builder.field("number", 10);
-                        builder.endObject();
-                        builder.startObject("object2");
-                            builder.field("boolean", true);
-                            builder.nullField("null");
-                            builder.startArray("array_of_strings").value("string1").value("string2").endArray();
-                        builder.endObject();
-                    builder.endObject();
-                    builder.field("field", "value");
-                builder.endObject();
-            builder.endObject();
+            builder.startObject().startObject("level1");
+            builder.startObject("level2")
+                .startObject("object").field("text", "string").field("number", 10).endObject()
+                .startObject("object2").field("boolean", true).nullField("null")
+                .startArray("array_of_strings").value("string1").value("string2").endArray().endObject().endObject();
+            builder.field("field", "value");
+            builder.endObject().endObject();
             BytesReference input = BytesReference.bytes(builder);
 
             BytesReference bytes;
@@ -185,6 +175,40 @@ public class XContentHelperTests extends ESTestCase {
                 assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
                 assertNull(parser.nextToken());
             }
+
+        }
+    }
+
+    public void testEmbeddedObject() throws IOException {
+        // Need to test this separately as XContentType.JSON never produces VALUE_EMBEDDED_OBJECT
+        XContentBuilder builder = XContentBuilder.builder(XContentType.CBOR.xContent());
+        builder.startObject().startObject("root");
+        CompressedXContent embedded = new CompressedXContent("{\"field\":\"value\"}");
+        builder.field("bytes", embedded.compressed());
+        builder.endObject().endObject();
+        BytesReference bytes = BytesReference.bytes(builder);
+
+        BytesReference inner;
+        try (XContentParser parser = XContentType.CBOR.xContent().createParser(
+            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput())) {
+
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            inner = XContentHelper.childBytes(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+
+        try (XContentParser parser = XContentType.CBOR.xContent().createParser(
+            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inner.streamInput())) {
+
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("bytes", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_EMBEDDED_OBJECT, parser.nextToken());
+            assertEquals(embedded, new CompressedXContent(parser.binaryValue()));
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
 
         }
     }

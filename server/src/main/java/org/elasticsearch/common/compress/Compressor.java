@@ -29,6 +29,8 @@ public interface Compressor {
 
     boolean isCompressed(BytesReference bytes);
 
+    int headerLength();
+
     StreamInput streamInput(StreamInput in) throws IOException;
 
     /**

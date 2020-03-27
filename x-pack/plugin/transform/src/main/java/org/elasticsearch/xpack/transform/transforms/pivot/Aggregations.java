@@ -183,7 +183,7 @@ public final class Aggregations {
         }
 
         if (agg instanceof ValuesSourceAggregationBuilder) {
-            ValuesSourceAggregationBuilder<?, ?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?, ?>) agg;
+            ValuesSourceAggregationBuilder<?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?>) agg;
             return new Tuple<>(
                 Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.field()),
                 Collections.singletonMap(agg.getName(), agg.getType())

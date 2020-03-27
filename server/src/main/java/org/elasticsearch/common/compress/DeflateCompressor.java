@@ -67,6 +67,11 @@ public class DeflateCompressor implements Compressor {
     }
 
     @Override
+    public int headerLength() {
+        return HEADER.length;
+    }
+
+    @Override
     public StreamInput streamInput(StreamInput in) throws IOException {
         final byte[] headerBytes = new byte[HEADER.length];
         int len = 0;

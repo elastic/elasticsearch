@@ -234,6 +234,108 @@ public class MetaDataIndexTemplateService {
             });
     }
 
+    /**
+     * Add the given component template to the cluster state. If {@code create} is true, an
+     * exception will be thrown if the component template already exists
+     */
+    public void putIndexTemplateV2(final String cause, final boolean create, final String name, final TimeValue masterTimeout,
+                                   final IndexTemplateV2 template, final ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("create-index-template-v2 [" + name + "], cause [" + cause + "]",
+            new ClusterStateUpdateTask(Priority.URGENT) {
+
+                @Override
+                public TimeValue timeout() {
+                    return masterTimeout;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return addIndexTemplateV2(currentState, create, name, template);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new AcknowledgedResponse(true));
+                }
+            });
+    }
+
+    // Package visible for testing
+    static ClusterState addIndexTemplateV2(final ClusterState currentState, final boolean create,
+                                           final String name, final IndexTemplateV2 template) {
+        if (create && currentState.metaData().templatesV2().containsKey(name)) {
+            throw new IllegalArgumentException("index template [" + name + "] already exists");
+        }
+
+        // TODO: validation of index template
+        // validateAndAddTemplate(request, templateBuilder, indicesService, xContentRegistry);
+
+        logger.info("adding index template [{}]", name);
+        return ClusterState.builder(currentState)
+            .metaData(MetaData.builder(currentState.metaData()).put(name, template))
+            .build();
+    }
+
+    /**
+     * Remove the given index template from the cluster state. The index template name
+     * supports simple regex wildcards for removing multiple index templates at a time.
+     */
+    public void removeIndexTemplateV2(final String name, final TimeValue masterTimeout,
+                                      final ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("remove-index-template-v2 [" + name + "]",
+            new ClusterStateUpdateTask(Priority.URGENT) {
+
+                @Override
+                public TimeValue timeout() {
+                    return masterTimeout;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return innerRemoveIndexTemplateV2(currentState, name);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new AcknowledgedResponse(true));
+                }
+            });
+    }
+
+    // Package visible for testing
+    static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String name) {
+        Set<String> templateNames = new HashSet<>();
+        for (String templateName : currentState.metaData().templatesV2().keySet()) {
+            if (Regex.simpleMatch(name, templateName)) {
+                templateNames.add(templateName);
+            }
+        }
+        if (templateNames.isEmpty()) {
+            // if its a match all pattern, and no templates are found (we have none), don't
+            // fail with index missing...
+            if (Regex.isMatchAllPattern(name)) {
+                return currentState;
+            }
+            throw new IndexTemplateMissingException(name);
+        }
+        MetaData.Builder metaData = MetaData.builder(currentState.metaData());
+        for (String templateName : templateNames) {
+            logger.info("removing index template [{}]", templateName);
+            metaData.removeIndexTemplate(templateName);
+        }
+        return ClusterState.builder(currentState).metaData(metaData).build();
+    }
+
     public void putTemplate(final PutRequest request, final PutListener listener) {
         Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);

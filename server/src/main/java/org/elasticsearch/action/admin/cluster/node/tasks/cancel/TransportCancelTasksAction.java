@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -47,7 +48,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -107,9 +107,14 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         String nodeId = clusterService.localNode().getId();
         final boolean canceled;
         if (cancellableTask.shouldCancelChildrenOnCancellation()) {
-            final Set<DiscoveryNode> childNodes = taskManager.startBanOnChildrenNodes(cancellableTask.getId());
-            final GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.wrap(
-                r -> {
+            final StepListener<Void> completeListener = new StepListener<>();
+            // Only return when all these 3 actions completed: (1) bans are placed on nodes with outstanding child tasks,
+            // (2) child tasks are completed or failed, (3) the parent task itself was cancelled.
+            final GroupedActionListener<Void> groupedListener =
+                new GroupedActionListener<>(ActionListener.map(completeListener, r -> null), 3);
+            final Collection<DiscoveryNode> childNodes =
+                taskManager.startBanOnChildrenNodes(cancellableTask.getId(), () -> groupedListener.onResponse(null));
+            completeListener.whenComplete(r -> {
                     removeBanOnNodes(cancellableTask, childNodes);
                     listener.onResponse(cancellableTask.taskInfo(nodeId, false));
                 },
@@ -120,7 +125,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                         e.addSuppressed(inner);
                     }
                     listener.onFailure(e);
-                }), childNodes.size() + 1);
+                });
             canceled = taskManager.cancel(cancellableTask, request.getReason(), () -> groupedListener.onResponse(null));
             if (canceled) {
                 // In case the task has some child tasks, we need to wait for until ban is set on all nodes
@@ -140,7 +145,13 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     private void setBanOnNodes(String reason, CancellableTask task, Collection<DiscoveryNode> childNodes, ActionListener<Void> listener) {
+        if (childNodes.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
         logger.trace("cancelling task {} on child nodes", task.getId());
+        GroupedActionListener<Void> groupedListener =
+            new GroupedActionListener<>(ActionListener.map(listener, r -> null), childNodes.size());
         final BanParentTaskRequest banRequest = BanParentTaskRequest.createSetBanParentTaskRequest(
             new TaskId(clusterService.localNode().getId(), task.getId()), reason);
         for (DiscoveryNode node : childNodes) {
@@ -148,13 +159,13 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
-                        listener.onResponse(null);
+                        groupedListener.onResponse(null);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", banRequest.parentTaskId, node);
-                        listener.onFailure(exp);
+                        groupedListener.onFailure(exp);
                     }
                 });
         }

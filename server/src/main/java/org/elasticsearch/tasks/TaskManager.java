@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -404,16 +405,24 @@ public class TaskManager implements ClusterStateApplier {
         return cancellableTasks.values().stream().noneMatch(task -> task.hasParent(parentTaskId));
     }
 
-    // TODO: add reason and callback
-    public Set<DiscoveryNode> startBanOnChildrenNodes(long taskId) {
-        CancellableTaskHolder holder = cancellableTasks.get(taskId);
+    /**
+     * Start reject new child requests as the parent task was cancelled.
+     *
+     * @param taskId            the parent task id
+     * @param onEmptyChildNodes called when all child nodes are unregistered (i.e, all child tasks are completed or failed)
+     * @return the set of current nodes that have outstanding child tasks
+     */
+    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, Runnable onEmptyChildNodes) {
+        final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
-            return holder.startBan();
+            return holder.startBan(onEmptyChildNodes);
+        } else {
+            logger.warn("Trying to cancel task without registered cancellable task " + taskId);
+            assert false : "Should not start ban for non cancellable task";
+            // We still need to set ban on local node for persistent tasks
+            onEmptyChildNodes.run();
+            return Collections.emptySet();
         }
-        logger.warn("Trying to cancel task without registered cancellable task " + taskId);
-        assert false : "Should not start ban for non cancellable task";
-        // We still need to set ban on local node for persistent tasks
-        return Collections.emptySet();
     }
 
     @Override
@@ -474,6 +483,7 @@ public class TaskManager implements ClusterStateApplier {
         private Runnable cancellationListener = null;
         private ObjectIntMap<DiscoveryNode> childTasksPerNode = null;
         private boolean banChildren = false;
+        private Runnable onEmptyChildNodes; // called when all child nodes are unregistered
 
         CancellableTaskHolder(CancellableTask task) {
             this.task = task;
@@ -554,24 +564,44 @@ public class TaskManager implements ClusterStateApplier {
             childTasksPerNode.addTo(node, 1);
         }
 
-        synchronized void unregisterChildNode(DiscoveryNode node) {
-            if (childTasksPerNode.addTo(node, -1) == 0) {
-                childTasksPerNode.remove(node);
+        void unregisterChildNode(DiscoveryNode node) {
+            final Runnable runnable;
+            synchronized (this) {
+                if (childTasksPerNode.addTo(node, -1) == 0) {
+                    childTasksPerNode.remove(node);
+                }
+                if (childTasksPerNode.isEmpty()) {
+                    runnable = onEmptyChildNodes;
+                } else {
+                    runnable = null;
+                }
+            }
+            if (runnable != null) {
+                runnable.run();
             }
         }
 
-        synchronized Set<DiscoveryNode> startBan() {
+        synchronized Set<DiscoveryNode> startBan(Runnable onEmptyChildNodes) {
+            final Set<DiscoveryNode> pendingChildNodes;
             synchronized (this) {
                 if (banChildren) {
                     logger.warn("Trying to start ban twice for task " + task.getId());
-                    return Collections.emptySet();
+                    pendingChildNodes = Collections.emptySet();
+                } else {
+                    banChildren = true;
+                    if (childTasksPerNode == null) {
+                        pendingChildNodes = Collections.emptySet();
+                    } else {
+                        pendingChildNodes = StreamSupport.stream(childTasksPerNode.spliterator(), false)
+                            .map(e -> e.key).collect(Collectors.toUnmodifiableSet());
+                    }
+                    this.onEmptyChildNodes = onEmptyChildNodes;
                 }
-                banChildren = true;
-                if (childTasksPerNode == null) {
-                    return Collections.emptySet();
-                }
-                return StreamSupport.stream(childTasksPerNode.spliterator(), false).map(e -> e.key).collect(Collectors.toUnmodifiableSet());
             }
+            if (pendingChildNodes.isEmpty()) {
+                onEmptyChildNodes.run();
+            }
+            return pendingChildNodes;
         }
     }
 

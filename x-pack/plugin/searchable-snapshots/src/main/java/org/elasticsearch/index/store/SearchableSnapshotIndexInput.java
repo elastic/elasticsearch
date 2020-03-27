@@ -8,14 +8,12 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
-import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
@@ -259,25 +257,7 @@ public class SearchableSnapshotIndexInput extends BaseSearchableSnapshotIndexInp
     }
 
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {
-        final InputStream stream;
-        if (fileInfo.metadata().hashEqualsContents() == false) {
-            stream = blobContainer.readBlob(fileInfo.partName(part), pos, length);
-        } else {
-            // extract blob content from metadata hash
-            final BytesRef data = fileInfo.metadata().hash();
-            if (part > 0) {
-                assert fileInfo.numberOfParts() >= part;
-                for (int i = 0; i < part; i++) {
-                    pos += fileInfo.partBytes(i);
-                }
-            }
-            if ((pos < 0L) || (length < 0L) || (pos + length > data.bytes.length)) {
-                throw new IllegalArgumentException("Invalid arguments (pos=" + pos + ", length=" + length
-                    + ") for hash content (length=" + data.bytes.length + ')');
-            }
-            stream = new ByteArrayInputStream(data.bytes, Math.toIntExact(pos), Math.toIntExact(length));
-        }
-        return stream;
+        return blobContainer.readBlob(fileInfo.partName(part), pos, length);
     }
 
     /**

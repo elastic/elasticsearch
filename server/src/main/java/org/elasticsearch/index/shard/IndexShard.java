@@ -1228,12 +1228,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Acquire the searcher without applying the additional reader wrapper.
+     * Acquire a lightweight searcher which can be used to rewrite shard search requests.
      */
-    public Engine.Searcher acquireSearcherNoWrap(String source) {
+    public Engine.Searcher acquireCanMatchSearcher() {
         readAllowed();
         markSearcherAccessed();
-        return getEngine().acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
+        return getEngine().acquireSearcher("can_match", Engine.SearcherScope.EXTERNAL);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -1252,10 +1252,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return wrapSearcher(searcher);
     }
 
-    /**
-     * Wraps the provided searcher acquired with {@link #acquireSearcherNoWrap(String)}.
-     */
-    public Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
+    private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
         assert ElasticsearchDirectoryReader.unwrap(searcher.getDirectoryReader())
             != null : "DirectoryReader must be an instance or ElasticsearchDirectoryReader";
         boolean success = false;

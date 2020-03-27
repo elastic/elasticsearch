@@ -202,6 +202,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
+        @Override
         public KeywordFieldType clone() {
             return new KeywordFieldType(this);
         }

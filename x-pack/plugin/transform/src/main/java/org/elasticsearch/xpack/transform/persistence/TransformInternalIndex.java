@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_HIDDEN;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
@@ -79,6 +80,8 @@ public final class TransformInternalIndex {
     public static final String KEYWORD = "keyword";
     public static final String BOOLEAN = "boolean";
 
+    public static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
+
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
         IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
             .patterns(Collections.singletonList(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME))
@@ -97,19 +100,22 @@ public final class TransformInternalIndex {
         return transformTemplate;
     }
 
-    public static IndexTemplateMetaData getAuditIndexTemplateMetaData() throws IOException {
+    public static IndexTemplateMetaData getAuditIndexTemplateMetaData(Version compatibilityVersion) throws IOException {
+        final Settings.Builder auditIndexSettings = Settings.builder()
+            // the audits are expected to be small
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
+        final AliasMetaData.Builder alias = AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS);
+        if (compatibilityVersion.onOrAfter(HIDDEN_INTRODUCED_VERSION)) {
+            auditIndexSettings.put(SETTING_INDEX_HIDDEN, true);
+            alias.isHidden(true);
+        }
         IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX)
             .patterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"))
             .version(Version.CURRENT.id)
-            .settings(
-                Settings.builder()
-                    // the audits are expected to be small
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                    .put(IndexMetaData.SETTING_INDEX_HIDDEN, true)
-            )
+            .settings(auditIndexSettings)
             .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(auditMappings()))
-            .putAlias(AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS).isHidden(true))
+            .putAlias(alias)
             .build();
         return transformTemplate;
     }
@@ -406,7 +412,7 @@ public final class TransformInternalIndex {
 
         // Installing the template involves communication with the master node, so it's more expensive but much rarer
         try {
-            IndexTemplateMetaData indexTemplateMetaData = getAuditIndexTemplateMetaData();
+            IndexTemplateMetaData indexTemplateMetaData = getAuditIndexTemplateMetaData(clusterService.state().nodes().getMinNodeVersion());
             BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.AUDIT_INDEX).patterns(
                 indexTemplateMetaData.patterns()

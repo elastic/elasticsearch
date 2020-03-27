@@ -110,10 +110,10 @@ public class InboundDecoder implements Releasable {
                 decompress(retainedContent);
                 ReleasableBytesReference decompressed;
                 while ((decompressed = decompressor.pollDecompressedPage()) != null) {
-                    consumeNonEmptyContent(decompressed, fragmentConsumer);
+                    fragmentConsumer.accept(decompressed);
                 }
             } else {
-                consumeNonEmptyContent(retainedContent, fragmentConsumer);
+                fragmentConsumer.accept(retainedContent);
             }
             if (isDone()) {
                 finishMessage(fragmentConsumer);
@@ -127,15 +127,6 @@ public class InboundDecoder implements Releasable {
     public void close() {
         isClosed = true;
         cleanDecodeState();
-    }
-
-    private void consumeNonEmptyContent(ReleasableBytesReference content, Consumer<Object> fragmentConsumer) {
-        // Do not bother forwarding empty content
-        if (content.length() == 0) {
-            content.close();
-        } else {
-            fragmentConsumer.accept(content);
-        }
     }
 
     private void finishMessage(Consumer<Object> fragmentConsumer) {

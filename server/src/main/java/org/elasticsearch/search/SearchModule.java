@@ -86,6 +86,7 @@ import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.SearchPlugin.AggregationExtension;
 import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext;
 import org.elasticsearch.plugins.SearchPlugin.PipelineAggregationSpec;
@@ -272,6 +273,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
@@ -336,7 +338,7 @@ public class SearchModule {
     }
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
-        List<SearchPlugin.AggregationSpec> aggregations = new ArrayList<>();
+        List<AggregationSpec> aggregations = new ArrayList<>();
         aggregations.add(AvgAggregationBuilder.SPEC);
         aggregations.add(new AggregationSpec(WeightedAvgAggregationBuilder.NAME, WeightedAvgAggregationBuilder::new,
             WeightedAvgAggregationBuilder.PARSER).addResultReader(InternalWeightedAvg::new));
@@ -463,11 +465,21 @@ public class SearchModule {
                 CompositeAggregationBuilder.PARSER).addResultReader(InternalComposite::new)));
         plugins.stream().map(SearchPlugin::getAggregations).flatMap(List::stream).forEach(aggregations::add);
 
+        // Allow plugins to register additional aggregator implementations to existing aggs
+        Map<String, AggregationSpec> map = aggregations.stream()
+            .collect(toMap(agg -> agg.getName().getPreferredName(), Function.identity()));
+        for (SearchPlugin plugin : plugins) {
+            for (AggregationExtension ext : plugin.getAggregationExtensions()) {
+                AggregationSpec toExtend = map.get(ext.getName());
+                if (toExtend == null) {
+                    throw new IllegalArgumentException("Aggregation [" + ext.getName() + "] doesn't exist");
+                }
+                ext.getExtender().accept(toExtend);
+            }
+        }
+
         ValuesSourceRegistry registry = new ValuesSourceRegistry(aggregations);
         aggregations.stream().forEach(agg -> registerAggregation(agg, registry));
-
-        // Allow plugins to register additional aggregator implementations to existing aggs
-        registerFromPlugin(plugins, SearchPlugin::getBareAggregatorRegistrar, this::registerBareAggregatorRegistrar);
         return registry;
     }
 
@@ -486,12 +498,6 @@ public class SearchModule {
         Consumer<ValuesSourceRegistry> register = spec.getAggregatorRegistrar();
         if (register != null) {
             register.accept(registry);
-        }
-    }
-
-    private void registerBareAggregatorRegistrar(Consumer<ValuesSourceRegistry> registrar) {
-        if (registrar != null) {
-            registrar.accept(this.valuesSourceRegistry);
         }
     }
 

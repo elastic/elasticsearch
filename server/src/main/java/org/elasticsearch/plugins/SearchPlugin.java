@@ -120,10 +120,9 @@ public interface SearchPlugin {
         return emptyList();
     }
     /**
-     * Allows plugins to register new aggregations using aggregation names that are already defined
-     * in Core, as long as the new aggregations target different ValuesSourceTypes
+     * Extend existing aggregations
      */
-    default List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
+    default List<AggregationExtension> getAggregationExtensions() {
         return emptyList();
     }
     /**
@@ -361,7 +360,7 @@ public interface SearchPlugin {
         /**
          * Set the function to register the {@link org.elasticsearch.search.aggregations.support.ValuesSource} to aggregator mappings for
          * this aggregation
-         * @deprecated call {@link #implementAggregator(AggregatorSupplier, Predicate)} and frinds directly
+         * @deprecated call {@link #implement(AggregatorSupplier, Predicate)} and frinds directly
          */
         @Deprecated
         public AggregationSpec setAggregatorRegistrar(Consumer<ValuesSourceRegistry> aggregatorRegistrar) {
@@ -372,7 +371,7 @@ public interface SearchPlugin {
         /**
          * Configure an {@link Aggregator} implementation.
          */
-        public AggregationSpec implementAggregator(AggregatorSupplier aggregatorSupplier, Predicate<ValuesSourceType> appliesTo) {
+        public AggregationSpec implement(AggregatorSupplier aggregatorSupplier, Predicate<ValuesSourceType> appliesTo) {
             aggregatorImplementations.add(new AggregatorImplementation(appliesTo, aggregatorSupplier));
             return this;
         }
@@ -380,16 +379,16 @@ public interface SearchPlugin {
         /**
          * Configure an {@link Aggregator} implementation for any of a list of {@link ValuesSourceType}s.
          */
-        public AggregationSpec implementAggregatorFor(AggregatorSupplier aggregatorSupplier, ValuesSourceType... appliesTo) {
+        public AggregationSpec implementFor(AggregatorSupplier aggregatorSupplier, ValuesSourceType... appliesTo) {
             Collection<ValuesSourceType> types = List.of(appliesTo); 
-            return implementAggregator(aggregatorSupplier, types::contains);
+            return implement(aggregatorSupplier, types::contains);
         }
 
         /**
          * Configure an {@link Aggregator} for all {@link ValuesSourceType}s.
          */
-        public AggregationSpec implementAggregatorForAllValues(AggregatorSupplier aggregatorSupplier) {
-            return implementAggregator(aggregatorSupplier, candidate -> true);
+        public AggregationSpec implementForAllValues(AggregatorSupplier aggregatorSupplier) {
+            return implement(aggregatorSupplier, candidate -> true);
         }
 
         /**
@@ -425,6 +424,32 @@ public interface SearchPlugin {
             public AggregatorSupplier getAggregatorSupplier() {
                 return aggregatorSupplier;
             }
+        }
+    }
+
+    /**
+     * Specification for an extension to aggregations.
+     */
+    class AggregationExtension {
+        private final String name;
+        private final Consumer<AggregationSpec> extender;
+
+        /**
+         * Build the extension.
+         * @param name the name of the aggregation to extend
+         * @param extender how to extend it
+         */
+        public AggregationExtension(String name, Consumer<AggregationSpec> extender) {
+            this.name = name;
+            this.extender = extender;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public Consumer<AggregationSpec> getExtender() {
+            return extender;
         }
     }
 

@@ -26,6 +26,20 @@ import java.util.List;
 import java.util.Map;
 
 class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
+    static final StringStatsAggregatorSupplier IMPLEMENTATION = new StringStatsAggregatorSupplier() {
+        @Override
+        public Aggregator build(String name,
+                                ValuesSource valuesSource,
+                                boolean showDistribution,
+                                DocValueFormat format,
+                                SearchContext context,
+                                Aggregator parent,
+                                List<PipelineAggregator> pipelineAggregators,
+                                Map<String, Object> metaData) throws IOException {
+            return new StringStatsAggregator(name, showDistribution, (ValuesSource.Bytes) valuesSource,
+                format, context, parent, pipelineAggregators, metaData);
+        }
+    };
 
     private final boolean showDistribution;
 
@@ -36,24 +50,6 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.showDistribution = showDistribution;
-    }
-
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(StringStatsAggregationBuilder.NAME,
-            CoreValuesSourceType.BYTES, new StringStatsAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name,
-                                        ValuesSource valuesSource,
-                                        boolean showDistribution,
-                                        DocValueFormat format,
-                                        SearchContext context,
-                                        Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
-                    return new StringStatsAggregator(name, showDistribution, (ValuesSource.Bytes) valuesSource,
-                        format, context, parent, pipelineAggregators, metaData);
-                }
-            });
     }
 
     @Override

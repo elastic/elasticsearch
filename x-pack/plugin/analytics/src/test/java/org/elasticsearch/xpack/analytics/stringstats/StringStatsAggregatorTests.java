@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -36,7 +37,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.junit.BeforeClass;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -55,11 +56,16 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 
 public class StringStatsAggregatorTests extends AggregatorTestCase {
-
-    @BeforeClass()
-    public static void registerBuilder() {
-        StringStatsAggregationBuilder.registerAggregators(valuesSourceRegistry);
+    @Override
+    protected List<SearchPlugin> plugins() {
+        return singletonList(new SearchPlugin() {
+            @Override
+            public List<AggregationSpec> getAggregations() {
+                return singletonList(StringStatsAggregationBuilder.spec(UnaryOperator.identity()));
+            }
+        });
     }
+
     private static final String VALUE_SCRIPT_NAME = "value_script";
     private static final String FIELD_SCRIPT_NAME = "field_script";
 
@@ -96,7 +102,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoDocs() throws IOException {
-        this.<InternalStringStats>testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, stats -> {
             assertEquals(0, stats.getCount());

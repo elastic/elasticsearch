@@ -24,7 +24,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
@@ -32,11 +31,9 @@ import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
-import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregator;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder;
@@ -52,7 +49,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.singletonList;
 
@@ -78,18 +75,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     @Override
     public List<AggregationSpec> getAggregations() {
         return Arrays.asList(
-            new AggregationSpec(
-                StringStatsAggregationBuilder.NAME,
-                StringStatsAggregationBuilder::new,
-                usage.track(AnalyticsUsage.Item.STRING_STATS, checkLicense(StringStatsAggregationBuilder.PARSER)))
-                .addResultReader(InternalStringStats::new)
-                .setAggregatorRegistrar(StringStatsAggregationBuilder::registerAggregators),
-            new AggregationSpec(
-                BoxplotAggregationBuilder.NAME,
-                BoxplotAggregationBuilder::new,
-                usage.track(AnalyticsUsage.Item.BOXPLOT, checkLicense(BoxplotAggregationBuilder.PARSER)))
-                .addResultReader(InternalBoxplot::new)
-                .setAggregatorRegistrar(BoxplotAggregationBuilder::registerAggregators),
+            StringStatsAggregationBuilder.spec(parserWrapper(AnalyticsUsage.Item.STRING_STATS)),
+            BoxplotAggregationBuilder.spec(parserWrapper(AnalyticsUsage.Item.BOXPLOT)),
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
@@ -117,9 +104,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     }
 
     @Override
-    public List<Consumer<ValuesSourceRegistry>> getBareAggregatorRegistrar() {
-        return List.of(AnalyticsPercentilesAggregatorFactory::registerPercentilesAggregator,
-            AnalyticsPercentilesAggregatorFactory::registerPercentileRanksAggregator);
+    public List<AggregationExtension> getAggregationExtensions() {
+        return AnalyticsPercentilesAggregatorFactory.EXTENSIONS; 
     }
 
     @Override
@@ -128,6 +114,10 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver) {
         return singletonList(new AnalyticsUsage());
+    }
+
+    private <T> UnaryOperator<ContextParser<String, T>> parserWrapper(AnalyticsUsage.Item usageItem) {
+        return parser -> usage.track(usageItem, checkLicense(parser));
     }
 
     private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {

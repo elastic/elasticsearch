@@ -50,7 +50,7 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
 
     public static final AggregationSpec SPEC = new AggregationSpec(NAME, AvgAggregationBuilder::new, PARSER)
         .addResultReader(InternalAvg::new)
-        .implementAggregatorFor(AvgAggregatorFactory.IMPLEMENTATION, NUMERIC, DATE, BOOLEAN);
+        .implementFor(AvgAggregatorFactory.IMPLEMENTATION, NUMERIC, DATE, BOOLEAN);
 
     public AvgAggregationBuilder(String name) {
         super(name);

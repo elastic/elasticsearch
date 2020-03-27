@@ -8,32 +8,42 @@ package org.elasticsearch.xpack.analytics.stringstats;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.UnaryOperator;
+
+import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.BYTES;
 
 public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder<StringStatsAggregationBuilder> {
 
     public static final String NAME = "string_stats";
 
     private static final ParseField SHOW_DISTRIBUTION_FIELD = new ParseField("show_distribution");
-    public static final ObjectParser<StringStatsAggregationBuilder, String> PARSER =
+    static final ObjectParser<StringStatsAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, StringStatsAggregationBuilder::new);
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareBoolean(StringStatsAggregationBuilder::showDistribution, StringStatsAggregationBuilder.SHOW_DISTRIBUTION_FIELD);
+    }
+
+    public static AggregationSpec spec(UnaryOperator<ContextParser<String, StringStatsAggregationBuilder>> parserWrapper) {
+        return new AggregationSpec(NAME, StringStatsAggregationBuilder::new, parserWrapper.apply(PARSER))
+            .addResultReader(InternalStringStats::new)
+            .implementFor(StringStatsAggregatorFactory.IMPLEMENTATION, BYTES);
     }
 
     private boolean showDistribution = false;
@@ -50,7 +60,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     /** Read from a stream. */
-    public StringStatsAggregationBuilder(StreamInput in) throws IOException {
+    StringStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         this.showDistribution = in.readBoolean();
     }
@@ -106,10 +116,6 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     public StringStatsAggregationBuilder showDistribution(boolean showDistribution) {
         this.showDistribution = showDistribution;
         return this;
-    }
-
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        StringStatsAggregatorFactory.registerAggregators(valuesSourceRegistry);
     }
 
     @Override

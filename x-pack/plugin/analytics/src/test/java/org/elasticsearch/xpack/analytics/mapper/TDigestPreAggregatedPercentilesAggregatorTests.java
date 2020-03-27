@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.analytics.mapper;
 
 import com.tdunning.math.stats.Centroid;
 import com.tdunning.math.stats.TDigest;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -19,6 +20,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -32,7 +34,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -41,12 +42,17 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 
 public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTestCase {
-
-    @BeforeClass
-    public static void registerBuilder() {
-        AnalyticsPercentilesAggregatorFactory.registerPercentilesAggregator(valuesSourceRegistry);
+    @Override
+    protected List<SearchPlugin> plugins() {
+        return singletonList(new SearchPlugin() {
+            @Override
+            public List<AggregationExtension> getAggregationExtensions() {
+                return AnalyticsPercentilesAggregatorFactory.EXTENSIONS;
+            }
+        });
     }
 
     @Override

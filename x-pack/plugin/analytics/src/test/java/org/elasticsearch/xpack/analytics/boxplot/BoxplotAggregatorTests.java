@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -40,7 +41,6 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,8 +49,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BoxplotAggregatorTests extends AggregatorTestCase {
@@ -58,10 +60,14 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
     /** Script to return the {@code _value} provided by aggs framework. */
     public static final String VALUE_SCRIPT = "_value";
 
-
-    @BeforeClass()
-    public static void registerBuilder() {
-        BoxplotAggregationBuilder.registerAggregators(valuesSourceRegistry);
+    @Override
+    protected List<SearchPlugin> plugins() {
+        return singletonList(new SearchPlugin() {
+            @Override
+            public List<AggregationSpec> getAggregations() {
+                return singletonList(BoxplotAggregationBuilder.spec(UnaryOperator.identity()));
+            }
+        });
     }
 
     @Override

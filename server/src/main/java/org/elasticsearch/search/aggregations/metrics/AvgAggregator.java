@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 class AvgAggregator extends NumericMetricsAggregator.SingleValue {
+
     final ValuesSource.Numeric valuesSource;
 
     LongArray counts;

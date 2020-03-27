@@ -42,6 +42,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
@@ -121,7 +122,7 @@ public class AzureStorageService {
             if (timeout > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("Timeout [" + azureStorageSettings.getTimeout() + "] exceeds 2,147,483,647ms.");
             }
-            client.getDefaultRequestOptions().setTimeoutIntervalInMs((int) timeout);
+            client.getDefaultRequestOptions().setMaximumExecutionTimeInMs((int) timeout);
         }
         // We define a default exponential retry policy
         client.getDefaultRequestOptions().setRetryPolicyFactory(createRetryPolicy(azureStorageSettings));
@@ -256,13 +257,13 @@ public class AzureStorageService {
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
 
-    public InputStream getInputStream(String account, String container, String blob)
-        throws URISyntaxException, StorageException, IOException {
+    public InputStream getInputStream(String account, String container, String blob, long position, @Nullable Long length)
+        throws URISyntaxException, StorageException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlockBlob blockBlobReference = client.v1().getContainerReference(container).getBlockBlobReference(blob);
         logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
         final BlobInputStream is = SocketAccess.doPrivilegedException(() ->
-        blockBlobReference.openInputStream(null, null, client.v2().get()));
+            blockBlobReference.openInputStream(position, length, null, null, client.v2().get()));
         return giveSocketPermissionsToStream(is);
     }
 

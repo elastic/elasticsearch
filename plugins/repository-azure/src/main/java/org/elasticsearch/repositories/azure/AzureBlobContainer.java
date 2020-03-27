@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
+import com.microsoft.azure.storage.Constants;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
@@ -68,10 +69,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         return false;
     }
 
-    @Override
-    public InputStream readBlob(String blobName) throws IOException {
-        logger.trace("readBlob({})", blobName);
-
+    private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
+        logger.trace("readBlob({}) from position [{}] with length [{}]", blobName, position, length != null ? length : "unlimited");
         if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && !blobExists(blobName)) {
             // On Azure, if the location path is a secondary location, and the blob does not
             // exist, instead of returning immediately from the getInputStream call below
@@ -81,9 +80,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             // stream to it.
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
-
         try {
-            return blobStore.getInputStream(buildKey(blobName));
+            return blobStore.getInputStream(buildKey(blobName), position, length);
         } catch (StorageException e) {
             if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                 throw new NoSuchFileException(e.getMessage());
@@ -92,6 +90,21 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         } catch (URISyntaxException e) {
             throw new IOException(e);
         }
+    }
+
+    @Override
+    public InputStream readBlob(String blobName) throws IOException {
+        return openInputStream(blobName, 0L, null);
+    }
+
+    @Override
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        return openInputStream(blobName, position, length);
+    }
+
+    @Override
+    public long readBlobPreferredLength() {
+        return Constants.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES;
     }
 
     @Override

@@ -47,6 +47,7 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -63,6 +64,7 @@ class AsyncSearchIndexService {
     public static final String INDEX = ".async-search";
 
     public static final String HEADERS_FIELD = "headers";
+    public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
 
@@ -83,6 +85,10 @@ class AsyncSearchIndexService {
                     .field("dynamic", "strict")
                     .startObject("properties")
                         .startObject(HEADERS_FIELD)
+                            .field("type", "object")
+                            .field("enabled", "false")
+                        .endObject()
+                        .startObject(RESPONSE_HEADERS_FIELD)
                             .field("type", "object")
                             .field("enabled", "false")
                         .endObject()
@@ -172,9 +178,11 @@ class AsyncSearchIndexService {
      * Stores the final response if the place-holder document is still present (update).
      */
     void storeFinalResponse(String docId,
+                            Map<String, List<String>> responseHeaders,
                             AsyncSearchResponse response,
                             ActionListener<UpdateResponse> listener) throws IOException {
         Map<String, Object> source = new HashMap<>();
+        source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
         source.put(RESULT_FIELD, encodeResponse(response));
         UpdateRequest request = new UpdateRequest()
             .index(INDEX)
@@ -249,8 +257,11 @@ class AsyncSearchIndexService {
     /**
      * Gets the response from the index if present, or delegate a {@link ResourceNotFoundException}
      * failure to the provided listener if not.
+     * When the provided <code>restoreResponseHeaders</code> is <code>true</code>, this method also restores the
+     * response headers of the original request in the current thread context.
      */
     void getResponse(AsyncSearchId searchId,
+                     boolean restoreResponseHeaders,
                      ActionListener<AsyncSearchResponse> listener) {
         final Authentication current = securityContext.getAuthentication();
         GetRequest internalGet = new GetRequest(INDEX)
@@ -269,6 +280,12 @@ class AsyncSearchIndexService {
                 if (ensureAuthenticatedUserIsSame(headers, current) == false) {
                     listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                     return;
+                }
+
+                if (restoreResponseHeaders) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, List<String>> responseHeaders = (Map<String, List<String>>) get.getSource().get(RESPONSE_HEADERS_FIELD);
+                    restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
                 }
 
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
@@ -336,6 +353,17 @@ class AsyncSearchIndexService {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                 in.setVersion(Version.readVersion(in));
                 return new AsyncSearchResponse(in);
+            }
+        }
+    }
+
+    /**
+     * Restores the provided <code>responseHeaders</code> to the current thread context.
+     */
+    static void restoreResponseHeadersContext(ThreadContext threadContext, Map<String, List<String>> responseHeaders) {
+        for (Map.Entry<String, List<String>> entry : responseHeaders.entrySet()) {
+            for (String value : entry.getValue()) {
+                threadContext.addResponseHeader(entry.getKey(), value);
             }
         }
     }

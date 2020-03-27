@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -38,6 +39,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.search.AsyncSearchIndexService.restoreResponseHeadersContext;
 
 /**
  * Task that tracks the progress of a currently running {@link SearchRequest}.
@@ -61,7 +64,8 @@ final class AsyncSearchTask extends SearchTask {
     private volatile long expirationTimeMillis;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
-    private AtomicReference<MutableSearchResponse> searchResponse;
+    private final AtomicReference<MutableSearchResponse> searchResponse = new AtomicReference<>();
+    private final AtomicReference<Map<String, List<String>>> responseHeaders = new AtomicReference<>();
 
     /**
      * Creates an instance of {@link AsyncSearchTask}.
@@ -98,7 +102,6 @@ final class AsyncSearchTask extends SearchTask {
         this.threadPool = threadPool;
         this.aggReduceContextSupplier = aggReduceContextSupplier;
         this.progressListener = new Listener();
-        this.searchResponse = new AtomicReference<>();
         setProgressListener(progressListener);
     }
 
@@ -183,7 +186,7 @@ final class AsyncSearchTask extends SearchTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponse());
+            listener.onResponse(getResponse(true));
         }
     }
 
@@ -201,7 +204,7 @@ final class AsyncSearchTask extends SearchTask {
             }
         }
         if (executeImmediately) {
-            listener.accept(getResponse());
+            listener.accept(getResponse(true));
         }
     }
 
@@ -221,7 +224,7 @@ final class AsyncSearchTask extends SearchTask {
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-                            listener.onResponse(getResponse());
+                            listener.onResponse(getResponse(true));
                         }
                     }, waitForCompletion, "generic");
                 } catch (EsRejectedExecutionException exc) {
@@ -238,7 +241,7 @@ final class AsyncSearchTask extends SearchTask {
             }
         }
         if (executeImmediately) {
-            listener.onResponse(getResponse());
+            listener.onResponse(getResponse(true));
         }
     }
 
@@ -284,15 +287,24 @@ final class AsyncSearchTask extends SearchTask {
             }
             hasCompleted = true;
         }
-        AsyncSearchResponse finalResponse = getResponse();
+        // we don't need to restore the response headers, they should be included in the current
+        // context since we are called by the search action listener.
+        AsyncSearchResponse finalResponse = getResponse(false);
         for (Consumer<AsyncSearchResponse> listener : completionListeners.values()) {
             listener.accept(finalResponse);
         }
         completionListeners.clear();
     }
 
-    private AsyncSearchResponse getResponse() {
+    /**
+     * Returns the current {@link AsyncSearchResponse} and restores the response headers
+     * in the local thread context depending on the value of <code>restoreResponseHeaders</code>.
+     */
+    private AsyncSearchResponse getResponse(boolean restoreResponseHeaders) {
         assert searchResponse.get() != null;
+        if (restoreResponseHeaders && responseHeaders.get() != null) {
+            restoreResponseHeadersContext(threadPool.getThreadContext(), responseHeaders.get());
+        }
         return searchResponse.get().toAsyncSearchResponse(this, expirationTimeMillis);
     }
 
@@ -360,6 +372,8 @@ final class AsyncSearchTask extends SearchTask {
 
         @Override
         public void onResponse(SearchResponse response) {
+            // copy the response headers from the current context
+            responseHeaders.set(threadPool.getThreadContext().getResponseHeaders());
             searchResponse.get().updateFinalResponse(response.getSuccessfulShards(), response.getInternalResponse());
             executeCompletionListeners();
         }
@@ -371,6 +385,8 @@ final class AsyncSearchTask extends SearchTask {
                 searchResponse.compareAndSet(null,
                     new MutableSearchResponse(-1, -1, null, aggReduceContextSupplier));
             }
+            // copy the response headers from the current context
+            responseHeaders.set(threadPool.getThreadContext().getResponseHeaders());
             searchResponse.get().updateWithFailure(exc);
             executeInitListeners();
             executeCompletionListeners();

@@ -84,6 +84,11 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
     protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         QueryBuilder result = Rewriteable.rewrite(filter, queryShardContext);
         if (result != filter) {

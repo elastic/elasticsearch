@@ -129,6 +129,14 @@ class NodeDeprecationChecks {
         );
     }
 
+    public static DeprecationIssue checkNodeLocalStorageSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkRemovedSetting(
+            settings,
+            Node.NODE_LOCAL_STORAGE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-node-local-storage"
+        );
+    }
+
     private static DeprecationIssue checkDeprecatedSetting(
         final Settings settings,
         final PluginsAndModules pluginsAndModules,

@@ -199,6 +199,22 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{RemoteClusterService.ENABLE_REMOTE_CLUSTERS});
     }
 
+    public void testNodeLocalStorageSetting() {
+        final boolean value = randomBoolean();
+        final Settings settings = Settings.builder().put(Node.NODE_LOCAL_STORAGE_SETTING.getKey(), value).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [node.local_storage] is deprecated and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-node-local-storage",
+            "the setting [node.local_storage] is currently set to [" + value + "], remove this setting"
+        );
+        assertThat(issues, contains(expected));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{Node.NODE_LOCAL_STORAGE_SETTING});
+    }
+
     public void testRemovedSettingNotSet() {
         final Settings settings = Settings.EMPTY;
         final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");

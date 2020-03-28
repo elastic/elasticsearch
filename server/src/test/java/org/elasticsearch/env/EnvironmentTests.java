@@ -19,7 +19,9 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.FileNotFoundException;
@@ -135,6 +137,7 @@ public class EnvironmentTests extends ESTestCase {
                         .build();
         final Environment environment = new Environment(settings, null);
         assertThat(environment.dataFiles(), arrayWithSize(0));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{Node.NODE_LOCAL_STORAGE_SETTING});
     }
 
     public void testNodeDoesNotRequireLocalStorageButHasPathData() {
@@ -150,6 +153,7 @@ public class EnvironmentTests extends ESTestCase {
                         .build();
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> new Environment(settings, null));
         assertThat(e, hasToString(containsString("node does not require local storage yet path.data is set to [" + pathData + "]")));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{Node.NODE_LOCAL_STORAGE_SETTING});
     }
 
     public void testNonExistentTempPathValidation() {

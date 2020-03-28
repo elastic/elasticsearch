@@ -77,14 +77,14 @@ public class SubmitAsyncSearchRequest implements Validatable {
     }
 
     /**
-     * Returns whether the resource resource should be removed on completion or failure (defaults to true).
+     * Returns whether the resource resource should be kept on completion or failure (defaults to false).
      */
     public Boolean isKeepOnCompletion() {
         return keepOnCompletion;
     }
 
     /**
-     * Determines if the resource should be removed on completion or failure (defaults to true).
+     * Determines if the resource should be kept on completion or failure (defaults to false).
      */
     public void setKeepOnCompletion(boolean keepOnCompletion) {
         this.keepOnCompletion = keepOnCompletion;

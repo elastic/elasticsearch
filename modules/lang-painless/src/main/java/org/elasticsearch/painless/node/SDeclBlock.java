@@ -30,8 +30,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
-
 /**
  * Represents a series of declarations.
  */
@@ -68,10 +66,5 @@ public class SDeclBlock extends AStatement {
         output.statementNode = declarationBlockNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), declarations);
     }
 }

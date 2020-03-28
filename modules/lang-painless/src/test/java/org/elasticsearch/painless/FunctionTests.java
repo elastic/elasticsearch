@@ -70,7 +70,7 @@ public class FunctionTests extends ScriptTestCase {
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("void test(int x) {x = 2;} void test(def y) {y = 3;} test()");
         });
-        assertThat(expected.getMessage(), containsString("Illegal duplicate functions"));
+        assertThat(expected.getMessage(), containsString("illegal duplicate functions"));
     }
 
     public void testBadCastFromMethod() {

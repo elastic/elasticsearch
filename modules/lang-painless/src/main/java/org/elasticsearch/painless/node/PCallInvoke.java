@@ -102,9 +102,4 @@ public class PCallInvoke extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
-    }
 }

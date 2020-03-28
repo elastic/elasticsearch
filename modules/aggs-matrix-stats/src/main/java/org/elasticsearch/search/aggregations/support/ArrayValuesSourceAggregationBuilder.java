@@ -69,6 +69,11 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" +
                 getType() + "] cannot accept sub-aggregations");
         }
+
+        @Override
+        public final BucketCardinality bucketCardinality() {
+            return BucketCardinality.NONE;
+        }
     }
 
     private List<String> fields = Collections.emptyList();

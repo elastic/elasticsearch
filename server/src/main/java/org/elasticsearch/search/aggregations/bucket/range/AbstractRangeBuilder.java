@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -38,7 +37,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R>, R extends Range>
-        extends ValuesSourceAggregationBuilder<AB> implements MultiBucketAggregationBuilder {
+        extends ValuesSourceAggregationBuilder<AB> {
 
     protected final InternalRange.Factory<?, ?> rangeFactory;
     protected List<R> ranges = new ArrayList<>();
@@ -136,6 +135,11 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
 
     public boolean keyed() {
         return keyed;
+    }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
     }
 
     @Override

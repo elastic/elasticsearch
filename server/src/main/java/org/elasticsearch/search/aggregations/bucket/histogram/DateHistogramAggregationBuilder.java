@@ -19,17 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import static java.util.Map.entry;
-
-import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.zone.ZoneOffsetTransition;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -53,7 +42,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -61,11 +49,22 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
+import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.zone.ZoneOffsetTransition;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+import static java.util.Map.entry;
+
 /**
  * A builder for histograms on date fields.
  */
 public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<DateHistogramAggregationBuilder>
-        implements MultiBucketAggregationBuilder, DateIntervalConsumer {
+        implements DateIntervalConsumer {
 
     public static final String NAME = "date_histogram";
 
@@ -368,6 +367,11 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
         this.minDocCount = minDocCount;
         return this;
+    }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
     }
 
     @Override

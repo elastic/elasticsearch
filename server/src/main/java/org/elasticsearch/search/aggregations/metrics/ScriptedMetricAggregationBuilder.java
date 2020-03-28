@@ -207,6 +207,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
     protected ScriptedMetricAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                                       Builder subfactoriesBuilder) throws IOException {
 

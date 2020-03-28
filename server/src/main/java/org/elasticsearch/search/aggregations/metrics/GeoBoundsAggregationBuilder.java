@@ -19,10 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -102,6 +98,11 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
      */
     public boolean wrapLongitude() {
         return wrapLongitude;
+    }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
     }
 
     @Override

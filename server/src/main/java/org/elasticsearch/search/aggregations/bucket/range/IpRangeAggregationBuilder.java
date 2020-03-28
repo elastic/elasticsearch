@@ -18,15 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
@@ -50,6 +41,15 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 
 public final class IpRangeAggregationBuilder
@@ -363,10 +363,14 @@ public final class IpRangeAggregationBuilder
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory innerBuild(
-        QueryShardContext queryShardContext, ValuesSourceConfig config,
-        AggregatorFactory parent, Builder subFactoriesBuilder)
-                    throws IOException {
+                QueryShardContext queryShardContext, ValuesSourceConfig config,
+                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
         if(this.ranges.size() == 0){
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");

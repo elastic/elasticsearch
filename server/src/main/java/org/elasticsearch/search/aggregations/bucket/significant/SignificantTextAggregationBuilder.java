@@ -322,6 +322,11 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                         Builder subFactoriesBuilder) throws IOException {
         SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(queryShardContext);

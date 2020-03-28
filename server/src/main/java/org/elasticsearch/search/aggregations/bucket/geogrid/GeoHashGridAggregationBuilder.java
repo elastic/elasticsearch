@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,6 +30,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+
+import java.io.IOException;
+import java.util.Map;
 
 public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geohash_grid";

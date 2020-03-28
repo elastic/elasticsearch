@@ -59,9 +59,4 @@ public class EStatic extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type);
-    }
 }

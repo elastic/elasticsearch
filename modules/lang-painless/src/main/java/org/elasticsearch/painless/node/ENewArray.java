@@ -88,9 +88,4 @@ public class ENewArray extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, type, initialize ? "init" : "dims");
-    }
 }

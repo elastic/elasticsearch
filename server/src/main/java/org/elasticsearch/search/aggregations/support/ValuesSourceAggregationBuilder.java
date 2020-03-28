@@ -73,6 +73,11 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
             throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
                     + getType() + "] cannot accept sub-aggregations");
         }
+
+        @Override
+        public final BucketCardinality bucketCardinality() {
+            return BucketCardinality.NONE;
+        }
     }
 
     private final ValuesSourceType valuesSourceType;

@@ -95,10 +95,15 @@ public class ChildrenAggregationBuilder
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory<WithOrdinals> innerBuild(QueryShardContext queryShardContext,
-                                                                     ValuesSourceConfig<WithOrdinals> config,
-                                                                     AggregatorFactory parent,
-                                                                     Builder subFactoriesBuilder) throws IOException {
+                                    ValuesSourceConfig<WithOrdinals> config,
+                                    AggregatorFactory parent,
+                                    Builder subFactoriesBuilder) throws IOException {
         return new ChildrenAggregatorFactory(name, config, childFilter, parentFilter, queryShardContext, parent,
                 subFactoriesBuilder, metaData);
     }

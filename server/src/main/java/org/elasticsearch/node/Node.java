@@ -210,7 +210,8 @@ public class Node implements Closeable {
     * and {@link #NODE_MASTER_SETTING} must also be false.
     *
     */
-    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting("node.local_storage", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING =
+        Setting.boolSetting("node.local_storage", true, Property.Deprecated, Property.NodeScope);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
     public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = Setting.prefixKeySetting("node.attr.", (key) ->
         new Setting<>(key, "", (value) -> {

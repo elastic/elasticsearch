@@ -10,7 +10,7 @@ setup:
 
   - is_true: nodes
   - is_true: cluster_name
-  - is_true: nodes.$node_id.role
+  - is_true: nodes.$node_id.roles
   # the roles output is sorted
   - match: { nodes.$node_id.roles.0: "data" }
   - match: { nodes.$node_id.roles.1: "ingest" }

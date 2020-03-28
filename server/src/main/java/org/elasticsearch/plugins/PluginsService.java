@@ -121,7 +121,6 @@ public class PluginsService {
             pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
             pluginsList.add(pluginInfo);
             pluginsNames.add(pluginInfo.getName());
-            DiscoveryNode.reloadSPI(pluginClass.getClassLoader());
         }
 
         Set<Bundle> seenBundles = new LinkedHashSet<>();

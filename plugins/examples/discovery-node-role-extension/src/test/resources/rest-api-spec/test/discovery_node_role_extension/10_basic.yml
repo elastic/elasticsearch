@@ -1,0 +1,15 @@
+"additional role":
+    - skip:
+        reason: "contains"
+        features: contains
+
+    - do:
+        cluster.state: {}
+
+    # get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match: { nodes.$master.roles.0: "additional" }

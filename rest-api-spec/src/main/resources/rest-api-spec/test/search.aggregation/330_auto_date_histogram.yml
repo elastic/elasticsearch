@@ -25,6 +25,9 @@ setup:
 
 ---
 "basic":
+  - skip:
+      version: " - 7.7.99"
+      reason: Tracked in https://github.com/elastic/elasticsearch/issues/54382
   - do:
       search:
         body:

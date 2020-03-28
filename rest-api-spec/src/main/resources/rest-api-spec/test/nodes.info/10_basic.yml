@@ -16,6 +16,7 @@ setup:
   - skip:
       version: " - 7.99.99"
       reason: "node roles were not sorted before 8.0.0"
+      features: [no_xpack]
 
   - do:
       nodes.info: {}

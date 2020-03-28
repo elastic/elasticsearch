@@ -283,7 +283,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     private final Settings settings;
-    private final Environment env;
     private final boolean enabled;
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
@@ -311,7 +310,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         // TODO This is wrong. Settings can change after this. We should use the settings from createComponents
         this.settings = settings;
         // TODO this is wrong, we should only use the environment that is provided to createComponents
-        this.env = new Environment(settings, configPath);
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled) {
             runStartupChecks(settings);
@@ -348,7 +346,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                IndexNameExpressionResolver expressionResolver) {
         try {
             return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,
-                expressionResolver);
+                environment, expressionResolver);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
@@ -357,7 +355,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
     Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
                                         ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                        NamedXContentRegistry xContentRegistry,
+                                        NamedXContentRegistry xContentRegistry, Environment environment,
                                         IndexNameExpressionResolver expressionResolver) throws Exception {
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
@@ -371,7 +369,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new TokenSSLBootstrapCheck(),
             new PkiRealmBootstrapCheck(getSslService()),
             new TLSLicenseBootstrapCheck()));
-        checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
+        checks.addAll(InternalRealms.getBootstrapChecks(settings, environment));
         this.bootstrapChecks.set(Collections.unmodifiableList(checks));
 
         threadContext.set(threadPool.getThreadContext());
@@ -399,9 +397,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get(),
             scriptService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
+        final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore,
                 anonymousUser, securityIndex.get(), threadPool);
-        final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(env, client, clusterService,
+        final SecurityExtension.SecurityComponents extensionComponents = new ExtensionComponents(environment, client, clusterService,
             resourceWatcherService, nativeRoleMappingStore);
         Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,
                 getSslService(), nativeUsersStore, nativeRoleMappingStore, securityIndex.get()));
@@ -413,7 +411,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 }
             }
         }
-        final Realms realms = new Realms(settings, env, realmFactories, getLicenseState(), threadPool.getThreadContext(), reservedRealm);
+        final Realms realms =
+            new Realms(settings, environment, realmFactories, getLicenseState(), threadPool.getThreadContext(), reservedRealm);
         components.add(nativeUsersStore);
         components.add(nativeRoleMappingStore);
         components.add(realms);
@@ -426,7 +425,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
-        final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, getLicenseState(),
+        final FileRolesStore fileRolesStore = new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(),
             xContentRegistry);
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();

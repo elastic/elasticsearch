@@ -130,7 +130,7 @@ public class SecurityTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class),
-            xContentRegistry(), new IndexNameExpressionResolver());
+            xContentRegistry(), env, new IndexNameExpressionResolver());
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {

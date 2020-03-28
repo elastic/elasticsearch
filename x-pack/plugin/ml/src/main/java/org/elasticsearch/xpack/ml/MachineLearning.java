@@ -406,7 +406,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
-    private final Environment env;
     private final boolean enabled;
     private final boolean transportClientMode;
 
@@ -420,7 +419,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         this.settings = settings;
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        this.env = transportClientMode ? null : new Environment(settings, configPath);
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
@@ -538,7 +536,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
-        JobManager jobManager = new JobManager(env,
+        JobManager jobManager = new JobManager(environment,
             settings,
             jobResultsProvider,
             jobResultsPersister,
@@ -602,7 +600,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
-        AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(env, settings, client, threadPool,
+        AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(environment, settings, client, threadPool,
                 xContentRegistry, anomalyDetectionAuditor, clusterService, jobManager, jobResultsProvider, jobResultsPersister,
                 jobDataCountsPersister, autodetectProcessFactory, normalizerFactory, nativeStorageProvider, indexNameExpressionResolver);
         this.autodetectProcessManager.set(autodetectProcessManager);

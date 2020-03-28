@@ -150,10 +150,11 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     @Override
     public BucketCardinality bucketCardinality() {
         /*
-         * This might be a bit of a lie though because you can't really use
-         * pipeline aggregations on composite aggregations.
+         * Cardinality *does* have buckets so MULTI might be appropriate here.
+         * But the buckets can't be used with the composite agg so we're
+         * going to pretend that it doesn't have buckets.
          */
-        return BucketCardinality.MANY;
+        return BucketCardinality.NONE;
     }
 
     /**

@@ -10,4 +10,10 @@ setup:
 
   - is_true: nodes
   - is_true: cluster_name
-  - is_true: nodes.$node_id.roles
+  - is_true: nodes.$node_id.role
+  # the roles output is sorted
+  - match: { nodes.$node_id.roles.0: "data" }
+  - match: { nodes.$node_id.roles.1: "ingest" }
+  - match: { nodes.$node_id.roles.2: "master" }
+  - match: { nodes.$node_id.roles.3: "remote_cluster_client" }
+

@@ -106,7 +106,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         String alias = randomAlphaOfLength(5);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetaData.builder(alias))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         WaitForRolloverReadyStep step = createRandomInstance();
@@ -157,7 +157,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         String rolloverAlias = randomAlphaOfLength(5);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetaData.builder(rolloverAlias))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
             .putRolloverInfo(new RolloverInfo(rolloverAlias, Collections.singletonList(new MaxSizeCondition(new ByteSizeValue(2L))),
                 System.currentTimeMillis()))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
@@ -184,7 +184,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         String rolloverAlias = randomAlphaOfLength(5);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetaData.builder(rolloverAlias))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
             .putRolloverInfo(new RolloverInfo(randomAlphaOfLength(5),
                 Collections.singletonList(new MaxSizeCondition(new ByteSizeValue(2L))),
                 System.currentTimeMillis())
@@ -214,7 +214,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetaData.builder(alias).writeIndex(randomFrom(false, null)))
             .settings(settings(Version.CURRENT)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
@@ -242,7 +242,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetaData.builder(alias).writeIndex(true))
             .settings(settings(Version.CURRENT)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
@@ -270,7 +270,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         String alias = randomAlphaOfLength(5);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetaData.builder(alias))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         WaitForRolloverReadyStep step = createRandomInstance();
 
@@ -320,7 +320,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         String alias = randomAlphaOfLength(5);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetaData.builder(alias))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException();
         WaitForRolloverReadyStep step = createRandomInstance();
@@ -369,7 +369,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
     public void testPerformActionInvalidNullOrEmptyAlias() {
         String alias = randomBoolean() ? "" : null;
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         WaitForRolloverReadyStep step = createRandomInstance();
 
@@ -387,14 +387,14 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         }, MASTER_TIMEOUT);
         assertThat(exceptionThrown.get().getClass(), equalTo(IllegalArgumentException.class));
         assertThat(exceptionThrown.get().getMessage(), equalTo(String.format(Locale.ROOT,
-            "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
+            "setting [%s] for index [%s] is empty or not defined", LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS,
             indexMetaData.getIndex().getName())));
     }
 
     public void testPerformActionAliasDoesNotPointToIndex() {
         String alias = randomAlphaOfLength(5);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         WaitForRolloverReadyStep step = createRandomInstance();
 
@@ -412,7 +412,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         }, MASTER_TIMEOUT);
         assertThat(exceptionThrown.get().getClass(), equalTo(IllegalArgumentException.class));
         assertThat(exceptionThrown.get().getMessage(), equalTo(String.format(Locale.ROOT,
-            "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias,
+            "%s [%s] does not point to index [%s]", LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias,
             indexMetaData.getIndex().getName())));
     }
 }

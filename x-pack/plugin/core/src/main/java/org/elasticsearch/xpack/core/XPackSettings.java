@@ -33,6 +33,8 @@ import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
  */
 public class XPackSettings {
 
+    public static final Setting<String> X_PACK_VERSION_SETTING = Setting.simpleString("index.xpack.version", Property.IndexScope);
+
     private XPackSettings() {
         throw new IllegalStateException("Utility class should not be instantiated");
     }

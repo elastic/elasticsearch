@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
+import org.elasticsearch.xpack.core.frozen.FrozenIndicesSettings;
 
 public class FrozenIndicesUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -36,7 +36,7 @@ public class FrozenIndicesUsageTransportAction extends XPackUsageFeatureTranspor
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         int numFrozenIndices = 0;
         for (IndexMetaData indexMetaData : state.metaData()) {
-            if (FrozenEngine.INDEX_FROZEN.get(indexMetaData.getSettings())) {
+            if (FrozenIndicesSettings.INDEX_FROZEN_SETTING.get(indexMetaData.getSettings())) {
                 numFrozenIndices++;
             }
         }

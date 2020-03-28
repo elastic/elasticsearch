@@ -65,9 +65,9 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             return new Result(true, new Info(message));
         }
 
-        String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
+        String rolloverAlias = LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
         if (Strings.isNullOrEmpty(rolloverAlias)) {
-            throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
+            throw new IllegalStateException("setting [" + LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS
                 + "] is not set on index [" + originalIndexMeta.getIndex().getName() + "]");
         }
 

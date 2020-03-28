@@ -53,9 +53,9 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
             newIndexTime = fallbackTimeSupplier.getAsLong();
         } else {
             // find the newly created index from the rollover and fetch its index.creation_date
-            String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
+            String rolloverAlias = LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
             if (Strings.isNullOrEmpty(rolloverAlias)) {
-                throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
+                throw new IllegalStateException("setting [" + LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS
                     + "] is not set on index [" + indexMetaData.getIndex().getName() + "]");
             }
             RolloverInfo rolloverInfo = indexMetaData.getRolloverInfos().get(rolloverAlias);

@@ -49,11 +49,11 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(IndexMetaData indexMetaData, Listener listener, TimeValue masterTimeout) {
-        String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
+        String rolloverAlias = LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
 
         if (Strings.isNullOrEmpty(rolloverAlias)) {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
-                "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
+                "setting [%s] for index [%s] is empty or not defined", LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS,
                 indexMetaData.getIndex().getName())));
             return;
         }
@@ -102,7 +102,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         // If indexing_complete is *not* set, and the alias does not point to this index, we can't roll over this index, so error out.
         if (aliasPointsToThisIndex == false) {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
-                "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
+                "%s [%s] does not point to index [%s]", LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
                 indexMetaData.getIndex().getName())));
             return;
         }

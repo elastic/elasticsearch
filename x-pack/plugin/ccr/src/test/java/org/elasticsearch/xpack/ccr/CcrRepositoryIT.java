@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAct
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
+import org.elasticsearch.xpack.core.ccr.CcrSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;

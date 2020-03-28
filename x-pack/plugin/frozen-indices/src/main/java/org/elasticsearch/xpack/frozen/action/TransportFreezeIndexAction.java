@@ -34,12 +34,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.frozen.FrozenIndicesSettings;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
 import java.io.IOException;
@@ -89,8 +89,8 @@ public final class TransportFreezeIndexAction extends
             // only unfreeze if we are frozen and only freeze if we are not frozen already.
             // this prevents all indices that are already frozen that match a pattern to
             // go through the cycles again.
-            if ((request.freeze() && FrozenEngine.INDEX_FROZEN.get(settings) == false) ||
-                (request.freeze() == false && FrozenEngine.INDEX_FROZEN.get(settings))) {
+            if ((request.freeze() && FrozenIndicesSettings.INDEX_FROZEN_SETTING.get(settings) == false) ||
+                (request.freeze() == false && FrozenIndicesSettings.INDEX_FROZEN_SETTING.get(settings))) {
                 indices.add(index);
             }
         }
@@ -175,7 +175,7 @@ public final class TransportFreezeIndexAction extends
                     final Settings.Builder settingsBuilder =
                         Settings.builder()
                             .put(currentState.metaData().index(index).getSettings())
-                            .put(FrozenEngine.INDEX_FROZEN.getKey(), request.freeze())
+                            .put(FrozenIndicesSettings.INDEX_FROZEN_SETTING.getKey(), request.freeze())
                             .put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), request.freeze());
                     if (request.freeze()) {
                         settingsBuilder.put("index.blocks.write", true);

@@ -50,6 +50,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.snapshots.SnapshotsSettings;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -328,7 +329,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
+        if (indexSettings.getValue(SnapshotsSettings.SOURCE_ONLY_SETTING)) {
             return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
         }
 
@@ -338,7 +339,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     @Override
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
-        settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
+        settings.add(SnapshotsSettings.SOURCE_ONLY_SETTING);
         return settings;
     }
 }

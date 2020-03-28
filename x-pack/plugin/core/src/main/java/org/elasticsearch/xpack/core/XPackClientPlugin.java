@@ -222,7 +222,6 @@ import java.util.Optional;
 
 // TODO: merge this into XPackPlugin
 public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
-
     static Optional<String> X_PACK_FEATURE = Optional.of("x-pack");
 
     private final Settings settings;
@@ -244,7 +243,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         settings.add(LicenseService.ALLOWED_LICENSE_TYPES_SETTING);
 
         // we add the `xpack.version` setting to all internal indices
-        settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
+        settings.add(XPackSettings.X_PACK_VERSION_SETTING);
 
         return settings;
     }

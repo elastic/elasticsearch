@@ -68,8 +68,6 @@ import java.util.function.Function;
  * stats in order to obtain the number of reopens.
  */
 public final class FrozenEngine extends ReadOnlyEngine {
-    public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting("index.frozen", false, Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex);
     private final SegmentsStats segmentsStats;
     private final DocsStats docsStats;
     private volatile ElasticsearchDirectoryReader lastOpenedReader;

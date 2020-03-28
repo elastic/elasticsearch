@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -19,6 +17,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xpack.core.analytics.AnalyticsSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,14 +26,6 @@ import java.util.Map;
 import static java.util.stream.Collectors.toList;
 
 public class TopMetricsAggregatorFactory extends AggregatorFactory {
-    /**
-     * Index setting describing the maximum number of top metrics that
-     * can be collected per bucket. This defaults to a low number because
-     * there can be a *huge* number of buckets
-     */
-    public static final Setting<Integer> MAX_BUCKET_SIZE =
-        Setting.intSetting("index.top_metrics_max_size", 10, 1, Property.Dynamic, Property.IndexScope);
-
     private final List<SortBuilder<?>> sortBuilders;
     private final int size;
     private final List<MultiValuesSourceFieldConfig> metricFields;
@@ -51,10 +42,10 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
     @Override
     protected TopMetricsAggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        int maxBucketSize = MAX_BUCKET_SIZE.get(searchContext.getQueryShardContext().getIndexSettings().getSettings());
+        int maxBucketSize = AnalyticsSettings.MAX_BUCKET_SIZE_SETTING.get(searchContext.getQueryShardContext().getIndexSettings().getSettings());
         if (size > maxBucketSize) {
             throw new IllegalArgumentException("[top_metrics.size] must not be more than [" + maxBucketSize + "] but was [" + size
-                    + "]. This limit can be set by changing the [" + MAX_BUCKET_SIZE.getKey()
+                    + "]. This limit can be set by changing the [" + AnalyticsSettings.MAX_BUCKET_SIZE_SETTING.getKey()
                     + "] index level setting.");
         }
         List<TopMetricsAggregator.MetricSource> metricSources = metricFields.stream().map(config -> {

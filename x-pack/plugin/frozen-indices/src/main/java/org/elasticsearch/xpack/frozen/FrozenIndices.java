@@ -25,6 +25,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.frozen.FrozenIndicesSettings;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.frozen.rest.action.RestFreezeIndexAction;
 import org.elasticsearch.xpack.frozen.action.TransportFreezeIndexAction;
@@ -40,7 +41,7 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN)) {
+        if (indexSettings.getValue(FrozenIndicesSettings.INDEX_FROZEN_SETTING)) {
             return Optional.of(FrozenEngine::new);
         } else {
             return Optional.empty();
@@ -49,12 +50,12 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(FrozenEngine.INDEX_FROZEN);
+        return Arrays.asList(FrozenIndicesSettings.INDEX_FROZEN_SETTING);
     }
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        if (FrozenEngine.INDEX_FROZEN.get(indexModule.getSettings())) {
+        if (FrozenIndicesSettings.INDEX_FROZEN_SETTING.get(indexModule.getSettings())) {
             indexModule.addSearchOperationListener(new FrozenEngine.ReacquireEngineSearcherListener());
         }
         super.onIndexModule(indexModule);

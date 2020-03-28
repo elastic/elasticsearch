@@ -106,7 +106,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", "integTest-0")
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
+            .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         // create policy
         createFullPolicy(TimeValue.ZERO);
@@ -134,7 +134,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", "integTest-0")
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+            .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
 
         // create policy
         createFullPolicy(TimeValue.timeValueHours(10));
@@ -168,7 +168,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", "integTest-0")
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
+            .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         createFullPolicy(TimeValue.timeValueHours(10));
         // update policy on index
@@ -289,7 +289,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
+            .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         // create policy
         createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
@@ -308,7 +308,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
+            .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         Request updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings");
         updateSettingsRequest.setJsonEntity("{\n" +
@@ -899,7 +899,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         // Index a document
         index(client(), originalIndex, "_id", "foo", "bar");
@@ -934,7 +934,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
+            .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
         assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(new StepKey("new", "complete", "complete"))));
 
@@ -970,7 +970,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias),
             true);
 
         assertBusy(() -> assertThat(getStepKeyForIndex("test-1"), equalTo(new StepKey("hot", "rollover", "check-rollover-ready"))));
@@ -1047,7 +1047,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         createIndexWithSettings(goodIndex, Settings.builder()
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+            .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
         );
@@ -1106,7 +1106,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put("index.blocks.read_only", true),
             true
         );
@@ -1202,7 +1202,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             rolledIndex,
             Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias),
             false
         );
 
@@ -1211,7 +1211,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias),
             true
         );
 
@@ -1274,7 +1274,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias),
             true
         );
 
@@ -1331,7 +1331,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+            .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias),
             true);
 
         // create policy

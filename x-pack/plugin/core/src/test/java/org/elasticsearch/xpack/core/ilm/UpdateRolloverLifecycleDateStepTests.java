@@ -63,7 +63,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
             .numberOfReplicas(randomIntBetween(0, 5)).build();
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .putRolloverInfo(new RolloverInfo(alias, Collections.emptyList(), rolloverTime))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metaData(MetaData.builder()
@@ -82,7 +82,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
         String alias = randomAlphaOfLength(3);
         long creationDate = randomLongBetween(0, 1000000);
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(11))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .creationDate(creationDate).putAlias(AliasMetaData.builder(alias)).numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -118,7 +118,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
 
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

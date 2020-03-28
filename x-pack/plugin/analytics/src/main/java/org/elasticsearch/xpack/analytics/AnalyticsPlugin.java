@@ -38,11 +38,11 @@ import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder;
-import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregatorFactory;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.analytics.AnalyticsSettings;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.util.Arrays;
@@ -103,7 +103,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<Setting<?>> getSettings() {
-        return singletonList(TopMetricsAggregatorFactory.MAX_BUCKET_SIZE);
+        return singletonList(AnalyticsSettings.MAX_BUCKET_SIZE_SETTING);
     }
 
     @Override

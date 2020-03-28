@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.ilm.MockAction;
 import org.elasticsearch.xpack.core.ilm.MockStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
-import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
@@ -691,7 +690,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         Settings indexSettings = indexMetadata.getSettings();
         assertNotNull(indexSettings);
         assertFalse(LifecycleSettings.LIFECYCLE_NAME_SETTING.exists(indexSettings));
-        assertFalse(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.exists(indexSettings));
+        assertFalse(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS_SETTING.exists(indexSettings));
         assertFalse(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.exists(indexSettings));
     }
 

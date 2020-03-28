@@ -40,6 +40,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.core.frozen.FrozenIndicesSettings;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
 import org.hamcrest.Matchers;
@@ -189,7 +190,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         Index index = resolveIndex(idx);
         IndexService indexService = indexServices.indexServiceSafe(index);
         assertTrue(indexService.getIndexSettings().isSearchThrottled());
-        assertTrue(FrozenEngine.INDEX_FROZEN.get(indexService.getIndexSettings().getSettings()));
+        assertTrue(FrozenIndicesSettings.INDEX_FROZEN_SETTING.get(indexService.getIndexSettings().getSettings()));
     }
 
     public void testDoubleFreeze() {

@@ -75,7 +75,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         }
         @Override
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-            if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
+            if (indexSettings.getValue(SnapshotsSettings.SOURCE_ONLY_SETTING)) {
                 return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
             }
             return Optional.empty();
@@ -84,7 +84,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         @Override
         public List<Setting<?>> getSettings() {
             List<Setting<?>> settings = new ArrayList<>(super.getSettings());
-            settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
+            settings.add(SnapshotsSettings.SOURCE_ONLY_SETTING);
             return settings;
         }
     }

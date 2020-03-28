@@ -77,7 +77,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             createRandomInstance().isConditionMet(indexMetaData.getIndex(), clusterState);
             fail("expected the invocation to fail");
         } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
+            assertThat(e.getMessage(), is("setting [" + LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS
                 + "] is not set on index [" + indexMetaData.getIndex().getName() + "]"));
         }
     }
@@ -86,14 +86,14 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         String alias = randomAlphaOfLength(5);
         IndexMetaData originalIndex = IndexMetaData.builder("index-000000")
             .putAlias(AliasMetaData.builder(alias).writeIndex(false))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(1)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         IndexMetaData rolledIndex = IndexMetaData.builder("index-000001")
             .putAlias(AliasMetaData.builder(alias).writeIndex(true))
             .settings(settings(Version.CURRENT)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put("index.write.wait_for_active_shards", "all")
             )
             .numberOfShards(1)
@@ -118,14 +118,14 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
     public void testResultEvaluatedOnOnlyIndexTheAliasPointsToIfWriteIndexIsNull() {
         String alias = randomAlphaOfLength(5);
         IndexMetaData originalIndex = IndexMetaData.builder("index-000000")
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(1)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         IndexMetaData rolledIndex = IndexMetaData.builder("index-000001")
             .putAlias(AliasMetaData.builder(alias).writeIndex(false))
             .settings(settings(Version.CURRENT)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put("index.write.wait_for_active_shards", "all")
             )
             .numberOfShards(1)
@@ -151,14 +151,14 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         String alias = randomAlphaOfLength(5);
         IndexMetaData originalIndex = IndexMetaData.builder("index-000000")
             .putAlias(AliasMetaData.builder(alias).writeIndex(false))
-            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(1)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         IndexMetaData rolledIndex = IndexMetaData.builder("index-000001")
             .putAlias(AliasMetaData.builder(alias).writeIndex(true))
             .settings(settings(Version.CURRENT)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put("index.write.wait_for_active_shards", "3")
             )
             .numberOfShards(1)
@@ -191,7 +191,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         IndexMetaData rolledIndex = IndexMetaData.builder("index-000001")
             .putAlias(AliasMetaData.builder(alias).writeIndex(true))
             .settings(settings(Version.CURRENT)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, alias)
                 .put("index.write.wait_for_active_shards", "3")
             )
             .numberOfShards(1)

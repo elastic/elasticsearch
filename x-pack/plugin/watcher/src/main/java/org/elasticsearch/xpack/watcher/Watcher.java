@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
+import org.elasticsearch.xpack.core.watcher.WatcherSettings;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.core.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.core.watcher.condition.ConditionRegistry;
@@ -190,7 +191,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -201,10 +201,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, ReloadablePlugin {
 
-    // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
-    @Deprecated
-    public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
-            new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
             Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
@@ -443,7 +439,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     @Override
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<>();
-        settings.add(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
+        settings.add(WatcherSettings.INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
         settings.add(MAX_STOP_TIMEOUT_SETTING);
         settings.add(ExecutionService.DEFAULT_THROTTLE_PERIOD_SETTING);
         settings.add(TickerScheduleTriggerEngine.TICKER_INTERVAL_SETTING);

@@ -83,7 +83,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         // create the test-index index and set the policy to policy_1
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.allocation.include._name", "integTest-0")
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias").put(LifecycleSettings.LIFECYCLE_NAME, "policy_1").build();
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_ALIAS, "alias").put(LifecycleSettings.LIFECYCLE_NAME, "policy_1").build();
         Request createIndexRequest = new Request("PUT", "/" + indexName);
         createIndexRequest.setJsonEntity(
                 "{\n \"settings\": " + Strings.toString(settings) + ", \"aliases\" : { \"alias\": { \"is_write_index\": true } } }");

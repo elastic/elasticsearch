@@ -14,8 +14,8 @@ setup:
 ---
 "node_info role test":
   - skip:
-      version: " - 7.99.99"
-      reason: "node roles were not sorted before 8.0.0"
+      version: " - 7.7.99"
+      reason: "node roles were not sorted before 7.8.0"
       features: [no_xpack]
 
   - do:

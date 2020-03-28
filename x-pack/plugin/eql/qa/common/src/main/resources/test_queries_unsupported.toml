@@ -826,13 +826,6 @@ description = "check built-in string functions"
 
 [[queries]]
 query = '''
-file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)
-'''
-expected_event_ids  = [88]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
 file where opcode=0 and indexOf(file_name, 'plore') == 2 and not indexOf(file_name, '.pf')
 '''
 expected_event_ids  = [88]

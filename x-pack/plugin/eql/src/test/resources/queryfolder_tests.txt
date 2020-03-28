@@ -72,3 +72,9 @@ process where substring(file_name, -4) == '.exe'
 InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
 "params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}
 
+
+stringContains
+process where stringContains(process_name, "foo")
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
+"params":{"v0":"process_name","v1":"foo","v2":false}

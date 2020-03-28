@@ -1,5 +1,11 @@
 {
     "properties" : {
+        "bytes_written_string" : {
+            "type" : "keyword"
+        },
+        "bytes_written_string_list" : {
+            "type" : "keyword"
+        },
         "command_line" : {
             "type" : "keyword"
         },

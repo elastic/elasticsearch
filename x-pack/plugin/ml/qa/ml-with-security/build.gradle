@@ -127,7 +127,6 @@ integTest.runner {
     'ml/filter_crud/Test create filter api with mismatching body ID',
     'ml/filter_crud/Test create filter given invalid filter_id',
     'ml/filter_crud/Test get filter API with bad ID',
-    'ml/filter_crud/Test invalid param combinations',
     'ml/filter_crud/Test non-existing filter',
     'ml/filter_crud/Test update filter given remove item is not present',
     'ml/filter_crud/Test get all filter given index exists but no mapping for filter_id',

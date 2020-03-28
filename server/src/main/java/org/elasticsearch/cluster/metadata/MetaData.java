@@ -51,10 +51,8 @@ import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -155,6 +153,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public static final String CONTEXT_MODE_SNAPSHOT = XContentContext.SNAPSHOT.toString();
 
     public static final String CONTEXT_MODE_GATEWAY = XContentContext.GATEWAY.toString();
+
+    public static final String CONTEXT_MODE_API = XContentContext.API.toString();
 
     public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
 
@@ -1277,7 +1277,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         public MetaData build() {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
-            // 1) The datastructures will only be rebuilded when needed. Now during serializing we rebuild these datastructures
+            // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             //    while these datastructures aren't even used.
             // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
 
@@ -1315,7 +1315,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 // iterate again and constructs a helpful message
                 ArrayList<String> duplicates = new ArrayList<>();
                 for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                    for (String alias: duplicateAliasesIndices) {
+                    for (String alias : duplicateAliasesIndices) {
                         if (cursor.value.getAliases().containsKey(alias)) {
                             duplicates.add(alias + " (alias of " + cursor.value.getIndex() + ")");
                         }
@@ -1323,12 +1323,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 }
                 assert duplicates.size() > 0;
                 throw new IllegalStateException("index and alias names need to be unique, but the following duplicates were found ["
-                    + Strings.collectionToCommaDelimitedString(duplicates)+ "]");
+                    + Strings.collectionToCommaDelimitedString(duplicates) + "]");
 
             }
 
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup());
 
+            validateDataStreams(aliasAndIndexLookup);
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
@@ -1371,20 +1372,34 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return aliasAndIndexLookup;
         }
 
-        public static String toXContent(MetaData metaData) throws IOException {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.startObject();
-            toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            return Strings.toString(builder);
+        private void validateDataStreams(SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
+            DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
+            if (dsMetadata != null) {
+                for (DataStream ds : dsMetadata.dataStreams().values()) {
+                    if (aliasAndIndexLookup.containsKey(ds.getName())) {
+                        throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
+                    }
+
+                    SortedMap<?, ?> map = aliasAndIndexLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
+                    if (map.size() != 0) {
+                        throw new IllegalStateException("data stream [" + ds.getName() +
+                            "] could create backing indices that conflict with " + map.size() + " existing index(s) or alias(s)" +
+                            " including '" + map.firstKey() + "'");
+                    }
+                }
+            }
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, "API"));
+            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
 
-            builder.startObject("meta-data");
+            if (context == XContentContext.API) {
+                builder.startObject("metadata");
+            } else {
+                builder.startObject("meta-data");
+                builder.field("version", metaData.version());
+            }
 
-            builder.field("version", metaData.version());
             builder.field("cluster_uuid", metaData.clusterUUID);
             builder.field("cluster_uuid_committed", metaData.clusterUUIDCommitted);
 
@@ -1392,15 +1407,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             metaData.coordinationMetaData().toXContent(builder, params);
             builder.endObject();
 
-            if (!metaData.persistentSettings().isEmpty()) {
+            if (context != XContentContext.API && !metaData.persistentSettings().isEmpty()) {
                 builder.startObject("settings");
                 metaData.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
-                builder.endObject();
-            }
-
-            if (context == XContentContext.API && !metaData.transientSettings().isEmpty()) {
-                builder.startObject("transient_settings");
-                metaData.transientSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
                 builder.endObject();
             }
 
@@ -1410,7 +1419,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
             builder.endObject();
 
-            if (context == XContentContext.API && !metaData.indices().isEmpty()) {
+            if (context == XContentContext.API) {
                 builder.startObject("indices");
                 for (IndexMetaData indexMetaData : metaData) {
                     IndexMetaData.Builder.toXContent(indexMetaData, builder, params);

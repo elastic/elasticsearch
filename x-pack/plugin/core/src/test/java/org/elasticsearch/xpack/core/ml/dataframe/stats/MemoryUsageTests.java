@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -15,6 +16,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class MemoryUsageTests extends AbstractSerializingTestCase<MemoryUsage> {
 
@@ -52,5 +55,11 @@ public class MemoryUsageTests extends AbstractSerializingTestCase<MemoryUsage> {
     @Override
     protected MemoryUsage createTestInstance() {
         return createRandom();
+    }
+
+    public void testZeroUsage() {
+        MemoryUsage memoryUsage = new MemoryUsage("zero_usage_job");
+        String asJson = Strings.toString(memoryUsage);
+        assertThat(asJson, equalTo("{\"peak_usage_bytes\":0}"));
     }
 }

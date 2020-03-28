@@ -51,7 +51,7 @@ import java.util.Map;
  * written as {@code interval * x + offset} and yet is less than or equal to
  * {@code value}.
  */
-class NumericHistogramAggregator extends BucketsAggregator {
+public class NumericHistogramAggregator extends BucketsAggregator {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
@@ -63,7 +63,7 @@ class NumericHistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    NumericHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
+    public NumericHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
                                BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
                                @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
                                SearchContext context, Aggregator parent,

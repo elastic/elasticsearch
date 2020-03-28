@@ -10,6 +10,18 @@ setup:
 
   - is_true: nodes
   - is_true: cluster_name
+
+---
+"node_info role test":
+  - skip:
+      version: " - 7.99.99"
+      reason: "node roles were not sorted before 8.0.0"
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
   - is_true: nodes.$node_id.roles
   # the roles output is sorted
   - match: { nodes.$node_id.roles.0: "data" }

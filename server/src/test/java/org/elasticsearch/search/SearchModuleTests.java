@@ -41,6 +41,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregator;
@@ -85,8 +86,11 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.BYTES;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class SearchModuleTests extends ESTestCase {
 
@@ -272,6 +276,20 @@ public class SearchModuleTests extends ESTestCase {
                         entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
                     .collect(toList()),
                 hasSize(1));
+    }
+
+    public void testExtendAggregation() {
+        MetricAggregatorSupplier implementation = mock(MetricAggregatorSupplier.class);
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
+            @Override
+            public List<AggregationExtension> getAggregationExtensions() {
+                return singletonList(new AggregationExtension("avg", agg -> {
+                    agg.implementFor(implementation, BYTES);
+                }));
+            }
+        }));
+
+        assertThat(module.getValuesSourceRegistry().getAggregator(BYTES, "avg"), sameInstance(implementation));
     }
 
     public void testRegisterPipelineAggregation() {

@@ -465,9 +465,13 @@ public class SearchModule {
                 CompositeAggregationBuilder.PARSER).addResultReader(InternalComposite::new)));
         plugins.stream().map(SearchPlugin::getAggregations).flatMap(List::stream).forEach(aggregations::add);
 
-        // Allow plugins to register additional aggregator implementations to existing aggs
         Map<String, AggregationSpec> map = aggregations.stream()
-            .collect(toMap(agg -> agg.getName().getPreferredName(), Function.identity()));
+            .collect(toMap(
+                agg -> agg.getName().getPreferredName(),
+                Function.identity(),
+                (lhs, rhs) -> {
+                    throw new IllegalArgumentException("Duplicate aggregation registered [" + lhs.getName() + "]");
+                }));
         for (SearchPlugin plugin : plugins) {
             for (AggregationExtension ext : plugin.getAggregationExtensions()) {
                 AggregationSpec toExtend = map.get(ext.getName());

@@ -352,6 +352,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
      * are inconvenient if they were replicated (e.g. changing number of replicas).
      */
     static final Set<Setting<?>> NON_REPLICATED_SETTINGS = Set.of(
+            // TODO add x-pack settings that should NOT be replicated
             IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING,
             IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
             IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,

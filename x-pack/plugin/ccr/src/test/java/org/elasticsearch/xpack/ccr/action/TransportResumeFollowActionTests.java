@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.MapperService;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.IndexFollowingIT;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.common.settings.XPackIndexScopedSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -202,6 +204,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
 
         // These fields need to be replicated otherwise documents that can be indexed in the leader index cannot
         // be indexed in the follower index:
+        // TODO add x-pack settings that should be replicated
         replicatedSettings.add(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
@@ -210,7 +213,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(IndexSettings.MAX_NGRAM_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
 
-        for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
+        for (Setting<?> setting : Sets.union(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS, XPackIndexScopedSettings.X_PACK_INDEX_SETTINGS)) {
             if (setting.isDynamic()) {
                 boolean notReplicated = TransportResumeFollowAction.NON_REPLICATED_SETTINGS.contains(setting);
                 boolean replicated = replicatedSettings.contains(setting);

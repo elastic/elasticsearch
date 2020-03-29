@@ -490,6 +490,16 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 final String path = mergeWith.fullPath() + "." + mergeWithObjectMapper.simpleName() + ".enabled";
                 throw new MapperException("Can't update attribute for type [" + path + "] in index mapping");
             }
+
+            if (mergeIntoObjectMapper.nested().isIncludeInParent() != mergeWithObjectMapper.nested().isIncludeInParent()) {
+                final String path = mergeWith.fullPath() + "." + mergeWithObjectMapper.simpleName() + ".include_in_parent";
+                throw new MapperException("Can't update attribute for type [" + path + "] in index mapping");
+            }
+
+            if (mergeIntoObjectMapper.nested().isIncludeInRoot() != mergeWithObjectMapper.nested().isIncludeInRoot()) {
+                final String path = mergeWith.fullPath() + "." + mergeWithObjectMapper.simpleName() + ".include_in_root";
+                throw new MapperException("Can't update attribute for type [" + path + "] in index mapping");
+            }
         }
     }
 

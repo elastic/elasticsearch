@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -741,5 +742,37 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.docs().get(1).get("nested1.field1"), equalTo("3"));
         assertThat(doc.docs().get(1).get("nested1.field2"), equalTo("4"));
         assertThat(doc.docs().get(2).get("field"), equalTo("value"));
+    }
+
+    public void testMergeNestedMappings() {
+        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
+
+        ObjectMapper.Nested nested = ObjectMapper.Nested.newNested(false,false);
+        final ObjectMapper nestedMapper = new ObjectMapper.Builder("nested1").nested(nested).build(context);
+        final TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType();
+        final TextFieldMapper fieldMapper = new TextFieldMapper("field1", fieldType, fieldType, -1, null,
+            indexSettings, FieldMapper.MultiFields.empty(), FieldMapper.CopyTo.empty());
+        nestedMapper.putMapper(fieldMapper);
+        final RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("type1").build(context);
+        rootObjectMapper.putMapper(nestedMapper);
+
+        // cannot update `include_in_parent` dynamically
+        ObjectMapper.Nested newNested1 = ObjectMapper.Nested.newNested(true,false);
+        final ObjectMapper newNestedMapper1 = new ObjectMapper.Builder("nested1").nested(newNested1).build(context);
+        newNestedMapper1.putMapper(fieldMapper);
+        final RootObjectMapper mergeWith1 = new RootObjectMapper.Builder("type1").build(context);
+        mergeWith1.putMapper(newNestedMapper1);
+        MapperException e1 = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith1));
+        assertEquals("Can't update attribute for type [type1.nested1.include_in_parent] in index mapping", e1.getMessage());
+
+        // cannot update `include_in_root` dynamically
+        ObjectMapper.Nested newNested2 = ObjectMapper.Nested.newNested(false,true);
+        final ObjectMapper newNestedMapper2 = new ObjectMapper.Builder("nested1").nested(newNested2).build(context);
+        newNestedMapper2.putMapper(fieldMapper);
+        final RootObjectMapper mergeWith2 = new RootObjectMapper.Builder("type1").build(context);
+        mergeWith2.putMapper(newNestedMapper2);
+        MapperException e2 = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith2));
+        assertEquals("Can't update attribute for type [type1.nested1.include_in_root] in index mapping", e2.getMessage());
     }
 }

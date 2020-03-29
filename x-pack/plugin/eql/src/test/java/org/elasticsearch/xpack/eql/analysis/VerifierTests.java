@@ -137,8 +137,6 @@ public class VerifierTests extends ESTestCase {
                 error("file where opcode=0 and startsWith(file_name, 'explORER.EXE')"));
         assertEquals("1:25: Unknown function [stringContains]",
                 error("file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)"));
-        assertEquals("1:25: Unknown function [indexOf]",
-                error("file where opcode=0 and indexOf(file_name, 'plore') == 2"));
         assertEquals("1:15: Unknown function [add]",
                 error("process where add(serial_event_id, 0) == 1"));
         assertEquals("1:15: Unknown function [subtract], did you mean [substring]?",

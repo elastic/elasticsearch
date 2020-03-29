@@ -65,6 +65,7 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
                         builder.startObject();
                         builder.field("post_url", response.getPostUrl());
                         builder.field("saml_response", response.getSamlResponse());
+                        builder.field("error", response.getError());
                         builder.startObject("service_provider");
                         builder.field("entity_id", response.getEntityId());
                         builder.endObject();

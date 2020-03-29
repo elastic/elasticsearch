@@ -62,7 +62,6 @@ public class TransportSamlInitiateSingleSignOnAction
                 if (null == sp) {
                     final String message = "Service Provider with Entity ID [" + request.getSpEntityId()
                         + "] is not registered with this Identity Provider";
-                    logger.debug(message);
                     possiblyReplyWithSamlFailure(authenticationState, StatusCode.RESPONDER, new IllegalArgumentException(message),
                         listener);
                     return;
@@ -81,7 +80,7 @@ public class TransportSamlInitiateSingleSignOnAction
                             possiblyReplyWithSamlFailure(authenticationState,
                                 StatusCode.REQUESTER,
                                 new ElasticsearchSecurityException("User [{}] is not permitted to access service [{}]",
-                                    RestStatus.FORBIDDEN, secondaryAuthentication.getUser(), sp),
+                                    RestStatus.FORBIDDEN, secondaryAuthentication.getUser().principal(), sp.getEntityId()),
                                 listener);
                             return;
                         }
@@ -92,7 +91,8 @@ public class TransportSamlInitiateSingleSignOnAction
                             listener.onResponse(new SamlInitiateSingleSignOnResponse(
                                 user.getServiceProvider().getAssertionConsumerService().toString(),
                                 samlFactory.getXmlContent(response),
-                                user.getServiceProvider().getEntityId()));
+                                user.getServiceProvider().getEntityId(),
+                                null));
                         } catch (ElasticsearchException e) {
                             listener.onFailure(e);
                         }
@@ -127,6 +127,7 @@ public class TransportSamlInitiateSingleSignOnAction
 
     private void possiblyReplyWithSamlFailure(SamlAuthenticationState authenticationState, String statusCode, Exception e,
                                               ActionListener<SamlInitiateSingleSignOnResponse> listener) {
+        logger.debug("Failed to generate a successful SAML response: ", e);
         if (authenticationState != null) {
             final FailedAuthenticationResponseMessageBuilder builder =
                 new FailedAuthenticationResponseMessageBuilder(samlFactory, Clock.systemUTC(), identityProvider)
@@ -134,11 +135,11 @@ public class TransportSamlInitiateSingleSignOnAction
                     .setAcsUrl(authenticationState.getRequestedAcsUrl())
                     .setPrimaryStatusCode(statusCode);
             final Response response = builder.build();
-            //TODO: Log and indicate SAML Response status is failure in the response
             listener.onResponse(new SamlInitiateSingleSignOnResponse(
                 authenticationState.getRequestedAcsUrl(),
                 samlFactory.getXmlContent(response),
-                authenticationState.getEntityId()));
+                authenticationState.getEntityId(),
+                e.getMessage()));
         } else {
             listener.onFailure(e);
         }

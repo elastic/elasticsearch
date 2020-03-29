@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.idp.saml.sp.CloudServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
+import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.joda.time.Duration;
@@ -47,7 +48,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
-public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCase {
+public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCase {
 
     public void testGetResponseForRegisteredSp() throws Exception {
         final SamlInitiateSingleSignOnRequest request = new SamlInitiateSingleSignOnRequest();
@@ -90,6 +91,27 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
         Exception e = expectThrows(Exception.class, () -> future.get());
         assertThat(e.getCause().getMessage(), containsString("https://sp2.other.org"));
         assertThat(e.getCause().getMessage(), containsString("is not registered with this Identity Provider"));
+    }
+
+    public void testGetResponseWithoutSecondaryAuthenticationInSpInitiatedFlow() throws Exception {
+        final SamlInitiateSingleSignOnRequest request = new SamlInitiateSingleSignOnRequest();
+        request.setSpEntityId("https://sp.some.org");
+        final SamlAuthenticationState samlAuthenticationState = new SamlAuthenticationState();
+        samlAuthenticationState.setEntityId("https://sp.some.org");
+        samlAuthenticationState.setRequestedAcsUrl("https://sp.some.org/saml/acs");
+        final String requestId = randomAlphaOfLength(12);
+        samlAuthenticationState.setAuthnRequestId(requestId);
+        request.setSamlAuthenticationState(samlAuthenticationState);
+
+        final PlainActionFuture<SamlInitiateSingleSignOnResponse> future = new PlainActionFuture<>();
+        final TransportSamlInitiateSingleSignOnAction action = setupTransportAction(false);
+        action.doExecute(mock(Task.class), request, future);
+
+        final SamlInitiateSingleSignOnResponse response = future.get();
+        assertThat(response.getError(), equalTo("Request is missing secondary authentication"));
+        assertThat(response.getPostUrl(), equalTo("https://sp.some.org/saml/acs"));
+        assertThat(response.getEntityId(), equalTo("https://sp.some.org"));
+        assertThat(response.getSamlResponse(), containsString("InResponseTo=\"" + requestId + "\""));
     }
 
     private TransportSamlInitiateSingleSignOnAction setupTransportAction(boolean withSecondaryAuth) throws Exception {

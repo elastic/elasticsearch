@@ -101,7 +101,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     private LicenseService licenseService;
     protected List<Plugin> plugins = new ArrayList<>();
 
-    public LocalStateCompositeXPackPlugin(final Settings settings, final Path configPath) throws Exception {
+    public LocalStateCompositeXPackPlugin(final Settings settings, final Path configPath) {
         super(settings, configPath);
     }
 

@@ -33,7 +33,7 @@ import java.util.Collections;
  */
 public abstract class AbstractWireTestCase<T> extends ESTestCase {
 
-    protected static final int NUMBER_OF_TEST_RUNS = 20;
+    protected static final int NUMBER_OF_TEST_RUNS = 1;
 
     /**
      * Creates a random test instance to use in the tests. This method will be

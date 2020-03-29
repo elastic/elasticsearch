@@ -19,14 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import static java.util.Map.entry;
-
-import java.io.IOException;
-import java.time.ZoneId;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
@@ -46,6 +38,14 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Objects;
+
+import static java.util.Map.entry;
 
 public class AutoDateHistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
@@ -179,6 +179,11 @@ public class AutoDateHistogramAggregationBuilder
 
     public int getNumBuckets() {
         return numBuckets;
+    }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
     }
 
     @Override

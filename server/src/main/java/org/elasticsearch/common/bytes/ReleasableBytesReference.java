@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,19 +34,41 @@ import java.io.OutputStream;
  * An extension to {@link BytesReference} that requires releasing its content. This
  * class exists to make it explicit when a bytes reference needs to be released, and when not.
  */
-public final class ReleasableBytesReference implements Releasable, BytesReference {
+public final class ReleasableBytesReference extends AbstractRefCounted implements Releasable, BytesReference {
 
+    public static final Releasable NO_OP = () -> {};
     private final BytesReference delegate;
     private final Releasable releasable;
 
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
+        super("bytes-reference");
         this.delegate = delegate;
         this.releasable = releasable;
     }
 
+    public static ReleasableBytesReference wrap(BytesReference reference) {
+        return new ReleasableBytesReference(reference, NO_OP);
+    }
+
+    @Override
+    protected void closeInternal() {
+        Releasables.close(releasable);
+    }
+
+    public ReleasableBytesReference retain() {
+        incRef();
+        return this;
+    }
+
+    public ReleasableBytesReference retainedSlice(int from, int length) {
+        BytesReference slice = delegate.slice(from, length);
+        incRef();
+        return new ReleasableBytesReference(slice, this);
+    }
+
     @Override
     public void close() {
-        Releasables.close(releasable);
+        decRef();
     }
 
     @Override

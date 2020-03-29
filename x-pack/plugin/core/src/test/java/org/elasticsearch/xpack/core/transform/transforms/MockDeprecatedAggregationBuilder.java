@@ -69,6 +69,11 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,

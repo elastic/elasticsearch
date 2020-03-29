@@ -31,7 +31,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -54,6 +53,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.not;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
 
-    public static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends TransportRequest {
         protected String requestName;
 
         public NodeRequest(StreamInput in) throws IOException {

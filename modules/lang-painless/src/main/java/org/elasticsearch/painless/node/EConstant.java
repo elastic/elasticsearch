@@ -77,13 +77,4 @@ public class EConstant extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        String c = constant.toString();
-        if (constant instanceof String) {
-            c = "'" + c + "'";
-        }
-        return singleLineToString(constant.getClass().getSimpleName(), c);
-    }
 }

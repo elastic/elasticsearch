@@ -110,7 +110,7 @@
             "properties": {
                 "version": {
                     "type": "string",
-                    "pattern": "^(\\d+)(\\.(\\d+))?(\\.(\\d+))?(\\-([0-9A-Za-z]+))?$",
+                    "pattern": "^\\d+\\.\\d+\\.\\d+$",
                     "title": "The version from which deprecation applies"
                 },
                 "description": {

@@ -42,10 +42,10 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -140,6 +140,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
                     runningTasksStatsResponse -> gatherStatsForStoppedTasks(request.getExpandedIds(), runningTasksStatsResponse,
                         ActionListener.wrap(
                             finalResponse -> {
+
                                 // While finalResponse has all the stats objects we need, we should report the count
                                 // from the get response
                                 QueryPage<Stats> finalStats = new QueryPage<>(finalResponse.getResponse().results(),

@@ -1353,7 +1353,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         public MetaData build() {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
-            // 1) The datastructures will only be rebuilded when needed. Now during serializing we rebuild these datastructures
+            // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             //    while these datastructures aren't even used.
             // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
 
@@ -1391,7 +1391,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 // iterate again and constructs a helpful message
                 ArrayList<String> duplicates = new ArrayList<>();
                 for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                    for (String alias: duplicateAliasesIndices) {
+                    for (String alias : duplicateAliasesIndices) {
                         if (cursor.value.getAliases().containsKey(alias)) {
                             duplicates.add(alias + " (alias of " + cursor.value.getIndex() + ")");
                         }
@@ -1399,12 +1399,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 }
                 assert duplicates.size() > 0;
                 throw new IllegalStateException("index and alias names need to be unique, but the following duplicates were found ["
-                    + Strings.collectionToCommaDelimitedString(duplicates)+ "]");
+                    + Strings.collectionToCommaDelimitedString(duplicates) + "]");
 
             }
 
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup());
 
+            validateDataStreams(aliasAndIndexLookup);
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
@@ -1445,6 +1446,24 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             aliasAndIndexLookup.values().stream().filter(AliasOrIndex::isAlias)
                 .forEach(alias -> ((AliasOrIndex.Alias) alias).computeAndValidateAliasProperties());
             return aliasAndIndexLookup;
+        }
+
+        private void validateDataStreams(SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
+            DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
+            if (dsMetadata != null) {
+                for (DataStream ds : dsMetadata.dataStreams().values()) {
+                    if (aliasAndIndexLookup.containsKey(ds.getName())) {
+                        throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
+                    }
+
+                    SortedMap<?, ?> map = aliasAndIndexLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
+                    if (map.size() != 0) {
+                        throw new IllegalStateException("data stream [" + ds.getName() +
+                            "] could create backing indices that conflict with " + map.size() + " existing index(s) or alias(s)" +
+                            " including '" + map.firstKey() + "'");
+                    }
+                }
+            }
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {

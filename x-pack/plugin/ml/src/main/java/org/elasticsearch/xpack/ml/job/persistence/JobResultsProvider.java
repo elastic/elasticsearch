@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -143,6 +144,7 @@ public class JobResultsProvider {
     private static final int RECORDS_SIZE_PARAM = 10000;
     public static final int BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE = 20;
     private static final double ESTABLISHED_MEMORY_CV_THRESHOLD = 0.1;
+    public static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
 
     private final Client client;
     private final Settings settings;
@@ -259,6 +261,8 @@ public class JobResultsProvider {
      * Create the Elasticsearch index and the mappings
      */
     public void createJobResultIndex(Job job, ClusterState state, final ActionListener<Boolean> finalListener) {
+        boolean isHiddenAttributeAvailable = state.nodes().getMinNodeVersion().onOrAfter(HIDDEN_INTRODUCED_VERSION);
+
         Collection<String> termFields = (job.getAnalysisConfig() != null) ? job.getAnalysisConfig().termFields() : Collections.emptyList();
 
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
@@ -283,15 +287,23 @@ public class JobResultsProvider {
         final String indexName = tempIndexName;
 
         ActionListener<Boolean> indexAndMappingsListener = ActionListener.wrap(success -> {
+            IndicesAliasesRequest.AliasActions addReadAliasAction =
+                IndicesAliasesRequest.AliasActions.add()
+                    .index(indexName)
+                    .alias(readAliasName)
+                    .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()));
+            IndicesAliasesRequest.AliasActions addWriteAliasAction =
+                IndicesAliasesRequest.AliasActions.add()
+                    .index(indexName)
+                    .alias(writeAliasName);
+            if (isHiddenAttributeAvailable) {
+                addReadAliasAction.isHidden(true);
+                addWriteAliasAction.isHidden(true);
+            }
             final IndicesAliasesRequest request =
                 client.admin().indices().prepareAliases()
-                    .addAliasAction(
-                        IndicesAliasesRequest.AliasActions.add()
-                            .index(indexName)
-                            .alias(readAliasName)
-                            .isHidden(true)
-                            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId())))
-                    .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(writeAliasName).isHidden(true))
+                    .addAliasAction(addReadAliasAction)
+                    .addAliasAction(addWriteAliasAction)
                     .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
                     ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(true), finalListener::onFailure),

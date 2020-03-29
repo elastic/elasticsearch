@@ -366,6 +366,6 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                                                                 emptySet(),
                                                                 Version.V_6_0_0_beta1);
 
-        return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs, null, null, null, null, null, null, null);
+        return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs, null, null, null, null, null, null, null, null);
     }
 }

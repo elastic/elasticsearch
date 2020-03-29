@@ -47,7 +47,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
     }
 
     public void testSecurityEnabledToDisabled() {
-        when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
 
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.GOLD);
         logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
@@ -66,7 +66,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             "Active license is now [PLATINUM]; Security is enabled"
         ));
 
-        when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
         logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
             "change to basic",
@@ -80,7 +80,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
     }
 
     public void testSecurityDisabledToEnabled() {
-        when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
 
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.TRIAL);
         logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
@@ -99,7 +99,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             "Active license is now [BASIC]; Security is disabled"
         ));
 
-        when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.PLATINUM);
         logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
             "change to platinum",

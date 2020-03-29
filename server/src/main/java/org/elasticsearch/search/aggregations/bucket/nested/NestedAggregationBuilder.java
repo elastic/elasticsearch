@@ -87,6 +87,11 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext,
                                             AggregatorFactory parent,
                                             Builder subFactoriesBuilder) throws IOException {

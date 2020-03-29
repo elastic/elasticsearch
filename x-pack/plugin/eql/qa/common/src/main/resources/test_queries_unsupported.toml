@@ -802,12 +802,6 @@ description = "check built-in string functions"
 
 [[queries]]
 query = '''
-file where opcode=0 and endsWith(file_name, 'loREr.exe')'''
-expected_event_ids  = [88]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
 file where opcode=0 and startsWith(file_name, 'explORER.EXE')'''
 expected_event_ids  = [88, 92]
 description = "check built-in string functions"

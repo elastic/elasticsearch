@@ -788,39 +788,7 @@ description = "check that case insensitive comparisons are performed for fields.
 
 [[queries]]
 query = '''
-file where opcode=0 and startsWith(file_name, 'exploRER.')
-'''
-expected_event_ids  = [88, 92]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
-file where opcode=0 and startsWith(file_name, 'expLORER.exe')
-'''
-expected_event_ids  = [88, 92]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
 file where opcode=0 and endsWith(file_name, 'loREr.exe')'''
-expected_event_ids  = [88]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
-file where opcode=0 and startsWith(file_name, 'explORER.EXE')'''
-expected_event_ids  = [88, 92]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
-file where opcode=0 and startsWith('explorer.exeaaaaaaaa', file_name)'''
-expected_event_ids  = [88]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
-file where opcode=0 and serial_event_id = 88 and startsWith('explorer.exeaAAAA', 'EXPLORER.exe')'''
 expected_event_ids  = [88]
 description = "check built-in string functions"
 

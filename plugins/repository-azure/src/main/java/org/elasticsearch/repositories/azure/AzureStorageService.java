@@ -122,7 +122,7 @@ public class AzureStorageService {
             if (timeout > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("Timeout [" + azureStorageSettings.getTimeout() + "] exceeds 2,147,483,647ms.");
             }
-            client.getDefaultRequestOptions().setMaximumExecutionTimeInMs((int) timeout);
+            client.getDefaultRequestOptions().setTimeoutIntervalInMs((int) timeout);
         }
         // We define a default exponential retry policy
         client.getDefaultRequestOptions().setRetryPolicyFactory(createRetryPolicy(azureStorageSettings));

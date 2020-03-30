@@ -152,6 +152,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
         awaitForBlock(plugins);
         ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchAction.NAME);
+        assertFalse(cancelFuture.isDone());
         disableBlocks(plugins);
         cancelFuture.actionGet();
         logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
@@ -171,6 +172,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
         awaitForBlock(plugins);
         ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchAction.NAME);
+        assertFalse(cancelFuture.isDone());
         disableBlocks(plugins);
         cancelFuture.actionGet();
         logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
@@ -193,6 +195,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
         awaitForBlock(plugins);
         ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchAction.NAME);
+        assertFalse(cancelFuture.isDone());
         disableBlocks(plugins);
         cancelFuture.actionGet();
         SearchResponse response = ensureSearchWasCancelled(searchResponse);
@@ -237,6 +240,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
         awaitForBlock(plugins);
         ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchScrollAction.NAME);
+        assertFalse(cancelFuture.isDone());
         disableBlocks(plugins);
         cancelFuture.actionGet();
         SearchResponse response = ensureSearchWasCancelled(scrollResponse);

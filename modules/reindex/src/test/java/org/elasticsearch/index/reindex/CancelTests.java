@@ -160,6 +160,7 @@ public class CancelTests extends ReindexTestCase {
             assertTrue("Didn't find at least one sub task that was cancelled", foundCancelled);
         }
 
+        assertFalse(cancelFuture.isDone());
         logger.debug("unblocking the blocked update");
         ALLOWED_OPERATIONS.release(builder.request().getSlices());
         ListTasksResponse cancelTasksResponse = cancelFuture.get();

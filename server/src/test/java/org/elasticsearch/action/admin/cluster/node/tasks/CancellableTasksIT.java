@@ -82,7 +82,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         completedLatches.clear();
     }
 
-    public void testBandOnlyNodesWithOutstandingChildTasks() throws Exception {
+    public void testBanOnlyNodesWithOutstandingChildTasks() throws Exception {
         if (randomBoolean()) {
             internalCluster().startNodes(randomIntBetween(1, 3));
         }

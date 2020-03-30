@@ -28,7 +28,7 @@ public final class AuthHeadersExtractor {
         Map<String, String> headers = threadHeaders.entrySet().stream()
             .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        String secondaryAuth = headers.get(SecondaryAuthentication.THREAD_CTX_KEY);
+        String secondaryAuth = headers.remove(SecondaryAuthentication.THREAD_CTX_KEY);
         if (secondaryAuth != null) {
             headers.put(AuthenticationField.AUTHENTICATION_KEY, secondaryAuth);
         }

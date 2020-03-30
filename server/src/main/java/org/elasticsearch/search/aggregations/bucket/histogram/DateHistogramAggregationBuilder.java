@@ -467,7 +467,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
         ZoneOffsetTransition prevOffsetTransition = tz.getRules().previousTransition(instant);
         final long prevTransition;
-        if (prevOffsetTransition  != null) {
+        if (prevOffsetTransition != null) {
             prevTransition = prevOffsetTransition.getInstant().toEpochMilli();
         } else {
             prevTransition = instant.toEpochMilli();
@@ -477,7 +477,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         if (nextOffsetTransition != null) {
             nextTransition = nextOffsetTransition.getInstant().toEpochMilli();
         } else {
-            nextTransition = instant.toEpochMilli();
+            nextTransition = Long.MAX_VALUE; // fixed time-zone after prevTransition
         }
 
         // We need all not only values but also rounded values to be within

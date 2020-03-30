@@ -112,7 +112,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             .build());
         request.setJsonEntity("{ \"entity_id\": \"" + entityId + randomAlphaOfLength(3) + "\", \"acs\": \"" + acsUrl + "\" }");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getMessage(), containsString("is not registered with this Identity Provider"));
+        assertThat(e.getMessage(), containsString("is not known to this Identity Provider"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
     }
 
@@ -149,6 +149,8 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         Map<String, String> serviceProvider = validateResponseObject.evaluate("service_provider");
         assertThat(serviceProvider, hasKey("entity_id"));
         assertThat(serviceProvider.get("entity_id"), equalTo(entityId));
+        assertThat(serviceProvider, hasKey("acs"));
+        assertThat(serviceProvider.get("acs"), equalTo(authnRequest.getAssertionConsumerServiceURL()));
         assertThat(validateResponseObject.evaluate("force_authn"), equalTo(forceAuthn));
         Map<String, String> authnState = validateResponseObject.evaluate("authn_state");
         assertThat(authnState, hasKey("nameid_format"));
@@ -172,7 +174,11 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             .build());
         XContentBuilder authnStateBuilder = jsonBuilder();
         authnStateBuilder.map(authnState);
-        initRequest.setJsonEntity("{ \"entity_id\":\"" + entityId + "\", \"authn_state\":" + Strings.toString(authnStateBuilder) + "}");
+        initRequest.setJsonEntity("{"
+            + ("\"entity_id\":\"" + entityId + "\",")
+            + ("\"acs\":\"" + serviceProvider.get("acs") + "\",")
+            + ("\"authn_state\":" + Strings.toString(authnStateBuilder))
+            + "}");
         Response initResponse = getRestClient().performRequest(initRequest);
         ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
         assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));
@@ -204,7 +210,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         final String query = getQueryString(authnRequest, relayString, false, null);
         validateRequest.setJsonEntity("{\"authn_request_query\":\"" + query + "\"}");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(validateRequest));
-        assertThat(e.getMessage(), containsString("is not registered with this Identity Provider"));
+        assertThat(e.getMessage(), containsString("is not known to this Identity Provider"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
     }
 

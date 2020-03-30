@@ -44,10 +44,11 @@ public class SamlInitiateSingleSignOnRequest extends ActionRequest {
         }
         if (samlAuthenticationState != null) {
             final ValidationException authnStateException = samlAuthenticationState.validate();
-            if (validationException != null) {
-                ActionRequestValidationException actionRequestValidationException = new ActionRequestValidationException();
-                actionRequestValidationException.addValidationErrors(authnStateException.validationErrors());
-                validationException = addValidationError("entity_id is missing", actionRequestValidationException);
+            if (authnStateException != null && authnStateException.validationErrors().isEmpty() == false) {
+                if (validationException == null) {
+                    validationException = new ActionRequestValidationException();
+                }
+                validationException.addValidationErrors(authnStateException.validationErrors());
             }
         }
         return validationException;
@@ -75,9 +76,6 @@ public class SamlInitiateSingleSignOnRequest extends ActionRequest {
 
     public void setSamlAuthenticationState(SamlAuthenticationState samlAuthenticationState) {
         this.samlAuthenticationState = samlAuthenticationState;
-        if (samlAuthenticationState != null && assertionConsumerService == null) {
-            this.assertionConsumerService = samlAuthenticationState.getRequestedAcsUrl();
-        }
     }
 
     @Override

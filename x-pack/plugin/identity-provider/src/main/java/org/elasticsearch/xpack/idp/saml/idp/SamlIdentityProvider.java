@@ -109,25 +109,25 @@ public class SamlIdentityProvider {
     /**
      * Asynchronously lookup the specified {@link SamlServiceProvider} by entity-id.
      * @param spEntityId The (URI) entity ID of the service provider
-     * @param acs The ACS of the service provider - only used if there is no service provider and we need to dynamically define one from
-     *            a template (wildcard). May be null, in which case wildcard services will not be resolved.
+     * @param acs The ACS of the service provider - only used if there is no registered service provider and we need to dynamically define
+     *            one from a template (wildcard). May be null, in which case wildcard services will not be resolved.
      * @param allowDisabled whether to return service providers that are not {@link SamlServiceProvider#isEnabled() enabled}.
      *                      For security reasons, callers should typically avoid working with disabled service providers.
      * @param listener Responds with the requested Service Provider object, or {@code null} if no such SP exists.
  *                 {@link ActionListener#onFailure} is only used for fatal errors (e.g. being unable to access
      */
-    public void getRegisteredServiceProvider(String spEntityId, @Nullable String acs, boolean allowDisabled,
-                                             ActionListener<SamlServiceProvider> listener) {
+    public void resolveServiceProvider(String spEntityId, @Nullable String acs, boolean allowDisabled,
+                                       ActionListener<SamlServiceProvider> listener) {
         serviceProviderResolver.resolve(spEntityId, ActionListener.wrap(
             sp -> {
                 if (sp == null) {
-                    logger.debug("No registered service provider exists for entityId [{}]", spEntityId);
+                    logger.debug("No explicitly registered service provider exists for entityId [{}]", spEntityId);
                     resolveWildcardService(spEntityId, acs, listener);
                 } else if (allowDisabled == false && sp.isEnabled() == false) {
-                    logger.info("Service provider [{}][{}] is not enabled", sp.getEntityId(), sp.getName());
+                    logger.info("Service provider [{}][{}] is not enabled", spEntityId, sp.getName());
                     listener.onResponse(null);
                 } else {
-                    logger.debug("Service provider for [{}] is [{}]", sp.getEntityId(), sp);
+                    logger.debug("Service provider for [{}] is [{}]", spEntityId, sp);
                     listener.onResponse(sp);
                 }
             },
@@ -137,10 +137,13 @@ public class SamlIdentityProvider {
 
     private void resolveWildcardService(String entityId, String acs, ActionListener<SamlServiceProvider> listener) {
         if (acs == null) {
+            logger.debug("No ACS provided for [{}], skipping wildcard matching", entityId);
             listener.onResponse(null);
         } else {
             try {
-                listener.onResponse(wildcardServiceResolver.resolve(entityId, acs));
+                final SamlServiceProvider sp = wildcardServiceResolver.resolve(entityId, acs);
+                logger.debug("Wildcard service provider for [{}][{}] is [{}]", entityId, acs, sp);
+                listener.onResponse(sp);
             } catch (Exception e) {
                 listener.onFailure(e);
             }

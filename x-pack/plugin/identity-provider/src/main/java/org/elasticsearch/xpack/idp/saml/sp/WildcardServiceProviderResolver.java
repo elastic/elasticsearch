@@ -173,7 +173,7 @@ public class WildcardServiceProviderResolver {
     }
 
     // Accessible for testing
-    boolean reload(XContentParser parser) throws IOException {
+    void reload(XContentParser parser) throws IOException {
         final Map<String, WildcardServiceProvider> newServices = Map.copyOf(parse(parser));
         final State oldState = this.stateRef.get();
         if (newServices.equals(oldState.services) == false) {
@@ -181,13 +181,10 @@ public class WildcardServiceProviderResolver {
             if (this.stateRef.compareAndSet(oldState, new State(newServices))) {
                 logger.info("Reloaded cached wildcard service providers, new providers [{}]",
                     Strings.collectionToCommaDelimitedString(newServices.keySet()));
-                return true;
             } else {
                 // some other thread reloaded it
-                return false;
             }
         }
-        return false;
     }
 
     private void reload(Path file) throws IOException {

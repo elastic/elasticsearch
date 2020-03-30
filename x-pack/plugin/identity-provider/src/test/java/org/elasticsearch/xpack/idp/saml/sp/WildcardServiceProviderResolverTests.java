@@ -96,7 +96,7 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
     }
 
     public void testParsingOfServices() throws IOException {
-        assertThat(loadJsonServices(), equalTo(true));
+        loadJsonServices();
         assertThat(resolver.services().keySet(), containsInAnyOrder("service1a", "service1b", "service2"));
 
         final WildcardServiceProvider service1a = resolver.services().get("service1a");
@@ -172,8 +172,8 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
         }
     }
 
-    private boolean loadJsonServices() throws IOException {
+    private void loadJsonServices() throws IOException {
         assertThat("Resolver has not been setup correctly", resolver, notNullValue());
-        return resolver.reload(createParser(XContentType.JSON.xContent(), SERVICES_JSON));
+        resolver.reload(createParser(XContentType.JSON.xContent(), SERVICES_JSON));
     }
 }

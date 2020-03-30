@@ -42,7 +42,7 @@ public class SamlMetadataGenerator {
     }
 
     public void generateMetadata(String spEntityId, String acs, ActionListener<SamlMetadataResponse> listener) {
-        idp.getRegisteredServiceProvider(spEntityId, acs, true, ActionListener.wrap(
+        idp.resolveServiceProvider(spEntityId, acs, true, ActionListener.wrap(
             sp -> {
                 try {
                     if (null == sp) {

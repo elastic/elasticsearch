@@ -99,10 +99,11 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
         final ServiceProviderDefaults serviceProviderDefaults = ServiceProviderDefaults.forSettings(settings);
         final SamlServiceProviderFactory serviceProviderFactory = new SamlServiceProviderFactory(serviceProviderDefaults);
-        final SamlServiceProviderResolver serviceResolver = new SamlServiceProviderResolver(settings, index, serviceProviderFactory);
-        final WildcardServiceProviderResolver wildcardResolver = WildcardServiceProviderResolver.create(environment, resourceWatcherService,
-            scriptService, serviceProviderFactory);
-        final SamlIdentityProvider idp = SamlIdentityProvider.builder(serviceResolver, wildcardResolver)
+        final SamlServiceProviderResolver registeredServiceProviderResolver
+            = new SamlServiceProviderResolver(settings, index, serviceProviderFactory);
+        final WildcardServiceProviderResolver wildcardServiceProviderResolver
+            = WildcardServiceProviderResolver.create(environment, resourceWatcherService, scriptService, serviceProviderFactory);
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(registeredServiceProviderResolver, wildcardServiceProviderResolver)
             .fromSettings(environment)
             .serviceProviderDefaults(serviceProviderDefaults)
             .build();

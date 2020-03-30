@@ -96,7 +96,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
 
             listener.onResponse(sp);
             return null;
-        }).when(idp).getRegisteredServiceProvider(Mockito.eq(entityId), Mockito.anyString(), Mockito.anyBoolean(),
+        }).when(idp).resolveServiceProvider(Mockito.eq(entityId), Mockito.anyString(), Mockito.anyBoolean(),
             Mockito.any(ActionListener.class));
     }
 

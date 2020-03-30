@@ -90,7 +90,7 @@ public class TransportSamlInitiateSingleSignOnRequestTests extends IdpSamlTestCa
 
         Exception e = expectThrows(Exception.class, () -> future.get());
         assertThat(e.getCause().getMessage(), containsString("https://sp2.other.org"));
-        assertThat(e.getCause().getMessage(), containsString("is not registered with this Identity Provider"));
+        assertThat(e.getCause().getMessage(), containsString("is not known to this Identity Provider"));
     }
 
     private TransportSamlInitiateSingleSignOnAction setupTransportAction(boolean withSecondaryAuth) throws Exception {

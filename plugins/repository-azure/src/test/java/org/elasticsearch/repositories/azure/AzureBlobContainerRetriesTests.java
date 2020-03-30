@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.repositories.azure;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.microsoft.azure.storage.Constants;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicyFactory;
@@ -93,7 +92,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  * This class tests how a {@link AzureBlobContainer} and its underlying SDK client are retrying requests when reading or writing blobs.
  */
-@Repeat(iterations = 100)
 @SuppressForbidden(reason = "use a http server")
 public class AzureBlobContainerRetriesTests extends ESTestCase {
 
@@ -137,7 +135,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         final AzureStorageService service = new AzureStorageService(clientSettings.build()) {
             @Override
             RetryPolicyFactory createRetryPolicy(final AzureStorageSettings azureStorageSettings) {
-                return new RetryExponentialRetry(1, 100, 500, azureStorageSettings.getMaxRetries());
+                return new RetryExponentialRetry(1, 10, 100, azureStorageSettings.getMaxRetries());
             }
 
             @Override

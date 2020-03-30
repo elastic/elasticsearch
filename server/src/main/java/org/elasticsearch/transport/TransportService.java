@@ -562,6 +562,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                                                                 TransportResponseHandler<T> handler) {
         try {
             if (request.getParentTask().isSet()) {
+                // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
                 final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
                 final TransportResponseHandler<T> delegate = handler;
                 handler = new TransportResponseHandler<>() {

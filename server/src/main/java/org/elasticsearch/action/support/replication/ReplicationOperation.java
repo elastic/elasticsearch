@@ -36,13 +36,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -239,7 +240,8 @@ public class ReplicationOperation<
             @Override
             public boolean shouldRetry(Exception e) {
                 // Should we retry on NoNodeAvailableException?
-                return e instanceof NodeNotConnectedException || e instanceof CircuitBreakingException;
+                return e instanceof ConnectTransportException || e instanceof CircuitBreakingException ||
+                    e instanceof EsRejectedExecutionException;
             }
         };
 

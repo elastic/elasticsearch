@@ -22,6 +22,7 @@ package org.elasticsearch.action.support;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -89,7 +90,10 @@ public abstract class RetryableAction<Response> {
                         TimeValue.timeValueNanos(nextDelayNanos)), e);
                     addExisting(e);
                     Runnable runnable = () -> tryAction(new RetryingListener(nextDelayNanos * 2, e));
-                    threadPool.schedule(runnable, TimeValue.timeValueNanos(nextDelayNanos), retryExecutor);
+                    final long midpoint = (nextDelayNanos / 2);
+                    final int randomness = Randomness.get().nextInt((int) (nextDelayNanos - midpoint));
+                    final long delayNanos = midpoint + randomness;
+                    threadPool.schedule(runnable, TimeValue.timeValueNanos(delayNanos), retryExecutor);
                 }
             } else {
                 addExisting(e);

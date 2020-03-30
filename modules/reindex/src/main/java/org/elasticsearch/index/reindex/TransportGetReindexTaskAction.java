@@ -44,6 +44,7 @@ public class TransportGetReindexTaskAction extends HandledTransportAction<GetRei
 
     @Override
     protected void doExecute(Task task, GetReindexTaskAction.Request request, ActionListener<GetReindexTaskAction.Response> listener) {
+        assert request.getId().length == 1;
         String id = request.getId()[0];
         reindexIndexClient.getReindexTaskDoc(id, ActionListener.map(listener,
             (state) -> TransportGetReindexTaskAction.toResponse(id, state)));
@@ -51,16 +52,15 @@ public class TransportGetReindexTaskAction extends HandledTransportAction<GetRei
 
     private static GetReindexTaskAction.Response toResponse(String id, ReindexTaskState taskState) {
         ReindexTaskStateDoc stateDoc = taskState.getStateDoc();
-        final GetReindexTaskAction.ReindexTaskWrapper taskResponse;
+        final GetReindexTaskAction.ReindexTaskResponse taskResponse;
         if (stateDoc.getReindexResponse() != null) {
-            taskResponse = GetReindexTaskAction.ReindexTaskWrapper.fromResponse(id, stateDoc.getStartTimeMillis(),
+            taskResponse = GetReindexTaskAction.ReindexTaskResponse.fromResponse(id, stateDoc.getStartTimeMillis(),
                 stateDoc.getEndTimeMillis(), stateDoc.getReindexResponse());
         } else if (stateDoc.getException() != null) {
-            taskResponse = GetReindexTaskAction.ReindexTaskWrapper.fromException(id, stateDoc.getStartTimeMillis(),
+            taskResponse = GetReindexTaskAction.ReindexTaskResponse.fromException(id, stateDoc.getStartTimeMillis(),
                 stateDoc.getEndTimeMillis(), stateDoc.getException());
         } else {
-            taskResponse = GetReindexTaskAction.ReindexTaskWrapper.fromInProgress(id, stateDoc.getStartTimeMillis(),
-                stateDoc.getEndTimeMillis());
+            taskResponse = GetReindexTaskAction.ReindexTaskResponse.fromInProgress(id, stateDoc.getStartTimeMillis());
         }
         return new GetReindexTaskAction.Response(Collections.singletonList(taskResponse));
     }

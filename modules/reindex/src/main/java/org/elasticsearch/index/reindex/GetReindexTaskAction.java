@@ -91,24 +91,24 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             true,
             args -> {
                 @SuppressWarnings("unchecked") // We're careful about the type in the list
-                List<ReindexTaskWrapper> jobs = (List<ReindexTaskWrapper>) args[0];
+                List<ReindexTaskResponse> jobs = (List<ReindexTaskResponse>) args[0];
                 return new Response(unmodifiableList(jobs));
             });
 
         private static final String TASKS = "tasks";
 
         static {
-            PARSER.declareObjectArray(constructorArg(), (p, c) -> ReindexTaskWrapper.fromXContent(p), new ParseField(TASKS));
+            PARSER.declareObjectArray(constructorArg(), (p, c) -> ReindexTaskResponse.fromXContent(p), new ParseField(TASKS));
         }
 
-        private List<ReindexTaskWrapper> responses;
+        private List<ReindexTaskResponse> responses;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            responses = in.readList(ReindexTaskWrapper::new);
+            responses = in.readList(ReindexTaskResponse::new);
         }
 
-        public Response(List<ReindexTaskWrapper> responses) {
+        public Response(List<ReindexTaskResponse> responses) {
             this.responses = responses;
         }
 
@@ -122,7 +122,7 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             builder.startObject();
             builder.field(TASKS);
             builder.startArray();
-            for (ReindexTaskWrapper response : responses) {
+            for (ReindexTaskResponse response : responses) {
                 response.toXContent(builder, params);
             }
             builder.endArray();
@@ -134,7 +134,7 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
         }
     }
 
-    public static class ReindexTaskWrapper implements ToXContentObject, Writeable {
+    public static class ReindexTaskResponse implements ToXContentObject, Writeable {
 
         private static final ObjectParser<ReindexTaskWrapperBuilder, Void> PARSER =
             new ObjectParser<>(
@@ -180,7 +180,7 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
         private final List<ScrollableHitSource.SearchFailure> searchFailures;
         private final ElasticsearchException fatalFailure;
 
-        public ReindexTaskWrapper(StreamInput in) throws IOException {
+        public ReindexTaskResponse(StreamInput in) throws IOException {
             this.id = in.readString();
             this.state = in.readString();
             this.startMillis = in.readLong();
@@ -191,10 +191,10 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             this.fatalFailure = in.readOptionalWriteable(ElasticsearchException::new);
         }
 
-        public ReindexTaskWrapper(String id, String state, long startMillis, @Nullable Long endMillis,
-                                  @Nullable BulkByScrollTask.Status status, @Nullable List<BulkItemResponse.Failure> bulkFailures,
-                                  @Nullable List<ScrollableHitSource.SearchFailure> searchFailures,
-                                  @Nullable ElasticsearchException fatalFailure) {
+        public ReindexTaskResponse(String id, String state, long startMillis, @Nullable Long endMillis,
+                                   @Nullable BulkByScrollTask.Status status, @Nullable List<BulkItemResponse.Failure> bulkFailures,
+                                   @Nullable List<ScrollableHitSource.SearchFailure> searchFailures,
+                                   @Nullable ElasticsearchException fatalFailure) {
             this.id = id;
             this.state = state;
             this.startMillis = startMillis;
@@ -205,18 +205,18 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             this.fatalFailure = fatalFailure;
         }
 
-        public static ReindexTaskWrapper fromResponse(String id, long startMillis, Long endMillis, BulkByScrollResponse response) {
-            return new ReindexTaskWrapper(id, getState(response, null), startMillis, endMillis, response.getStatus(),
+        public static ReindexTaskResponse fromResponse(String id, long startMillis, Long endMillis, BulkByScrollResponse response) {
+            return new ReindexTaskResponse(id, getState(response, null), startMillis, endMillis, response.getStatus(),
                 response.getBulkFailures(), response.getSearchFailures(), null);
         }
 
-        public static ReindexTaskWrapper fromException(String id, long startMillis, Long endMillis, ElasticsearchException exception) {
-            return new ReindexTaskWrapper(id, getState(null, exception), startMillis, endMillis, null,
+        public static ReindexTaskResponse fromException(String id, long startMillis, Long endMillis, ElasticsearchException exception) {
+            return new ReindexTaskResponse(id, getState(null, exception), startMillis, endMillis, null,
                 null, null, exception);
         }
 
-        public static ReindexTaskWrapper fromInProgress(String id, long startMillis, Long endMillis) {
-            return new ReindexTaskWrapper(id, getState(null, null), startMillis, endMillis, null,
+        public static ReindexTaskResponse fromInProgress(String id, long startMillis) {
+            return new ReindexTaskResponse(id, getState(null, null), startMillis, null, null,
                 null, null, null);
         }
 
@@ -253,6 +253,9 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             if (endMillis != null) {
                 builder.field(END_TIME, Instant.ofEpochMilli(endMillis).atZone(ZoneOffset.UTC));
                 builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(endMillis - startMillis, TimeUnit.MILLISECONDS));
+            } else {
+                final long nowMillis = Math.max(Instant.now().toEpochMilli(), startMillis);
+                builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(nowMillis - startMillis, TimeUnit.MILLISECONDS));
             }
             if (status != null) {
                 status.innerXContent(builder, params);
@@ -277,7 +280,7 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             return builder.endObject();
         }
 
-        public static ReindexTaskWrapper fromXContent(XContentParser parser) {
+        public static ReindexTaskResponse fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null).buildWrapper();
         }
     }
@@ -333,9 +336,9 @@ public class GetReindexTaskAction extends ActionType<GetReindexTaskAction.Respon
             }
         }
 
-        public ReindexTaskWrapper buildWrapper() {
+        public ReindexTaskResponse buildWrapper() {
             status = super.buildStatus();
-            return new ReindexTaskWrapper(id, state, startMillis, endMillis, status, bulkFailures, searchFailures, fatalFailure);
+            return new ReindexTaskResponse(id, state, startMillis, endMillis, status, bulkFailures, searchFailures, fatalFailure);
         }
     }
 }

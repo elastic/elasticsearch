@@ -65,15 +65,15 @@ public class CopySettingsStep extends ClusterStateActionStep {
             return clusterState;
         }
 
+        if (settingsKeys == null || settingsKeys.length == 0) {
+            return clusterState;
+        }
+
         if (targetIndexMetadata == null) {
             String errorMessage = String.format(Locale.ROOT, "index [%s] is being referenced by ILM action [%s] on step [%s] but " +
                 "it doesn't exist", targetIndexName, getKey().getAction(), getKey().getName());
             logger.debug(errorMessage);
             throw new IllegalStateException(errorMessage);
-        }
-
-        if (settingsKeys == null || settingsKeys.length == 0) {
-            return clusterState;
         }
 
         Settings.Builder settings = Settings.builder().put(targetIndexMetadata.getSettings());

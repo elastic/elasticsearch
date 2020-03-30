@@ -14,32 +14,89 @@ import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
 
+    protected final SearchableSnapshotDirectory directory;
     protected final BlobContainer blobContainer;
     protected final FileInfo fileInfo;
     protected final IOContext context;
+    protected final IndexInputStats stats;
+    protected final long offset;
+    protected final long length;
 
-    public BaseSearchableSnapshotIndexInput(String resourceDesc, BlobContainer blobContainer, FileInfo fileInfo, IOContext context) {
+    // the following are only mutable so they can be adjusted after cloning/slicing
+    protected volatile boolean isClone;
+    private AtomicBoolean closed;
+
+    public BaseSearchableSnapshotIndexInput(
+        String resourceDesc,
+        SearchableSnapshotDirectory directory,
+        FileInfo fileInfo,
+        IOContext context,
+        IndexInputStats stats,
+        long offset,
+        long length
+    ) {
         super(resourceDesc, context);
-        this.blobContainer = Objects.requireNonNull(blobContainer);
+        this.directory = Objects.requireNonNull(directory);
+        this.blobContainer = Objects.requireNonNull(directory.blobContainer());
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
         assert fileInfo.metadata().hashEqualsContents() == false
             : "this method should only be used with blobs that are NOT stored in metadata's hash field (fileInfo: " + fileInfo + ')';
+        this.stats = Objects.requireNonNull(stats);
+        this.offset = offset;
+        this.length = length;
+        this.closed = new AtomicBoolean(false);
+        this.isClone = false;
     }
 
     public BaseSearchableSnapshotIndexInput(
         String resourceDesc,
-        BlobContainer blobContainer,
+        SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
+        IndexInputStats stats,
+        long offset,
+        long length,
         int bufferSize
     ) {
-        this(resourceDesc, blobContainer, fileInfo, context);
+        this(resourceDesc, directory, fileInfo, context, stats, offset, length);
         setBufferSize(bufferSize);
     }
+
+    @Override
+    public final long length() {
+        return length;
+    }
+
+    @Override
+    public BaseSearchableSnapshotIndexInput clone() {
+        final BaseSearchableSnapshotIndexInput clone = (BaseSearchableSnapshotIndexInput) super.clone();
+        clone.closed = new AtomicBoolean(false);
+        clone.isClone = true;
+        return clone;
+    }
+
+    protected void ensureOpen() throws IOException {
+        if (closed.get()) {
+            throw new IOException(toString() + " is closed");
+        }
+    }
+
+    @Override
+    public final void close() throws IOException {
+        if (closed.compareAndSet(false, true)) {
+            if (isClone == false) {
+                stats.incrementCloseCount();
+            }
+            innerClose();
+        }
+    }
+
+    public abstract void innerClose() throws IOException;
 
     protected InputStream openInputStream(final long position, final long length) throws IOException {
         final long startPart = getPartNumberForPosition(position);

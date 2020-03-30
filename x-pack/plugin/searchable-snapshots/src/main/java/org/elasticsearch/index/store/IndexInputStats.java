@@ -26,7 +26,6 @@ public class IndexInputStats {
     private final long seekingThreshold;
 
     private final LongAdder opened = new LongAdder();
-    private final LongAdder inner = new LongAdder();
     private final LongAdder closed = new LongAdder();
 
     private final Counter forwardSmallSeeks = new Counter();
@@ -39,6 +38,7 @@ public class IndexInputStats {
     private final Counter nonContiguousReads = new Counter();
 
     private final TimedCounter directBytesRead = new TimedCounter();
+    private final TimedCounter optimizedBytesRead = new TimedCounter();
 
     private final Counter cachedBytesRead = new Counter();
     private final TimedCounter cachedBytesWritten = new TimedCounter();
@@ -56,10 +56,6 @@ public class IndexInputStats {
         opened.increment();
     }
 
-    public void incrementInnerOpenCount() {
-        inner.increment();
-    }
-
     public void incrementCloseCount() {
         closed.increment();
     }
@@ -74,6 +70,10 @@ public class IndexInputStats {
 
     public void addDirectBytesRead(int bytesRead, long nanoseconds) {
         directBytesRead.add(bytesRead, nanoseconds);
+    }
+
+    public void addOptimizedBytesRead(int bytesRead, long nanoseconds) {
+        optimizedBytesRead.add(bytesRead, nanoseconds);
     }
 
     public void incrementBytesRead(long previousPosition, long currentPosition, int bytesRead) {
@@ -110,10 +110,6 @@ public class IndexInputStats {
         return opened;
     }
 
-    public LongAdder getInnerOpened() {
-        return inner;
-    }
-
     public LongAdder getClosed() {
         return closed;
     }
@@ -144,6 +140,10 @@ public class IndexInputStats {
 
     public TimedCounter getDirectBytesRead() {
         return directBytesRead;
+    }
+
+    public TimedCounter getOptimizedBytesRead() {
+        return optimizedBytesRead;
     }
 
     public Counter getCachedBytesRead() {

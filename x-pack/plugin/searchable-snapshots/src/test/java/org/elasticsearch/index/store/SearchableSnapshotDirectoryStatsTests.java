@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.index.store.cache;
+package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
@@ -19,9 +19,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.store.IndexInputStats;
-import org.elasticsearch.index.store.SearchableSnapshotDirectory;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.cache.TestUtils;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
@@ -33,9 +31,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
 import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
-import static org.elasticsearch.index.store.cache.TestUtils.randomCacheRangeSize;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -43,7 +41,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCase {
+public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase {
 
     private static final int MAX_FILE_LENGTH = 10_000;
 
@@ -52,16 +50,16 @@ public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCas
      */
     private static final long FAKE_CLOCK_ADVANCE_NANOS = TimeValue.timeValueMillis(100).nanos();
 
-    public void testOpenCount() throws Exception {
-        executeTestCase(createCacheService(random()),
-            (fileName, fileContent, cacheDirectory) -> {
+    public void testOpenCount() {
+        executeTestCase(
+            (fileName, fileContent, directory) -> {
                 try {
                     for (long i = 0L; i < randomLongBetween(1L, 20L); i++) {
-                        IndexInputStats inputStats = cacheDirectory.getStats(fileName);
+                        IndexInputStats inputStats = directory.getStats(fileName);
                         assertThat(inputStats, (i == 0L) ? nullValue() : notNullValue());
 
-                        final IndexInput input = cacheDirectory.openInput(fileName, newIOContext(random()));
-                        inputStats = cacheDirectory.getStats(fileName);
+                        final IndexInput input = directory.openInput(fileName, newIOContext(random()));
+                        inputStats = directory.getStats(fileName);
                         assertThat(inputStats.getOpened().longValue(), equalTo(i + 1L));
                         input.close();
                     }
@@ -71,38 +69,14 @@ public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCas
             });
     }
 
-    public void testInnerOpenCount() throws Exception {
-        final ByteSizeValue rangeSize = randomCacheRangeSize(random());
-        final CacheService noEvictionCacheService = new CacheService(new ByteSizeValue(1, ByteSizeUnit.GB), rangeSize);
-
-        executeTestCase(noEvictionCacheService,
-            (fileName, fileContent, cacheDirectory) -> {
-                try {
-                    assertThat( cacheDirectory.getStats(fileName), nullValue());
-
-                    final IndexInput input = cacheDirectory.openInput(fileName, newIOContext(random()));
-                    for (int j = 0; j < input.length(); j++) {
-                        input.readByte();
-                    }
-                    input.close();
-
-                    final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
-                    assertThat("Inner IndexInput should have been opened for each cached range to write",
-                        inputStats.getInnerOpened().longValue(), equalTo(TestUtils.numberOfRanges(input.length(), rangeSize.getBytes())));
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-            });
-    }
-
-    public void testCloseCount() throws Exception {
-        executeTestCase(createCacheService(random()),
-            (fileName, fileContent, cacheDirectory) -> {
+    public void testCloseCount() {
+        executeTestCase(
+            (fileName, fileContent, directory) -> {
                 try {
                     for (long i = 0L; i < randomLongBetween(1L, 20L); i++) {
-                        final IndexInput input = cacheDirectory.openInput(fileName, newIOContext(random()));
+                        final IndexInput input = directory.openInput(fileName, newIOContext(random()));
 
-                        IndexInputStats inputStats = cacheDirectory.getStats(fileName);
+                        IndexInputStats inputStats = directory.getStats(fileName);
                         assertThat(inputStats, notNullValue());
 
                         assertThat(inputStats.getClosed().longValue(), equalTo(i));
@@ -115,19 +89,21 @@ public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCas
             });
     }
 
-    public void testCachedBytesReadsAndWrites() throws Exception {
+    public void testCachedBytesReadsAndWrites() {
         // a cache service with a low range size but enough space to not evict the cache file
         final ByteSizeValue rangeSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
-        final CacheService cacheService = new CacheService(new ByteSizeValue(1, ByteSizeUnit.GB), rangeSize);
+        final ByteSizeValue cacheSize = new ByteSizeValue(1, ByteSizeUnit.GB);
 
-        executeTestCase(cacheService, (fileName, fileContent, cacheDirectory) -> {
-            try (IndexInput input = cacheDirectory.openInput(fileName, newIOContext(random()))) {
+        executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
+            try (IndexInput input = directory.openInput(fileName, newIOContext(random()))) {
                 final long length = input.length();
 
-                IndexInputStats inputStats = cacheDirectory.getStats(fileName);
+                final IndexInputStats inputStats = directory.getStats(fileName);
                 assertThat(inputStats, notNullValue());
 
-                randomReadAndSlice(input, Math.toIntExact(length));
+                final byte[] result = randomReadAndSlice(input, Math.toIntExact(length));
+                assertArrayEquals(fileContent, result);
+
                 final long cachedBytesWriteCount = TestUtils.numberOfRanges(length, rangeSize.getBytes());
 
                 assertThat(inputStats.getCachedBytesWritten(), notNullValue());
@@ -149,30 +125,62 @@ public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCas
                 assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(0L));
 
+                assertCounter(inputStats.getOptimizedBytesRead(), 0L, 0L, 0L, 0L);
+                assertThat(inputStats.getOptimizedBytesRead().totalNanoseconds(), equalTo(0L));
+
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
         });
     }
 
-    public void testDirectBytesReads() throws Exception {
-        final CacheService noDiskSpaceLeftCacheService
-            = new CacheService(new ByteSizeValue(0, ByteSizeUnit.BYTES), new ByteSizeValue(0, ByteSizeUnit.BYTES));
+    public void testCachedBytesReadsAndWritesNoCache() {
+        final ByteSizeValue uncachedChunkSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
+        executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
+            try (IndexInput input = directory.openInput(fileName, newIOContext(random()))) {
+                final long length = input.length();
 
-        executeTestCase(noDiskSpaceLeftCacheService, (fileName, fileContent, cacheDirectory) -> {
-            assertThat(cacheDirectory.getStats(fileName), nullValue());
+                final IndexInputStats inputStats = directory.getStats(fileName);
+                assertThat(inputStats, notNullValue());
+
+                final byte[] result = randomReadAndSlice(input, Math.toIntExact(length));
+                assertArrayEquals(fileContent, result);
+
+                assertThat(inputStats.getCachedBytesWritten(), notNullValue());
+                assertCounter(inputStats.getCachedBytesWritten(), 0L, 0L, 0L, 0L);
+
+                assertThat(inputStats.getCachedBytesRead(), notNullValue());
+                assertCounter(inputStats.getCachedBytesRead(), 0L, 0L, 0L, 0L);
+
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+    }
+
+    public void testDirectBytesReadsWithCache() {
+        // Cache service always evicts files
+        executeTestCaseWithCache(ByteSizeValue.ZERO, ByteSizeValue.ZERO, (fileName, fileContent, directory) -> {
+            assertThat(directory.getStats(fileName), nullValue());
+
             final IOContext ioContext = newIOContext(random());
-
-            try (IndexInput input = cacheDirectory.openInput(fileName, ioContext)) {
-                final IndexInputStats inputStats = cacheDirectory.getStats(fileName);
+            try {
+                IndexInput input = directory.openInput(fileName, ioContext);
+                if (randomBoolean()) {
+                    input = input.slice("test", 0L, input.length());
+                }
+                if (randomBoolean()) {
+                    input = input.clone();
+                }
+                final IndexInputStats inputStats = directory.getStats(fileName);
 
                 // account for internal buffered reads
-                final long bufferSize = (long) BufferedIndexInput.bufferSize(ioContext);
+                final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
                 final long remaining = input.length() % bufferSize;
                 final long expectedTotal = input.length();
                 final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
                 final long minRead = remaining > 0L ? remaining : bufferSize;
-                final long maxRead = input.length() < bufferSize ? input.length() : bufferSize;
+                final long maxRead = Math.min(input.length(), bufferSize);
 
                 // read all index input sequentially as it simplifies testing
                 final byte[] readBuffer = new byte[512];
@@ -196,17 +204,83 @@ public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCas
                 assertCounter(inputStats.getCachedBytesRead(), 0L, 0L, 0L, 0L);
                 assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(0L));
 
+                input.close();
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
         });
     }
 
-    public void testReadBytesContiguously() throws Exception {
-        // use default cache service settings
-        final CacheService cacheService = new CacheService(Settings.EMPTY);
+    public void testDirectBytesReadsWithoutCache() {
+        final ByteSizeValue uncachedChunkSize = new ByteSizeValue(randomIntBetween(512, MAX_FILE_LENGTH), ByteSizeUnit.BYTES);
+        executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
+            assertThat(directory.getStats(fileName), nullValue());
 
-        executeTestCase(cacheService, (fileName, fileContent, cacheDirectory) -> {
+            final IOContext ioContext = newIOContext(random());
+            try (IndexInput original = directory.openInput(fileName, ioContext)) {
+                final IndexInput input = original.clone(); // always clone to only execute direct reads
+                final IndexInputStats inputStats = directory.getStats(fileName);
+
+                // account for internal buffered reads
+                final long bufferSize = BufferedIndexInput.bufferSize(ioContext);
+                final long remaining = input.length() % bufferSize;
+                final long expectedTotal = input.length();
+                final long expectedCount = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
+                final long minRead = remaining > 0L ? remaining : bufferSize;
+                final long maxRead = Math.min(input.length(), bufferSize);
+
+                // read all index input sequentially as it simplifies testing
+                for (long i = 0L; i < input.length(); i++) {
+                    input.readByte();
+                }
+
+                assertCounter(inputStats.getDirectBytesRead(), expectedTotal, expectedCount, minRead, maxRead);
+                assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(expectedCount * FAKE_CLOCK_ADVANCE_NANOS));
+
+                // cache file has never been written nor read
+                assertCounter(inputStats.getCachedBytesWritten(), 0L, 0L, 0L, 0L);
+                assertCounter(inputStats.getCachedBytesRead(), 0L, 0L, 0L, 0L);
+                assertThat(inputStats.getCachedBytesWritten().totalNanoseconds(), equalTo(0L));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+    }
+
+    public void testOptimizedBytesReads() {
+        // use a large uncached chunk size that allows to read the file in a single operation
+        final ByteSizeValue uncachedChunkSize = new ByteSizeValue(1, ByteSizeUnit.GB);
+        executeTestCaseWithoutCache(uncachedChunkSize, (fileName, fileContent, directory) -> {
+            final IOContext context =  newIOContext(random());
+            try (IndexInput input = directory.openInput(fileName, context)) {
+                final IndexInputStats inputStats = directory.getStats(fileName);
+                assertThat(inputStats, notNullValue());
+
+                // read all index input sequentially as it simplifies testing
+                for (long i = 0L; i < input.length(); i++) {
+                    input.readByte();
+                }
+
+                final int bufferSize = BufferedIndexInput.bufferSize(context);
+                if (input.length() <= bufferSize) {
+                    // file is read in a single non-optimized read operation
+                    assertCounter(inputStats.getDirectBytesRead(), input.length(), 1L, input.length(), input.length());
+                    assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                    assertCounter(inputStats.getOptimizedBytesRead(), 0L, 0L, 0L, 0L);
+                } else {
+                    // file is read in a single optimized read operation
+                    assertCounter(inputStats.getOptimizedBytesRead(), input.length(), 1L, input.length(), input.length());
+                    assertThat(inputStats.getOptimizedBytesRead().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                    assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+    }
+
+    public void testReadBytesContiguously() {
+        executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
 
             try (IndexInput input = cacheDirectory.openInput(fileName, ioContext)) {
@@ -254,11 +328,8 @@ public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCas
         });
     }
 
-    public void testReadBytesNonContiguously() throws Exception {
-        // use default cache service settings
-        final CacheService cacheService = new CacheService(Settings.EMPTY);
-
-        executeTestCase(cacheService, (fileName, fileContent, cacheDirectory) -> {
+    public void testReadBytesNonContiguously() {
+        executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
 
             try (IndexInput input = cacheDirectory.openInput(fileName, ioContext)) {
@@ -302,11 +373,8 @@ public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCas
         });
     }
 
-    public void testForwardSeeks() throws Exception {
-        // use default cache service settings
-        final CacheService cacheService = new CacheService(Settings.EMPTY);
-
-        executeTestCase(cacheService, (fileName, fileContent, cacheDirectory) -> {
+    public void testForwardSeeks() {
+        executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
             try (IndexInput indexInput = cacheDirectory.openInput(fileName, ioContext)) {
                 IndexInput input = indexInput;
@@ -363,11 +431,8 @@ public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCas
         });
     }
 
-    public void testBackwardSeeks() throws Exception {
-        // use default cache service settings
-        final CacheService cacheService = new CacheService(Settings.EMPTY);
-
-        executeTestCase(cacheService, (fileName, fileContent, cacheDirectory) -> {
+    public void testBackwardSeeks() {
+        executeTestCaseWithDefaultCache((fileName, fileContent, cacheDirectory) -> {
             final IOContext ioContext = newIOContext(random());
             try (IndexInput indexInput = cacheDirectory.openInput(fileName, ioContext)) {
                 IndexInput input = indexInput;
@@ -428,13 +493,45 @@ public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCas
         });
     }
 
+    private static void executeTestCase(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) {
+        executeTestCase(createCacheService(random()),
+            Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean()).build(), test);
+    }
+
+    private static void executeTestCaseWithoutCache(
+        final ByteSizeValue uncachedChunkSize,
+        final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
+    ) {
+        executeTestCase(createCacheService(random()),
+            Settings.builder()
+                .put(SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(), uncachedChunkSize)
+                .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), false).build(), test);
+    }
+
+    private static void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) {
+        executeTestCaseWithCache(
+            CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getDefault(Settings.EMPTY),
+            CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getDefault(Settings.EMPTY), test);
+    }
+
+    private static void executeTestCaseWithCache(
+        final ByteSizeValue cacheSize,
+        final ByteSizeValue cacheRangeSize,
+        final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
+    ) {
+        executeTestCase(new CacheService(cacheSize, cacheRangeSize),
+            Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(), test);
+    }
+
     private static void executeTestCase(
         final CacheService cacheService,
+        final Settings indexSettings,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) {
 
         final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
-        final String fileName = randomAlphaOfLength(10);
+        final String fileExtension = randomAlphaOfLength(3);
+        final String fileName = randomAlphaOfLength(10) + '.' + fileExtension;
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
         final IndexId indexId = new IndexId("_name", "_uuid");
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
@@ -447,7 +544,6 @@ public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCas
         final StoreFileMetaData metaData = new StoreFileMetaData(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
         final List<FileInfo> files = List.of(new FileInfo(blobName, metaData, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
-        final Settings indexSettings = Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build();
 
         try (CacheService ignored = cacheService;
              SearchableSnapshotDirectory directory =

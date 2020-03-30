@@ -48,8 +48,10 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
     AddStringKeyStoreCommand() {
         super("Add a string settings to the keystore", false);
         this.stdinOption = parser.acceptsAll(Arrays.asList("x", "stdin"), "Read setting values from stdin");
-        this.forceOption = parser.acceptsAll(Arrays.asList("f", "force"),
-            "Overwrite existing setting without prompting, creating keystore if necessary");
+        this.forceOption = parser.acceptsAll(
+            Arrays.asList("f", "force"),
+            "Overwrite existing setting without prompting, creating keystore if necessary"
+        );
         this.arguments = parser.nonOptions("setting names");
     }
 

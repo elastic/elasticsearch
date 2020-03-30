@@ -137,8 +137,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
         keystore.close();
 
         assertThat(keystore.getSettingNames(), Matchers.hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
-        final IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()));
+        final IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey())
+        );
         assertThat(exception.getMessage(), containsString("closed"));
     }
 
@@ -306,9 +308,13 @@ public class KeyStoreWrapperTests extends ESTestCase {
         output.write(secret_value);
     }
 
-    private void possiblyAlterEncryptedBytes(IndexOutput indexOutput, byte[] salt, byte[] iv, byte[] encryptedBytes, int
-        truncEncryptedDataLength)
-        throws Exception {
+    private void possiblyAlterEncryptedBytes(
+        IndexOutput indexOutput,
+        byte[] salt,
+        byte[] iv,
+        byte[] encryptedBytes,
+        int truncEncryptedDataLength
+    ) throws Exception {
         indexOutput.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
         indexOutput.writeInt(salt.length);
         indexOutput.writeBytes(salt, salt.length);
@@ -451,8 +457,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testLegacyV3() throws GeneralSecurityException, IOException {
         final Path configDir = createTempDir();
         final Path keystore = configDir.resolve("elasticsearch.keystore");
-        try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
-             OutputStream os = Files.newOutputStream(keystore)) {
+        try (
+            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
+            OutputStream os = Files.newOutputStream(keystore)
+        ) {
             final byte[] buffer = new byte[4096];
             int readBytes;
             while ((readBytes = is.read(buffer)) > 0) {

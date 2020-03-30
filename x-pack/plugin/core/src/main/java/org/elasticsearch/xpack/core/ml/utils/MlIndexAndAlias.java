@@ -84,7 +84,7 @@ public final class MlIndexAndAlias {
         String[] concreteIndexNames =
             resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexPattern);
         Optional<IndexMetaData> indexPointedByCurrentWriteAlias = clusterState.getMetaData().hasAlias(alias)
-            ? clusterState.getMetaData().getAliasAndIndexLookup().get(alias).getIndices().stream().findFirst()
+            ? clusterState.getMetaData().getIndicesLookup().get(alias).getIndices().stream().findFirst()
             : Optional.empty();
 
         if (concreteIndexNames.length == 0) {

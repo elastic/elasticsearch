@@ -110,7 +110,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isApiKeyServiceAllowed(), is(false));
 
         assertThat(licenseState.isSecurityAvailable(), is(true));
-        assertThat(licenseState.isSecurityDisabledByLicenseDefaults(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(false));
     }
 
     public void testSecurityBasicWithExplicitSecurityEnabled() {
@@ -128,7 +128,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isApiKeyServiceAllowed(), is(true));
 
         assertThat(licenseState.isSecurityAvailable(), is(true));
-        assertThat(licenseState.isSecurityDisabledByLicenseDefaults(), is(false));
+        assertThat(licenseState.isSecurityEnabled(), is(true));
     }
 
     public void testSecurityDefaultBasicExpired() {
@@ -254,7 +254,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
         licenseState.update(TRIAL, true, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
 
-        assertThat(licenseState.isSecurityDisabledByLicenseDefaults(), is(true));
+        assertThat(licenseState.isSecurityEnabled(), is(false));
         assertSecurityNotAllowed(licenseState);
     }
 

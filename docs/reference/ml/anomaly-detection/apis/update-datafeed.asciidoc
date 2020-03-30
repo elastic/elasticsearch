@@ -48,6 +48,7 @@ instead of the primary headers.
 (Required, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
+[role="child_attributes"]
 [[ml-update-datafeed-request-body]]
 ==== {api-request-body-title}
 

@@ -187,6 +187,25 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
+    public ShardSearchRequest(ShardSearchRequest clone) {
+        this.shardId = clone.shardId;
+        this.searchType = clone.searchType;
+        this.numberOfShards = clone.numberOfShards;
+        this.scroll = clone.scroll;
+        this.source = clone.source;
+        this.aliasFilter = clone.aliasFilter;
+        this.indexBoost = clone.indexBoost;
+        this.nowInMillis = clone.nowInMillis;
+        this.requestCache = clone.requestCache;
+        this.clusterAlias = clone.clusterAlias;
+        this.allowPartialSearchResults = clone.allowPartialSearchResults;
+        this.indexRoutings = clone.indexRoutings;
+        this.preference = clone.preference;
+        this.canReturnNullResponseIfMatchNoDocs = clone.canReturnNullResponseIfMatchNoDocs;
+        this.bottomSortValues = clone.bottomSortValues;
+        this.originalIndices = clone.originalIndices;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

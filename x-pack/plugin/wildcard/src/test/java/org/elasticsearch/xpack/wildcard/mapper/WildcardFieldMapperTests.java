@@ -68,21 +68,21 @@ public class WildcardFieldMapperTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME);
-        builder.ignoreAbove(MAX_FIELD_LENGTH);        
+        builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldType = builder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
-        
-        
+
+
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
-        keywordFieldType = kwBuilder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));        
+        keywordFieldType = kwBuilder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
         super.setUp();
     }
-    
+
     public void testIllegalDocValuesArgument() {
         Builder ft = new WildcardFieldMapper.Builder("test");
         MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> ft.docValues(false));
         assertEquals("The field [test] cannot have doc values = false", e.getMessage());
-    }        
+    }
 
     public void testIllegalIndexedArgument() {
         Builder ft = new WildcardFieldMapper.Builder("test");
@@ -90,19 +90,19 @@ public class WildcardFieldMapperTests extends ESTestCase {
                 () -> ft.index(false));
         assertEquals("The field [test] cannot have index = false", e.getMessage());
     }
-    
+
     public void testTooBigKeywordField() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
         iwc.setMergePolicy(newTieredMergePolicy(random()));
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
-        
+
         // Create a string that is too large and will not be indexed
         String docContent = randomABString(MAX_FIELD_LENGTH + 1);
         Document doc = new Document();
-        ParseContext.Document parseDoc = new ParseContext.Document();                        
+        ParseContext.Document parseDoc = new ParseContext.Document();
         addFields(parseDoc, doc, docContent);
-        indexDoc(parseDoc, doc, iw);        
+        indexDoc(parseDoc, doc, iw);
 
         iw.forceMerge(1);
         DirectoryReader reader = iw.getReader();
@@ -112,24 +112,24 @@ public class WildcardFieldMapperTests extends ESTestCase {
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
-                
+
         reader.close();
-        dir.close();        
+        dir.close();
     }
-    
+
     //Test long query strings don't cause exceptions
     public void testTooBigQueryField() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
         iwc.setMergePolicy(newTieredMergePolicy(random()));
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
-        
+
         // Create a string that is too large and will not be indexed
         String docContent = randomABString(10);
         Document doc = new Document();
-        ParseContext.Document parseDoc = new ParseContext.Document();                        
+        ParseContext.Document parseDoc = new ParseContext.Document();
         addFields(parseDoc, doc, docContent);
-        indexDoc(parseDoc, doc, iw);        
+        indexDoc(parseDoc, doc, iw);
 
         iw.forceMerge(1);
         DirectoryReader reader = iw.getReader();
@@ -140,12 +140,12 @@ public class WildcardFieldMapperTests extends ESTestCase {
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(queryString, null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
-                
+
         reader.close();
-        dir.close();        
-    }    
-    
-    
+        dir.close();
+    }
+
+
     public void testSearchResultsVersusKeywordField() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
@@ -156,22 +156,22 @@ public class WildcardFieldMapperTests extends ESTestCase {
         HashSet<String> values = new HashSet<>();
         for (int i = 0; i < numDocs; i++) {
             Document doc = new Document();
-            ParseContext.Document parseDoc = new ParseContext.Document();                        
+            ParseContext.Document parseDoc = new ParseContext.Document();
             String docContent = randomABString(1 + randomInt(MAX_FIELD_LENGTH - 1));
-            if (values.contains(docContent) == false) {                
+            if (values.contains(docContent) == false) {
                 addFields(parseDoc, doc, docContent);
                 values.add(docContent);
             }
             // Occasionally add a multi-value field
             if (randomBoolean()) {
                 docContent = randomABString(1 + randomInt(MAX_FIELD_LENGTH - 1));
-                if (values.contains(docContent) == false) {                
+                if (values.contains(docContent) == false) {
                     addFields(parseDoc, doc, docContent);
                     values.add(docContent);
-                }                
+                }
             }
             indexDoc(parseDoc, doc, iw);
-            
+
         }
 
         iw.forceMerge(1);
@@ -200,38 +200,38 @@ public class WildcardFieldMapperTests extends ESTestCase {
             }
             assertThat(expectedDocs.size(), equalTo(0));
         }
-        
-        
+
+
         //Test keyword and wildcard sort operations are also equivalent
         QueryShardContext shardContextMock = createMockShardContext();
-        
+
         FieldSortBuilder wildcardSortBuilder = new FieldSortBuilder(WILDCARD_FIELD_NAME);
-        SortField wildcardSortField = wildcardSortBuilder.build(shardContextMock).field;        
+        SortField wildcardSortField = wildcardSortBuilder.build(shardContextMock).field;
         ScoreDoc[] wildcardHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(wildcardSortField)).scoreDocs;
 
         FieldSortBuilder keywordSortBuilder = new FieldSortBuilder(KEYWORD_FIELD_NAME);
-        SortField keywordSortField = keywordSortBuilder.build(shardContextMock).field;        
+        SortField keywordSortField = keywordSortBuilder.build(shardContextMock).field;
         ScoreDoc[] keywordHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(keywordSortField)).scoreDocs;
-        
+
         assertThat(wildcardHits.length, equalTo(keywordHits.length));
         for (int i = 0; i < wildcardHits.length; i++) {
-            assertThat(wildcardHits[i].doc, equalTo(keywordHits[i].doc));            
+            assertThat(wildcardHits[i].doc, equalTo(keywordHits[i].doc));
         }
-        
+
         reader.close();
         dir.close();
     }
 
-    
-    
+
+
     protected MappedFieldType provideMappedFieldType(String name) {
         if (name.equals(WILDCARD_FIELD_NAME)) {
-            return wildcardFieldType.fieldType();            
+            return wildcardFieldType.fieldType();
         } else {
             return keywordFieldType.fieldType();
         }
-    }    
-    
+    }
+
     protected final QueryShardContext createMockShardContext() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
@@ -243,15 +243,15 @@ public class WildcardFieldMapperTests extends ESTestCase {
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, null, xContentRegistry(), null, null, null,
-                () -> randomNonNegativeLong(), null, null, () -> true) {
+                () -> randomNonNegativeLong(), null, null, () -> true, null) {
 
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);
             }
         };
-    }       
-    
+    }
+
     private void addFields(ParseContext.Document parseDoc, Document doc, String docContent) throws IOException {
         ArrayList<IndexableField> fields = new ArrayList<>();
         wildcardFieldType.createFields(docContent, parseDoc, fields);
@@ -260,7 +260,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
             doc.add(indexableField);
         }
         // Add keyword fields too
-        doc.add(new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(docContent)));        
+        doc.add(new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(docContent)));
         doc.add(new StringField(KEYWORD_FIELD_NAME, docContent, Field.Store.YES));
     }
 

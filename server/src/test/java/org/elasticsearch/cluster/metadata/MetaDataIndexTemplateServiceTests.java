@@ -76,6 +76,53 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                                 "must be one of [true, false, checksum] but was: blargh"));
     }
 
+    public void testIndexTemplateValidationWithSpecifiedReplicas() throws Exception {
+        PutRequest request = new PutRequest("test", "test_replicas");
+        request.patterns(singletonList("test_shards_wait*"));
+
+        Settings.Builder settingsBuilder = builder()
+        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+        .put(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
+
+        request.settings(settingsBuilder.build());
+
+        List<Throwable> throwables = putTemplateDetail(request);
+
+        assertThat(throwables, is(empty()));
+    }
+
+    public void testIndexTemplateValidationErrorsWithSpecifiedReplicas() throws Exception {
+        PutRequest request = new PutRequest("test", "test_specified_replicas");
+        request.patterns(singletonList("test_shards_wait*"));
+
+        Settings.Builder settingsBuilder = builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "3");
+
+        request.settings(settingsBuilder.build());
+
+        List<Throwable> throwables = putTemplateDetail(request);
+
+        assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
+        assertThat(throwables.get(0).getMessage(), containsString("[3]: cannot be greater than number of shard copies [2]"));
+    }
+
+    public void testIndexTemplateValidationWithDefaultReplicas() throws Exception {
+        PutRequest request = new PutRequest("test", "test_default_replicas");
+        request.patterns(singletonList("test_wait_shards_default_replica*"));
+
+        Settings.Builder settingsBuilder = builder()
+            .put(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
+
+        request.settings(settingsBuilder.build());
+
+        List<Throwable> throwables = putTemplateDetail(request);
+
+        assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
+        assertThat(throwables.get(0).getMessage(), containsString("[2]: cannot be greater than number of shard copies [1]"));
+    }
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
         request.patterns(singletonList("_test_shards*"));

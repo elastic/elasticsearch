@@ -31,17 +31,14 @@ public class AnnotationIndex {
     public static final String WRITE_ALIAS_NAME = ".ml-annotations-write";
     // Exposed for testing, but always use the aliases in non-test code
     public static final String INDEX_NAME = ".ml-annotations-6";
-    public static final String INDEX_PATTERN = ".ml-annotations*";
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
 
     /**
-     * Create the .ml-annotations index with correct mappings if it does not already
-     * exist. This index is read and written by the UI results views, so needs to
-     * exist when there might be ML results to view.
+     * Create the .ml-annotations-6 index with correct mappings if it does not already exist. This index is read and written by the UI
+     * results views, so needs to exist when there might be ML results to view.
      */
-    public static void createAnnotationsIndexIfNecessary(Settings settings, Client client, ClusterState state,
-                                                         final ActionListener<Boolean> finalListener) {
+    public static void createAnnotationsIndexIfNecessary(Client client, ClusterState state, final ActionListener<Boolean> finalListener) {
 
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
             final IndicesAliasesRequest request =
@@ -97,8 +94,8 @@ public class AnnotationIndex {
         finalListener.onResponse(false);
     }
 
-    public static String annotationsMapping() {
-        return TemplateUtils.loadTemplate("/org/elasticsearch/xpack/core/ml/annotations_index_mappings.json",
-            Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
+    private static String annotationsMapping() {
+        return TemplateUtils.loadTemplate(
+            "/org/elasticsearch/xpack/core/ml/annotations_index_mappings.json", Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
     }
 }

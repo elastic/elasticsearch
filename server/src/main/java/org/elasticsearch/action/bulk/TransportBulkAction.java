@@ -464,6 +464,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (request == null) {
                     continue;
                 }
+                bulkRequest.requests.set(i, null); // allow memory for bulk item to be reclaimed before all items have been completed
                 String concreteIndex = concreteIndices.getConcreteIndex(request.index()).getName();
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, request.id(),
                     request.routing()).shardId();

@@ -21,7 +21,6 @@ package org.elasticsearch.indices.memory.breaker;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -59,6 +58,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
@@ -110,7 +110,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     /** Returns true if any of the nodes used a noop breaker */
     private boolean noopBreakerUsed() {
         NodesStatsResponse stats = client().admin().cluster().prepareNodesStats()
-            .addMetric(NodesStatsRequest.Metric.BREAKER.metricName())
+            .addMetric(BREAKER.metricName())
             .get();
         for (NodeStats nodeStats : stats.getNodes()) {
             if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == NoopCircuitBreaker.LIMIT) {
@@ -163,7 +163,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
 
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats()
-            .addMetric(NodesStatsRequest.Metric.BREAKER.metricName())
+            .addMetric(BREAKER.metricName())
             .get();
         int breaks = 0;
         for (NodeStats stat : stats.getNodes()) {
@@ -217,7 +217,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
 
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats()
-            .addMetric(NodesStatsRequest.Metric.BREAKER.metricName())
+            .addMetric(BREAKER.metricName())
             .get();
         int breaks = 0;
         for (NodeStats stat : stats.getNodes()) {
@@ -304,7 +304,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
         assertBusy(() -> {
             NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().clear()
-                .addMetric(NodesStatsRequest.Metric.BREAKER.metricName())
+                .addMetric(BREAKER.metricName())
                 .get(new TimeValue(15, TimeUnit.SECONDS));
             for (NodeStats nStats : resp.getNodes()) {
                 assertThat("fielddata breaker never reset back to 0",
@@ -335,7 +335,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         }
 
         NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().clear()
-            .addMetric(NodesStatsRequest.Metric.BREAKER.metricName())
+            .addMetric(BREAKER.metricName())
             .get();
         int breaks = 0;
         for (NodeStats stat : stats.getNodes()) {

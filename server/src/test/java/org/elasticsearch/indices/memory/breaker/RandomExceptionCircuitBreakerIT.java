@@ -24,7 +24,6 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -55,6 +54,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -74,7 +74,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
 
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         for (NodeStats node : client().admin().cluster().prepareNodesStats().clear()
-            .addMetric(NodesStatsRequest.Metric.BREAKER.metricName())
+            .addMetric(BREAKER.metricName())
             .execute().actionGet().getNodes()) {
             assertThat("Breaker is not set to 0", node.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
@@ -156,7 +156,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                 refreshResponse.getSuccessfulShards(), refreshResponse.getTotalShards());
         final int numSearches = scaledRandomIntBetween(50, 150);
         NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().clear()
-            .addMetric(NodesStatsRequest.Metric.BREAKER.metricName())
+            .addMetric(BREAKER.metricName())
             .execute().actionGet();
         for (NodeStats stats : resp.getNodes()) {
             assertThat("Breaker is set to 0", stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
@@ -193,7 +193,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                     fdCache.getCache().refresh();
                 }
                 NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().clear()
-                    .addMetric(NodesStatsRequest.Metric.BREAKER.metricName())
+                    .addMetric(BREAKER.metricName())
                     .execute().actionGet();
                 for (NodeStats stats : nodeStats.getNodes()) {
                     assertThat("Breaker reset to 0 last search success: " + success + " mapping: " + mapping,

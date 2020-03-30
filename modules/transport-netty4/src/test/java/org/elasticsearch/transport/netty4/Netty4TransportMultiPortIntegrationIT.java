@@ -20,7 +20,6 @@ package org.elasticsearch.transport.netty4;
 
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +31,7 @@ import org.elasticsearch.test.junit.annotations.Network;
 
 import java.util.Locale;
 
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.TRANSPORT;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -64,9 +64,7 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
 
     @Network
     public void testThatInfosAreExposed() throws Exception {
-        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear()
-            .addMetric(NodesInfoRequest.Metric.TRANSPORT.metricName())
-            .get();
+        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().addMetric(TRANSPORT.metricName()).get();
         for (NodeInfo nodeInfo : response.getNodes()) {
             assertThat(nodeInfo.getTransport().getProfileAddresses().keySet(), hasSize(1));
             assertThat(nodeInfo.getTransport().getProfileAddresses(), hasKey("client1"));

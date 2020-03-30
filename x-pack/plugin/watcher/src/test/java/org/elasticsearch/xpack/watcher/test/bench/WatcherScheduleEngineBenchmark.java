@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.test.bench;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -49,6 +48,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.JVM;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.THREAD_POOL;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -175,7 +176,7 @@ public class WatcherScheduleEngineBenchmark {
                             try {
                                 while (start.get()) {
                                     NodesStatsResponse response = client.admin().cluster().prepareNodesStats("_master")
-                                        .addMetric(NodesStatsRequest.Metric.JVM.metricName())
+                                        .addMetric(JVM.metricName())
                                         .get();
                                     ByteSizeValue heapUsed = response.getNodes().get(0).getJvm().getMem().getHeapUsed();
                                     jvmUsedHeapSpace.inc(heapUsed.getBytes());
@@ -190,9 +191,7 @@ public class WatcherScheduleEngineBenchmark {
                     start.set(false);
                     sampleThread.join();
 
-                    NodesStatsResponse response = client.admin().cluster().prepareNodesStats()
-                        .addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName())
-                        .get();
+                    NodesStatsResponse response = client.admin().cluster().prepareNodesStats().addMetric(THREAD_POOL.metricName()).get();
                     for (NodeStats nodeStats : response.getNodes()) {
                         for (ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
                             if ("watcher".equals(threadPoolStats.getName())) {

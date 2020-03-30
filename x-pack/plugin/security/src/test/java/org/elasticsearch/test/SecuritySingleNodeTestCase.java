@@ -9,7 +9,6 @@ import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.http.HttpHost;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.RestClient;
@@ -39,6 +38,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.PLUGINS;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
@@ -149,9 +149,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     private void doAssertXPackIsInstalled() {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear()
-            .addMetric(NodesInfoRequest.Metric.PLUGINS.metricName())
-            .get();
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().addMetric(PLUGINS.metricName()).get();
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
             // assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -39,6 +38,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.INGEST;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -97,7 +97,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         assertTrue(e.getMessage().contains("this script always fails"));
 
         NodesStatsResponse r = client().admin().cluster().prepareNodesStats(internalCluster().getNodeNames())
-            .addMetric(NodesStatsRequest.Metric.INGEST.metricName())
+            .addMetric(INGEST.metricName())
             .get();
         int nodeCount = r.getNodes().size();
         for (int k = 0; k < nodeCount; k++) {

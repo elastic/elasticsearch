@@ -28,7 +28,6 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -97,6 +96,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -651,7 +651,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertTrue(shardRouting.assignedToNode());
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId)
-            .addMetric(NodesStatsRequest.Metric.FS.metricName())
+            .addMetric(FS.metricName())
             .get();
         Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
         for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {
@@ -694,7 +694,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId())
-            .addMetric(NodesStatsRequest.Metric.FS.metricName())
+            .addMetric(FS.metricName())
             .get();
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         final Index test = state.metaData().index("test").getIndex();

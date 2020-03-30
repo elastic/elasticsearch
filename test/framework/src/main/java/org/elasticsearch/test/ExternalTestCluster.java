@@ -23,10 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -54,6 +52,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.HTTP;
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.SETTINGS;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -115,7 +116,7 @@ public final class ExternalTestCluster extends TestCluster {
         try {
             node.start();
             NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear()
-                .addMetrics(NodesInfoRequest.Metric.SETTINGS.metricName(), NodesInfoRequest.Metric.HTTP.metricName())
+                .addMetrics(SETTINGS.metricName(), HTTP.metricName())
                 .get();
             httpAddresses = new InetSocketAddress[nodeInfos.getNodes().size()];
             int dataNodes = 0;
@@ -193,7 +194,7 @@ public final class ExternalTestCluster extends TestCluster {
         if (size() > 0) {
             NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().clear()
                 .setIndices(true)
-                .addMetric(NodesStatsRequest.Metric.BREAKER.metricName())
+                .addMetric(BREAKER.metricName())
                 .execute().actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
                 assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),

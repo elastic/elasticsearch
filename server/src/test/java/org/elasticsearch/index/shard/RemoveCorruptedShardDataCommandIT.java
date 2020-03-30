@@ -30,7 +30,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -89,6 +88,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -598,9 +598,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     public static Path getPathToShardData(String nodeId, ShardId shardId, String shardPathSubdirectory) {
-        final NodesStatsResponse nodeStatsResponse = client().admin().cluster().prepareNodesStats(nodeId)
-            .addMetric(NodesStatsRequest.Metric.FS.metricName())
-            .get();
+        final NodesStatsResponse nodeStatsResponse = client().admin().cluster().prepareNodesStats(nodeId).addMetric(FS.metricName()).get();
         final Set<Path> paths = StreamSupport.stream(nodeStatsResponse.getNodes().get(0).getFs().spliterator(), false)
             .map(nodePath -> PathUtils.get(nodePath.getPath())
                 .resolve(NodeEnvironment.INDICES_FOLDER)

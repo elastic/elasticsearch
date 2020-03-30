@@ -69,6 +69,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -1367,6 +1368,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     });
                 }
             }
+
             aliasAndIndexLookup.values().stream()
                 .filter(aliasOrIndex -> aliasOrIndex.getType() == IndexAbstraction.Type.ALIAS)
                 .forEach(alias -> ((IndexAbstraction.Alias) alias).computeAndValidateAliasProperties());
@@ -1377,12 +1379,27 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
-                    if (indicesLookup.containsKey(ds.getName())) {
+                    IndexAbstraction existing = indicesLookup.get(ds.getName());
+                    if (existing != null && existing.getType() != IndexAbstraction.Type.DATA_STREAM) {
                         throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
                     }
 
-                    SortedMap<?, ?> map = indicesLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
+                    SortedMap<String, IndexAbstraction> map =
+                        indicesLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
                     if (map.size() != 0) {
+                        if (map.size() == ds.getIndices().size()) {
+                            int numValidIndices = 0;
+                            for (int i = 0; i < map.size(); i++) {
+                                IndexAbstraction space =  map.get(String.format(Locale.ROOT, "%s-%06d", ds.getName(), i));
+                                if (space != null && space.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
+                                    numValidIndices++;
+                                }
+                            }
+                            if (numValidIndices == map.size()) {
+                                continue;
+                            }
+                        }
+
                         throw new IllegalStateException("data stream [" + ds.getName() +
                             "] could create backing indices that conflict with " + map.size() + " existing index(s) or alias(s)" +
                             " including '" + map.firstKey() + "'");

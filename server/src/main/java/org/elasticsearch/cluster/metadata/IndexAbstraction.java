@@ -56,7 +56,7 @@ public interface IndexAbstraction {
 
     /**
      * A write index is a dedicated concrete index, that accepts all the new documents that belong to an index abstraction.
-     *
+     * <p>
      * A write index may also be a regular concrete index of a index abstraction and may therefore also be returned
      * by {@link #getIndices()}. An index abstraction may also not have a dedicated write index.
      *
@@ -87,7 +87,9 @@ public interface IndexAbstraction {
          * An alias typically refers to many concrete indices and
          * may have a write index.
          */
-        ALIAS("alias");
+        ALIAS("alias"),
+
+        DATA_STREAM("data_stream");
 
         private final String displayName;
 
@@ -181,7 +183,7 @@ public interface IndexAbstraction {
 
         /**
          * Returns the unique alias metadata per concrete index.
-         *
+         * <p>
          * (note that although alias can point to the same concrete indices, each alias reference may have its own routing
          * and filters)
          */
@@ -233,7 +235,7 @@ public interface IndexAbstraction {
 
             // Validate hidden status
             final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = referenceIndexMetadatas.stream()
-                    .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
+                .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
             if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
                 List<String> hiddenOn = groupedByHiddenStatus.get(true).stream()
                     .map(idx -> idx.getIndex().getName()).collect(Collectors.toList());
@@ -248,6 +250,44 @@ public interface IndexAbstraction {
 
         private boolean isNonEmpty(List<IndexMetadata> idxMetas) {
             return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
+        }
+    }
+
+    class DataStream implements IndexAbstraction {
+
+        private final org.elasticsearch.cluster.metadata.DataStream dataStream;
+        private final List<IndexMetaData> dataStreamIndices;
+        private final IndexMetaData writeIndex;
+
+        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream, List<IndexMetaData> dataStreamIndices,
+                          IndexMetaData writeIndex) {
+            this.dataStream = dataStream;
+            this.dataStreamIndices = dataStreamIndices;
+            this.writeIndex = writeIndex;
+        }
+
+        @Override
+        public String getName() {
+            return dataStream.getName();
+        }
+
+        @Override
+        public Type getType() {
+            return Type.DATA_STREAM;
+        }
+
+        @Override
+        public List<IndexMetaData> getIndices() {
+            return dataStreamIndices;
+        }
+
+        public IndexMetaData getWriteIndex() {
+            return writeIndex;
+        }
+
+        @Override
+        public boolean isHidden() {
+            return false;
         }
     }
 }

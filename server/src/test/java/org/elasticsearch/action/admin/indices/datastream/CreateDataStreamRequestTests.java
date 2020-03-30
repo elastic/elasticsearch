@@ -18,12 +18,16 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction.Request;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -34,6 +38,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCase<Request> {
+
+    private final MetadataCreateIndexService metadataCreateIndexService = new MockMetadataCreateIndexService();
 
     @Override
     protected Writeable.Reader<Request> instanceReader() {
@@ -62,11 +68,11 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
         assertThat(e.validationErrors().get(0), containsString("timestamp field name is missing"));
     }
 
-    public void testCreateDataStream() {
+    public void testCreateDataStream() throws Exception {
         final String dataStreamName = "my-data-stream";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
-        ClusterState newState = CreateDataStreamAction.TransportAction.createDataStream(cs, req);
+        ClusterState newState = CreateDataStreamAction.TransportAction.createDataStream(metadataCreateIndexService, cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
     }
@@ -79,7 +85,7 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
         CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> CreateDataStreamAction.TransportAction.createDataStream(cs, req));
+            () -> CreateDataStreamAction.TransportAction.createDataStream(metadataCreateIndexService, cs, req));
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] already exists"));
     }
 
@@ -88,7 +94,26 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> CreateDataStreamAction.TransportAction.createDataStream(cs, req));
+            () -> CreateDataStreamAction.TransportAction.createDataStream(metadataCreateIndexService, cs, req));
         assertThat(e.getMessage(), containsString("must not contain the following characters"));
+    }
+
+    private static class MockMetadataCreateIndexService extends MetadataCreateIndexService {
+
+        MockMetadataCreateIndexService() {
+            super(null, null, null, null, null, null, null, null, null, null, false);
+        }
+
+        @Override
+        public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
+                                                    boolean silent) throws Exception {
+            Metadata.Builder b = Metadata.builder(currentState.metadata())
+                .put(IndexMetadata.builder(request.index())
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .build(), false);
+            return ClusterState.builder(currentState).metadata(b.build()).build();
+        }
     }
 }

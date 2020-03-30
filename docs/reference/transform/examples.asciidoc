@@ -190,12 +190,13 @@ or flight stats for any of the featured destination or origin airports.
 [[example-clientips]]
 ==== Finding suspicious client IPs
 
-We transform the data such that the new index contains the sum of bytes and the 
-number of distinct URLs, agents, incoming requests by location, and geographic 
-destinations for each client IP. We also use filter aggregations to count the 
-specific types of HTTP responses that each client IP receives. Ultimately, the 
-example below transforms web log data into an entity centric index where the 
-entity is `clientip`.
+In this example, we use the web log sample dataset to identify suspicious client 
+IPs. We transform the data such that the new index contains the sum of bytes and 
+the number of distinct URLs, agents, incoming requests by location, and 
+geographic destinations for each client IP. We also use filter aggregations to 
+count the specific types of HTTP responses that each client IP receives. 
+Ultimately, the example below transforms web log data into an entity centric 
+index where the entity is `clientip`.
 
 [source,console]
 ----------------------------------

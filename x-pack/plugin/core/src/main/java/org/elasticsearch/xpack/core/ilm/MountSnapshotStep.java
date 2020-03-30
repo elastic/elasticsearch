@@ -94,7 +94,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             ActionListener.wrap(response -> {
                 if (response.status() != RestStatus.OK) {
                     logger.debug("mount snapshot response failed to complete");
-                    throw new ElasticsearchException("mount snapshot response failed to complete");
+                    throw new ElasticsearchException("mount snapshot response failed to complete, got response " + response.status());
                 }
                 listener.onResponse(true);
             }, listener::onFailure));

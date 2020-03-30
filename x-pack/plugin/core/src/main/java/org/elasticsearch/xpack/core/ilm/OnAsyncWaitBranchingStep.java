@@ -38,7 +38,7 @@ public class OnAsyncWaitBranchingStep extends AsyncWaitStep {
     private SetOnce<Boolean> onCompleteConditionMet;
 
     /**
-     * {@link BranchingStep} is a step whose next step is based on the {@link #asyncWaitAction} condition being met or not.
+     * {@link OnAsyncWaitBranchingStep} is a step whose next step is based on the {@link #asyncWaitAction} condition being met or not.
      *
      * @param key                                the step's key
      * @param nextStepKeyUnfulfilledWaitAction the key of the step to run if the client decides to stop waiting for the condition to be

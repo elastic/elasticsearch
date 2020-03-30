@@ -191,7 +191,6 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         final SnapshotStats firstSnapshotShardStatus = getStats(repo, snapshot1).getIndices().get(indexName).getShards().get(0).getStats();
         final int totalFilesInShard = firstSnapshotShardStatus.getTotalFileCount();
         assertThat(totalFilesInShard, greaterThan(0));
-        assertThat(firstSnapshotShardStatus.getIncrementalFileCount(), is(totalFilesInShard));
         final SnapshotStats secondSnapshotShardStatus =
             getStats(repo, snapshot2).getIndices().get(indexName).getShards().get(0).getStats();
         assertThat(secondSnapshotShardStatus.getTotalFileCount(), is(totalFilesInShard));

@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
@@ -282,16 +281,17 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
                             newBuilder = new SumAggregationBuilder(formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.VALUE));
                             ValuesSourceAggregationBuilder.LeafOnly countBuilder
                                 = new ValueCountAggregationBuilder(
-                                formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.COUNT_FIELD), ValueType.NUMERIC);
+                                formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.COUNT_FIELD));
                             countBuilder.field(field);
                             builders.add(countBuilder);
                         } else if (metric.equals(MetricConfig.SUM.getPreferredName())) {
                             newBuilder = new SumAggregationBuilder(formatFieldName(field, SumAggregationBuilder.NAME, RollupField.VALUE));
                         } else if (metric.equals(MetricConfig.VALUE_COUNT.getPreferredName())) {
                             // TODO allow non-numeric value_counts.
-                            // Hardcoding this is fine for now since the job validation guarantees that all metric fields are numerics
+                            // I removed the hard coding of NUMERIC as part of cleaning up targetValueType, but I don't think  that resolves
+                            // the above to do note -- Tozzi 2019-12-06
                             newBuilder = new ValueCountAggregationBuilder(
-                                formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE), ValueType.NUMERIC);
+                                formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE));
                         } else {
                             throw new IllegalArgumentException("Unsupported metric type [" + metric + "]");
                         }

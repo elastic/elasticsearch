@@ -99,4 +99,9 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
             }
         };
     }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
 }

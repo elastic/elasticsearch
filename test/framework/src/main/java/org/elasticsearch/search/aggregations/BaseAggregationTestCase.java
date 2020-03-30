@@ -199,7 +199,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         }
     }
 
-    protected void randomFieldOrScript(ValuesSourceAggregationBuilder<?, ?> factory, String field) {
+    protected void randomFieldOrScript(ValuesSourceAggregationBuilder<?> factory, String field) {
         int choice = randomInt(2);
         switch (choice) {
         case 0:

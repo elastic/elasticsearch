@@ -153,12 +153,4 @@ public class PField extends AStoreable {
     boolean isDefOptimized() {
         return isDefOptimized;
     }
-
-    @Override
-    public String toString() {
-        if (nullSafe) {
-            return singleLineToString("nullSafe", prefix, value);
-        }
-        return singleLineToString(prefix, value);
-    }
 }

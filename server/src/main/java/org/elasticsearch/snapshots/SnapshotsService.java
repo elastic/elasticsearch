@@ -1342,7 +1342,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // However other snapshots are running - cannot continue
                         throw new ConcurrentSnapshotExecutionException(snapshot, "another snapshot is currently running cannot delete");
                     }
-                    // TODO: NOCOMMIT this is super hacky, we need another step during the delete that makes sure
+                    // TODO: This is super hacky, we need another step during the delete that makes sure
                     //       we actually always have a consistent repo state id here
                     //       NOTE: maybe this is fine though ... since any write in between loading RepositoryData and
                     //       getting here would've set the generation in the metadata

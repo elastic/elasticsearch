@@ -120,7 +120,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             completedListener.whenComplete(
                 r -> removeBanOnNodes(cancellableTask, childrenNodes),
                 e -> removeBanOnNodes(cancellableTask, childrenNodes));
-            // if wait_for_completion is true, then only return when (1) bans are placed on child nodes, (2) child tasks are
+            // if wait_for_child_tasks is true, then only return when (1) bans are placed on child nodes, (2) child tasks are
             // completed or failed, (3) the main task is cancelled. Otherwise, return after bans are placed on child nodes.
             if (request.waitForChildTasks()) {
                 completedListener.whenComplete(r -> listener.onResponse(cancellableTask.taskInfo(nodeId, false)), listener::onFailure);

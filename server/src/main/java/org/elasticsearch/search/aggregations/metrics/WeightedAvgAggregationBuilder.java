@@ -99,6 +99,11 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
     protected MultiValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                             Map<String, ValuesSourceConfig> configs,
                                                             DocValueFormat format,

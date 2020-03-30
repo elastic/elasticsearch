@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -103,6 +104,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     private final JobResultsPersister jobResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
+    private final AnnotationPersister annotationPersister;
 
     private NativeStorageProvider nativeStorageProvider;
     private final ConcurrentMap<Long, ProcessContext> processByAllocation = new ConcurrentHashMap<>();
@@ -118,9 +120,9 @@ public class AutodetectProcessManager implements ClusterStateListener {
     public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
                                     NamedXContentRegistry xContentRegistry, AnomalyDetectionAuditor auditor, ClusterService clusterService,
                                     JobManager jobManager, JobResultsProvider jobResultsProvider, JobResultsPersister jobResultsPersister,
-                                    JobDataCountsPersister jobDataCountsPersister, AutodetectProcessFactory autodetectProcessFactory,
-                                    NormalizerFactory normalizerFactory, NativeStorageProvider nativeStorageProvider,
-                                    IndexNameExpressionResolver expressionResolver) {
+                                    JobDataCountsPersister jobDataCountsPersister, AnnotationPersister annotationPersister,
+                                    AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
+                                    NativeStorageProvider nativeStorageProvider, IndexNameExpressionResolver expressionResolver) {
         this.environment = environment;
         this.client = client;
         this.threadPool = threadPool;
@@ -133,6 +135,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.jobResultsProvider = jobResultsProvider;
         this.jobResultsPersister = jobResultsPersister;
         this.jobDataCountsPersister = jobDataCountsPersister;
+        this.annotationPersister = annotationPersister;
         this.auditor = auditor;
         this.nativeStorageProvider = Objects.requireNonNull(nativeStorageProvider);
         clusterService.addListener(this);
@@ -511,6 +514,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 jobId,
                 renormalizer,
                 jobResultsPersister,
+                annotationPersister,
                 process,
                 autodetectParams.modelSizeStats(),
                 autodetectParams.timingStats());

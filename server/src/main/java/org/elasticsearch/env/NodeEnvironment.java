@@ -247,13 +247,6 @@ public final class NodeEnvironment  implements Closeable {
      * @param settings settings from elasticsearch.yml
      */
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-        if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
-            nodePaths = null;
-            sharedDataPath = null;
-            locks = null;
-            nodeMetaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);
-            return;
-        }
         boolean success = false;
 
         try {

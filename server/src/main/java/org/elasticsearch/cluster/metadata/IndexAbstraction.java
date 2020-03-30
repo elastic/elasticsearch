@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.util.SetOnce;
@@ -25,7 +24,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -35,30 +33,77 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_HIDDEN_SETTING;
 
 /**
- * Encapsulates the  {@link IndexMetaData} instances of a concrete index or indices an alias is pointing to.
+ * An index abstraction is a reference to one or more concrete indices.
+ * An index abstraction has a unique name and encapsulates all the  {@link IndexMetaData} instances it is pointing to.
+ * Also depending on type it may refer to a single or many concrete indices and may or may not have a write index.
  */
-public interface AliasOrIndex {
+public interface IndexAbstraction {
 
     /**
-     * @return whether this an alias or concrete index
+     * @return the type of the index abstraction
      */
-    boolean isAlias();
+    Type getType();
 
     /**
-     * @return All {@link IndexMetaData} of all concrete indices this alias is referring to
-     * or if this is a concrete index its {@link IndexMetaData}
+     * @return the name of the index abstraction
+     */
+    String getName();
+
+    /**
+     * @return All {@link IndexMetaData} of all concrete indices this index abstraction is referring to.
      */
     List<IndexMetaData> getIndices();
 
     /**
-     * @return whether this alias/index is hidden or not
+     * A write index is a dedicated concrete index, that accepts all the new documents that belong to an index abstraction.
+     *
+     * A write index may also be a regular concrete index of a index abstraction and may therefore also be returned
+     * by {@link #getIndices()}. An index abstraction may also not have a dedicated write index.
+     *
+     * @return the write index of this index abstraction or
+     * <code>null</code> if this index abstraction doesn't have a write index.
+     */
+    @Nullable
+    IndexMetaData getWriteIndex();
+
+    /**
+     * @return whether this index abstraction is hidden or not
      */
     boolean isHidden();
 
     /**
+     * An index abstraction type.
+     */
+    enum Type {
+
+        /**
+         * An index abstraction that refers to a single concrete index.
+         * This concrete index is also the write index.
+         */
+        CONCRETE_INDEX("concrete index"),
+
+        /**
+         * An index abstraction that refers to an alias.
+         * An alias typically refers to many concrete indices and
+         * may have a write index.
+         */
+        ALIAS("alias");
+
+        private final String displayName;
+
+        Type(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
+    /**
      * Represents an concrete index and encapsulates its {@link IndexMetaData}
      */
-    class Index implements AliasOrIndex {
+    class Index implements IndexAbstraction {
 
         private final IndexMetaData concreteIndex;
 
@@ -67,13 +112,23 @@ public interface AliasOrIndex {
         }
 
         @Override
-        public boolean isAlias() {
-            return false;
+        public String getName() {
+            return concreteIndex.getIndex().getName();
+        }
+
+        @Override
+        public Type getType() {
+            return Type.CONCRETE_INDEX;
         }
 
         @Override
         public List<IndexMetaData> getIndices() {
-            return Collections.singletonList(concreteIndex);
+            return List.of(concreteIndex);
+        }
+
+        @Override
+        public IndexMetaData getWriteIndex() {
+            return concreteIndex;
         }
 
         @Override
@@ -85,7 +140,7 @@ public interface AliasOrIndex {
     /**
      * Represents an alias and groups all {@link IndexMetaData} instances sharing the same alias name together.
      */
-    class Alias implements AliasOrIndex {
+    class Alias implements IndexAbstraction {
 
         private final String aliasName;
         private final List<IndexMetaData> referenceIndexMetaDatas;
@@ -100,11 +155,11 @@ public interface AliasOrIndex {
         }
 
         @Override
-        public boolean isAlias() {
-            return true;
+        public Type getType() {
+            return Type.ALIAS;
         }
 
-        public String getAliasName() {
+        public String getName() {
             return aliasName;
         }
 
@@ -131,7 +186,7 @@ public interface AliasOrIndex {
          * and filters)
          */
         public Iterable<Tuple<String, AliasMetaData>> getConcreteIndexAndAliasMetaDatas() {
-            return () -> new Iterator<Tuple<String,AliasMetaData>>() {
+            return () -> new Iterator<>() {
 
                 int index = 0;
 

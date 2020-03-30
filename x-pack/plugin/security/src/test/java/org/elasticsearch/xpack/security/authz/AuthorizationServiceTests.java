@@ -70,7 +70,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -1417,14 +1417,14 @@ public class AuthorizationServiceTests extends ESTestCase {
             @Override
             public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                              AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                             Map<String, AliasOrIndex> aliasOrIndexLookup,
+                                             Map<String, IndexAbstraction> aliasOrIndexLookup,
                                              ActionListener<IndexAuthorizationResult> listener) {
                 throw new UnsupportedOperationException("not implemented");
             }
 
             @Override
             public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                              Map<String, AliasOrIndex> aliasOrIndexLookup, ActionListener<List<String>> listener) {
+                                              Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener) {
                 throw new UnsupportedOperationException("not implemented");
             }
 

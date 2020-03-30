@@ -481,13 +481,15 @@ public class MetaDataIndexTemplateService {
             int dummyPartitionSize = IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
             int dummyShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS,
                     dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
+            int shardReplicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0);
+
 
             //create index service for parsing and validating "mappings"
             Settings dummySettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(settings)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, dummyShards)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                 .build();
 

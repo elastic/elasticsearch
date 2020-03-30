@@ -43,9 +43,6 @@ public class PField extends AStoreable {
     protected final boolean nullSafe;
     protected final String value;
 
-    // TODO: #54015
-    private boolean isDefOptimized;
-
     public PField(Location location, AExpression prefix, boolean nullSafe, String value) {
         super(location, prefix);
 
@@ -126,8 +123,6 @@ public class PField extends AStoreable {
             }
         }
 
-        isDefOptimized = sub.isDefOptimized();
-
         if (nullSafe) {
             sub = new PSubNullSafeField(location, sub);
         }
@@ -139,6 +134,7 @@ public class PField extends AStoreable {
         subInput.explicit = input.explicit;
         Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
         output.actual = subOutput.actual;
+        output.isDefOptimized = subOutput.isDefOptimized;
 
         DotNode dotNode = new DotNode();
 
@@ -151,10 +147,5 @@ public class PField extends AStoreable {
         output.expressionNode = dotNode;
 
         return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return isDefOptimized;
     }
 }

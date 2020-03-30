@@ -80,9 +80,4 @@ public class PSubShortcut extends AStoreable {
 
         return output;
     }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
-    }
 }

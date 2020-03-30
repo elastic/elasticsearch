@@ -81,6 +81,12 @@ public abstract class AExpression extends ANode {
         PainlessCast painlessCast = null;
 
         /**
+         * {@code true} if this node or a sub-node of this node can be optimized with
+         * rhs actual type to avoid an unnecessary cast.
+         */
+        boolean isDefOptimized = false;
+
+        /**
          * The {@link ExpressionNode}(s) generated from this expression.
          */
         ExpressionNode expressionNode = null;

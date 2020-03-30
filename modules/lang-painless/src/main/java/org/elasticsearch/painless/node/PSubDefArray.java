@@ -53,6 +53,7 @@ public class PSubDefArray extends AStoreable {
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
+        output.isDefOptimized = true;
 
         BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
 
@@ -64,10 +65,5 @@ public class PSubDefArray extends AStoreable {
         output.expressionNode = braceSubDefNode;
 
         return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return true;
     }
 }

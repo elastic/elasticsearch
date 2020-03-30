@@ -92,9 +92,4 @@ public class PSubMapShortcut extends AStoreable {
 
         return output;
     }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
-    }
 }

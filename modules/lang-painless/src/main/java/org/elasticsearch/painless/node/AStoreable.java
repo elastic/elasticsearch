@@ -61,10 +61,4 @@ abstract class AStoreable extends AExpression {
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         throw new UnsupportedOperationException();
     }
-
-    /**
-     * Returns true if this node or a sub-node of this node can be optimized with
-     * rhs actual type to avoid an unnecessary cast.
-     */
-    abstract boolean isDefOptimized();
 }

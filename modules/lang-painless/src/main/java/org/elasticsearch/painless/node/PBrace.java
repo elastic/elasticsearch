@@ -38,9 +38,6 @@ public class PBrace extends AStoreable {
 
     protected final AExpression index;
 
-    // TODO: #54015
-    private boolean isDefOptimized = false;
-
     public PBrace(Location location, AExpression prefix, AExpression index) {
         super(location, prefix);
 
@@ -86,8 +83,6 @@ public class PBrace extends AStoreable {
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual) + "]."));
         }
 
-        isDefOptimized = sub.isDefOptimized();
-
         Input subInput = new Input();
         subInput.write = input.write;
         subInput.read = input.read;
@@ -95,6 +90,7 @@ public class PBrace extends AStoreable {
         subInput.explicit = input.explicit;
         Output subOutput = sub.analyze(classNode, scriptRoot, scope, subInput);
         output.actual = subOutput.actual;
+        output.isDefOptimized = subOutput.isDefOptimized;
 
         BraceNode braceNode = new BraceNode();
 
@@ -107,10 +103,5 @@ public class PBrace extends AStoreable {
         output.expressionNode = braceNode;
 
         return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return isDefOptimized;
     }
 }

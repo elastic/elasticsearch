@@ -93,9 +93,4 @@ public class PSubListShortcut extends AStoreable {
 
         return output;
     }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
-    }
 }

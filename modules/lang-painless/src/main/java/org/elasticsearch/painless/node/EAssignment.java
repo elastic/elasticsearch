@@ -193,11 +193,8 @@ public class EAssignment extends AExpression {
 
 
         } else if (rhs != null) {
-            AStoreable lhs = (AStoreable)this.lhs;
-
-            // TODO: move this optimization to a later phase
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
-            if (lhs.isDefOptimized()) {
+            if (leftOutput.isDefOptimized) {
                 rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
 
                 if (rightOutput.actual == void.class) {

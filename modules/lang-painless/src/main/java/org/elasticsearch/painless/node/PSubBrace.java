@@ -64,9 +64,4 @@ public class PSubBrace extends AStoreable {
 
         return output;
     }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
-    }
 }

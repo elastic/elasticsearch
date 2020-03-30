@@ -48,6 +48,7 @@ public class PSubDefField extends AStoreable {
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
+        output.isDefOptimized = true;
 
         DotSubDefNode dotSubDefNode = new DotSubDefNode();
 
@@ -58,10 +59,5 @@ public class PSubDefField extends AStoreable {
         output.expressionNode = dotSubDefNode;
 
         return output;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return true;
     }
 }

@@ -58,7 +58,8 @@ public class ERegex extends AExpression {
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: regex constant [" + pattern + "][" + flags + "] not used"));
+            throw createError(new IllegalArgumentException(
+                "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
         }
 
         Output output = new Output();

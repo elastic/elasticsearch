@@ -73,7 +73,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             new ActionListener<>() {
                 @Override
                 public void onResponse(AsyncSearchResponse searchResponse) {
-                    if (searchResponse.isRunning() || request.isCleanOnCompletion() == false) {
+                    if (searchResponse.isRunning() || request.isKeepOnCompletion()) {
                         // the task is still running and the user cannot wait more so we create
                         // a document for further retrieval
                         try {
@@ -126,7 +126,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 public void onFailure(Exception exc) {
                     submitListener.onFailure(exc);
                 }
-            }, request.getWaitForCompletion());
+            }, request.getWaitForCompletionTimeout());
     }
 
     private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, CancellableTask submitTask, TimeValue keepAlive) {

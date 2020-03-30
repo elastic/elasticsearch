@@ -45,7 +45,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         index = mock(SamlServiceProviderIndex.class);
         identityProvider = mock(SamlIdentityProvider.class);
         serviceProviderDefaults = configureIdentityProviderDefaults();
-        resolver = new SamlServiceProviderResolver(Settings.EMPTY, index, serviceProviderDefaults);
+        resolver = new SamlServiceProviderResolver(Settings.EMPTY, index, new SamlServiceProviderFactory(serviceProviderDefaults));
     }
 
     public void testResolveWithoutCache() throws Exception {

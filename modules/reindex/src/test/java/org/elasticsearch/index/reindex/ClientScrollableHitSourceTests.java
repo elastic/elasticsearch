@@ -267,15 +267,14 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
     private SearchResponse createSearchResponse(LongSupplier seqNoGenerator, ShardSearchFailure[] shardFailures) {
         SearchHits hits = new SearchHits(IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> createSearchHit(seqNoGenerator))
-            .toArray(SearchHit[]::new),
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO),0);
+            .toArray(SearchHit[]::new), new TotalHits(0, TotalHits.Relation.EQUAL_TO),0);
         InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
         return new SearchResponse(internalResponse, generateScrollId(), 5, 4, 0, randomLong(), shardFailures,
             SearchResponse.Clusters.EMPTY);
     }
 
     private SearchHit createSearchHit(LongSupplier seqNoGenerator) {
-        SearchHit hit = new SearchHit(0, "id", emptyMap()).sourceRef(new BytesArray("{}"));
+        SearchHit hit = new SearchHit(0, "id", emptyMap(), emptyMap()).sourceRef(new BytesArray("{}"));
         hit.setSeqNo(seqNoGenerator.getAsLong());
         return hit;
     }

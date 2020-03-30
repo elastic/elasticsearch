@@ -26,7 +26,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Test;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -37,15 +36,14 @@ import static org.hamcrest.Matchers.nullValue;
  * Tests for {@link NodeInfo}. Serialization and deserialization tested in
  * {@link org.elasticsearch.nodesinfo.NodeInfoStreamingTests}.
  */
-public class NodeInfoTest extends ESTestCase {
+public class NodeInfoTests extends ESTestCase {
 
     /**
      * Check that the the {@link NodeInfo#getInfo(Class)} method returns null
      * for absent info objects, and returns the right thing for present info
      * objects.
      */
-    @Test
-    public void getInfo() {
+    public void testGetInfo() {
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,
             Build.CURRENT,

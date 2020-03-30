@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -224,7 +225,10 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // Verify that creating model snapshot also creates associated annotation
         List<Annotation> annotations = getAnnotations();
         assertThat(annotations, hasSize(1));
-        assertThat(annotations.get(0).getAnnotation(), is(equalTo("Job model snapshot stored")));
+        assertThat(
+            annotations.get(0).getAnnotation(),
+            is(equalTo(
+                new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage())));
 
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
@@ -246,7 +250,10 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // Verify that creating model snapshot also creates associated annotation
         List<Annotation> annotations = getAnnotations();
         assertThat(annotations, hasSize(1));
-        assertThat(annotations.get(0).getAnnotation(), is(equalTo("Job model snapshot stored")));
+        assertThat(
+            annotations.get(0).getAnnotation(),
+            is(equalTo(
+                new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage())));
 
         // Verify that deleting model snapshot also deletes associated annotation
         deleteModelSnapshot(JOB_ID, modelSnapshot.getSnapshotId());

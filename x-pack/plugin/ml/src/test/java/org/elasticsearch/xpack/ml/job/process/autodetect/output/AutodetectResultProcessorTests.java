@@ -386,11 +386,11 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         Annotation annotation = annotationCaptor.getValue();
         Annotation expectedAnnotation =
             new Annotation(
-                "Job model snapshot stored",
+                "Job model snapshot with id [a_snapshot_id] stored",
                 Date.from(CURRENT_TIME),
                 XPackUser.NAME,
                 modelSnapshot.getTimestamp(),
-                modelSnapshot.getLatestRecordTimeStamp(),
+                modelSnapshot.getTimestamp(),
                 JOB_ID,
                 Date.from(CURRENT_TIME),
                 XPackUser.NAME,

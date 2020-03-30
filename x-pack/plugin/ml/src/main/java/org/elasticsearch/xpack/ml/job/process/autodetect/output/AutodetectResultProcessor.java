@@ -329,11 +329,11 @@ public class AutodetectResultProcessor {
         assert modelSnapshot != null;
         Date currentTime = new Date(clock.millis());
         return new Annotation(
-            Messages.JOB_AUDIT_SNAPSHOT_STORED,
+            Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_STORED, modelSnapshot.getSnapshotId()),
             currentTime,
             XPackUser.NAME,
             modelSnapshot.getTimestamp(),
-            modelSnapshot.getLatestRecordTimeStamp(),
+            modelSnapshot.getTimestamp(),
             jobId,
             currentTime,
             XPackUser.NAME,

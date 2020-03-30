@@ -42,11 +42,6 @@ public class ThreadPoolInfo implements ReportingService.Info, Iterable<ThreadPoo
     }
 
     @Override
-    public String getWriteableName() {
-        return "ThreadPoolInfo";
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(infos);
     }

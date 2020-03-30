@@ -65,11 +65,6 @@ public class OsInfo implements ReportingService.Info {
     }
 
     @Override
-    public String getWriteableName() {
-        return "OsInfo";
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(refreshInterval);
         out.writeInt(availableProcessors);

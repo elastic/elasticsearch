@@ -50,11 +50,6 @@ public class IngestInfo implements ReportingService.Info {
     }
 
     @Override
-    public String getWriteableName() {
-        return "IngestInfo";
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.write(processors.size());
         for (ProcessorInfo info : processors) {

@@ -49,11 +49,6 @@ public class PluginsAndModules implements ReportingService.Info {
     }
 
     @Override
-    public String getWriteableName() {
-        return "PluginsAndModules";
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(plugins);
         out.writeList(modules);

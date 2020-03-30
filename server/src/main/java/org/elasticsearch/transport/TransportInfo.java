@@ -74,11 +74,6 @@ public class TransportInfo implements ReportingService.Info {
     }
 
     @Override
-    public String getWriteableName() {
-        return "TransportInfo";
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         address.writeTo(out);
         if (profileAddresses != null) {

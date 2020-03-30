@@ -19,13 +19,13 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 
 public interface ReportingService<I extends ReportingService.Info> {
     I info();
 
-    interface Info extends NamedWriteable, ToXContent {
+    interface Info extends Writeable, ToXContent {
 
     }
 }

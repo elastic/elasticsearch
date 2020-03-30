@@ -294,11 +294,6 @@ public class JvmInfo implements ReportingService.Info {
     }
 
     @Override
-    public String getWriteableName() {
-        return "JvmInfo";
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(pid);
         out.writeString(version);

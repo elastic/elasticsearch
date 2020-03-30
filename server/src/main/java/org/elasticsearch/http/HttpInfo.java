@@ -45,11 +45,6 @@ public class HttpInfo implements ReportingService.Info {
     }
 
     @Override
-    public String getWriteableName() {
-        return "HttpInfo";
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         address.writeTo(out);
         out.writeLong(maxContentLength);

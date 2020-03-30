@@ -46,11 +46,6 @@ public class ProcessInfo implements ReportingService.Info {
     }
 
     @Override
-    public String getWriteableName() {
-        return "ProcessInfo";
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(refreshInterval);
         out.writeLong(id);

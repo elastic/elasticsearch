@@ -38,11 +38,16 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     @Override
-    protected XContentBuilder createDefaultMapping(String fieldName, boolean ignored_malformed) throws Exception {
+    protected XContentBuilder createDefaultMapping(String fieldName,
+                                                   boolean ignored_malformed,
+                                                   boolean ignoreZValue) throws IOException {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject(fieldName).field("type", "shape");
         if (ignored_malformed || randomBoolean()) {
             xContentBuilder.field("ignore_malformed", ignored_malformed);
+        }
+        if (ignoreZValue == false || randomBoolean()) {
+            xContentBuilder.field(PointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue);
         }
         return xContentBuilder.endObject().endObject().endObject().endObject();
     }

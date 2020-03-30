@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
 
+import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
+
 /**
  * Represents a point in the cartesian space.
  */
@@ -31,6 +33,7 @@ public final class CartesianPoint implements ToXContentFragment {
 
     private static final ParseField X_FIELD = new ParseField("x");
     private static final ParseField Y_FIELD = new ParseField("y");
+    private static final ParseField Z_FIELD = new ParseField("z");
 
     private float x;
     private float y;
@@ -49,19 +52,19 @@ public final class CartesianPoint implements ToXContentFragment {
         return this;
     }
 
-    public CartesianPoint resetFromString(String value) {
+    public CartesianPoint resetFromString(String value, final boolean ignoreZValue) {
         if (value.toLowerCase(Locale.ROOT).contains("point")) {
-            return resetFromWKT(value);
+            return resetFromWKT(value, ignoreZValue);
         } else {
-            return resetFromCoordinates(value);
+            return resetFromCoordinates(value, ignoreZValue);
         }
     }
 
 
-    public CartesianPoint resetFromCoordinates(String value) {
+    public CartesianPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
         String[] vals = value.split(",");
-        if (vals.length != 2) {
-            throw new ElasticsearchParseException("failed to parse [{}], expected 2 coordinates "
+        if (vals.length > 3 || vals.length < 2) {
+            throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates "
                 + "but found: [{}]", vals, vals.length);
         }
         final float x;
@@ -88,13 +91,20 @@ public final class CartesianPoint implements ToXContentFragment {
         } catch (NumberFormatException ex) {
             throw new ElasticsearchParseException("[{}]] must be a number", Y_FIELD.getPreferredName());
         }
+        if (vals.length > 2) {
+            try {
+                CartesianPoint.assertZValue(ignoreZValue, Float.parseFloat(vals[2].trim()));
+            } catch (NumberFormatException ex) {
+                throw new ElasticsearchParseException("[{}]] must be a number", Y_FIELD.getPreferredName());
+            }
+        }
         return reset(x, y);
     }
 
-    private CartesianPoint resetFromWKT(String value) {
+    private CartesianPoint resetFromWKT(String value, boolean ignoreZValue) {
         Geometry geometry;
         try {
-            geometry = new WellKnownText(false, new StandardValidator(true))
+            geometry = new WellKnownText(false, new StandardValidator(ignoreZValue))
                 .fromWKT(value);
         } catch (Exception e) {
             throw new ElasticsearchParseException("Invalid WKT format", e);
@@ -149,7 +159,7 @@ public final class CartesianPoint implements ToXContentFragment {
         return builder.startObject().field(X_FIELD.getPreferredName(), x).field(Y_FIELD.getPreferredName(), y).endObject();
     }
 
-    public static CartesianPoint parsePoint(XContentParser parser, CartesianPoint point)
+    public static CartesianPoint parsePoint(XContentParser parser, CartesianPoint point, boolean ignoreZvalue)
         throws IOException, ElasticsearchParseException {
         float x = Float.NaN;
         float y = Float.NaN;
@@ -189,6 +199,21 @@ public final class CartesianPoint implements ToXContentFragment {
                                 default:
                                     throw new ElasticsearchParseException("[{}] must be a number",
                                         Y_FIELD.getPreferredName());
+                            }
+                        } else if (field.equals(Z_FIELD.getPreferredName())) {
+                            subParser.nextToken();
+                            switch (subParser.currentToken()) {
+                                case VALUE_NUMBER:
+                                case VALUE_STRING:
+                                    try {
+                                         CartesianPoint.assertZValue(ignoreZvalue, subParser.floatValue(true));
+                                    } catch (NumberFormatException e) {
+                                        numberFormatException = e;
+                                    }
+                                    break;
+                                default:
+                                    throw new ElasticsearchParseException("[{}] must be a number",
+                                        Z_FIELD.getPreferredName());
                             }
                         } else {
                             throw new ElasticsearchParseException("field must be either [{}] or [{}]",
@@ -234,21 +259,35 @@ public final class CartesianPoint implements ToXContentFragment {
             return point.reset(x, y);
         } else if(parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             String val = parser.text();
-            return point.resetFromString(val);
+            return point.resetFromString(val, ignoreZvalue);
         } else {
             throw new ElasticsearchParseException("point expected");
         }
     }
 
-    public static CartesianPoint parsePoint(Object value) throws ElasticsearchParseException {
+    public static CartesianPoint parsePoint(Object value, boolean ignoreZValue) throws ElasticsearchParseException {
         try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
             Collections.singletonMap("null_value", value), null)) {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value
-            return parsePoint(parser, new CartesianPoint());
+            return parsePoint(parser, new CartesianPoint(), ignoreZValue);
         } catch (IOException ex) {
             throw new ElasticsearchParseException("error parsing point", ex);
         }
+    }
+
+    public static double assertZValue(final boolean ignoreZValue, float zValue) {
+        if (ignoreZValue == false) {
+            throw new ElasticsearchParseException("Exception parsing coordinates: found Z value [{}] but [{}] "
+                + "parameter is [{}]", zValue, IGNORE_Z_VALUE, ignoreZValue);
+        }
+        if (Float.isFinite(zValue) == false) {
+            throw new ElasticsearchParseException("invalid [{}] value [{}]; " +
+                "must be between -3.4028234663852886E38 and 3.4028234663852886E38",
+                Z_FIELD.getPreferredName(),
+                zValue);
+        }
+        return zValue;
     }
 }

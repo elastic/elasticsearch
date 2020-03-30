@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
@@ -22,6 +23,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
+import java.io.IOException;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
@@ -38,11 +40,13 @@ public abstract class CartesianFieldMapperTests  extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class, SpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
-    protected abstract XContentBuilder createDefaultMapping(String fieldName, boolean ignored_malformed) throws Exception;
+    protected abstract XContentBuilder createDefaultMapping(String fieldName,
+                                                            boolean ignored_malformed,
+                                                            boolean ignoreZValue) throws IOException;
 
 
-    public void testWKT() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping(FIELD_NAME, randomBoolean()));
+    public void testWKT() throws IOException {
+        String mapping = Strings.toString(createDefaultMapping(FIELD_NAME, randomBoolean(), randomBoolean()));
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
@@ -56,8 +60,8 @@ public abstract class CartesianFieldMapperTests  extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
     }
 
-    public void testEmptyName() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping("", randomBoolean()));
+    public void testEmptyName() throws IOException {
+        String mapping = Strings.toString(createDefaultMapping("", randomBoolean(), randomBoolean()));
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -66,8 +70,8 @@ public abstract class CartesianFieldMapperTests  extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 
-    public void testInvalidPointValuesIgnored() throws Exception {
-        String mapping = Strings.toString(createDefaultMapping(FIELD_NAME, true));
+    public void testInvalidPointValuesIgnored() throws IOException {
+        String mapping = Strings.toString(createDefaultMapping(FIELD_NAME, true, randomBoolean()));
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
@@ -136,5 +140,36 @@ public abstract class CartesianFieldMapperTests  extends ESSingleNodeTestCase {
             BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startObject(FIELD_NAME).nullField("x").nullField("y").endObject().endObject()
             ), XContentType.JSON)).rootDoc().getField(FIELD_NAME), nullValue());
+    }
+
+    public void testZValue() throws IOException {
+        String mapping = Strings.toString(createDefaultMapping(FIELD_NAME, false, true));
+        DocumentMapper defaultMapper = createIndex("test1").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test1", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_NAME, "POINT (2000.1 305.6 34567.33)")
+                .endObject()),
+            XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
+
+        mapping = Strings.toString(createDefaultMapping(FIELD_NAME, false, false));
+        DocumentMapper defaultMapper2 = createIndex("test2").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> defaultMapper2.parse(new SourceToParse("test2", "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field(FIELD_NAME, "POINT (2000.1 305.6 34567.33)")
+                    .endObject()),
+                XContentType.JSON))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [" + FIELD_NAME + "] of type"));
+        assertThat(e.getRootCause().getMessage(),
+            containsString("found Z value [34567.33] but [ignore_z_value] parameter is [false]"));
     }
 }

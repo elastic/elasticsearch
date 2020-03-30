@@ -16,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.mapper.AbstractSearchableGeometryFieldType;
 import org.elasticsearch.index.mapper.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -50,13 +52,15 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
     public static final String CONTENT_TYPE = "point";
 
     public static class Names {
-        public static final String IGNORE_MALFORMED = "ignore_malformed";
-        public static final String NULL_VALUE = "null_value";
+        public static final ParseField IGNORE_MALFORMED = new ParseField("ignore_malformed");
+        public static final ParseField IGNORE_Z_VALUE = new ParseField("ignore_z_value");
+        public static final ParseField NULL_VALUE = new ParseField("null_value");
     }
 
     public static class Defaults {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final PointFieldType FIELD_TYPE = new PointFieldType();
+        public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -68,6 +72,7 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
 
     public static class Builder extends FieldMapper.Builder<Builder, PointFieldMapper> {
         protected Boolean ignoreMalformed;
+        private Boolean ignoreZValue;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -89,13 +94,24 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
             return PointFieldMapper.Defaults.IGNORE_MALFORMED;
         }
 
+        protected Explicit<Boolean> ignoreZValue(BuilderContext context) {
+            if (ignoreZValue != null) {
+                return new Explicit<>(ignoreZValue, true);
+            }
+            return PointFieldMapper.Defaults.IGNORE_Z_VALUE;
+        }
+
+        public PointFieldMapper.Builder ignoreZValue(final boolean ignoreZValue) {
+            this.ignoreZValue = ignoreZValue;
+            return this;
+        }
         public PointFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
                                       MappedFieldType defaultFieldType, Settings indexSettings,
                                       MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                       CopyTo copyTo) {
             setupFieldType(context);
             return new PointFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, multiFields,
-                ignoreMalformed, copyTo);
+                ignoreMalformed, ignoreZValue(context), copyTo);
         }
 
         @Override
@@ -130,10 +146,14 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
 
-                if (propName.equals(Names.IGNORE_MALFORMED)) {
+                if (propName.equals(Names.IGNORE_MALFORMED.getPreferredName())) {
                     builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + "." + Names.IGNORE_MALFORMED));
                     iterator.remove();
-                } else if (propName.equals(Names.NULL_VALUE)) {
+                } else if (propName.equals(PointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName())) {
+                    builder.ignoreZValue(XContentMapValues.nodeBooleanValue(propNode,
+                        name + "." + PointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
+                    iterator.remove();
+                } else if (propName.equals(Names.NULL_VALUE.getPreferredName())) {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
@@ -144,7 +164,8 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
 
             if (nullValue != null) {
                 boolean ignoreMalformed = builder.ignoreMalformed == null ? Defaults.IGNORE_MALFORMED.value() : builder.ignoreMalformed;
-                CartesianPoint point = CartesianPoint.parsePoint(nullValue);
+                boolean ignoreZValue = builder.ignoreZValue == null ? GeoPointFieldMapper.Defaults.IGNORE_Z_VALUE.value() : builder.ignoreZValue;
+                CartesianPoint point = CartesianPoint.parsePoint(nullValue, ignoreZValue);
                 if (ignoreMalformed == false) {
                     if (Float.isFinite(point.getX()) == false) {
                         throw new IllegalArgumentException("illegal x value [" + point.getX() + "]");
@@ -160,12 +181,14 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
     }
 
     protected Explicit<Boolean> ignoreMalformed;
+    protected Explicit<Boolean> ignoreZValue;
 
     public PointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                             Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                            CopyTo copyTo) {
+                            Explicit<Boolean> ignoreZValue, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
+        this.ignoreZValue = ignoreZValue;
     }
 
     @Override
@@ -174,6 +197,9 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
         PointFieldMapper gpfmMergeWith = (PointFieldMapper) mergeWith;
         if (gpfmMergeWith.ignoreMalformed.explicit()) {
             this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
+        }
+        if (gpfmMergeWith.ignoreZValue.explicit()) {
+            this.ignoreZValue = gpfmMergeWith.ignoreZValue;
         }
     }
 
@@ -263,8 +289,10 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
                         context.parser().nextToken();
                         float y = context.parser().floatValue();
                         token = context.parser().nextToken();
-                        if (token != XContentParser.Token.END_ARRAY) {
-                            throw new ElasticsearchParseException("[{}] field type does not accept > 2 dimensions", CONTENT_TYPE);
+                        if (token == XContentParser.Token.VALUE_NUMBER) {
+                            CartesianPoint.assertZValue(ignoreZValue.value(), context.parser().floatValue());
+                        } else if (token != XContentParser.Token.END_ARRAY) {
+                            throw new ElasticsearchParseException("[{}] field type does not accept > 3 dimensions", CONTENT_TYPE);
                         }
                         parse(context, sparse.reset(x, y));
                     } else {
@@ -293,7 +321,7 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
      */
     private void parsePointIgnoringMalformed(ParseContext context, CartesianPoint sparse) throws IOException {
         try {
-            parse(context, CartesianPoint.parsePoint(context.parser(), sparse));
+            parse(context, CartesianPoint.parsePoint(context.parser(), sparse, ignoreZValue().value()));
         } catch (ElasticsearchParseException e) {
             if (ignoreMalformed.value() == false) {
                 throw e;
@@ -306,11 +334,17 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         if (includeDefaults || ignoreMalformed.explicit()) {
-            builder.field(Names.IGNORE_MALFORMED, ignoreMalformed.value());
+            builder.field(Names.IGNORE_MALFORMED.getPreferredName(), ignoreMalformed.value());
         }
-
+        if (includeDefaults || ignoreZValue.explicit()) {
+            builder.field(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue.value());
+        }
         if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field(Names.NULL_VALUE, fieldType().nullValue());
+            builder.field(Names.NULL_VALUE.getPreferredName(), fieldType().nullValue());
         }
+    }
+
+    public Explicit<Boolean> ignoreZValue() {
+        return ignoreZValue;
     }
 }

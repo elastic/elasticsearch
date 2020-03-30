@@ -80,6 +80,13 @@ The following parameters are accepted by `point` fields:
     If `true`, malformed points are ignored. If `false` (default),
     malformed points throw an exception and reject the whole document.
 
+`ignore_z_value`::
+
+    If `true` (default) three dimension points will be accepted (stored in source)
+    but only x and y values will be indexed; the third dimension is
+    ignored. If `false`, points containing any more than x and y
+    (two dimensions) values throw an exception and reject the whole document.
+
 <<null-value,`null_value`>>::
 
     Accepts an point value which is substituted for any explicit `null` values.

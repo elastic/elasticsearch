@@ -18,6 +18,9 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.hamcrest.CoreMatchers;
 
+import java.io.IOException;
+
+import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper.Names.NULL_VALUE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -27,11 +30,16 @@ import static org.hamcrest.Matchers.notNullValue;
 public class PointFieldMapperTests extends CartesianFieldMapperTests {
 
     @Override
-    protected XContentBuilder createDefaultMapping(String fieldName, boolean ignored_malformed) throws Exception {
+    protected XContentBuilder createDefaultMapping(String fieldName,
+                                                   boolean ignored_malformed,
+                                                   boolean ignoreZValue) throws IOException {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject(fieldName).field("type", "point");
         if (ignored_malformed || randomBoolean()) {
-            xContentBuilder.field("ignore_malformed", ignored_malformed);
+            xContentBuilder.field(PointFieldMapper.Names.IGNORE_MALFORMED.getPreferredName(), ignored_malformed);
+        }
+        if (ignoreZValue == false || randomBoolean()) {
+            xContentBuilder.field(PointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue);
         }
         return xContentBuilder.endObject().endObject().endObject().endObject();
     }
@@ -210,7 +218,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("location")
             .field("type", "point")
-            .field(NULL_VALUE, "1,2")
+            .field(NULL_VALUE.getPreferredName(), "1,2")
             .endObject().endObject()
             .endObject().endObject());
 
@@ -249,5 +257,41 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
         assertThat(defaultValue, not(equalTo(doc.rootDoc().getField("location").binaryValue())));
+    }
+
+    /**
+     * Test that accept_z_value parameter correctly parses
+     */
+    public void testIgnoreZValue() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "point")
+            .field(IGNORE_Z_VALUE.getPreferredName(), "true")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(mapping));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(PointFieldMapper.class));
+
+        boolean ignoreZValue = ((PointFieldMapper)fieldMapper).ignoreZValue().value();
+        assertThat(ignoreZValue, equalTo(true));
+
+        // explicit false accept_z_value test
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "point")
+            .field(IGNORE_Z_VALUE.getPreferredName(), "false")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        defaultMapper = createIndex("test2").mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(mapping));
+        fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(PointFieldMapper.class));
+
+        ignoreZValue = ((PointFieldMapper)fieldMapper).ignoreZValue().value();
+        assertThat(ignoreZValue, equalTo(false));
     }
 }

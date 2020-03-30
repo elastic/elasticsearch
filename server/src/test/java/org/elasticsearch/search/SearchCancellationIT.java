@@ -53,6 +53,7 @@ import java.util.function.Function;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -115,16 +116,17 @@ public class SearchCancellationIT extends ESIntegTestCase {
         }
     }
 
-    private ActionFuture<CancelTasksResponse> cancelSearch(String action) throws Exception {
+    private void cancelSearch(String action) {
         ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks().setActions(action).get();
         assertThat(listTasksResponse.getTasks(), hasSize(1));
         TaskInfo searchTask = listTasksResponse.getTasks().get(0);
 
         logger.info("Cancelling search");
-        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks()
-            .setTaskId(searchTask.getTaskId()).execute();
-        ensureChildTasksCancelledOrBanned(searchTask.getTaskId());
-        return cancelFuture;
+        CancelTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTaskId(searchTask.getTaskId())
+            .setWaitForCompletion(false) // do not wait for the cancellation of child tasks as they're being blocked
+            .get();
+        assertThat(cancelTasksResponse.getTasks(), hasSize(1));
+        assertThat(cancelTasksResponse.getTasks().get(0).getTaskId(), equalTo(searchTask.getTaskId()));
     }
 
     private SearchResponse ensureSearchWasCancelled(ActionFuture<SearchResponse> searchResponse) {
@@ -151,10 +153,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .execute();
 
         awaitForBlock(plugins);
-        ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchAction.NAME);
-        assertFalse(cancelFuture.isDone());
+        cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
-        cancelFuture.actionGet();
         logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
     }
@@ -171,10 +171,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
             ).execute();
 
         awaitForBlock(plugins);
-        ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchAction.NAME);
-        assertFalse(cancelFuture.isDone());
+        cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
-        cancelFuture.actionGet();
         logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
     }
@@ -194,10 +192,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .execute();
 
         awaitForBlock(plugins);
-        ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchAction.NAME);
-        assertFalse(cancelFuture.isDone());
+        cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
-        cancelFuture.actionGet();
         SearchResponse response = ensureSearchWasCancelled(searchResponse);
         if (response != null) {
             // The response might not have failed on all shards - we need to clean scroll
@@ -239,10 +235,9 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .setScroll(keepAlive).execute();
 
         awaitForBlock(plugins);
-        ActionFuture<CancelTasksResponse> cancelFuture = cancelSearch(SearchScrollAction.NAME);
-        assertFalse(cancelFuture.isDone());
+        cancelSearch(SearchScrollAction.NAME);
         disableBlocks(plugins);
-        cancelFuture.actionGet();
+
         SearchResponse response = ensureSearchWasCancelled(scrollResponse);
         if (response != null) {
             // The response didn't fail completely - update scroll id

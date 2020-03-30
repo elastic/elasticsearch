@@ -102,45 +102,39 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     @Override
-    protected synchronized void taskOperation(CancelTasksRequest request, CancellableTask cancellableTask,
+    protected void taskOperation(CancelTasksRequest request, CancellableTask cancellableTask,
                                               ActionListener<TaskInfo> listener) {
         String nodeId = clusterService.localNode().getId();
-        final boolean canceled;
         if (cancellableTask.shouldCancelChildrenOnCancellation()) {
-            final StepListener<Void> completeListener = new StepListener<>();
-            // Only return when all these 3 actions completed: (1) bans are placed on nodes with outstanding child tasks,
-            // (2) child tasks are completed or failed, (3) the parent task itself was cancelled.
-            final GroupedActionListener<Void> groupedListener =
-                new GroupedActionListener<>(ActionListener.map(completeListener, r -> null), 3);
-            final Collection<DiscoveryNode> childNodes =
+            StepListener<Void> completedListener = new StepListener<>();
+            GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(completedListener, r -> null), 3);
+            Collection<DiscoveryNode> childrenNodes =
                 taskManager.startBanOnChildrenNodes(cancellableTask.getId(), () -> groupedListener.onResponse(null));
-            completeListener.whenComplete(r -> {
-                    removeBanOnNodes(cancellableTask, childNodes);
-                    listener.onResponse(cancellableTask.taskInfo(nodeId, false));
-                },
-                e -> {
-                    try {
-                        removeBanOnNodes(cancellableTask, childNodes);
-                    } catch (Exception inner) {
-                        e.addSuppressed(inner);
-                    }
-                    listener.onFailure(e);
-                });
-            canceled = taskManager.cancel(cancellableTask, request.getReason(), () -> groupedListener.onResponse(null));
-            if (canceled) {
-                // In case the task has some child tasks, we need to wait for until ban is set on all nodes
-                setBanOnNodes(request.getReason(), cancellableTask, childNodes, groupedListener);
+            boolean cancelled = taskManager.cancel(cancellableTask, request.getReason(), () -> groupedListener.onResponse(null));
+            if (cancelled == false) {
+                throw new IllegalStateException("task with id " + cancellableTask.getId() + " is already cancelled");
+            }
+            StepListener<Void> banOnNodesListener = new StepListener<>();
+            setBanOnNodes(request.getReason(), cancellableTask, childrenNodes, banOnNodesListener);
+            banOnNodesListener.whenComplete(groupedListener::onResponse, groupedListener::onFailure);
+            // We remove bans after all child tasks are completed although in theory we can do it on a per-node basic.
+            completedListener.whenComplete(
+                r -> removeBanOnNodes(cancellableTask, childrenNodes),
+                e -> removeBanOnNodes(cancellableTask, childrenNodes));
+            // if wait_for_completion is true, then only return when (1) bans are placed on child nodes, (2) child tasks are
+            // completed or failed, (3) the main task is cancelled. Otherwise, return after bans are placed on child nodes.
+            if (request.waitForCompletion()) {
+                completedListener.whenComplete(r -> listener.onResponse(cancellableTask.taskInfo(nodeId, false)), listener::onFailure);
+            } else {
+                banOnNodesListener.whenComplete(r -> listener.onResponse(cancellableTask.taskInfo(nodeId, false)), listener::onFailure);
             }
         } else {
-            canceled = taskManager.cancel(cancellableTask, request.getReason(),
+            logger.trace("task {} doesn't have any children that should be cancelled", cancellableTask.getId());
+            final boolean cancelled = taskManager.cancel(cancellableTask, request.getReason(),
                 () -> listener.onResponse(cancellableTask.taskInfo(nodeId, false)));
-            if (canceled) {
-                logger.trace("task {} doesn't have any children that should be cancelled", cancellableTask.getId());
+            if (cancelled == false) {
+                throw new IllegalStateException("task with id " + cancellableTask.getId() + " is already cancelled");
             }
-        }
-        if (canceled == false) {
-            logger.trace("task {} is already cancelled", cancellableTask.getId());
-            throw new IllegalStateException("task with id " + cancellableTask.getId() + " is already cancelled");
         }
     }
 

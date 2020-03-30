@@ -82,11 +82,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         completedLatches.clear();
     }
 
-    public void testBanOnlyNodesWithOutstandingChildTasks() throws Exception {
-        if (randomBoolean()) {
-            internalCluster().startNodes(randomIntBetween(1, 3));
-        }
-        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+    List<ChildRequest> setupChildRequests(Set<DiscoveryNode> nodes) {
         int numRequests = randomIntBetween(1, 30);
         List<ChildRequest> childRequests = new ArrayList<>();
         for (int i = 0; i < numRequests; i++) {
@@ -96,6 +92,15 @@ public class CancellableTasksIT extends ESIntegTestCase {
             beforeExecuteLatches.put(req, new CountDownLatch(1));
             completedLatches.put(req, new CountDownLatch(1));
         }
+        return childRequests;
+    }
+
+    public void testBanOnlyNodesWithOutstandingChildTasks() throws Exception {
+        if (randomBoolean()) {
+            internalCluster().startNodes(randomIntBetween(1, 3));
+        }
+        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        List<ChildRequest> childRequests = setupChildRequests(nodes);
         ActionFuture<MainResponse> mainTaskFuture = client().execute(TransportMainAction.ACTION, new MainRequest(childRequests));
         List<ChildRequest> completedRequests = randomSubsetOf(between(0, childRequests.size() - 1), childRequests);
         for (ChildRequest req : completedRequests) {
@@ -108,10 +113,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         for (ChildRequest req : outstandingRequests) {
             arrivedLatches.get(req).await();
         }
-        ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks()
-            .setActions(TransportMainAction.ACTION.name()).setDetailed(true).get();
-        assertThat(listTasksResponse.getTasks(), hasSize(1));
-        TaskId taskId = listTasksResponse.getTasks().get(0).getTaskId();
+        TaskId taskId = getMainTaskId();
         ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).execute();
         Set<DiscoveryNode> nodesWithOutstandingChildTask = outstandingRequests.stream().map(r -> r.targetNode).collect(Collectors.toSet());
         assertBusy(() -> {
@@ -147,6 +149,60 @@ public class CancellableTasksIT extends ESIntegTestCase {
                 assertThat(taskManager.getBanCount(), equalTo(0));
             }
         });
+    }
+
+    public void testFailToCancelBeingCancelledTask() throws Exception {
+        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        List<ChildRequest> childRequests = setupChildRequests(nodes);
+        ActionFuture<MainResponse> mainTaskFuture = client().execute(TransportMainAction.ACTION, new MainRequest(childRequests));
+        for (ChildRequest r : randomSubsetOf(between(1, childRequests.size()), childRequests)) {
+            arrivedLatches.get(r).await();
+        }
+        TaskId taskId = getMainTaskId();
+        ActionFuture<CancelTasksResponse> firstCancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).execute();
+        ensureChildTasksCancelledOrBanned(taskId);
+        CancelTasksResponse secondCancelResponse = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).get();
+        assertThat(secondCancelResponse.getTaskFailures(), hasSize(1));
+        assertThat(secondCancelResponse.getTaskFailures().get(0).getCause(), instanceOf(TaskCancelledException.class));
+        assertThat(secondCancelResponse.getTaskFailures().get(0).getCause().getMessage(), equalTo("Task is being cancelled already"));
+
+        assertFalse(mainTaskFuture.isDone());
+        assertFalse(firstCancelFuture.isDone());
+        for (ChildRequest r : childRequests) {
+            beforeExecuteLatches.get(r).countDown();
+        }
+        firstCancelFuture.actionGet();
+        mainTaskFuture.actionGet();
+    }
+
+    public void testDoNotWaitForChildTasks() throws Exception {
+        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        List<ChildRequest> childRequests = setupChildRequests(nodes);
+        ActionFuture<MainResponse> mainTaskFuture = client().execute(TransportMainAction.ACTION, new MainRequest(childRequests));
+        for (ChildRequest r : randomSubsetOf(between(1, childRequests.size()), childRequests)) {
+            arrivedLatches.get(r).await();
+        }
+        TaskId taskId = getMainTaskId();
+        boolean waitForChildTasks = randomBoolean();
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
+            .setWaitForCompletion(waitForChildTasks)
+            .execute();
+        if (waitForChildTasks) {
+            assertFalse(cancelFuture.isDone());
+        } else {
+            assertBusy(() -> assertTrue(cancelFuture.isDone()));
+        }
+        for (ChildRequest r : childRequests) {
+            beforeExecuteLatches.get(r).countDown();
+        }
+        mainTaskFuture.actionGet();
+    }
+
+    TaskId getMainTaskId() {
+        ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks()
+            .setActions(TransportMainAction.ACTION.name()).setDetailed(true).get();
+        assertThat(listTasksResponse.getTasks(), hasSize(1));
+        return listTasksResponse.getTasks().get(0).getTaskId();
     }
 
     public static class MainRequest extends ActionRequest {
@@ -232,13 +288,17 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            final boolean cancellable = randomBoolean();
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
-                @Override
-                public boolean shouldCancelChildrenOnCancellation() {
-                    return cancellable;
-                }
-            };
+            if (randomBoolean()) {
+                boolean shouldCancelChildrenOnCancellation = randomBoolean();
+                return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
+                    @Override
+                    public boolean shouldCancelChildrenOnCancellation() {
+                        return false;
+                    }
+                };
+            } else {
+                return super.createTask(id, type, action, parentTaskId, headers);
+            }
         }
 
         @Override

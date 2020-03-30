@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -132,18 +131,18 @@ public class CancelTests extends ReindexTestCase {
 
         // Cancel the request while the action is blocked by the indexing operation listeners.
         // This will prevent further requests from being sent.
-        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks()
-            .setTaskId(mainTask.getTaskId()).execute();
-        ensureChildTasksCancelledOrBanned(mainTask.getTaskId());
+        ListTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTaskId(mainTask.getTaskId())
+            .setWaitForCompletion(false) // do wait for child tasks as they are being blocked
+            .get();
+        cancelTasksResponse.rethrowFailures("Cancel");
+        assertThat(cancelTasksResponse.getTasks(), hasSize(1));
 
         /* The status should now show canceled. The request will still be in the
          * list because it is (or its children are) still blocked. */
-        assertBusy(() -> {
-            TaskInfo cancellingTask = client().admin().cluster().prepareGetTask(mainTask.getTaskId()).get().getTask().getTask();
-            BulkByScrollTask.Status cancellingStatus = (BulkByScrollTask.Status) cancellingTask.getStatus();
-            logger.debug("asserting that parent is marked canceled {}", cancellingStatus);
-            assertEquals(CancelTasksRequest.DEFAULT_REASON, cancellingStatus.getReasonCancelled());
-        });
+        mainTask = client().admin().cluster().prepareGetTask(mainTask.getTaskId()).get().getTask().getTask();
+        status = (BulkByScrollTask.Status) mainTask.getStatus();
+        logger.debug("asserting that parent is marked canceled {}", status);
+        assertEquals(CancelTasksRequest.DEFAULT_REASON, status.getReasonCancelled());
 
         if (builder.request().getSlices() > 1) {
             boolean foundCancelled = false;
@@ -160,12 +159,9 @@ public class CancelTests extends ReindexTestCase {
             assertTrue("Didn't find at least one sub task that was cancelled", foundCancelled);
         }
 
-        assertFalse(cancelFuture.isDone());
         logger.debug("unblocking the blocked update");
         ALLOWED_OPERATIONS.release(builder.request().getSlices());
-        ListTasksResponse cancelTasksResponse = cancelFuture.get();
-        cancelTasksResponse.rethrowFailures("Cancel");
-        assertThat(cancelTasksResponse.getTasks(), hasSize(1));
+
         // Checks that no more operations are executed
         assertBusy(() -> {
             if (builder.request().getSlices() == 1) {

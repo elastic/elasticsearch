@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,18 +36,25 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     public static final String DEFAULT_REASON = "by user request";
 
     private String reason = DEFAULT_REASON;
+    private boolean waitForCompletion = true;
 
     public CancelTasksRequest() {}
 
     public CancelTasksRequest(StreamInput in) throws IOException {
         super(in);
         this.reason = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            waitForCompletion = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(reason);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(waitForCompletion);
+        }
     }
 
     @Override
@@ -67,5 +75,16 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
      */
     public String getReason() {
         return reason;
+    }
+
+    /**
+     * If true, then only returns when all child tasks are cancelled; otherwise, return immediately after the main task is cancelled
+     */
+    public void setWaitForCompletion(boolean waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
+    }
+
+    public boolean waitForCompletion() {
+        return waitForCompletion;
     }
 }

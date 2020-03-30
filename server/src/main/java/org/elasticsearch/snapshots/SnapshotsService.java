@@ -827,22 +827,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         entries.add(updatedSnapshot);
                     } else if (snapshot.state() == State.INIT && initializingSnapshots.contains(snapshot.snapshot()) == false) {
                         changed = true;
-                        // Mark the snapshot as aborted as it failed to start from the previous master
-                        updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, State.ABORTED, snapshot.shards());
-                        entries.add(updatedSnapshot);
-
-                        // Clean up the snapshot that failed to start from the old master
-                        deleteSnapshot(snapshot.snapshot(), new ActionListener<>() {
-                            @Override
-                            public void onResponse(Void aVoid) {
-                                logger.debug("cleaned up abandoned snapshot {} in INIT state", snapshot.snapshot());
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.warn("failed to clean up abandoned snapshot {} in INIT state", snapshot.snapshot());
-                            }
-                        }, updatedSnapshot.repositoryStateId(), false);
+                        // A snapshot in INIT state hasn't yet written anything to the repository so we simply remove it
+                        // from the cluster state  without any further cleanup
                     }
                     assert updatedSnapshot.shards().size() == snapshot.shards().size()
                         : "Shard count changed during snapshot status update from [" + snapshot + "] to [" + updatedSnapshot + "]";

@@ -6,19 +6,18 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.junit.After;
 
@@ -31,8 +30,10 @@ import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createSched
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDataCounts;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDatafeedStats;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -49,35 +50,31 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         startRealtime(jobId);
 
+        assertThat(upgradeMode(), is(false));
+
         // Assert appropriate task state and assignment numbers
         assertThat(client().admin()
             .cluster()
             .prepareListTasks()
             .setActions(MlTasks.JOB_TASK_NAME + "[c]", MlTasks.DATAFEED_TASK_NAME + "[c]")
             .get()
-            .getTasks()
-            .size(), equalTo(2));
+            .getTasks(), hasSize(2));
 
         ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
 
         PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true).size(), equalTo(1));
-        assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true).size(), equalTo(1));
-        assertThat(MlMetadata.getMlMetadata(masterClusterState).isUpgradeMode(), equalTo(false));
+        assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true), hasSize(1));
+        assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true), hasSize(1));
 
         // Set the upgrade mode setting
-        AcknowledgedResponse response = client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(true))
-            .actionGet();
-
-        assertThat(response.isAcknowledged(), equalTo(true));
+        setUpgradeModeTo(true);
 
         masterClusterState = client().admin().cluster().prepareState().all().get().getState();
 
         // Assert state for tasks still exists and that the upgrade setting is set
         persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true).size(), equalTo(1));
-        assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true).size(), equalTo(1));
-        assertThat(MlMetadata.getMlMetadata(masterClusterState).isUpgradeMode(), equalTo(true));
+        assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true), hasSize(1));
+        assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true), hasSize(1));
 
         assertThat(client().admin()
             .cluster()
@@ -96,33 +93,35 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         assertThat(datafeedStats.getAssignmentExplanation(), equalTo(AWAITING_UPGRADE.getExplanation()));
         assertThat(datafeedStats.getNode(), is(nullValue()));
 
+        setUpgradeModeTo(false);
+
         Job.Builder job = createScheduledJob("job-should-not-open");
         registerJob(job);
         putJob(job);
+
+        setUpgradeModeTo(true);
+
         ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class, () -> openJob(job.getId()));
         assertThat(statusException.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
-        assertThat(statusException.getMessage(), equalTo("Cannot open jobs when upgrade mode is enabled"));
+        assertThat(
+            statusException.getMessage(),
+            equalTo("Cannot perform cluster:admin/xpack/ml/job/open action while upgrade mode is enabled"));
 
-        //Disable the setting
-        response = client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(false))
-            .actionGet();
-
-        assertThat(response.isAcknowledged(), equalTo(true));
+        // Disable the setting
+        setUpgradeModeTo(false);
 
         masterClusterState = client().admin().cluster().prepareState().all().get().getState();
 
         persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true).size(), equalTo(1));
-        assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true).size(), equalTo(1));
-        assertThat(MlMetadata.getMlMetadata(masterClusterState).isUpgradeMode(), equalTo(false));
+        assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true), hasSize(1));
+        assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true), hasSize(1));
 
         assertBusy(() -> assertThat(client().admin()
             .cluster()
             .prepareListTasks()
             .setActions(MlTasks.JOB_TASK_NAME + "[c]", MlTasks.DATAFEED_TASK_NAME + "[c]")
             .get()
-            .getTasks()
-            .size(), equalTo(2)));
+            .getTasks(), hasSize(2)));
 
         jobStats = getJobStats(jobId).get(0);
         assertThat(jobStats.getState(), equalTo(JobState.OPENED));
@@ -131,6 +130,36 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         datafeedStats = getDatafeedStats(datafeedId);
         assertThat(datafeedStats.getDatafeedState(), equalTo(DatafeedState.STARTED));
         assertThat(datafeedStats.getAssignmentExplanation(), not(equalTo(AWAITING_UPGRADE.getExplanation())));
+    }
+
+    public void testAnomalyDetectionActionsInUpgradeMode() {
+        setUpgradeModeTo(true);
+
+        String jobId = "job_id";
+        expectThrowsUpgradeModeException(() -> putJob(createScheduledJob(jobId)));
+        expectThrowsUpgradeModeException(() -> updateJob(jobId, null));
+        expectThrowsUpgradeModeException(() -> deleteJob(jobId));
+        expectThrowsUpgradeModeException(() -> openJob(jobId));
+        expectThrowsUpgradeModeException(() -> flushJob(jobId, false));
+        expectThrowsUpgradeModeException(() -> closeJob(jobId));
+        expectThrowsUpgradeModeException(() -> persistJob(jobId));
+        expectThrowsUpgradeModeException(() -> forecast(jobId, null, null));
+
+        String snapshotId = "snapshot_id";
+        expectThrowsUpgradeModeException(() -> revertModelSnapshot(jobId, snapshotId));
+
+        String datafeedId = "datafeed_id";
+        expectThrowsUpgradeModeException(() -> putDatafeed(createDatafeed(datafeedId, jobId, Collections.singletonList("index"))));
+        expectThrowsUpgradeModeException(() -> updateDatafeed(new DatafeedUpdate.Builder(datafeedId).build()));
+        expectThrowsUpgradeModeException(() -> deleteDatafeed(datafeedId));
+        expectThrowsUpgradeModeException(() -> startDatafeed(datafeedId, 0, null));
+        expectThrowsUpgradeModeException(() -> stopDatafeed(datafeedId));
+
+        String filterId = "filter_id";
+        expectThrowsUpgradeModeException(() -> putMlFilter(MlFilter.builder(filterId).build()));
+
+        String calendarId = "calendar_id";
+        expectThrowsUpgradeModeException(() -> putCalendar(calendarId, Collections.singletonList(jobId), ""));
     }
 
     private void startRealtime(String jobId) throws Exception {
@@ -168,4 +197,9 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    private static void expectThrowsUpgradeModeException(ThrowingRunnable actionInvocation) {
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, actionInvocation);
+        assertThat(e.getMessage(), containsString("upgrade mode is enabled"));
+        assertThat(e.status(), is(equalTo(RestStatus.TOO_MANY_REQUESTS)));
+    }
 }

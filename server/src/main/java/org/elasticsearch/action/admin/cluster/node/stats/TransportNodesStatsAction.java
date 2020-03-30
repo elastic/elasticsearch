@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -87,7 +87,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
             NodesStatsRequest.Metric.SCRIPT_CACHE.containedIn(metrics));
     }
 
-    public static class NodeStatsRequest extends BaseNodeRequest {
+    public static class NodeStatsRequest extends TransportRequest {
 
         NodesStatsRequest request;
 

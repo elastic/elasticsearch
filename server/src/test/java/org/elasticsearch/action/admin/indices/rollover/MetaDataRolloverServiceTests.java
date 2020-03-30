@@ -27,10 +27,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
@@ -212,7 +212,7 @@ public class MetaDataRolloverServiceTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("source alias [" + aliasWithNoWriteIndex + "] does not point to a write index"));
         exception = expectThrows(IllegalArgumentException.class, () ->
             MetaDataRolloverService.validate(metaData, randomFrom(index1, index2)));
-        assertThat(exception.getMessage(), equalTo("source alias is a concrete index"));
+        assertThat(exception.getMessage(), equalTo("source alias is a [concrete index], but an [alias] was expected"));
         exception = expectThrows(IllegalArgumentException.class, () ->
             MetaDataRolloverService.validate(metaData, randomAlphaOfLength(5))
         );
@@ -341,7 +341,8 @@ public class MetaDataRolloverServiceTests extends ESTestCase {
             IndexMetaData rolloverIndexMetaData = rolloverMetaData.index(newIndexName);
             assertThat(rolloverIndexMetaData.getNumberOfShards(), equalTo(numberOfShards));
 
-            AliasOrIndex.Alias alias = (AliasOrIndex.Alias) rolloverMetaData.getAliasAndIndexLookup().get(aliasName);
+            IndexAbstraction alias = rolloverMetaData.getIndicesLookup().get(aliasName);
+            assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
             assertThat(alias.getIndices(), hasSize(2));
             assertThat(alias.getIndices(), hasItem(rolloverMetaData.index(sourceIndexName)));
             assertThat(alias.getIndices(), hasItem(rolloverIndexMetaData));

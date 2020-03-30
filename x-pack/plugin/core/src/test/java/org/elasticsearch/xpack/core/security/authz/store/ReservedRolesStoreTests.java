@@ -42,7 +42,7 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -764,7 +764,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             String asyncSearchIndex = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2);
             final Map<String, IndexAccessControl> authzMap = role.indices().authorize(indexMonitoringActionName,
                 Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_MAIN_ALIAS, asyncSearchIndex),
-                metaData.getAliasAndIndexLookup(), fieldPermissionsCache);
+                metaData.getIndicesLookup(), fieldPermissionsCache);
             assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
             assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
             assertThat(authzMap.get(asyncSearchIndex).isGranted(), is(true));
@@ -893,7 +893,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, AliasOrIndex> lookup = metaData.getAliasAndIndexLookup();
+        SortedMap<String, IndexAbstraction> lookup = metaData.getIndicesLookup();
         Map<String, IndexAccessControl> authzMap =
                 superuserRole.indices().authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("a1").isGranted(), is(true));

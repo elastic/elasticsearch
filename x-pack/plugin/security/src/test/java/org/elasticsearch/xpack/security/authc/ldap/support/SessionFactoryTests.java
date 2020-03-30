@@ -11,6 +11,7 @@ import com.unboundid.util.ssl.TrustAllSSLSocketVerifier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -66,13 +67,71 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(HostNameSSLSocketVerifier.class)));
     }
 
+    public void testSessionFactoryWithResponseTimeout() throws Exception {
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "response_settings");
+        final Path pathHome = createTempDir();
+        {
+            Settings settings = Settings.builder()
+                    .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "10s")
+                    .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
+                    .put("path.home", pathHome)
+                    .build();
+
+            final Environment environment = TestEnvironment.newEnvironment(settings);
+            RealmConfig realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
+            LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
+            assertThat(options.getResponseTimeoutMillis(), is(equalTo(10000L)));
+        }
+        {
+            Settings settings = Settings.builder()
+                    .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "7s")
+                    .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
+                    .put("path.home", pathHome)
+                    .build();
+
+            final Environment environment = TestEnvironment.newEnvironment(settings);
+            RealmConfig realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
+            LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
+            assertThat(options.getResponseTimeoutMillis(), is(equalTo(7000L)));
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{SessionFactorySettings.TIMEOUT_TCP_READ_SETTING.apply("ldap")
+                    .getConcreteSettingForNamespace("response_settings")});
+        }
+        {
+            Settings settings = Settings.builder()
+                    .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "11s")
+                    .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "6s")
+                    .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
+                    .put("path.home", pathHome)
+                    .build();
+
+            final Environment environment = TestEnvironment.newEnvironment(settings);
+            RealmConfig realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SessionFactory.connectionOptions(realmConfig
+                    , new SSLService(settings, environment), logger));
+            assertThat(ex.getMessage(), is("[xpack.security.authc.realms.ldap.response_settings.timeout.tcp_read] and [xpack.security" +
+                    ".authc.realms.ldap.response_settings.timeout.response] may not be used at the same time"));
+        }
+        {
+            Settings settings = Settings.builder()
+                    .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_LDAP_SETTING), "750ms")
+                    .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
+                    .put("path.home", pathHome)
+                    .build();
+
+            final Environment environment = TestEnvironment.newEnvironment(settings);
+            RealmConfig realmConfig = new RealmConfig(realmId, settings, environment, new ThreadContext(settings));
+            LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(settings, environment), logger);
+            assertThat(options.getResponseTimeoutMillis(), is(equalTo(750L)));
+        }
+    }
+
     public void testConnectionFactoryReturnsCorrectLDAPConnectionOptions() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "conn_settings");
         final Path pathHome = createTempDir();
         Settings settings = Settings.builder()
                 .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING), "10ms")
                 .put(getFullSettingKey(realmId, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), "false")
-                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "20ms")
+                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING), "20ms")
                 .put(getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), "false")
                 .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                 .put("path.home", pathHome)

@@ -29,7 +29,7 @@ setup:
 ---
 "Snapshot/Restore with repository-azure":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "8.0 changes get snapshots response format"
 
   # Get repository
@@ -213,7 +213,7 @@ setup:
 ---
 "Get a non existing snapshot":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "8.0 changes get snapshots response format"
 
   - do:

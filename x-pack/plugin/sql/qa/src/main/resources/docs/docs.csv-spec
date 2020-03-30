@@ -876,9 +876,9 @@ dtIntervalPlusInterval
 // tag::dtIntervalPlusInterval
 SELECT INTERVAL 1 DAY + INTERVAL 53 MINUTES AS result;
 
-    result     
+    result
 ---------------
-+1 00:53:00.0                       
++1 00:53:00
 
 // end::dtIntervalPlusInterval
 ;
@@ -909,9 +909,9 @@ dtIntervalMinusInterval
 // tag::dtIntervalMinusInterval
 SELECT INTERVAL '1' DAY - INTERVAL '2' HOURS AS result;
 
-    result     
+    result
 ---------------
-+0 22:00:00.0  
++0 22:00:00
 // end::dtIntervalMinusInterval
 ;
 
@@ -939,7 +939,7 @@ SELECT -2 * INTERVAL '3' YEARS AS result;
 
 ///////////////////////////////
 //
-// Order by
+// Order By
 //
 ///////////////////////////////
 
@@ -2673,6 +2673,36 @@ SELECT DATETRUNC('quarters', CAST('2019-09-04' AS DATE)) AS quarter;
 ------------------------
 2019-07-01T00:00:00.000Z
 // end::truncateDateQuarter
+;
+
+truncateIntervalCenturies
+// tag::truncateIntervalCenturies
+SELECT DATE_TRUNC('centuries', INTERVAL '199-5' YEAR TO MONTH) AS centuries;
+
+      centuries
+------------------
+ +100-0
+// end::truncateIntervalCenturies
+;
+
+truncateIntervalHour
+// tag::truncateIntervalHour
+SELECT DATE_TRUNC('hours', INTERVAL '17 22:13:12' DAY TO SECONDS) AS hour;
+
+      hour
+------------------
++17 22:00:00
+// end::truncateIntervalHour
+;
+
+truncateIntervalDay
+// tag::truncateIntervalDay
+SELECT DATE_TRUNC('days', INTERVAL '19 15:24:19' DAY TO SECONDS) AS day;
+
+      day
+------------------
++19 00:00:00
+// end::truncateIntervalDay
 ;
 
 constantDayOfWeek

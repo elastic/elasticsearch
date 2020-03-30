@@ -19,26 +19,23 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.MapSubShortcutNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a map load/store shortcut. (Internal only.)
  */
-final class PSubMapShortcut extends AStoreable {
+public class PSubMapShortcut extends AStoreable {
 
-    private final Class<?> targetClass;
-    private AExpression index;
-
-    private PainlessMethod getter;
-    private PainlessMethod setter;
+    protected final Class<?> targetClass;
+    protected final AExpression index;
 
     PSubMapShortcut(Location location, Class<?> targetClass, AExpression index) {
         super(location);
@@ -48,16 +45,13 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
-        getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
-        setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "put", 2);
+        PainlessMethod getter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
+        PainlessMethod setter = scriptRoot.getPainlessLookup().lookupPainlessMethod(targetClass, false, "put", 2);
 
         if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1)) {
             throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + canonicalClassName + "]."));
@@ -72,43 +66,35 @@ final class PSubMapShortcut extends AStoreable {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
-        if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
-            index.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-            index.analyze(scriptRoot, locals);
-            index = index.cast(scriptRoot, locals);
+        Output indexOutput;
 
-            actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
+        if ((input.read || input.write) && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+            Input indexInput = new Input();
+            indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
+            indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+            index.cast(indexInput, indexOutput);
+
+            output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
         } else {
             throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + canonicalClassName + "]."));
         }
-    }
 
-    @Override
-    MapSubShortcutNode write() {
         MapSubShortcutNode mapSubShortcutNode = new MapSubShortcutNode();
 
-        mapSubShortcutNode.setChildNode(index.write());
+        mapSubShortcutNode.setChildNode(index.cast(indexOutput));
 
         mapSubShortcutNode.setLocation(location);
-        mapSubShortcutNode.setExpressionType(actual);
+        mapSubShortcutNode.setExpressionType(output.actual);
         mapSubShortcutNode.setGetter(getter);
         mapSubShortcutNode.setSetter(setter);
 
-        return mapSubShortcutNode;
+        output.expressionNode = mapSubShortcutNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
         return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, index);
     }
 }

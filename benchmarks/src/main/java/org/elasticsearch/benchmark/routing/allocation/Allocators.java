@@ -36,7 +36,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -67,33 +66,34 @@ public final class Allocators {
         throw new AssertionError("Do not instantiate");
     }
 
-
-    public static AllocationService createAllocationService(Settings settings) throws NoSuchMethodException, InstantiationException,
-        IllegalAccessException, InvocationTargetException {
-        return createAllocationService(settings, new ClusterSettings(Settings.EMPTY, ClusterSettings
-            .BUILT_IN_CLUSTER_SETTINGS));
+    public static AllocationService createAllocationService(Settings settings) {
+        return createAllocationService(settings, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
-    public static AllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings) throws
-        InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    public static AllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings) {
         return new AllocationService(
             defaultAllocationDeciders(settings, clusterSettings),
-            NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
+            NoopGatewayAllocator.INSTANCE,
+            new BalancedShardsAllocator(settings),
+            EmptyClusterInfoService.INSTANCE
+        );
     }
 
-    public static AllocationDeciders defaultAllocationDeciders(Settings settings, ClusterSettings clusterSettings) throws
-        IllegalAccessException, InvocationTargetException, InstantiationException, NoSuchMethodException {
-        Collection<AllocationDecider> deciders =
-            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList());
+    public static AllocationDeciders defaultAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList());
         return new AllocationDeciders(deciders);
-
     }
 
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode("", nodeId, new TransportAddress(TransportAddress.META_ADDRESS,
-            portGenerator.incrementAndGet()), attributes, Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE,
-            DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
+        return new DiscoveryNode(
+            "",
+            nodeId,
+            new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet()),
+            attributes,
+            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
     }
 }

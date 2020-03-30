@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -98,6 +100,29 @@ public class StoreFileMetaData implements Writeable {
      */
     public String checksum() {
         return this.checksum;
+    }
+
+    /**
+     * Checks if the bytes returned by {@link #hash()} are the contents of the file that this instances refers to.
+     *
+     * @return {@code true} iff {@link #hash()} will return the actual file contents
+     */
+    public boolean hashEqualsContents() {
+        if (hash.length == length) {
+            try {
+                final boolean checksumsMatch = Store.digestToString(CodecUtil.retrieveChecksum(
+                    new ByteArrayIndexInput("store_file", hash.bytes, hash.offset, hash.length))).equals(checksum);
+                assert checksumsMatch : "Checksums did not match for [" + this + "] which has a hash of [" + hash + "]";
+                return checksumsMatch;
+            } catch (Exception e) {
+                // Hash didn't contain any bytes that Lucene could extract a checksum from so we can't verify against the checksum of the
+                // original file. We should never see an exception here because lucene files are assumed to always contain the checksum
+                // footer.
+                assert false : new AssertionError("Saw exception for hash [" + hash + "] but expected it to be Lucene file", e);
+                return false;
+            }
+        }
+        return false;
     }
 
     /**

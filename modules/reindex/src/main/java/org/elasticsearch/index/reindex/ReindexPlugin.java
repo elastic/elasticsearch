@@ -74,17 +74,18 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
-                new RestReindexAction(restController),
-                new RestUpdateByQueryAction(restController),
-                new RestDeleteByQueryAction(restController),
-                new RestRethrottleAction(restController, nodesInCluster));
+                new RestReindexAction(),
+                new RestUpdateByQueryAction(),
+                new RestDeleteByQueryAction(),
+                new RestRethrottleAction(nodesInCluster));
     }
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
         return Collections.singletonList(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
     }
 

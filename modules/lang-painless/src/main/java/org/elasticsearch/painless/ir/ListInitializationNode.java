@@ -20,10 +20,10 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.ScopeTable;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
@@ -53,7 +53,7 @@ public class ListInitializationNode extends ArgumentsNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
@@ -63,7 +63,7 @@ public class ListInitializationNode extends ArgumentsNode {
 
         for (ExpressionNode argument : getArgumentNodes()) {
             methodWriter.dup();
-            argument.write(classWriter, methodWriter, globals);
+            argument.write(classWriter, methodWriter, scopeTable);
             methodWriter.invokeMethodCall(method);
             methodWriter.pop();
         }

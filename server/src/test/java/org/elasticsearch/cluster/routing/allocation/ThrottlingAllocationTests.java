@@ -47,6 +47,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -360,13 +361,15 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                     snapshotIndices.add(index.getName());
                     routingTableBuilder.addAsNewRestore(indexMetaData,
                         new SnapshotRecoverySource(
-                            restoreUUID, snapshot, Version.CURRENT, indexMetaData.getIndex().getName()), new IntHashSet());
+                            restoreUUID, snapshot, Version.CURRENT,
+                            new IndexId(indexMetaData.getIndex().getName(), UUIDs.randomBase64UUID(random()))), new IntHashSet());
                     break;
                 case 4:
                     snapshotIndices.add(index.getName());
                     routingTableBuilder.addAsRestore(indexMetaData,
                         new SnapshotRecoverySource(
-                            restoreUUID, snapshot, Version.CURRENT, indexMetaData.getIndex().getName()));
+                            restoreUUID, snapshot, Version.CURRENT,
+                            new IndexId(indexMetaData.getIndex().getName(), UUIDs.randomBase64UUID(random()))));
                     break;
                 case 5:
                     routingTableBuilder.addAsNew(indexMetaData);

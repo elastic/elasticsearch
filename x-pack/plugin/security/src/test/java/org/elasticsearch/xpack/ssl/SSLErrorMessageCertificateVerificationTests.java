@@ -95,6 +95,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     public void testDiagnosticTrustManagerForHostnameVerificationFailure() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final Settings settings = getPemSSLSettings(HTTP_SERVER_SSL, "not-this-host.crt", "not-this-host.key",
             SSLClientAuth.NONE, VerificationMode.FULL, null)
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))

@@ -165,7 +165,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         MapperService mapperService = mock(MapperService.class);
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
         when(metaJoinFieldType.getMapper()).thenReturn(joinFieldMapper);
-        when(mapperService.fullName("_parent_join")).thenReturn(metaJoinFieldType);
+        when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
         return mapperService;
     }
 

@@ -10,11 +10,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -27,6 +29,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_DEL
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_HOT_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_PHASES;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeseriesLifecycleTypeTests extends ESTestCase {
@@ -35,7 +38,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         new AllocateAction(2, Collections.singletonMap("node", "node1"),null, null);
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
-    private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1);
+    private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
@@ -64,7 +67,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, LifecycleAction> actions = VALID_HOT_ACTIONS
             .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         if (randomBoolean()) {
-            invalidAction = getTestAction(randomFrom("allocate", "forcemerge", "delete", "shrink", "freeze"));
+            invalidAction = getTestAction(randomFrom("allocate", "delete", "shrink", "freeze"));
             actions.put(invalidAction.getWriteableName(), invalidAction);
         }
         Map<String, Phase> hotPhase = Collections.singletonMap("hot",
@@ -77,6 +80,22 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [hot]"));
         } else {
             TimeseriesLifecycleType.INSTANCE.validate(hotPhase.values());
+        }
+
+        {
+            final Consumer<Collection<String>> validateHotActions = hotActions -> {
+                final Map<String, LifecycleAction> hotActionMap = hotActions.stream()
+                    .map(this::getTestAction)
+                    .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
+                TimeseriesLifecycleType.INSTANCE.validate(Collections.singleton(new Phase("hot", TimeValue.ZERO, hotActionMap)));
+            };
+
+            validateHotActions.accept(Arrays.asList(RolloverAction.NAME));
+            validateHotActions.accept(Arrays.asList(RolloverAction.NAME, ForceMergeAction.NAME));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> validateHotActions.accept(Arrays.asList(ForceMergeAction.NAME)));
+            assertThat(e.getMessage(),
+                containsString("the [forcemerge] action may not be used in the [hot] phase without an accompanying [rollover] action"));
         }
     }
 
@@ -340,11 +359,12 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
         assertNextActionName("hot", RolloverAction.NAME, null, new String[] {});
         assertNextActionName("hot", RolloverAction.NAME, null, new String[] { RolloverAction.NAME });
+        assertNextActionName("hot", RolloverAction.NAME, ForceMergeAction.NAME, ForceMergeAction.NAME, RolloverAction.NAME);
+        assertNextActionName("hot", ForceMergeAction.NAME, null, RolloverAction.NAME, ForceMergeAction.NAME);
 
         assertInvalidAction("hot", "foo", new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", AllocateAction.NAME, new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", DeleteAction.NAME, new String[] { RolloverAction.NAME });
-        assertInvalidAction("hot", ForceMergeAction.NAME, new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", ReadOnlyAction.NAME, new String[] { RolloverAction.NAME });
         assertInvalidAction("hot", ShrinkAction.NAME, new String[] { RolloverAction.NAME });
 
@@ -465,7 +485,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Phase phase = new Phase("foo", TimeValue.ZERO, Collections.emptyMap());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.INSTANCE.getNextActionName(ShrinkAction.NAME, phase));
-        assertEquals("lifecycle type[" + TimeseriesLifecycleType.TYPE + "] does not support phase[" + phase.getName() + "]",
+        assertEquals("lifecycle type [" + TimeseriesLifecycleType.TYPE + "] does not support phase [" + phase.getName() + "]",
                 exception.getMessage());
     }
 
@@ -493,7 +513,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             case DeleteAction.NAME:
                 return new DeleteAction();
             case ForceMergeAction.NAME:
-                return new ForceMergeAction(1);
+                return new ForceMergeAction(1, null);
             case ReadOnlyAction.NAME:
                 return new ReadOnlyAction();
             case RolloverAction.NAME:

@@ -93,14 +93,8 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                                                           List<String> stoppingDatafeedIds,
                                                           List<String> notStoppedDatafeedIds) {
         switch (datafeedState) {
+            // Treat STARTING like STARTED for stop API behaviour.
             case STARTING:
-                // The STARTING state is not used anywhere at present, so this should never happen.
-                // At present datafeeds that have a persistent task that hasn't yet been assigned
-                // a state are reported as STOPPED (which is not great).  It could be considered a
-                // breaking change to introduce the STARTING state though, so let's aim to do it in
-                // version 8.  Also consider treating STARTING like STARTED for stop API behaviour.
-                notStoppedDatafeedIds.add(datafeedId);
-                break;
             case STARTED:
                 startedDatafeedIds.add(datafeedId);
                 notStoppedDatafeedIds.add(datafeedId);
@@ -131,10 +125,13 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                         new ActionListenerResponseHandler<>(listener, StopDatafeedAction.Response::new));
             }
         } else {
-            datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds(), ActionListener.wrap(
+            PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(),
+                request.allowNoDatafeeds(),
+                tasks,
+                request.isForce(),
+                ActionListener.wrap(
                     expandedIds -> {
-                        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-
                         List<String> startedDatafeeds = new ArrayList<>();
                         List<String> stoppingDatafeeds = new ArrayList<>();
                         List<String> notStoppedDatafeeds = new ArrayList<>();
@@ -257,7 +254,9 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
     protected void taskOperation(StopDatafeedAction.Request request, TransportStartDatafeedAction.DatafeedTask datafeedTask,
                                  ActionListener<StopDatafeedAction.Response> listener) {
         DatafeedState taskState = DatafeedState.STOPPING;
-        datafeedTask.updatePersistentTaskState(taskState, ActionListener.wrap(task -> {
+        datafeedTask.updatePersistentTaskState(taskState,
+            ActionListener.wrap(
+                task -> {
                     // we need to fork because we are now on a network threadpool
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                         @Override

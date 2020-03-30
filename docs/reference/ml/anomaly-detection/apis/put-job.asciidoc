@@ -78,7 +78,7 @@ A detector has the following properties:
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
 
-`analysis_config`.`detectors`.`custom_rules`::::
+[[put-customrules]]`analysis_config`.`detectors`.`custom_rules`::::
 +
 --
 (array)

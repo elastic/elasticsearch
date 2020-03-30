@@ -11,7 +11,7 @@ For example, you can use the `ngram` token filter to change `fox` to
 `[ f, fo, o, ox, x ]`.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/ngram/NGramTokenFilter.html[NGramTokenFilter].
+{lucene-analysis-docs}/ngram/NGramTokenFilter.html[NGramTokenFilter].
 
 [NOTE]
 ====

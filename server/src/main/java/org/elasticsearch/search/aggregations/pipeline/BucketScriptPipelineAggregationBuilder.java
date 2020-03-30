@@ -199,6 +199,11 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     }
 
     @Override
+    protected void validate(ValidationContext context) {
+        // Nothing to check
+    }
+
+    @Override
     protected boolean overrideBucketsPath() {
         return true;
     }

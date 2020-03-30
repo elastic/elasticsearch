@@ -6,11 +6,14 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
@@ -48,12 +51,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -62,6 +70,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -73,8 +82,34 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     private Map<String, TransformConfig> transformConfigs = new HashMap<>();
 
     protected void cleanUp() throws IOException {
+        logAudits();
         cleanUpTransforms();
         waitForPendingTasks();
+    }
+
+    private void logAudits() throws IOException {
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
+
+        // using '*' to make this lenient and do not fail if the audit index does not exist
+        SearchRequest searchRequest = new SearchRequest(".transform-notifications-*");
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(100).sort("timestamp", SortOrder.ASC));
+
+        restClient.indices().refresh(new RefreshRequest(searchRequest.indices()), RequestOptions.DEFAULT);
+
+        SearchResponse searchResponse = restClient.search(searchRequest, RequestOptions.DEFAULT);
+
+        for (SearchHit hit : searchResponse.getHits()) {
+            Map<String, Object> source = hit.getSourceAsMap();
+            String level = (String) source.getOrDefault("level", "info");
+            logger.log(
+                Level.getLevel(level.toUpperCase(Locale.ROOT)),
+                "Transform audit: [{}] [{}] [{}] [{}]",
+                Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
+                source.getOrDefault("transform_id", "n/a"),
+                source.getOrDefault("message", "n/a"),
+                source.getOrDefault("node_name", "n/a")
+            );
+        }
     }
 
     protected void cleanUpTransforms() throws IOException {
@@ -89,10 +124,8 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         return stopTransform(id, true, null, false);
     }
 
-    protected StopTransformResponse stopTransform(String id,
-                                                  boolean waitForCompletion,
-                                                  TimeValue timeout,
-                                                  boolean waitForCheckpoint) throws IOException {
+    protected StopTransformResponse stopTransform(String id, boolean waitForCompletion, TimeValue timeout, boolean waitForCheckpoint)
+        throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.transform()
             .stopTransform(new StopTransformRequest(id, waitForCompletion, timeout, waitForCheckpoint), RequestOptions.DEFAULT);
@@ -105,8 +138,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected AcknowledgedResponse deleteTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        AcknowledgedResponse response =
-            restClient.transform().deleteTransform(new DeleteTransformRequest(id), RequestOptions.DEFAULT);
+        AcknowledgedResponse response = restClient.transform().deleteTransform(new DeleteTransformRequest(id), RequestOptions.DEFAULT);
         if (response.isAcknowledged()) {
             transformConfigs.remove(id);
         }
@@ -118,8 +150,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
             throw new IllegalArgumentException("transform [" + config.getId() + "] is already registered");
         }
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        AcknowledgedResponse response =
-            restClient.transform().putTransform(new PutTransformRequest(config), options);
+        AcknowledgedResponse response = restClient.transform().putTransform(new PutTransformRequest(config), options);
         if (response.isAcknowledged()) {
             transformConfigs.put(config.getId(), config);
         }
@@ -141,20 +172,21 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     }
 
     protected void waitUntilCheckpoint(String id, long checkpoint, TimeValue waitTime) throws Exception {
-        assertBusy(() ->
-            assertEquals(checkpoint, getTransformStats(id)
-                .getTransformsStats()
-                .get(0)
-                .getCheckpointingInfo()
-                .getLast()
-                .getCheckpoint()),
+        assertBusy(
+            () -> assertEquals(
+                checkpoint,
+                getTransformStats(id).getTransformsStats().get(0).getCheckpointingInfo().getLast().getCheckpoint()
+            ),
             waitTime.getMillis(),
-            TimeUnit.MILLISECONDS);
+            TimeUnit.MILLISECONDS
+        );
     }
 
-    protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(String field,
-                                                                                       DateHistogramInterval interval,
-                                                                                       ZoneId zone) {
+    protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(
+        String field,
+        DateHistogramInterval interval,
+        ZoneId zone
+    ) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setInterval(new DateHistogramGroupSource.FixedInterval(interval))
@@ -162,9 +194,11 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         return builder.build();
     }
 
-    protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(String field,
-                                                                                          DateHistogramInterval interval,
-                                                                                          ZoneId zone) {
+    protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(
+        String field,
+        DateHistogramInterval interval,
+        ZoneId zone
+    ) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setInterval(new DateHistogramGroupSource.CalendarInterval(interval))
@@ -188,14 +222,13 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         return new AggregationConfig(aggregations);
     }
 
-    protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups,
-                                            AggregatorFactories.Builder aggregations) throws Exception {
+    protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups, AggregatorFactories.Builder aggregations)
+        throws Exception {
         return createPivotConfig(groups, aggregations, null);
     }
 
-    protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups,
-                                            AggregatorFactories.Builder aggregations,
-                                            Integer size) throws Exception {
+    protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups, AggregatorFactories.Builder aggregations, Integer size)
+        throws Exception {
         PivotConfig.Builder builder = PivotConfig.builder()
             .setGroups(createGroupConfig(groups))
             .setAggregationConfig(createAggConfig(aggregations))
@@ -203,20 +236,24 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         return builder.build();
     }
 
-    protected TransformConfig createTransformConfig(String id,
-                                                    Map<String, SingleGroupSource> groups,
-                                                    AggregatorFactories.Builder aggregations,
-                                                    String destinationIndex,
-                                                    String... sourceIndices) throws Exception {
+    protected TransformConfig createTransformConfig(
+        String id,
+        Map<String, SingleGroupSource> groups,
+        AggregatorFactories.Builder aggregations,
+        String destinationIndex,
+        String... sourceIndices
+    ) throws Exception {
         return createTransformConfig(id, groups, aggregations, destinationIndex, QueryBuilders.matchAllQuery(), sourceIndices);
     }
 
-    protected TransformConfig.Builder createTransformConfigBuilder(String id,
-                                                                   Map<String, SingleGroupSource> groups,
-                                                                   AggregatorFactories.Builder aggregations,
-                                                                   String destinationIndex,
-                                                                   QueryBuilder queryBuilder,
-                                                                   String... sourceIndices) throws Exception {
+    protected TransformConfig.Builder createTransformConfigBuilder(
+        String id,
+        Map<String, SingleGroupSource> groups,
+        AggregatorFactories.Builder aggregations,
+        String destinationIndex,
+        QueryBuilder queryBuilder,
+        String... sourceIndices
+    ) throws Exception {
         return TransformConfig.builder()
             .setId(id)
             .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
@@ -226,12 +263,14 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
             .setDescription("Test transform config id: " + id);
     }
 
-    protected TransformConfig createTransformConfig(String id,
-                                                    Map<String, SingleGroupSource> groups,
-                                                    AggregatorFactories.Builder aggregations,
-                                                    String destinationIndex,
-                                                    QueryBuilder queryBuilder,
-                                                    String... sourceIndices) throws Exception {
+    protected TransformConfig createTransformConfig(
+        String id,
+        Map<String, SingleGroupSource> groups,
+        AggregatorFactories.Builder aggregations,
+        String destinationIndex,
+        QueryBuilder queryBuilder,
+        String... sourceIndices
+    ) throws Exception {
         return createTransformConfigBuilder(id, groups, aggregations, destinationIndex, queryBuilder, sourceIndices).build();
     }
 
@@ -272,8 +311,8 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                     .endObject();
             }
             builder.endObject();
-            CreateIndexResponse response =
-                restClient.indices().create(new CreateIndexRequest(indexName).mapping(builder), RequestOptions.DEFAULT);
+            CreateIndexResponse response = restClient.indices()
+                .create(new CreateIndexRequest(indexName).mapping(builder), RequestOptions.DEFAULT);
             assertThat(response.isAcknowledged(), is(true));
         }
 
@@ -320,10 +359,14 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected Map<String, Object> toLazy(ToXContent parsedObject) throws Exception {
         BytesReference bytes = XContentHelper.toXContent(parsedObject, XContentType.JSON, false);
-        try(XContentParser parser = XContentHelper.createParser(xContentRegistry(),
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            bytes,
-            XContentType.JSON)) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                xContentRegistry(),
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                bytes,
+                XContentType.JSON
+            )
+        ) {
             return parser.mapOrdered();
         }
     }
@@ -349,16 +392,15 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        final String token = "Basic " +
-            Base64.getEncoder().encodeToString(("x_pack_rest_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        final String token = "Basic "
+            + Base64.getEncoder().encodeToString(("x_pack_rest_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     protected static class TestRestHighLevelClient extends RestHighLevelClient {
-        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES =
-            new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents();
+        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES = new SearchModule(Settings.EMPTY, Collections.emptyList())
+            .getNamedXContents();
+
         TestRestHighLevelClient() {
             super(client(), restClient -> {}, X_CONTENT_ENTRIES);
         }

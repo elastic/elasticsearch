@@ -109,6 +109,11 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
     }
 
     @Override
+    public Map<String, String> reverseLookup() {
+        return Collections.singletonMap(featureName, field);
+    }
+
+    @Override
     public String getName() {
         return NAME.getPreferredName();
     }

@@ -115,7 +115,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 // watcher settings that should work despite randomization
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
-                .put("index.lifecycle.history_index_enabled", false)
+                .put("indices.lifecycle.history_index_enabled", false)
                 // SLM can cause timing issues during testsuite teardown: https://github.com/elastic/elasticsearch/issues/50302
                 // SLM is not required for tests extending from this base class and only add noise.
                 .put("xpack.slm.enabled", false)

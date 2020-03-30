@@ -6,12 +6,10 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.ql.tree.Location;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.sql.SqlClientException;
-import org.elasticsearch.xpack.sql.planner.Verifier.Failure;
 
 import java.util.Collection;
-import java.util.stream.Collectors;
 
 public class PlanningException extends SqlClientException {
     public PlanningException(String message, Object... args) {
@@ -19,20 +17,11 @@ public class PlanningException extends SqlClientException {
     }
 
     public PlanningException(Collection<Failure> sources) {
-        super(extractMessage(sources));
+        super(Failure.failMessage(sources));
     }
 
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
-    }
-
-    private static String extractMessage(Collection<Failure> failures) {
-        return failures.stream()
-                .map(f -> {
-                    Location l = f.source().source().source();
-                    return "line " + l.getLineNumber() + ":" + l.getColumnNumber() + ": " + f.message();
-                })
-                .collect(Collectors.joining("\n", "Found " + failures.size() + " problem(s)\n", ""));
     }
 }

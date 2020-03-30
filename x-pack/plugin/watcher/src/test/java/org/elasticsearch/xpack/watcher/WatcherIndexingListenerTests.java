@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -113,18 +113,20 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         verifyZeroInteractions(parser);
     }
 
-    public void testPreIndex() throws Exception {
+    public void testPostIndex() throws Exception {
         when(operation.id()).thenReturn(randomAlphaOfLength(10));
         when(operation.source()).thenReturn(BytesArray.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
+        List<Engine.Result.Type> types = new ArrayList<>(List.of(Engine.Result.Type.values()));
+        types.remove(Engine.Result.Type.FAILURE);
+        when(result.getResultType()).thenReturn(randomFrom(types));
 
         boolean watchActive = randomBoolean();
         boolean isNewWatch = randomBoolean();
         Watch watch = mockWatch("_id", watchActive, isNewWatch);
         when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
 
-        Engine.Index returnedOperation = listener.preIndex(shardId, operation);
-        assertThat(returnedOperation, is(operation));
+        listener.postIndex(shardId, operation, result);
         ZonedDateTime now = DateUtils.nowWithMillisResolution(clock);
         verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), anyObject(), anyLong(), anyLong());
 
@@ -139,12 +141,13 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     // this test emulates an index with 10 shards, and ensures that triggering only happens on a
     // single shard
-    public void testPreIndexWatchGetsOnlyTriggeredOnceAcrossAllShards() throws Exception {
+    public void testPostIndexWatchGetsOnlyTriggeredOnceAcrossAllShards() throws Exception {
         String id = randomAlphaOfLength(10);
         int totalShardCount = randomIntBetween(1, 10);
         boolean watchActive = randomBoolean();
         boolean isNewWatch = randomBoolean();
         Watch watch = mockWatch(id, watchActive, isNewWatch);
+        when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
@@ -154,7 +157,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             localShards.put(shardId, new ShardAllocationConfiguration(idx, totalShardCount, Collections.emptyList()));
             Configuration configuration = new Configuration(Watch.INDEX, localShards);
             listener.setConfiguration(configuration);
-            listener.preIndex(shardId, operation);
+            listener.postIndex(shardId, operation, result);
         }
 
         // no matter how many shards we had, this should have been only called once
@@ -186,29 +189,50 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         return watch;
     }
 
-    public void testPreIndexCheckParsingException() throws Exception {
+    public void testPostIndexCheckParsingException() throws Exception {
         String id = randomAlphaOfLength(10);
         when(operation.id()).thenReturn(id);
         when(operation.source()).thenReturn(BytesArray.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong()))
                 .thenThrow(new IOException("self thrown"));
+        when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class,
-                () -> listener.preIndex(shardId, operation));
+                () -> listener.postIndex(shardId, operation, result));
         assertThat(exc.getMessage(), containsString("Could not parse watch"));
         assertThat(exc.getMessage(), containsString(id));
     }
 
-    public void testPostIndexRemoveTriggerOnException() throws Exception {
+    public void testPostIndexRemoveTriggerOnDocumentRelatedException() throws Exception {
+        when(operation.id()).thenReturn("_id");
+        when(result.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+        when(result.getFailure()).thenReturn(new RuntimeException());
+        when(shardId.getIndexName()).thenReturn(Watch.INDEX);
+
+        listener.postIndex(shardId, operation, result);
+        verifyZeroInteractions(triggerService);
+    }
+
+    public void testPostIndexRemoveTriggerOnDocumentRelatedException_ignoreNonWatcherDocument() throws Exception {
+        when(operation.id()).thenReturn("_id");
+        when(result.getResultType()).thenReturn(Engine.Result.Type.FAILURE);
+        when(result.getFailure()).thenReturn(new RuntimeException());
+        when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(4));
+
+        listener.postIndex(shardId, operation, result);
+        verifyZeroInteractions(triggerService);
+    }
+
+    public void testPostIndexRemoveTriggerOnEngineLevelException() throws Exception {
         when(operation.id()).thenReturn("_id");
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verify(triggerService).remove(eq("_id"));
+        verifyZeroInteractions(triggerService);
     }
 
-    public void testPostIndexDontInvokeForOtherDocuments() throws Exception {
+    public void testPostIndexRemoveTriggerOnEngineLevelException_ignoreNonWatcherDocument() throws Exception {
         when(operation.id()).thenReturn("_id");
         when(shardId.getIndexName()).thenReturn("anything");
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
@@ -659,22 +683,22 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     private ClusterState mockClusterState(String watchIndex) {
         MetaData metaData = mock(MetaData.class);
         if (watchIndex == null) {
-            when(metaData.getAliasAndIndexLookup()).thenReturn(Collections.emptySortedMap());
+            when(metaData.getIndicesLookup()).thenReturn(Collections.emptySortedMap());
         } else {
-            SortedMap<String, AliasOrIndex> indices = new TreeMap<>();
+            SortedMap<String, IndexAbstraction> indices = new TreeMap<>();
 
             IndexMetaData indexMetaData = mock(IndexMetaData.class);
             when(indexMetaData.getIndex()).thenReturn(new Index(watchIndex, randomAlphaOfLength(10)));
-            indices.put(watchIndex, new AliasOrIndex.Index(indexMetaData));
+            indices.put(watchIndex, new IndexAbstraction.Index(indexMetaData));
 
             // now point the alias, if the watch index is not .watches
             if (watchIndex.equals(Watch.INDEX) == false) {
                 AliasMetaData aliasMetaData = mock(AliasMetaData.class);
                 when(aliasMetaData.alias()).thenReturn(watchIndex);
-                indices.put(Watch.INDEX, new AliasOrIndex.Alias(aliasMetaData, indexMetaData));
+                indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetaData, indexMetaData));
             }
 
-            when(metaData.getAliasAndIndexLookup()).thenReturn(indices);
+            when(metaData.getIndicesLookup()).thenReturn(indices);
         }
 
         ClusterState clusterState = mock(ClusterState.class);

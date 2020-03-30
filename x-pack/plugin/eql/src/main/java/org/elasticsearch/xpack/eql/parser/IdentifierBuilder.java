@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.eql.parser;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.IdentifierContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.QualifiedNameContext;
 
 abstract class IdentifierBuilder extends AbstractBuilder {
 
@@ -14,7 +16,17 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return ctx == null ? null : unquoteIdentifier(ctx.getText());
     }
 
+    @Override
+    public String visitQualifiedName(QualifiedNameContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
+        // this is fine, because we've already checked for array indexes [...]
+        return Strings.collectionToDelimitedString(visitList(ctx.identifier(), String.class), ".");
+    }
+
     private static String unquoteIdentifier(String identifier) {
-        return identifier.replace("\"\"", "\"");
+        return identifier.replace("`", "");
     }
 }

@@ -105,9 +105,9 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         });
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
 
-        e = expectThrows(SearchPhaseExecutionException.class, () ->
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get());
-        assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
+        // can-match phase pre-filters access to non-existing field
+        assertEquals(0,
+            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)
@@ -130,9 +130,9 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
             client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get());
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
-        e = expectThrows(SearchPhaseExecutionException.class, () ->
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get());
-        assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
+        // can-match phase pre-filters access to non-existing field
+        assertEquals(0,
+            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)

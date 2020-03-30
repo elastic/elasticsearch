@@ -14,12 +14,16 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -84,6 +88,50 @@ public class TrainedModelProviderTests extends ESTestCase {
             }
             assertThat(qb, is(instanceOf(BoolQueryBuilder.class)));
         });
+    }
+
+    public void testExpandIdsPagination() {
+        // NOTE: these tests assume that the query pagination results are "buffered"
+
+        assertThat(TrainedModelProvider.collectIds(new PageParams(0, 3),
+            Collections.emptySet(),
+            new HashSet<>(Arrays.asList("a", "b", "c"))),
+            equalTo(new TreeSet<>(Arrays.asList("a", "b", "c"))));
+
+        assertThat(TrainedModelProvider.collectIds(new PageParams(0, 3),
+            Collections.singleton("a"),
+            new HashSet<>(Arrays.asList("b", "c", "d"))),
+            equalTo(new TreeSet<>(Arrays.asList("a", "b", "c"))));
+
+        assertThat(TrainedModelProvider.collectIds(new PageParams(1, 3),
+            Collections.singleton("a"),
+            new HashSet<>(Arrays.asList("b", "c", "d"))),
+            equalTo(new TreeSet<>(Arrays.asList("b", "c", "d"))));
+
+        assertThat(TrainedModelProvider.collectIds(new PageParams(1, 1),
+            Collections.singleton("c"),
+            new HashSet<>(Arrays.asList("a", "b"))),
+            equalTo(new TreeSet<>(Arrays.asList("b"))));
+
+        assertThat(TrainedModelProvider.collectIds(new PageParams(1, 1),
+            Collections.singleton("b"),
+            new HashSet<>(Arrays.asList("a", "c"))),
+            equalTo(new TreeSet<>(Arrays.asList("b"))));
+
+        assertThat(TrainedModelProvider.collectIds(new PageParams(1, 2),
+            new HashSet<>(Arrays.asList("a", "b")),
+            new HashSet<>(Arrays.asList("c", "d", "e"))),
+            equalTo(new TreeSet<>(Arrays.asList("b", "c"))));
+
+        assertThat(TrainedModelProvider.collectIds(new PageParams(1, 3),
+            new HashSet<>(Arrays.asList("a", "b")),
+            new HashSet<>(Arrays.asList("c", "d", "e"))),
+            equalTo(new TreeSet<>(Arrays.asList("b", "c", "d"))));
+
+        assertThat(TrainedModelProvider.collectIds(new PageParams(2, 3),
+            new HashSet<>(Arrays.asList("a", "b")),
+            new HashSet<>(Arrays.asList("c", "d", "e"))),
+            equalTo(new TreeSet<>(Arrays.asList("c", "d", "e"))));
     }
 
     public void testGetModelThatExistsAsResourceButIsMissing() {

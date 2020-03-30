@@ -49,7 +49,7 @@ public class DieWithDignityPlugin extends Plugin implements ActionPlugin {
             final SettingsFilter settingsFilter,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final Supplier<DiscoveryNodes> nodesInCluster) {
-        return Collections.singletonList(new RestDieWithDignityAction(restController));
+        return Collections.singletonList(new RestDieWithDignityAction());
     }
 
 }

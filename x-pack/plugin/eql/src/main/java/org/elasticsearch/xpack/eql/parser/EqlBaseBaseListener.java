@@ -232,30 +232,6 @@ class EqlBaseBaseListener implements EqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterPredicated(EqlBaseParser.PredicatedContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitPredicated(EqlBaseParser.PredicatedContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterPredicate(EqlBaseParser.PredicateContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitPredicate(EqlBaseParser.PredicateContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterValueExpressionDefault(EqlBaseParser.ValueExpressionDefaultContext ctx) { }
   /**
    * {@inheritDoc}
@@ -299,6 +275,18 @@ class EqlBaseBaseListener implements EqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitArithmeticUnary(EqlBaseParser.ArithmeticUnaryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPredicate(EqlBaseParser.PredicateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPredicate(EqlBaseParser.PredicateContext ctx) { }
   /**
    * {@inheritDoc}
    *

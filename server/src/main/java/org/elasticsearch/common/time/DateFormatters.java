@@ -1839,13 +1839,17 @@ public class DateFormatters {
      * @return The converted zoned date time
      */
     public static ZonedDateTime from(TemporalAccessor accessor) {
+        return from(accessor, ZoneOffset.UTC);
+    }
+
+    public static ZonedDateTime from(TemporalAccessor accessor, ZoneId defaultZone) {
         if (accessor instanceof ZonedDateTime) {
             return (ZonedDateTime) accessor;
         }
 
         ZoneId zoneId = accessor.query(TemporalQueries.zone());
         if (zoneId == null) {
-            zoneId = ZoneOffset.UTC;
+            zoneId = defaultZone;
         }
 
         LocalDate localDate = accessor.query(LOCAL_DATE_QUERY);

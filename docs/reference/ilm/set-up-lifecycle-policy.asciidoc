@@ -68,6 +68,16 @@ PUT _template/my_template
 with `test-`
 <2> The template will set the policy to be used to `my_policy`
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/my_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
 Now that a policy exists and is used in an index template we can create an
 initial index which will be managed by our policy:
 

@@ -22,12 +22,12 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.ScopeTable;
 
 public class AssignmentNode extends BinaryNode {
 
@@ -113,7 +113,7 @@ public class AssignmentNode extends BinaryNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         // For the case where the assignment represents a String concatenation
@@ -127,7 +127,8 @@ public class AssignmentNode extends BinaryNode {
             catElementStackSize = methodWriter.writeNewStrings();
         }
 
-        getLeftNode().setup(classWriter, methodWriter, globals); // call the setup method on the lhs to prepare for a load/store operation
+        // call the setup method on the lhs to prepare for a load/store operation
+        getLeftNode().setup(classWriter, methodWriter, scopeTable);
 
         if (cat) {
             // Handle the case where we are doing a compound assignment
@@ -135,10 +136,10 @@ public class AssignmentNode extends BinaryNode {
 
             methodWriter.writeDup(getLeftNode().accessElementCount(), catElementStackSize); // dup the top element and insert it
                                                                                             // before concat helper on stack
-            getLeftNode().load(classWriter, methodWriter, globals);             // read the current lhs's value
+            getLeftNode().load(classWriter, methodWriter, scopeTable);             // read the current lhs's value
             methodWriter.writeAppendStrings(getLeftNode().getExpressionType()); // append the lhs's value using the StringBuilder
 
-            getRightNode().write(classWriter, methodWriter, globals); // write the bytecode for the rhs
+            getRightNode().write(classWriter, methodWriter, scopeTable); // write the bytecode for the rhs
 
             // check to see if the rhs has already done a concatenation
             if (getRightNode() instanceof BinaryMathNode == false || ((BinaryMathNode)getRightNode()).getCat() == false) {
@@ -156,14 +157,15 @@ public class AssignmentNode extends BinaryNode {
             }
 
             // store the lhs's value from the stack in its respective variable/field/array
-            getLeftNode().store(classWriter, methodWriter, globals);
+            getLeftNode().store(classWriter, methodWriter, scopeTable);
         } else if (operation != null) {
             // Handle the case where we are doing a compound assignment that
             // does not represent a String concatenation.
 
             methodWriter.writeDup(getLeftNode().accessElementCount(), 0); // if necessary, dup the previous lhs's value
                                                                           // to be both loaded from and stored to
-            getLeftNode().load(classWriter, methodWriter, globals); // load the current lhs's value
+
+            getLeftNode().load(classWriter, methodWriter, scopeTable); // load the current lhs's value
 
             if (read && post) {
                 // dup the value if the lhs is also read from and is a post increment
@@ -173,7 +175,8 @@ public class AssignmentNode extends BinaryNode {
 
             methodWriter.writeCast(there); // if necessary cast the current lhs's value
                                            // to the promotion type between the lhs and rhs types
-            getRightNode().write(classWriter, methodWriter, globals); // write the bytecode for the rhs
+
+            getRightNode().write(classWriter, methodWriter, scopeTable); // write the bytecode for the rhs
 
             // XXX: fix these types, but first we need def compound assignment tests.
             // its tricky here as there are possibly explicit casts, too.
@@ -194,11 +197,11 @@ public class AssignmentNode extends BinaryNode {
             }
 
             // store the lhs's value from the stack in its respective variable/field/array
-            getLeftNode().store(classWriter, methodWriter, globals);
+            getLeftNode().store(classWriter, methodWriter, scopeTable);
         } else {
             // Handle the case for a simple write.
 
-            getRightNode().write(classWriter, methodWriter, globals); // write the bytecode for the rhs rhs
+            getRightNode().write(classWriter, methodWriter, scopeTable); // write the bytecode for the rhs rhs
 
             if (read) {
                 // dup the value if the lhs is also read from
@@ -207,7 +210,7 @@ public class AssignmentNode extends BinaryNode {
             }
 
             // store the lhs's value from the stack in its respective variable/field/array
-            getLeftNode().store(classWriter, methodWriter, globals);
+            getLeftNode().store(classWriter, methodWriter, scopeTable);
         }
     }
 }

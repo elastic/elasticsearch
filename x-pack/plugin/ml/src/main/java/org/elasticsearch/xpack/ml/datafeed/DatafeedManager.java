@@ -520,7 +520,12 @@ public class DatafeedManager {
             // a context with sufficient permissions would coincidentally be in force in some single node
             // tests, leading to bugs not caught in CI due to many tests running in single node test clusters.
             try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-                innerRun(runningDatafeedsOnThisNode.get(task.getAllocationId()), task.getDatafeedStartTime(), task.getEndTime());
+                Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
+                if (holder != null) {
+                    innerRun(holder, task.getDatafeedStartTime(), task.getEndTime());
+                } else {
+                    logger.warn("Datafeed [{}] was stopped while being started", task.getDatafeedId());
+                }
             }
         }
 

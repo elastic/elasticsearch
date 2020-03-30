@@ -42,6 +42,7 @@ public class AliasMetaDataTests extends AbstractXContentTestCase<AliasMetaData> 
                         .routing("routing")
                         .searchRouting("trim,tw , ltw , lw")
                         .writeIndex(randomBoolean() ? null : randomBoolean())
+                        .isHidden(randomBoolean() ? null : randomBoolean())
                         .build();
 
         assertThat(before.searchRoutingValues(), equalTo(Sets.newHashSet("trim", "tw ", " ltw ", " lw")));
@@ -64,6 +65,7 @@ public class AliasMetaDataTests extends AbstractXContentTestCase<AliasMetaData> 
                 .indexRouting(expectedInstance.indexRouting())
                 .searchRouting(expectedInstance.searchRouting())
                 .writeIndex(randomBoolean() ? null : randomBoolean())
+                .isHidden(randomBoolean() ? null : randomBoolean())
                 .build();
         }
         assertEquals(expectedInstance, newInstance);
@@ -112,6 +114,10 @@ public class AliasMetaDataTests extends AbstractXContentTestCase<AliasMetaData> 
             builder.filter("{\"term\":{\"year\":2016}}");
         }
         builder.writeIndex(randomBoolean());
+
+        if (randomBoolean()) {
+            builder.isHidden(randomBoolean());
+        }
         return builder.build();
     }
 

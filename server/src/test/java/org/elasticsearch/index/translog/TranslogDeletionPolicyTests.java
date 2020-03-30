@@ -46,35 +46,26 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
         allGens.add(readersAndWriter.v2());
         try {
             TranslogDeletionPolicy deletionPolicy = new TranslogDeletionPolicy();
-            assertThat(deletionPolicy.minTranslogGenRequired(), equalTo(1L));
-            final int committedReader = randomIntBetween(0, allGens.size() - 1);
-            final long committedGen = allGens.get(committedReader).generation;
-            deletionPolicy.setTranslogGenerationOfLastCommit(randomLongBetween(committedGen, Long.MAX_VALUE));
-            deletionPolicy.setMinTranslogGenerationForRecovery(committedGen);
-            assertThat(deletionPolicy.minTranslogGenRequired(), equalTo(committedGen));
+            assertThat(deletionPolicy.getMinTranslogGenRequiredByLocks(), equalTo(Long.MAX_VALUE));
 
             long gen1 = randomIntBetween(0, allGens.size() - 1);
             Releasable releaseGen1 = deletionPolicy.acquireTranslogGen(gen1);
-            assertThat(deletionPolicy.minTranslogGenRequired(),
-                equalTo(Math.min(gen1, committedGen)));
+            assertThat(deletionPolicy.getMinTranslogGenRequiredByLocks(), equalTo(gen1));
 
             long gen2 = randomIntBetween(0, allGens.size() - 1);
             Releasable releaseGen2 = deletionPolicy.acquireTranslogGen(gen2);
-            assertThat(deletionPolicy.minTranslogGenRequired(),
-                equalTo(Math.min(Math.min(gen1, gen2), committedGen)));
+            assertThat(deletionPolicy.getMinTranslogGenRequiredByLocks(), equalTo(Math.min(gen1, gen2)));
 
             if (randomBoolean()) {
                 releaseGen1.close();
-                assertThat(deletionPolicy.minTranslogGenRequired(),
-                    equalTo(Math.min(gen2, committedGen)));
+                assertThat(deletionPolicy.getMinTranslogGenRequiredByLocks(), equalTo(gen2));
                 releaseGen2.close();
             } else {
                 releaseGen2.close();
-                assertThat(deletionPolicy.minTranslogGenRequired(),
-                    equalTo(Math.min(gen1, committedGen)));
+                assertThat(deletionPolicy.getMinTranslogGenRequiredByLocks(), equalTo(gen1));
                 releaseGen1.close();
             }
-            assertThat(deletionPolicy.minTranslogGenRequired(), equalTo(committedGen));
+            assertThat(deletionPolicy.getMinTranslogGenRequiredByLocks(), equalTo(Long.MAX_VALUE));
 
         } finally {
             IOUtils.close(readersAndWriter.v1());

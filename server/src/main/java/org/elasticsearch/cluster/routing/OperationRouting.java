@@ -95,7 +95,7 @@ public class OperationRouting {
                 set.add(iterator);
             }
         }
-        return new GroupShardsIterator<>(new ArrayList<>(set));
+        return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
     }
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();

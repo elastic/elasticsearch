@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -88,7 +88,7 @@ public abstract class InnerHitContextBuilder {
             innerHitsContext.storedFieldsContext(innerHitBuilder.getStoredFieldsContext());
         }
         if (innerHitBuilder.getDocValueFields() != null) {
-            innerHitsContext.docValueFieldsContext(new DocValueFieldsContext(innerHitBuilder.getDocValueFields()));
+            innerHitsContext.docValuesContext(new FetchDocValuesContext(innerHitBuilder.getDocValueFields()));
         }
         if (innerHitBuilder.getScriptFields() != null) {
             for (SearchSourceBuilder.ScriptField field : innerHitBuilder.getScriptFields()) {

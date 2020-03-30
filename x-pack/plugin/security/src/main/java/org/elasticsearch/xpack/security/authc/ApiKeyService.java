@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -69,6 +70,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import javax.crypto.SecretKeyFactory;
@@ -99,6 +102,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
 public class ApiKeyService {
@@ -106,9 +110,11 @@ public class ApiKeyService {
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     public static final String API_KEY_ID_KEY = "_security_api_key_id";
+    public static final String API_KEY_NAME_KEY = "_security_api_key_name";
     public static final String API_KEY_REALM_NAME = "_es_api_key";
     public static final String API_KEY_REALM_TYPE = "_es_api_key";
-    public static final String API_KEY_CREATOR_REALM = "_security_api_key_creator_realm";
+    public static final String API_KEY_CREATOR_REALM_NAME = "_security_api_key_creator_realm_name";
+    public static final String API_KEY_CREATOR_REALM_TYPE = "_security_api_key_creator_realm_type";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
 
@@ -271,8 +277,8 @@ public class ApiKeyService {
             .startObject("creator")
             .field("principal", authentication.getUser().principal())
             .field("metadata", authentication.getUser().metadata())
-            .field("realm", authentication.getLookedUpBy() == null ?
-                authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName())
+            .field("realm", authentication.getSourceRealm().getName())
+            .field("realm_type", authentication.getSourceRealm().getType())
             .endObject()
             .endObject();
 
@@ -338,7 +344,7 @@ public class ApiKeyService {
      * retrieval of role descriptors that are associated with the api key
      */
     public void getRoleForApiKey(Authentication authentication, ActionListener<ApiKeyRoleDescriptors> listener) {
-        if (authentication.getAuthenticationType() != Authentication.AuthenticationType.API_KEY) {
+        if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
 
@@ -501,10 +507,12 @@ public class ApiKeyService {
                 : limitedByRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
             final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
             final Map<String, Object> authResultMetadata = new HashMap<>();
-            authResultMetadata.put(API_KEY_CREATOR_REALM, creator.get("realm"));
+            authResultMetadata.put(API_KEY_CREATOR_REALM_NAME, creator.get("realm"));
+            authResultMetadata.put(API_KEY_CREATOR_REALM_TYPE, creator.get("realm_type"));
             authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
             authResultMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleDescriptors);
             authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
+            authResultMetadata.put(API_KEY_NAME_KEY, source.get("name"));
             listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
         } else {
             listener.onResponse(AuthenticationResult.unsuccessful("api key is expired", null));
@@ -568,12 +576,12 @@ public class ApiKeyService {
         return enabled && licenseState.isApiKeyServiceAllowed();
     }
 
-    private void ensureEnabled() {
+    public void ensureEnabled() {
         if (licenseState.isApiKeyServiceAllowed() == false) {
             throw LicenseUtils.newComplianceException("api keys");
         }
         if (enabled == false) {
-            throw new IllegalStateException("api keys are not enabled");
+            throw new FeatureNotEnabledException(Feature.API_KEY_SERVICE, "api keys are not enabled");
         }
     }
 
@@ -612,15 +620,25 @@ public class ApiKeyService {
         }
 
         @Override
-        public void usedDeprecatedName(String usedName, String modernName) {
-            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], expected [{}] instead",
-                usedName, apiKeyId, modernName);
+        public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
+            String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+            deprecationLogger.deprecated("{}Deprecated field [{}] used in api key [{}], expected [{}] instead",
+                prefix, usedName, apiKeyId, modernName);
         }
 
         @Override
-        public void usedDeprecatedField(String usedName, String replacedWith) {
-            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], replaced by [{}]",
-                usedName, apiKeyId, replacedWith);
+        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
+            String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+            deprecationLogger.deprecated("{}Deprecated field [{}] used in api key [{}], replaced by [{}]",
+                prefix, usedName, apiKeyId, replacedWith);
+        }
+
+        @Override
+        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
+            String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+            deprecationLogger.deprecated(
+                "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
+                prefix, usedName);
         }
     }
 
@@ -877,10 +895,25 @@ public class ApiKeyService {
      * @return realm name
      */
     public static String getCreatorRealmName(final Authentication authentication) {
-        if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
-            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM);
+        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_NAME);
         } else {
-            return authentication.getAuthenticatedBy().getName();
+            return authentication.getSourceRealm().getName();
+        }
+    }
+
+    /**
+     * Returns realm type for the authenticated user.
+     * If the user is authenticated by realm type {@value API_KEY_REALM_TYPE}
+     * then it will return the realm name of user who created this API key.
+     * @param authentication {@link Authentication}
+     * @return realm type
+     */
+    public static String getCreatorRealmType(final Authentication authentication) {
+        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+            return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_TYPE);
+        } else {
+            return authentication.getSourceRealm().getType();
         }
     }
 

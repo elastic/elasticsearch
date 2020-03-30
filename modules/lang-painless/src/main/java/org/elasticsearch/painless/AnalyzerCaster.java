@@ -520,7 +520,7 @@ public final class AnalyzerCaster {
         return Object.class;
     }
 
-    public static Class<?> promoteConditional(Class<?> from0, Class<?> from1, Object const0, Object const1) {
+    public static Class<?> promoteConditional(Class<?> from0, Class<?> from1) {
         if (from0 == from1) {
             return from0;
         }
@@ -529,123 +529,29 @@ public final class AnalyzerCaster {
             return def.class;
         }
 
-        if (from0.isPrimitive() && from1.isPrimitive()) {
-            if (from0 == boolean.class && from1 == boolean.class) {
-                return boolean.class;
-            }
-
+        if (from0.isPrimitive() && from0 != boolean.class && from1.isPrimitive() && from1 != boolean.class) {
             if (from0 == double.class || from1 == double.class) {
                 return double.class;
             } else if (from0 == float.class || from1 == float.class) {
                 return float.class;
             } else if (from0 == long.class || from1 == long.class) {
                 return long.class;
-            } else {
-                if (from0 == byte.class) {
-                    if (from1 == byte.class) {
-                        return byte.class;
-                    } else if (from1 == short.class) {
-                        if (const1 != null) {
-                            final short constant = (short)const1;
-
-                            if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return short.class;
-                    } else if (from1 == char.class) {
-                        return int.class;
-                    } else if (from1 == int.class) {
-                        if (const1 != null) {
-                            final int constant = (int)const1;
-
-                            if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return int.class;
-                    }
-                } else if (from0 == short.class) {
-                    if (from1 == byte.class) {
-                        if (const0 != null) {
-                            final short constant = (short)const0;
-
-                            if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return short.class;
-                    } else if (from1 == short.class) {
-                        return short.class;
-                    } else if (from1 == char.class) {
-                        return int.class;
-                    } else if (from1 == int.class) {
-                        if (const1 != null) {
-                            final int constant = (int)const1;
-
-                            if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return short.class;
-                            }
-                        }
-
-                        return int.class;
-                    }
-                } else if (from0 == char.class) {
-                    if (from1 == byte.class) {
-                        return int.class;
-                    } else if (from1 == short.class) {
-                        return int.class;
-                    } else if (from1 == char.class) {
-                        return char.class;
-                    } else if (from1 == int.class) {
-                        if (const1 != null) {
-                            final int constant = (int)const1;
-
-                            if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return int.class;
-                    }
-                } else if (from0 == int.class) {
-                    if (from1 == byte.class) {
-                        if (const0 != null) {
-                            final int constant = (int)const0;
-
-                            if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return int.class;
-                    } else if (from1 == short.class) {
-                        if (const0 != null) {
-                            final int constant = (int)const0;
-
-                            if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return int.class;
-                    } else if (from1 == char.class) {
-                        if (const0 != null) {
-                            final int constant = (int)const0;
-
-                            if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return int.class;
-                    } else if (from1 == int.class) {
-                        return int.class;
-                    }
+            } else if (from0 == int.class || from1 == int.class) {
+                return int.class;
+            } else if (from0 == char.class) {
+                if (from1 == short.class || from1 == byte.class) {
+                    return int.class;
+                } else {
+                    return null;
                 }
+            } else if (from1 == char.class) {
+                if (from0 == short.class || from0 == byte.class) {
+                return int.class;
+            } else {
+                    return null;
+                }
+            } else {
+                return null;
             }
         }
 

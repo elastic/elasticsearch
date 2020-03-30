@@ -85,12 +85,17 @@ public class DateFormatTests extends ESTestCase {
     }
 
     public void testParseISO8601() {
-        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800").toInstant().toEpochMilli(),
-                equalTo(978336000000L));
+        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800")
+                                     .toInstant().toEpochMilli(), equalTo(978336000000L));
         assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800").toString(),
                 equalTo("2001-01-01T08:00Z"));
-        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800").toString(),
-                equalTo("2001-01-01T08:00Z"));
+    }
+
+    public void testParseWhenZoneNotPresentInText() {
+        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.of("+0100"), null).apply("2001-01-01T00:00:00")
+                                     .toInstant().toEpochMilli(), equalTo(978303600000L));
+        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.of("+0100"), null).apply("2001-01-01T00:00:00").toString(),
+            equalTo("2001-01-01T00:00+01:00"));
     }
 
     public void testParseISO8601Failure() {

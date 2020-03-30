@@ -19,50 +19,39 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BreakNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-
-import java.util.Set;
 
 /**
  * Represents a break statement.
  */
-public final class SBreak extends AStatement {
+public class SBreak extends AStatement {
 
     public SBreak(Location location) {
         super(location);
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (!inLoop) {
+        if (input.inLoop == false) {
             throw createError(new IllegalArgumentException("Break statement outside of a loop."));
         }
 
-        loopEscape = true;
-        allEscape = true;
-        anyBreak = true;
-        statementCount = 1;
-    }
+        output.loopEscape = true;
+        output.allEscape = true;
+        output.anyBreak = true;
+        output.statementCount = 1;
 
-    @Override
-    BreakNode write() {
         BreakNode breakNode = new BreakNode();
-
         breakNode.setLocation(location);
 
-        return breakNode;
-    }
+        output.statementNode = breakNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString();
+        return output;
     }
 }

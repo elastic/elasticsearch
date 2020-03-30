@@ -20,9 +20,9 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.symbol.ScopeTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -43,16 +43,16 @@ public class BooleanNode extends BinaryNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeDebugInfo(location);
 
         if (operation == Operation.AND) {
             Label fals = new Label();
             Label end = new Label();
 
-            getLeftNode().write(classWriter, methodWriter, globals);
+            getLeftNode().write(classWriter, methodWriter, scopeTable);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-            getRightNode().write(classWriter, methodWriter, globals);
+            getRightNode().write(classWriter, methodWriter, scopeTable);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.push(true);
@@ -65,9 +65,9 @@ public class BooleanNode extends BinaryNode {
             Label fals = new Label();
             Label end = new Label();
 
-            getLeftNode().write(classWriter, methodWriter, globals);
+            getLeftNode().write(classWriter, methodWriter, scopeTable);
             methodWriter.ifZCmp(Opcodes.IFNE, tru);
-            getRightNode().write(classWriter, methodWriter, globals);
+            getRightNode().write(classWriter, methodWriter, scopeTable);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.mark(tru);

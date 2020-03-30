@@ -20,8 +20,8 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
 
 public class ReturnNode extends StatementNode {
 
@@ -40,11 +40,11 @@ public class ReturnNode extends StatementNode {
     /* ---- end tree structure ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
 
         if (expressionNode != null) {
-            expressionNode.write(classWriter, methodWriter, globals);
+            expressionNode.write(classWriter, methodWriter, scopeTable);
         }
 
         methodWriter.returnValue();

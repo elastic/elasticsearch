@@ -436,7 +436,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 // nothing to do when sorting by key ascending, as data is already sorted since shards return
                 // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
                 // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
-                CollectionUtil.introSort(reducedBuckets, order.comparator(null));
+                CollectionUtil.introSort(reducedBuckets, order.comparator());
             }
         }
         return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators(),

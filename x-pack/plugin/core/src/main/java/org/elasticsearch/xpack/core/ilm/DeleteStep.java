@@ -32,4 +32,9 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     public boolean indexSurvives() {
         return false;
     }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
 }

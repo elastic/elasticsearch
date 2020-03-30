@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -29,8 +28,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36782")
-@ClusterScope(scope = SUITE, numClientNodes = 0, maxNumDataNodes = 1, supportsDedicatedMasters = false)
+@ClusterScope(scope = SUITE, numClientNodes = 0, numDataNodes = 1, supportsDedicatedMasters = false)
 public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
 
     @Override

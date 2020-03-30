@@ -26,7 +26,7 @@ import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 
-//FIXME: Taken from sql-proto. 
+//FIXME: Taken from sql-proto (StringUtils)
 //Ideally it should be shared but the dependencies across projects and and SQL-client make it tricky.
 // Maybe a gradle task would fix that...
 public class DateUtils {
@@ -34,7 +34,7 @@ public class DateUtils {
     public static final ZoneId UTC = ZoneId.of("Z");
 
     public static final String EMPTY = "";
-    
+
     public static final DateTimeFormatter ISO_DATE_WITH_MILLIS = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
             .append(ISO_LOCAL_DATE)
@@ -72,9 +72,9 @@ public class DateUtils {
             .appendOffsetId()
             .toFormatter(Locale.ROOT);
 
-    private static final int SECONDS_PER_MINUTE = 60;
-    private static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;
-    private static final int SECONDS_PER_DAY = SECONDS_PER_HOUR * 24;
+    public static final int SECONDS_PER_MINUTE = 60;
+    public static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;
+    public static final int SECONDS_PER_DAY = SECONDS_PER_HOUR * 24;
 
     private DateUtils() {}
 
@@ -82,7 +82,7 @@ public class DateUtils {
         if (value == null) {
             return "null";
         }
-        
+
         if (value instanceof ZonedDateTime) {
             return ((ZonedDateTime) value).format(ISO_DATE_WITH_MILLIS);
         }
@@ -136,8 +136,14 @@ public class DateUtils {
             sb.append(":");
             durationInSec = durationInSec % SECONDS_PER_MINUTE;
             sb.append(indent(durationInSec));
-            sb.append(".");
-            sb.append(TimeUnit.NANOSECONDS.toMillis(d.getNano()));
+            long millis = TimeUnit.NANOSECONDS.toMillis(d.getNano());
+            if (millis > 0) {
+                sb.append(".");
+                while (millis % 10 == 0) {
+                    millis /= 10;
+                }
+                sb.append(millis);
+            }
             return sb.toString();
         }
 

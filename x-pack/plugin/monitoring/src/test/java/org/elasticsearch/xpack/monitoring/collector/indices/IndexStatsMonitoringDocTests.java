@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -42,6 +44,8 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.convertToJson;
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -126,130 +130,132 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                 new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats, metaData, routingTable);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        assertThat(xContent.utf8ToString(), equalTo(
-                    "{"
-                     + "\"cluster_uuid\":\"_cluster\","
-                     + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
-                     + "\"interval_ms\":1506593717631,"
-                     + "\"type\":\"index_stats\","
-                     + "\"source_node\":{"
-                       + "\"uuid\":\"_uuid\","
-                       + "\"host\":\"_host\","
-                       + "\"transport_address\":\"_addr\","
-                       + "\"ip\":\"_ip\","
-                       + "\"name\":\"_name\","
-                       + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                     + "},"
-                     + "\"index_stats\":{"
-                       + indexStatsSummary() + ","
-                       + "\"total\":{"
-                         + "\"docs\":{"
-                           + "\"count\":1"
-                         + "},"
-                         + "\"store\":{"
-                           + "\"size_in_bytes\":13"
-                         + "},"
-                         + "\"indexing\":{"
-                           + "\"index_total\":16,"
-                           + "\"index_time_in_millis\":17,"
-                           + "\"throttle_time_in_millis\":18"
-                         + "},"
-                         + "\"search\":{"
-                           + "\"query_total\":19,"
-                           + "\"query_time_in_millis\":20"
-                         + "},"
-                         + "\"merges\":{"
-                           + "\"total_size_in_bytes\":4"
-                         + "},"
-                         + "\"refresh\":{"
-                           + "\"total_time_in_millis\":14,"
-                           + "\"external_total_time_in_millis\":15"
-                         + "},"
-                         + "\"query_cache\":{"
-                           + "\"memory_size_in_bytes\":5,"
-                           + "\"hit_count\":6,"
-                           + "\"miss_count\":7,"
-                           + "\"evictions\":9"
-                         + "},"
-                         + "\"fielddata\":{"
-                           + "\"memory_size_in_bytes\":2,"
-                           + "\"evictions\":3"
-                         + "},"
-                         + "\"segments\":{"
-                           + "\"count\":21,"
-                           + "\"memory_in_bytes\":22,"
-                           + "\"terms_memory_in_bytes\":23,"
-                           + "\"stored_fields_memory_in_bytes\":24,"
-                           + "\"term_vectors_memory_in_bytes\":25,"
-                           + "\"norms_memory_in_bytes\":26,"
-                           + "\"points_memory_in_bytes\":27,"
-                           + "\"doc_values_memory_in_bytes\":28,"
-                           + "\"index_writer_memory_in_bytes\":29,"
-                           + "\"version_map_memory_in_bytes\":30,"
-                           + "\"fixed_bit_set_memory_in_bytes\":31"
-                         + "},"
-                         + "\"request_cache\":{"
-                           + "\"memory_size_in_bytes\":9,"
-                           + "\"evictions\":10,"
-                           + "\"hit_count\":11,"
-                           + "\"miss_count\":12"
-                         + "}"
-                       + "},"
-                       + "\"primaries\":{"
-                         + "\"docs\":{"
-                           + "\"count\":1"
-                         + "},"
-                         + "\"store\":{"
-                           + "\"size_in_bytes\":13"
-                         + "},"
-                         + "\"indexing\":{"
-                           + "\"index_total\":16,"
-                           + "\"index_time_in_millis\":17,"
-                           + "\"throttle_time_in_millis\":18"
-                         + "},"
-                         + "\"search\":{"
-                           + "\"query_total\":19,"
-                           + "\"query_time_in_millis\":20"
-                         + "},"
-                         + "\"merges\":{"
-                           + "\"total_size_in_bytes\":4"
-                         + "},"
-                         + "\"refresh\":{"
-                           + "\"total_time_in_millis\":14,"
-                           + "\"external_total_time_in_millis\":15"
-                         + "},"
-                         + "\"query_cache\":{"
-                           + "\"memory_size_in_bytes\":5,"
-                           + "\"hit_count\":6,"
-                           + "\"miss_count\":7,"
-                           + "\"evictions\":9"
-                         + "},"
-                         + "\"fielddata\":{"
-                           + "\"memory_size_in_bytes\":2,"
-                           + "\"evictions\":3"
-                         + "},"
-                         + "\"segments\":{"
-                           + "\"count\":21,"
-                           + "\"memory_in_bytes\":22,"
-                           + "\"terms_memory_in_bytes\":23,"
-                           + "\"stored_fields_memory_in_bytes\":24,"
-                           + "\"term_vectors_memory_in_bytes\":25,"
-                           + "\"norms_memory_in_bytes\":26,"
-                           + "\"points_memory_in_bytes\":27,"
-                           + "\"doc_values_memory_in_bytes\":28,"
-                           + "\"index_writer_memory_in_bytes\":29,"
-                           + "\"version_map_memory_in_bytes\":30,"
-                           + "\"fixed_bit_set_memory_in_bytes\":31"
-                         + "},"
-                         + "\"request_cache\":{"
-                           + "\"memory_size_in_bytes\":9,"
-                           + "\"evictions\":10,"
-                           + "\"hit_count\":11,"
-                           + "\"miss_count\":12"
-                        + "}"
-                        + "}"
-                      + "}"
-                + "}"));
+        final String expected = stripWhitespace(String.format(Locale.ROOT, "{"
+            + "  \"cluster_uuid\": \"_cluster\","
+            + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
+            + "  \"interval_ms\": 1506593717631,"
+            + "  \"type\": \"index_stats\","
+            + "  \"source_node\": {"
+            + "    \"uuid\": \"_uuid\","
+            + "    \"host\": \"_host\","
+            + "    \"transport_address\": \"_addr\","
+            + "    \"ip\": \"_ip\","
+            + "    \"name\": \"_name\","
+            + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
+            + "  },"
+            + "  \"index_stats\": {"
+            + "    %s," // indexStatsSummary()
+            + "    \"total\": {"
+            + "      \"docs\": {"
+            + "        \"count\": 1"
+            + "      },"
+            + "      \"store\": {"
+            + "        \"size_in_bytes\": 13"
+            + "      },"
+            + "      \"indexing\": {"
+            + "        \"index_total\": 16,"
+            + "        \"index_time_in_millis\": 17,"
+            + "        \"throttle_time_in_millis\": 18"
+            + "      },"
+            + "      \"search\": {"
+            + "        \"query_total\": 19,"
+            + "        \"query_time_in_millis\": 20"
+            + "      },"
+            + "      \"merges\": {"
+            + "        \"total_size_in_bytes\": 4"
+            + "      },"
+            + "      \"refresh\": {"
+            + "        \"total_time_in_millis\": 14,"
+            + "        \"external_total_time_in_millis\": 15"
+            + "      },"
+            + "      \"query_cache\": {"
+            + "        \"memory_size_in_bytes\": 5,"
+            + "        \"hit_count\": 6,"
+            + "        \"miss_count\": 7,"
+            + "        \"evictions\": 9"
+            + "      },"
+            + "      \"fielddata\": {"
+            + "        \"memory_size_in_bytes\": 2,"
+            + "        \"evictions\": 3"
+            + "      },"
+            + "      \"segments\": {"
+            + "        \"count\": 21,"
+            + "        \"memory_in_bytes\": 22,"
+            + "        \"terms_memory_in_bytes\": 23,"
+            + "        \"stored_fields_memory_in_bytes\": 24,"
+            + "        \"term_vectors_memory_in_bytes\": 25,"
+            + "        \"norms_memory_in_bytes\": 26,"
+            + "        \"points_memory_in_bytes\": 27,"
+            + "        \"doc_values_memory_in_bytes\": 28,"
+            + "        \"index_writer_memory_in_bytes\": 29,"
+            + "        \"version_map_memory_in_bytes\": 30,"
+            + "        \"fixed_bit_set_memory_in_bytes\": 31"
+            + "      },"
+            + "      \"request_cache\": {"
+            + "        \"memory_size_in_bytes\": 9,"
+            + "        \"evictions\": 10,"
+            + "        \"hit_count\": 11,"
+            + "        \"miss_count\": 12"
+            + "      }"
+            + "    },"
+            + "    \"primaries\": {"
+            + "      \"docs\": {"
+            + "        \"count\": 1"
+            + "      },"
+            + "      \"store\": {"
+            + "        \"size_in_bytes\": 13"
+            + "      },"
+            + "      \"indexing\": {"
+            + "        \"index_total\": 16,"
+            + "        \"index_time_in_millis\": 17,"
+            + "        \"throttle_time_in_millis\": 18"
+            + "      },"
+            + "      \"search\": {"
+            + "        \"query_total\": 19,"
+            + "        \"query_time_in_millis\": 20"
+            + "      },"
+            + "      \"merges\": {"
+            + "        \"total_size_in_bytes\": 4"
+            + "      },"
+            + "      \"refresh\": {"
+            + "        \"total_time_in_millis\": 14,"
+            + "        \"external_total_time_in_millis\": 15"
+            + "      },"
+            + "      \"query_cache\": {"
+            + "        \"memory_size_in_bytes\": 5,"
+            + "        \"hit_count\": 6,"
+            + "        \"miss_count\": 7,"
+            + "        \"evictions\": 9"
+            + "      },"
+            + "      \"fielddata\": {"
+            + "        \"memory_size_in_bytes\": 2,"
+            + "        \"evictions\": 3"
+            + "      },"
+            + "      \"segments\": {"
+            + "        \"count\": 21,"
+            + "        \"memory_in_bytes\": 22,"
+            + "        \"terms_memory_in_bytes\": 23,"
+            + "        \"stored_fields_memory_in_bytes\": 24,"
+            + "        \"term_vectors_memory_in_bytes\": 25,"
+            + "        \"norms_memory_in_bytes\": 26,"
+            + "        \"points_memory_in_bytes\": 27,"
+            + "        \"doc_values_memory_in_bytes\": 28,"
+            + "        \"index_writer_memory_in_bytes\": 29,"
+            + "        \"version_map_memory_in_bytes\": 30,"
+            + "        \"fixed_bit_set_memory_in_bytes\": 31"
+            + "      },"
+            + "      \"request_cache\": {"
+            + "        \"memory_size_in_bytes\": 9,"
+            + "        \"evictions\": 10,"
+            + "        \"hit_count\": 11,"
+            + "        \"miss_count\": 12"
+            + "      }"
+            + "    }"
+            + "  }"
+            + "}",
+            // Since the summary is being merged with other data, remove the enclosing braces.
+            indexStatsSummary().replaceAll("(^\\{|}$)", "")));
+        assertThat(xContent.utf8ToString(), equalTo(expected));
     }
 
     public void testToXContentWithNullStats() throws IOException {
@@ -269,44 +275,56 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                 new IndexStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indexStats, metaData, routingTable);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        assertEquals("{"
-                     + "\"cluster_uuid\":\"_cluster\","
-                     + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
-                     + "\"interval_ms\":1506593717631,"
-                     + "\"type\":\"index_stats\","
-                     + "\"source_node\":{"
-                       + "\"uuid\":\"_uuid\","
-                       + "\"host\":\"_host\","
-                       + "\"transport_address\":\"_addr\","
-                       + "\"ip\":\"_ip\","
-                       + "\"name\":\"_name\","
-                       + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                     + "},"
-                     + "\"index_stats\":{"
-                       + indexStatsSummary()
-                      + "}"
-                + "}", xContent.utf8ToString());
+        final String expected = stripWhitespace(
+            String.format(
+                Locale.ROOT,
+                "{"
+                    + "  \"cluster_uuid\": \"_cluster\","
+                    + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
+                    + "  \"interval_ms\": 1506593717631,"
+                    + "  \"type\": \"index_stats\","
+                    + "  \"source_node\": {"
+                    + "    \"uuid\": \"_uuid\","
+                    + "    \"host\": \"_host\","
+                    + "    \"transport_address\": \"_addr\","
+                    + "    \"ip\": \"_ip\","
+                    + "    \"name\": \"_name\","
+                    + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
+                    + "  },"
+                    + "  \"index_stats\": %s"
+                    + "}",
+                indexStatsSummary()
+            )
+        );
+        assertEquals(expected, xContent.utf8ToString());
     }
 
-    private String indexStatsSummary() {
-        // must append , if total / primaries stats are included
-        return "\"index\":\"" + index.getName() + "\"," +
-               "\"uuid\":\"" + index.getUUID() + "\"," +
-               "\"created\":" + metaData.getCreationDate() + "," +
-               "\"status\":\"" + indexHealth.getStatus().name().toLowerCase(Locale.ROOT) + "\"," +
-               "\"shards\":{" +
-                 "\"total\":" + total + "," +
-                 "\"primaries\":" + primaries + "," +
-                 "\"replicas\":" + replicas + "," +
-                 "\"active_total\":" + (activePrimaries + activeReplicas) + "," +
-                 "\"active_primaries\":" + activePrimaries + "," +
-                 "\"active_replicas\":" + activeReplicas + "," +
-                 "\"unassigned_total\":" + (total - (activePrimaries + activeReplicas)) + "," +
-                 "\"unassigned_primaries\":" + (primaries - activePrimaries) + "," +
-                 "\"unassigned_replicas\":" + (total - (activePrimaries + activeReplicas) - (primaries - activePrimaries)) + "," +
-                 "\"initializing\":" + initializing + "," +
-                 "\"relocating\":" + relocating +
-               "}";
+    private String indexStatsSummary() throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("index", index.getName())
+            .field("uuid", index.getUUID())
+            .field("created", metaData.getCreationDate())
+            .field("status", indexHealth.getStatus().name().toLowerCase(Locale.ROOT));
+        {
+            builder.startObject("shards")
+                .field("total", total)
+                .field("primaries", primaries)
+                .field("replicas", replicas)
+                .field("active_total", activePrimaries + activeReplicas)
+                .field("active_primaries", activePrimaries)
+                .field("active_replicas", activeReplicas)
+                .field("unassigned_total", total - (activePrimaries + activeReplicas))
+                .field("unassigned_primaries", primaries - activePrimaries)
+                .field("unassigned_replicas", total - (activePrimaries + activeReplicas) - (primaries - activePrimaries))
+                .field("initializing", initializing)
+                .field("relocating", relocating)
+                .endObject();
+        }
+
+        builder.endObject();
+
+        return convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
     }
 
     private static CommonStats mockCommonStats() {

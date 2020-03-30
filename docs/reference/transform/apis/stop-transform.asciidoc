@@ -10,8 +10,6 @@
 
 Stops one or more {transforms}.
 
-beta[]
-
 
 [[stop-transform-request]]
 ==== {api-request-title}

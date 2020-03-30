@@ -342,7 +342,9 @@ public class FrozenEngineTests extends EngineTestCase {
                 applyOperations(engine, generateHistoryOnReplica(between(10, 1000), false, randomBoolean(), randomBoolean()));
                 globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
                 engine.syncTranslog();
-                engine.flush();
+                // We need to force flush to make the last commit a safe commit; otherwise, we might fail to open ReadOnlyEngine
+                // See TransportVerifyShardBeforeCloseAction#executeShardOperation
+                engine.flush(true, true);
                 engine.refresh("test");
                 try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                     totalDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE).scoreDocs.length;

@@ -42,41 +42,40 @@ public final class TransformProgressGatherer {
     public void getInitialProgress(QueryBuilder filterQuery, TransformConfig config, ActionListener<TransformProgress> progressListener) {
         SearchRequest request = getSearchRequest(config, filterQuery);
 
-        ActionListener<SearchResponse> searchResponseActionListener = ActionListener
-            .wrap(
-                searchResponse -> progressListener.onResponse(searchResponseToTransformProgressFunction().apply(searchResponse)),
-                progressListener::onFailure
-            );
-        ClientHelper
-            .executeWithHeadersAsync(
-                config.getHeaders(),
-                ClientHelper.TRANSFORM_ORIGIN,
-                client,
-                SearchAction.INSTANCE,
-                request,
-                searchResponseActionListener
-            );
+        ActionListener<SearchResponse> searchResponseActionListener = ActionListener.wrap(
+            searchResponse -> progressListener.onResponse(searchResponseToTransformProgressFunction().apply(searchResponse)),
+            progressListener::onFailure
+        );
+        ClientHelper.executeWithHeadersAsync(
+            config.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            request,
+            searchResponseActionListener
+        );
     }
 
     public static SearchRequest getSearchRequest(TransformConfig config, QueryBuilder filteredQuery) {
         SearchRequest request = new SearchRequest(config.getSource().getIndex());
         request.allowPartialSearchResults(false);
         BoolQueryBuilder existsClauses = QueryBuilders.boolQuery();
-        config
-            .getPivotConfig()
+        config.getPivotConfig()
             .getGroupConfig()
             .getGroups()
             .values()
             // TODO change once we allow missing_buckets
-            .forEach(src -> existsClauses.must(QueryBuilders.existsQuery(src.getField())));
+            .forEach(src -> {
+                if (src.getField() != null) {
+                    existsClauses.must(QueryBuilders.existsQuery(src.getField()));
+                }
+            });
 
-        request
-            .source(
-                new SearchSourceBuilder()
-                    .size(0)
-                    .trackTotalHits(true)
-                    .query(QueryBuilders.boolQuery().filter(filteredQuery).filter(existsClauses))
-            );
+        request.source(
+            new SearchSourceBuilder().size(0)
+                .trackTotalHits(true)
+                .query(QueryBuilders.boolQuery().filter(filteredQuery).filter(existsClauses))
+        );
         return request;
     }
 

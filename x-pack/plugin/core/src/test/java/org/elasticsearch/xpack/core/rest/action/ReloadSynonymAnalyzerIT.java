@@ -64,10 +64,8 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
         Path config = internalCluster().getInstance(Environment.class).configFile();
         String synonymsFileName = "synonyms.txt";
         Path synonymsFile = config.resolve(synonymsFileName);
-        Files.createFile(synonymsFile);
-        assertTrue(Files.exists(synonymsFile));
         try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.CREATE), StandardCharsets.UTF_8))) {
+                new OutputStreamWriter(Files.newOutputStream(synonymsFile), StandardCharsets.UTF_8))) {
             out.println("foo, baz");
         }
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()

@@ -19,27 +19,22 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.BlockNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ForLoopNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-
-import java.util.Arrays;
-import java.util.Set;
-
-import static java.util.Collections.emptyList;
 
 /**
  * Represents a for loop.
  */
-public final class SFor extends AStatement {
+public class SFor extends AStatement {
 
-    private ANode initializer;
-    private AExpression condition;
-    private AExpression afterthought;
-    private final SBlock block;
-
-    private boolean continuous = false;
+    protected final ANode initializer;
+    protected final AExpression condition;
+    protected final AExpression afterthought;
+    protected final SBlock block;
 
     public SFor(Location location, ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
         super(location);
@@ -51,55 +46,45 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        if (initializer != null) {
-            initializer.extractVariables(variables);
-        }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        scope = scope.newLocalScope();
 
-        if (condition != null) {
-            condition.extractVariables(variables);
-        }
-
-        if (afterthought != null) {
-            afterthought.extractVariables(variables);
-        }
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        locals = Locals.newLocalScope(locals);
+        Output initializerStatementOutput = null;
+        AExpression.Output initializerExpressionOutput = null;
 
         if (initializer != null) {
             if (initializer instanceof SDeclBlock) {
-                initializer.analyze(scriptRoot, locals);
+                initializerStatementOutput = ((SDeclBlock)initializer).analyze(classNode, scriptRoot, scope, new Input());
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
-                initializer.read = false;
-                initializer.analyze(scriptRoot, locals);
+                AExpression.Input initializerInput = new AExpression.Input();
+                initializerInput.read = false;
+                initializerExpressionOutput = initializer.analyze(classNode, scriptRoot, scope, initializerInput);
 
-                if (!initializer.statement) {
+                if (initializerExpressionOutput.statement == false) {
                     throw createError(new IllegalArgumentException("Not a statement."));
                 }
 
-                initializer.expected = initializer.actual;
-                this.initializer = initializer.cast(scriptRoot, locals);
+                initializerInput.expected = initializerExpressionOutput.actual;
+                initializer.cast(initializerInput, initializerExpressionOutput);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
-        if (condition != null) {
-            condition.expected = boolean.class;
-            condition.analyze(scriptRoot, locals);
-            condition = condition.cast(scriptRoot, locals);
+        boolean continuous = false;
 
-            if (condition.constant != null) {
-                continuous = (boolean)condition.constant;
+        AExpression.Output conditionOutput = null;
+
+        if (condition != null) {
+            AExpression.Input conditionInput = new AExpression.Input();
+            conditionInput.expected = boolean.class;
+            conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
+            condition.cast(conditionInput, conditionOutput);
+
+            if (condition instanceof EBoolean) {
+                continuous = ((EBoolean)condition).constant;
 
                 if (!continuous) {
                     throw createError(new IllegalArgumentException("Extraneous for loop."));
@@ -113,61 +98,57 @@ public final class SFor extends AStatement {
             continuous = true;
         }
 
-        if (afterthought != null) {
-            afterthought.read = false;
-            afterthought.analyze(scriptRoot, locals);
+        AExpression.Output afterthoughtOutput = null;
 
-            if (!afterthought.statement) {
+        if (afterthought != null) {
+            AExpression.Input afterthoughtInput = new AExpression.Input();
+            afterthoughtInput.read = false;
+            afterthoughtOutput = afterthought.analyze(classNode, scriptRoot, scope, afterthoughtInput);
+
+            if (afterthoughtOutput.statement == false) {
                 throw createError(new IllegalArgumentException("Not a statement."));
             }
 
-            afterthought.expected = afterthought.actual;
-            afterthought = afterthought.cast(scriptRoot, locals);
+            afterthoughtInput.expected = afterthoughtOutput.actual;
+            afterthought.cast(afterthoughtInput, afterthoughtOutput);
         }
 
+        Output output = new Output();
+        Output blockOutput = null;
+
         if (block != null) {
-            block.beginLoop = true;
-            block.inLoop = true;
+            Input blockInput = new Input();
+            blockInput.beginLoop = true;
+            blockInput.inLoop = true;
 
-            block.analyze(scriptRoot, locals);
+            blockOutput = block.analyze(classNode, scriptRoot, scope, blockInput);
 
-            if (block.loopEscape && !block.anyContinue) {
+            if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
                 throw createError(new IllegalArgumentException("Extraneous for loop."));
             }
 
-            if (continuous && !block.anyBreak) {
-                methodEscape = true;
-                allEscape = true;
+            if (continuous && blockOutput.anyBreak == false) {
+                output.methodEscape = true;
+                output.allEscape = true;
             }
 
-            block.statementCount = Math.max(1, block.statementCount);
+            blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
         }
 
-        statementCount = 1;
+        output.statementCount = 1;
 
-        if (locals.hasVariable(Locals.LOOP)) {
-            loopCounter = locals.getVariable(location, Locals.LOOP);
-        }
-    }
-
-    @Override
-    ForLoopNode write() {
         ForLoopNode forLoopNode = new ForLoopNode();
-
-        forLoopNode.setInitialzerNode(initializer == null ? null : initializer.write());
-        forLoopNode.setConditionNode(condition == null ? null : condition.write());
-        forLoopNode.setAfterthoughtNode(afterthought == null ? null : afterthought.write());
-        forLoopNode.setBlockNode(block == null ? null : block.write());
-
+        forLoopNode.setInitialzerNode(initializer == null ? null : initializer instanceof AExpression ?
+                ((AExpression)initializer).cast(initializerExpressionOutput) :
+                initializerStatementOutput.statementNode);
+        forLoopNode.setConditionNode(condition == null ? null : condition.cast(conditionOutput));
+        forLoopNode.setAfterthoughtNode(afterthought == null ? null : afterthought.cast(afterthoughtOutput));
+        forLoopNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
         forLoopNode.setLocation(location);
-        forLoopNode.setLoopCounter(loopCounter);
         forLoopNode.setContinuous(continuous);
 
-        return forLoopNode;
-    }
+        output.statementNode = forLoopNode;
 
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), Arrays.asList(initializer, condition, afterthought, block));
+        return output;
     }
 }

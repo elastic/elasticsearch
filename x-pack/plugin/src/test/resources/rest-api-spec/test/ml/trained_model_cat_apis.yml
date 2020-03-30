@@ -1,0 +1,110 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: index-source
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: a-regression-model-0
+        body: >
+          {
+            "description": "empty model for tests",
+            "tags": ["regression", "tag1"],
+            "input": {"field_names": ["field1", "field2"]},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: a-regression-model-1
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_data_frame_analytics:
+        id: "prepackaged"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"regression":{
+                "dependent_variable": "to_predict"
+            }}
+          }
+
+---
+"Test cat trained models":
+
+  - do:
+      cat.ml_trained_models:
+        model_id: a-regression-model-0
+  - match:
+      $body: |
+        / #id                           heap_size    operations    create_time    ingest.pipelines  data_frame.id
+        ^ (a\-regression\-model\-0 \s+  \w+      \s+ \d+       \s+ .*?        \s+ \d+               .*?          \n)+  $/
+
+  - do:
+      cat.ml_trained_models:
+        v: true
+        model_id: a-regression-model-0
+  - match:
+      $body: |
+        /^  id                       \s+  heap_size \s+ operations \s+ create_time \s+ ingest\.pipelines \s+ data_frame\.id \n
+           (a\-regression\-model\-0  \s+  \w+       \s+ \d+        \s+ .*?         \s+ \d+               \s+ .*?            \n)+        $/
+
+  - do:
+      cat.ml_trained_models:
+        h: id,license,dfid,ip
+        v: true
+  - match:
+      $body: |
+        /^  id                        \s+  license \s+ dfid         \s+ ip   \n
+           (a\-regression\-model\-0   \s+  \w+     \s+ __none__     \s+ \d+  \n)+
+           (a\-regression\-model\-1   \s+  \w+     \s+ __none__     \s+ \d+  \n)+
+           (lang_ident_model_1        \s+  \w+     \s+ prepackaged  \s+ \d+  \n)+  $/
+
+  - do:
+      cat.ml_trained_models:
+        model_id: a-regression-model-1
+        h: id,license,dfid,ip
+        v: true
+  - match:
+      $body: |
+        /^  id                        \s+  license \s+ dfid         \s+ ip   \n
+           (a\-regression\-model\-1   \s+  \w+     \s+ __none__     \s+ \d+  \n)+ $/

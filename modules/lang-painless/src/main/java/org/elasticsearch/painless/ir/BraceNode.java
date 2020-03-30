@@ -20,15 +20,15 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
 
 public class BraceNode extends BinaryNode {
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        getLeftNode().write(classWriter, methodWriter, globals);
-        getRightNode().write(classWriter, methodWriter, globals);
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+        getLeftNode().write(classWriter, methodWriter, scopeTable);
+        getRightNode().write(classWriter, methodWriter, scopeTable);
     }
 
     @Override
@@ -37,18 +37,18 @@ public class BraceNode extends BinaryNode {
     }
 
     @Override
-    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        getLeftNode().write(classWriter, methodWriter, globals);
-        getRightNode().setup(classWriter, methodWriter, globals);
+    protected void setup(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+        getLeftNode().write(classWriter, methodWriter, scopeTable);
+        getRightNode().setup(classWriter, methodWriter, scopeTable);
     }
 
     @Override
-    protected void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        getRightNode().load(classWriter, methodWriter, globals);
+    protected void load(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+        getRightNode().load(classWriter, methodWriter, scopeTable);
     }
 
     @Override
-    protected void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        getRightNode().store(classWriter, methodWriter, globals);
+    protected void store(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+        getRightNode().store(classWriter, methodWriter, scopeTable);
     }
 }

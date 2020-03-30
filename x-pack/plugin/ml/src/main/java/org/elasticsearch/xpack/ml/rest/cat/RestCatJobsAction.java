@@ -10,9 +10,9 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -25,13 +25,17 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 
+import java.util.List;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCatJobsAction extends AbstractCatAction {
 
-    public RestCatJobsAction(RestController controller) {
-        controller.registerHandler(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
-        controller.registerHandler(GET, "_cat/ml/anomaly_detectors", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "_cat/ml/anomaly_detectors/{" + Job.ID.getPreferredName() + "}"),
+            new Route(GET, "_cat/ml/anomaly_detectors"));
     }
 
     @Override
@@ -68,17 +72,15 @@ public class RestCatJobsAction extends AbstractCatAction {
         table.startHeaders();
 
         // Job Info
-        table.addCell("id", TableColumnAttributeBuilder.builder().setDescription("the job_id").build());
-        table.addCell("state", TableColumnAttributeBuilder.builder()
-            .setDescription("the job state")
-            .setAliases("s")
-            .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
-            .build());
+        table.addCell("id", TableColumnAttributeBuilder.builder("the job_id").build());
+        table.addCell("state",
+            TableColumnAttributeBuilder.builder("the job state")
+                .setAliases("s")
+                .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
+                .build());
         table.addCell("opened_time",
-            TableColumnAttributeBuilder.builder()
-                .setDescription("the amount of time the job has been opened")
+            TableColumnAttributeBuilder.builder("the amount of time the job has been opened", false)
                 .setAliases("ot")
-                .setDisplayByDefault(false)
                 .build());
         table.addCell("assignment_explanation",
             TableColumnAttributeBuilder.builder("why the job is or is not assigned to a node", false)
@@ -92,7 +94,7 @@ public class RestCatJobsAction extends AbstractCatAction {
             .build());
         table.addCell("data.processed_fields",
             TableColumnAttributeBuilder.builder("number of processed fields", false)
-                .setAliases("dpr", "dataProcessedFields")
+                .setAliases("dpf", "dataProcessedFields")
                 .build());
         table.addCell("data.input_bytes",
             TableColumnAttributeBuilder.builder("total input bytes", false)
@@ -183,6 +185,31 @@ public class RestCatJobsAction extends AbstractCatAction {
             TableColumnAttributeBuilder.builder("number of bucket allocation failures", false)
                 .setAliases("mbaf", "modelBucketAllocationFailures")
                 .build());
+        table.addCell("model.categorization_status",
+            TableColumnAttributeBuilder.builder("current categorization status", false)
+                .setAliases("mcs", "modelCategorizationStatus")
+                .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
+                .build());
+        table.addCell("model.categorized_doc_count",
+            TableColumnAttributeBuilder.builder("count of categorized documents", false)
+                .setAliases("mcdc", "modelCategorizedDocCount")
+                .build());
+        table.addCell("model.total_category_count",
+            TableColumnAttributeBuilder.builder("count of categories", false)
+                .setAliases("mtcc", "modelTotalCategoryCount")
+                .build());
+        table.addCell("model.frequent_category_count",
+            TableColumnAttributeBuilder.builder("count of frequent categories", false)
+                .setAliases("mfcc", "modelFrequentCategoryCount")
+                .build());
+        table.addCell("model.rare_category_count",
+            TableColumnAttributeBuilder.builder("count of rare categories", false)
+                .setAliases("mrcc", "modelRareCategoryCount")
+                .build());
+        table.addCell("model.dead_category_count",
+            TableColumnAttributeBuilder.builder("count of dead categories", false)
+                .setAliases("mdcc", "modelDeadCategoryCount")
+                .build());
         table.addCell("model.log_time",
             TableColumnAttributeBuilder.builder("when the model stats were gathered", false)
                 .setAliases("mlt", "modelLogTime")
@@ -193,55 +220,55 @@ public class RestCatJobsAction extends AbstractCatAction {
                 .build());
 
         // Forecast Stats
-        table.addCell("forecast." + ForecastStats.Fields.TOTAL,
-            TableColumnAttributeBuilder.builder("total number of forecasts").setAliases("ft", "forecastTotal").build());
-        table.addCell("forecast.memory.min",
+        table.addCell("forecasts." + ForecastStats.Fields.TOTAL,
+            TableColumnAttributeBuilder.builder("total number of forecasts").setAliases("ft", "forecastsTotal").build());
+        table.addCell("forecasts.memory.min",
             TableColumnAttributeBuilder.builder("minimum memory used by forecasts", false)
-                .setAliases("fmmin", "forecastMemoryMin")
+                .setAliases("fmmin", "forecastsMemoryMin")
                 .build());
-        table.addCell("forecast.memory.max",
+        table.addCell("forecasts.memory.max",
             TableColumnAttributeBuilder.builder("maximum memory used by forecasts", false)
                 .setAliases("fmmax", "forecastsMemoryMax")
                 .build());
-        table.addCell("forecast.memory.avg",
+        table.addCell("forecasts.memory.avg",
             TableColumnAttributeBuilder.builder("average memory used by forecasts", false)
-                .setAliases("fmavg", "forecastMemoryAvg")
+                .setAliases("fmavg", "forecastsMemoryAvg")
                 .build());
-        table.addCell("forecast.memory.total",
+        table.addCell("forecasts.memory.total",
             TableColumnAttributeBuilder.builder("total memory used by all forecasts", false)
-                .setAliases("fmt", "forecastMemoryTotal")
+                .setAliases("fmt", "forecastsMemoryTotal")
                 .build());
-        table.addCell("forecast." + ForecastStats.Fields.RECORDS + ".min",
+        table.addCell("forecasts." + ForecastStats.Fields.RECORDS + ".min",
             TableColumnAttributeBuilder.builder("minimum record count for forecasts", false)
-                .setAliases("frmin", "forecastRecordsMin")
+                .setAliases("frmin", "forecastsRecordsMin")
                 .build());
-        table.addCell("forecast." + ForecastStats.Fields.RECORDS + ".max",
+        table.addCell("forecasts." + ForecastStats.Fields.RECORDS + ".max",
             TableColumnAttributeBuilder.builder("maximum record count for forecasts", false)
-                .setAliases("frmax", "forecastRecordsMax")
+                .setAliases("frmax", "forecastsRecordsMax")
                 .build());
-        table.addCell("forecast." + ForecastStats.Fields.RECORDS + ".avg",
+        table.addCell("forecasts." + ForecastStats.Fields.RECORDS + ".avg",
             TableColumnAttributeBuilder.builder("average record count for forecasts", false)
-                .setAliases("fravg", "forecastRecordsAvg")
+                .setAliases("fravg", "forecastsRecordsAvg")
                 .build());
-        table.addCell("forecast." + ForecastStats.Fields.RECORDS + ".total",
+        table.addCell("forecasts." + ForecastStats.Fields.RECORDS + ".total",
             TableColumnAttributeBuilder.builder("total record count for all forecasts", false)
-                .setAliases("frt", "forecastRecordsTotal")
+                .setAliases("frt", "forecastsRecordsTotal")
                 .build());
-        table.addCell("forecast.time.min",
+        table.addCell("forecasts.time.min",
             TableColumnAttributeBuilder.builder("minimum runtime for forecasts", false)
-                .setAliases("ftmin", "forecastTimeMin")
+                .setAliases("ftmin", "forecastsTimeMin")
                 .build());
-        table.addCell("forecast.time.max",
+        table.addCell("forecasts.time.max",
             TableColumnAttributeBuilder.builder("maximum run time for forecasts", false)
-                .setAliases("ftmax", "forecastTimeMax")
+                .setAliases("ftmax", "forecastsTimeMax")
                 .build());
-        table.addCell("forecast.time.avg",
+        table.addCell("forecasts.time.avg",
             TableColumnAttributeBuilder.builder("average runtime for all forecasts (milliseconds)", false)
-                .setAliases("ftavg", "forecastTimeAvg")
+                .setAliases("ftavg", "forecastsTimeAvg")
                 .build());
-        table.addCell("forecast.time.total",
+        table.addCell("forecasts.time.total",
             TableColumnAttributeBuilder.builder("total runtime for all forecasts", false)
-                .setAliases("ftt", "forecastTimeTotal").build());
+                .setAliases("ftt", "forecastsTimeTotal").build());
 
         //Node info
         table.addCell("node.id",
@@ -262,29 +289,29 @@ public class RestCatJobsAction extends AbstractCatAction {
                 .build());
 
         //Timing Stats
-        table.addCell("bucket.count",
+        table.addCell("buckets.count",
             TableColumnAttributeBuilder.builder("bucket count")
-                .setAliases("bc", "bucketCount")
+                .setAliases("bc", "bucketsCount")
                 .build());
-        table.addCell("bucket.time.total",
+        table.addCell("buckets.time.total",
             TableColumnAttributeBuilder.builder("total bucket processing time", false)
-                .setAliases("btt", "bucketTimeTotal")
+                .setAliases("btt", "bucketsTimeTotal")
                 .build());
-        table.addCell("bucket.time.min",
+        table.addCell("buckets.time.min",
             TableColumnAttributeBuilder.builder("minimum bucket processing time", false)
-                .setAliases("btmin", "bucketTimeMin")
+                .setAliases("btmin", "bucketsTimeMin")
                 .build());
-        table.addCell("bucket.time.max",
+        table.addCell("buckets.time.max",
             TableColumnAttributeBuilder.builder("maximum bucket processing time", false)
-                .setAliases("btmax", "bucketTimeMax")
+                .setAliases("btmax", "bucketsTimeMax")
                 .build());
-        table.addCell("bucket.time.exp_avg",
+        table.addCell("buckets.time.exp_avg",
             TableColumnAttributeBuilder.builder("exponential average bucket processing time (milliseconds)", false)
-                .setAliases("btea", "bucketTimeExpAvg")
+                .setAliases("btea", "bucketsTimeExpAvg")
                 .build());
-        table.addCell("bucket.time.exp_avg_hour",
+        table.addCell("buckets.time.exp_avg_hour",
             TableColumnAttributeBuilder.builder("exponential average bucket processing time by hour (milliseconds)", false)
-                .setAliases("bteah", "bucketTimeExpAvgHour")
+                .setAliases("bteah", "bucketsTimeExpAvgHour")
                 .build());
 
         table.endHeaders();
@@ -318,7 +345,6 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(dataCounts.getLatestEmptyBucketTimeStamp());
             table.addCell(dataCounts.getLatestSparseBucketTimeStamp());
 
-
             ModelSizeStats modelSizeStats = job.getModelSizeStats();
             table.addCell(modelSizeStats == null ? null : new ByteSizeValue(modelSizeStats.getModelBytes()));
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getMemoryStatus().toString());
@@ -332,6 +358,12 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalOverFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalPartitionFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getBucketAllocationFailuresCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizationStatus().toString());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizedDocCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getFrequentCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getRareCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getDeadCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getLogTime());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTimestamp());
 

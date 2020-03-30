@@ -93,14 +93,22 @@ class IndexLifecycleRunner {
         }
         final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
         final long now = nowSupplier.getAsLong();
-        final TimeValue age = new TimeValue(now - lifecycleDate);
+        final long ageMillis = now - lifecycleDate;
+        final TimeValue age;
+        if (ageMillis >= 0) {
+            age = new TimeValue(ageMillis);
+        } else if (ageMillis == Long.MIN_VALUE) {
+            age = new TimeValue(Long.MAX_VALUE);
+        } else {
+            age = new TimeValue(-ageMillis);
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] checking for index age to be at least [{}] before performing actions in " +
-                    "the \"{}\" phase. Now: {}, lifecycle date: {}, age: [{}/{}s]",
+                    "the \"{}\" phase. Now: {}, lifecycle date: {}, age: [{}{}/{}s]",
                 indexMetaData.getIndex().getName(), after, phase,
                 new TimeValue(now).seconds(),
                 new TimeValue(lifecycleDate).seconds(),
-                age, age.seconds());
+                ageMillis < 0 ? "-" : "", age, age.seconds());
         }
         return now >= lifecycleDate + after.getMillis();
     }
@@ -143,6 +151,11 @@ class IndexLifecycleRunner {
             index, currentStep.getClass().getSimpleName(), currentStep.getKey());
         // Only phase changing and async wait steps should be run through periodic polling
         if (currentStep instanceof PhaseCompleteStep) {
+            if (currentStep.getNextStepKey() == null) {
+                logger.debug("[{}] stopping in the current phase ({}) as there are no more steps in the policy",
+                    index, currentStep.getKey().getPhase());
+                return;
+            }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
             if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
                 moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
@@ -314,6 +327,11 @@ class IndexLifecycleRunner {
         logger.trace("[{}] maybe running step ({}) after state change: {}",
             index, currentStep.getClass().getSimpleName(), currentStep.getKey());
         if (currentStep instanceof PhaseCompleteStep) {
+            if (currentStep.getNextStepKey() == null) {
+                logger.debug("[{}] stopping in the current phase ({}) as there are no more steps in the policy",
+                    index, currentStep.getKey().getPhase());
+                return;
+            }
             // Only proceed to the next step if enough time has elapsed to go into the next phase
             if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
                 moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());

@@ -129,8 +129,14 @@ public final class StringUtils {
             sb.append(":");
             durationInSec = durationInSec % SECONDS_PER_MINUTE;
             sb.append(indent(durationInSec));
-            sb.append(".");
-            sb.append(TimeUnit.NANOSECONDS.toMillis(d.getNano()));
+            long millis = TimeUnit.NANOSECONDS.toMillis(d.getNano());
+            if (millis > 0) {
+                sb.append(".");
+                while (millis % 10 == 0) {
+                    millis /= 10;
+                }
+                sb.append(millis);
+            }
             return sb.toString();
         }
 

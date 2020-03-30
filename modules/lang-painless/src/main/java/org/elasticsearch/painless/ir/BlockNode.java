@@ -20,8 +20,8 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.ScopeTable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,11 +64,11 @@ public class BlockNode extends StatementNode {
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         for (StatementNode statementNode : statementNodes) {
             statementNode.continueLabel = continueLabel;
             statementNode.breakLabel = breakLabel;
-            statementNode.write(classWriter, methodWriter, globals);
+            statementNode.write(classWriter, methodWriter, scopeTable);
         }
     }
 }

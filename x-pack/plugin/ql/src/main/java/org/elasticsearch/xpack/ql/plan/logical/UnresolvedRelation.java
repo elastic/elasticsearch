@@ -89,11 +89,11 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         }
 
         UnresolvedRelation other = (UnresolvedRelation) obj;
-        return source().equals(other.source())
-            && table.equals(other.table)
+        return Objects.equals(source(), other.source())
+            && Objects.equals(table, other.table)
             && Objects.equals(alias, other.alias)
             && Objects.equals(frozen, other.frozen)
-            && unresolvedMsg.equals(other.unresolvedMsg);
+            && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 
     @Override

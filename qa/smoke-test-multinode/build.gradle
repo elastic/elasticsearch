@@ -21,8 +21,10 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-integTest {
-  includePackaged = true
+restResources {
+  restTests {
+    includeCore '*'
+  }
 }
 
 File repo = file("$buildDir/testclusters/repo")

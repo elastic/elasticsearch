@@ -124,12 +124,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
             Request createBwcWatch = new Request("PUT", "/_watcher/watch/bwc_watch");
-            Request createBwcThrottlePeriod = new Request("PUT", "/_watcher/watch/bwc_throttle_period");
-
             createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
             client().performRequest(createBwcWatch);
 
             logger.info("Adding a watch with \"fun\" throttle periods on old cluster");
+            Request createBwcThrottlePeriod = new Request("PUT", "/_watcher/watch/bwc_throttle_period");
             createBwcThrottlePeriod.setJsonEntity(loadWatch("throttle-period-watch.json"));
             client().performRequest(createBwcThrottlePeriod);
 
@@ -142,8 +141,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             try {
                 waitForYellow(".watches,bwc_watch_index,.watcher-history*");
             } catch (ResponseException e) {
-                String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
-                logger.info("cluster_state_response=\n{}", rsp);
+                {
+                    String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
+                    logger.info("cluster_state_response=\n{}", rsp);
+                }
+                {
+                    Request request = new Request("GET", "/_watcher/stats/_all");
+                    request.addParameter("emit_stacktraces", "true");
+                    String rsp = toStr(client().performRequest(request));
+                    logger.info("watcher_stats_response=\n{}", rsp);
+                }
                 throw e;
             }
             waitForHits("bwc_watch_index", 2);
@@ -424,6 +431,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void waitForHits(String indexName, int expectedHits) throws Exception {
         Request request = new Request("GET", "/" + indexName + "/_search");
+        request.addParameter("ignore_unavailable", "true");
         request.addParameter("size", "0");
         assertBusy(() -> {
             try {

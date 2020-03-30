@@ -53,6 +53,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.VersionUtils;
@@ -366,7 +367,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 new SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
                     new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-                Version.CURRENT, "test")).build())
+                Version.CURRENT, new IndexId("test", UUIDs.randomBase64UUID(random())))).build())
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2)).build();
         AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(
             new ReplicaAfterPrimaryActiveAllocationDecider(),
@@ -480,14 +481,15 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(decision.getExplanation(), is("cannot relocate primary shard from a node with version [" +
             newNode.node().getVersion() + "] to a node with older version [" + oldNode.node().getVersion() + "]"));
 
+        final IndexId indexId = new IndexId("test", UUIDs.randomBase64UUID(random()));
         final SnapshotRecoverySource newVersionSnapshot = new SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-            newNode.node().getVersion(), "test");
+            newNode.node().getVersion(), indexId);
         final SnapshotRecoverySource oldVersionSnapshot = new SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-            oldNode.node().getVersion(), "test");
+            oldNode.node().getVersion(), indexId);
 
         decision = allocationDecider.canAllocate(ShardRoutingHelper.newWithRestoreSource(primaryShard, newVersionSnapshot),
             oldNode, routingAllocation);

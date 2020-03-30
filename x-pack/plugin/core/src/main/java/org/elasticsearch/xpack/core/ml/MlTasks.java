@@ -132,14 +132,18 @@ public final class MlTasks {
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetaData tasks) {
         PersistentTasksCustomMetaData.PersistentTask<?> task = getDatafeedTask(datafeedId, tasks);
-        // TODO: report (task != null && task.getState() == null) as STARTING in version 8, and fix side effects
-        if (task != null && task.getState() != null) {
-            return (DatafeedState) task.getState();
-        } else {
+        if (task == null) {
             // If we haven't started a datafeed then there will be no persistent task,
             // which is the same as if the datafeed was't started
             return DatafeedState.STOPPED;
         }
+        DatafeedState taskState = (DatafeedState) task.getState();
+        if (taskState == null) {
+            // If we haven't set a state yet then the task has never been assigned, so
+            // report that it's starting
+            return DatafeedState.STARTING;
+        }
+        return taskState;
     }
 
     public static DataFrameAnalyticsState getDataFrameAnalyticsState(String analyticsId, @Nullable PersistentTasksCustomMetaData tasks) {

@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.junit.After;
 
 import java.io.IOException;
@@ -188,7 +188,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         // Wait until the notification that the filter was updated is indexed
         assertBusy(() -> {
             SearchResponse searchResponse =
-                client().prepareSearch(AuditorField.NOTIFICATIONS_INDEX)
+                client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
                     .setSize(1)
                     .addSort("timestamp", SortOrder.DESC)
                     .setQuery(QueryBuilders.boolQuery()

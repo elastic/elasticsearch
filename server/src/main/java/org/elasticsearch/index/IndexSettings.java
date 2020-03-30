@@ -84,6 +84,9 @@ public final class IndexSettings {
                         "[true, false, checksum] but was: " + s);
             }
         }, Property.IndexScope);
+    // This setting is undocumented as it is considered as an escape hatch.
+    public static final Setting<Boolean> ON_HEAP_ID_TERMS_INDEX =
+            Setting.boolSetting("index.force_memory_id_terms_dictionary", false, Property.IndexScope);
 
     /**
      * Index setting describing the maximum value of from + size on a query.
@@ -245,7 +248,7 @@ public final class IndexSettings {
      * Controls how long translog files that are no longer needed for persistence reasons
      * will be kept around before being deleted. Keeping more files is useful to increase
      * the chance of ops based recoveries for indices with soft-deletes disabled.
-     * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
+     * TODO: Remove this setting in 9.0.
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
         Setting.timeSetting("index.translog.retention.age", settings -> TimeValue.MINUS_ONE,
@@ -255,18 +258,10 @@ public final class IndexSettings {
      * Controls how many translog files that are no longer needed for persistence reasons
      * will be kept around before being deleted. Keeping more files is useful to increase
      * the chance of ops based recoveries for indices with soft-deletes disabled.
-     * This setting will be ignored if soft-deletes is used in peer recoveries (default in 7.4).
+     * TODO: Remove this setting in 9.0.
      **/
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
         Setting.byteSizeSetting("index.translog.retention.size", settings -> "-1", Property.Dynamic, Property.IndexScope);
-
-    /**
-     * Controls the number of translog files that are no longer needed for persistence reasons will be kept around before being deleted.
-     * This is a safeguard making sure that the translog deletion policy won't keep too many translog files especially when they're small.
-     * This setting is intentionally not registered, it is only used in tests
-     **/
-    public static final Setting<Integer> INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING =
-        Setting.intSetting("index.translog.retention.total_files", 100, 0, Setting.Property.IndexScope);
 
     /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.

@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -15,6 +16,10 @@ testClusters.integTest {
   setting 'xpack.license.self_generated.type', 'trial'
   user username: "test_user", password: "x-pack-test-password"
   project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+    if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
+      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
+      return
+    }
     plugin file(pluginProject.tasks.bundlePlugin.archiveFile)
     tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
     pluginsCount += 1

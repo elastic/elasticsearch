@@ -1,0 +1,47 @@
+{
+  "order" : 0,
+  "version" : ${xpack.ml.version.id},
+  "index_patterns" : [
+    ".ml-notifications-000001"
+  ],
+  "settings" : {
+    "index" : {
+      "number_of_shards" : "1",
+      "auto_expand_replicas" : "0-1",
+      "hidden": true
+    }
+  },
+  "mappings" : {
+    "_doc": {
+      "_meta" : {
+        "version" : "${xpack.ml.version}"
+      },
+      "dynamic" : "false",
+      "properties" : {
+        "job_id": {
+          "type": "keyword"
+        },
+        "level": {
+          "type": "keyword"
+        },
+        "message": {
+          "type": "text",
+          "fields": {
+            "raw": {
+              "type": "keyword"
+            }
+          }
+        },
+        "timestamp": {
+          "type": "date"
+        },
+        "node_name": {
+          "type": "keyword"
+        },
+        "job_type": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

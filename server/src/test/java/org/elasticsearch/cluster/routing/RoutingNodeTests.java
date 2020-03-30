@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -113,6 +114,19 @@ public class RoutingNodeTests extends ESTestCase {
 
     public void testNumberOfOwningShards() {
         assertThat(routingNode.numberOfOwningShards(), equalTo(2));
+    }
+
+    public void testNumberOfOwningShardsForIndex() {
+        final ShardRouting test1Shard0 =
+            TestShardRouting.newShardRouting("test1", 0, "node-1", false, ShardRoutingState.STARTED);
+        final ShardRouting test2Shard0 =
+            TestShardRouting.newShardRouting("test2", 0, "node-1", "node-2", false, ShardRoutingState.RELOCATING);
+        routingNode.add(test1Shard0);
+        routingNode.add(test2Shard0);
+        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test", IndexMetaData.INDEX_UUID_NA_VALUE)), equalTo(2));
+        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test1", IndexMetaData.INDEX_UUID_NA_VALUE)), equalTo(1));
+        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test2", IndexMetaData.INDEX_UUID_NA_VALUE)), equalTo(0));
+        assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test3", IndexMetaData.INDEX_UUID_NA_VALUE)), equalTo(0));
     }
 
 }

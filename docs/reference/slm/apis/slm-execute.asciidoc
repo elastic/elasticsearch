@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[slm-api-execute-lifecycle]]
 === Execute snapshot lifecycle policy API
 ++++

@@ -3,7 +3,7 @@
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html"
     },
-    "stability":"beta",
+    "stability":"stable",
     "url":{
       "paths":[
         {

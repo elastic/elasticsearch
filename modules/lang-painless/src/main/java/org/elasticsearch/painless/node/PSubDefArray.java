@@ -19,21 +19,22 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
+import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
  */
-final class PSubDefArray extends AStoreable {
-    private AExpression index;
+public class PSubDefArray extends AStoreable {
+
+    protected AExpression index;
 
     PSubDefArray(Location location, AExpression index) {
         super(location);
@@ -42,44 +43,31 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        index.analyze(scriptRoot, locals);
-        index.expected = index.actual;
-        index = index.cast(scriptRoot, locals);
+        Input indexInput = new Input();
+        Output indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+        indexInput.expected = indexOutput.actual;
+        index.cast(indexInput, indexOutput);
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-        actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;
-    }
+        output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
 
-    @Override
-    BraceSubDefNode write() {
         BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
 
-        braceSubDefNode.setChildNode(index.write());
+        braceSubDefNode.setChildNode(index.cast(indexOutput));
 
         braceSubDefNode.setLocation(location);
-        braceSubDefNode.setExpressionType(actual);
+        braceSubDefNode.setExpressionType(output.actual);
 
-        return braceSubDefNode;
+        output.expressionNode = braceSubDefNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
         return true;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        this.actual = actual;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, index);
     }
 }

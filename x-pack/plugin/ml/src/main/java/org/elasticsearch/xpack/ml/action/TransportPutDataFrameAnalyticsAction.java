@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -208,7 +209,7 @@ public class TransportPutDataFrameAnalyticsAction
         }
         ElasticsearchMappings.addDocMappingIfMissing(
             AnomalyDetectorsIndex.configIndexName(),
-            ElasticsearchMappings::configMapping,
+            MlConfigIndex::mapping,
             client,
             clusterState,
             ActionListener.wrap(

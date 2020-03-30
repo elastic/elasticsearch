@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -49,6 +50,7 @@ public class Alias implements Writeable, ToXContentFragment {
     private static final ParseField INDEX_ROUTING = new ParseField("index_routing", "indexRouting", "index-routing");
     private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
     private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
+    private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
 
     private String name;
 
@@ -64,12 +66,18 @@ public class Alias implements Writeable, ToXContentFragment {
     @Nullable
     private Boolean writeIndex;
 
+    @Nullable
+    private Boolean isHidden;
+
     public Alias(StreamInput in) throws IOException {
         name = in.readString();
         filter = in.readOptionalString();
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
         writeIndex = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            isHidden = in.readOptionalBoolean();
+        }
     }
 
     public Alias(String name) {
@@ -189,6 +197,21 @@ public class Alias implements Writeable, ToXContentFragment {
         return this;
     }
 
+    /**
+     * @return whether this alias is hidden or not
+     */
+    public Boolean isHidden() {
+        return isHidden;
+    }
+
+    /**
+     * Sets whether this alias is hidden
+     */
+    public Alias isHidden(@Nullable Boolean isHidden) {
+        this.isHidden = isHidden;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
@@ -196,6 +219,9 @@ public class Alias implements Writeable, ToXContentFragment {
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
         out.writeOptionalBoolean(writeIndex);
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            out.writeOptionalBoolean(isHidden);
+        }
     }
 
     /**
@@ -228,6 +254,8 @@ public class Alias implements Writeable, ToXContentFragment {
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (IS_WRITE_INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.writeIndex(parser.booleanValue());
+                } else if (IS_HIDDEN.match(currentFieldName, parser.getDeprecationHandler())) {
+                    alias.isHidden(parser.booleanValue());
                 }
             }
         }
@@ -256,6 +284,10 @@ public class Alias implements Writeable, ToXContentFragment {
         }
 
         builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
+
+        if (isHidden != null) {
+            builder.field(IS_HIDDEN.getPreferredName(), isHidden);
+        }
 
         builder.endObject();
         return builder;

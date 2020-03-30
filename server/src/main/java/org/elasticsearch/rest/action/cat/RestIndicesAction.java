@@ -43,7 +43,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -51,10 +50,10 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -62,6 +61,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static java.util.Arrays.asList;
 import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -69,9 +69,11 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
 
-    public RestIndicesAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/indices", this);
-        controller.registerHandler(GET, "/_cat/indices/{index}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cat/indices"),
+            new Route(GET, "/_cat/indices/{index}"));
     }
 
     @Override
@@ -88,7 +90,7 @@ public class RestIndicesAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final IndicesOptions indicesOptions = IndicesOptions.strictExpand();
+        final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
         final boolean local = request.paramAsBoolean("local", false);
         final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
@@ -107,6 +109,12 @@ public class RestIndicesAction extends AbstractCatAction {
                     final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
                     groupedListener.onResponse(getSettingsResponse);
 
+                    // The list of indices that will be returned is determined by the indices returned from the Get Settings call.
+                    // All the other requests just provide additional detail, and wildcards may be resolved differently depending on the
+                    // type of request in the presence of security plugins (looking at you, ClusterHealthRequest), so
+                    // force the IndicesOptions for all the sub-requests to be as inclusive as possible.
+                    final IndicesOptions subRequestIndicesOptions = IndicesOptions.lenientExpandHidden();
+
                     // Indices that were successfully resolved during the get settings request might be deleted when the subsequent cluster
                     // state, cluster health and indices stats requests execute. We have to distinguish two cases:
                     // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the
@@ -115,11 +123,11 @@ public class RestIndicesAction extends AbstractCatAction {
                     //    fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
                     // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests re-resolve the
                     // index names with the same indices options that we used for the initial cluster state request (strictExpand).
-                    sendIndicesStatsRequest(indices, indicesOptions, includeUnloadedSegments, client,
+                    sendIndicesStatsRequest(indices, subRequestIndicesOptions, includeUnloadedSegments, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
-                    sendClusterStateRequest(indices, indicesOptions, local, masterNodeTimeout, client,
+                    sendClusterStateRequest(indices, subRequestIndicesOptions, local, masterNodeTimeout, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
-                    sendClusterHealthRequest(indices, indicesOptions, local, masterNodeTimeout, client,
+                    sendClusterHealthRequest(indices, subRequestIndicesOptions, local, masterNodeTimeout, client,
                         ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure));
                 }
 
@@ -234,7 +242,7 @@ public class RestIndicesAction extends AbstractCatAction {
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
-        final Set<String> responseParams = new HashSet<>(Arrays.asList("local", "health"));
+        final Set<String> responseParams = new HashSet<>(asList("local", "health"));
         responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }

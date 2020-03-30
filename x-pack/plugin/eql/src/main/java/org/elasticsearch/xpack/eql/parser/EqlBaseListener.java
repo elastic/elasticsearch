@@ -196,26 +196,6 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitLogicalBinary(EqlBaseParser.LogicalBinaryContext ctx);
   /**
-   * Enter a parse tree produced by {@link EqlBaseParser#predicated}.
-   * @param ctx the parse tree
-   */
-  void enterPredicated(EqlBaseParser.PredicatedContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EqlBaseParser#predicated}.
-   * @param ctx the parse tree
-   */
-  void exitPredicated(EqlBaseParser.PredicatedContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EqlBaseParser#predicate}.
-   * @param ctx the parse tree
-   */
-  void enterPredicate(EqlBaseParser.PredicateContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EqlBaseParser#predicate}.
-   * @param ctx the parse tree
-   */
-  void exitPredicate(EqlBaseParser.PredicateContext ctx);
-  /**
    * Enter a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EqlBaseParser#valueExpression}.
    * @param ctx the parse tree
@@ -263,6 +243,16 @@ interface EqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitArithmeticUnary(EqlBaseParser.ArithmeticUnaryContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EqlBaseParser#predicate}.
+   * @param ctx the parse tree
+   */
+  void enterPredicate(EqlBaseParser.PredicateContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EqlBaseParser#predicate}.
+   * @param ctx the parse tree
+   */
+  void exitPredicate(EqlBaseParser.PredicateContext ctx);
   /**
    * Enter a parse tree produced by the {@code constantDefault}
    * labeled alternative in {@link EqlBaseParser#primaryExpression}.

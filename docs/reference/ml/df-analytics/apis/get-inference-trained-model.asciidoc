@@ -79,6 +79,14 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=tags]
 
+
+[[ml-get-inference-results]]
+==== {api-response-body-title}
+
+`trained_model_configs`::
+(array) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=trained-model-configs]
+
 [[ml-get-inference-response-codes]]
 ==== {api-response-codes-title}
 

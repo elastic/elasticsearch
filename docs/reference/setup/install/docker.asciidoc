@@ -263,10 +263,21 @@ TCP ports 9200 and 9300. For production clusters, randomizing the
 published ports with `--publish-all` is recommended,
 unless you are pinning one container per host.
 
+[[docker-set-heap-size]]
 ===== Set the heap size
 
-Use the `ES_JAVA_OPTS` environment variable to set the heap size.
-For example, to use 16GB, specify `-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`.
+To configure the heap size, you can bind mount a <<jvm-options,JVM options>>
+file under `/usr/share/elasticsearch/config/jvm.options.d` that includes your
+desired <<heap-size,heap size>> settings. Note that while the default root
+`jvm.options` file sets a default heap of 1 GB, any value you set in a
+bind-mounted JVM options file will override it.
+
+While setting the heap size via bind-mounted JVM options is the recommended
+method, you can also configure this by using the `ES_JAVA_OPTS` environment
+variable to set the heap size. For example, to use 16 GB, specify
+`-e ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. Note that while the
+default root `jvm.options` file sets a default heap of 1 GB, any value you set
+in `ES_JAVA_OPTS` will override it.
 
 IMPORTANT: You must <<heap-size,configure the heap size>> even if you are
 https://docs.docker.com/config/containers/resource_constraints/#limit-a-containers-access-to-memory[limiting

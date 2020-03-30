@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[slm-api-stop]]
 === Stop {slm} API
 

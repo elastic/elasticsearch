@@ -22,6 +22,7 @@ import java.time.ZonedDateTime;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -172,19 +173,37 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             Converter conversion = converterFor(KEYWORD, to);
             assertNull(conversion.convert(null));
 
-            assertEquals(date(0L), conversion.convert("1970-01-01"));
-            assertEquals(date(1483228800000L), conversion.convert("2017-01-01"));
-            assertEquals(date(-1672531200000L), conversion.convert("1917-01-01"));
-            assertEquals(date(18000000L), conversion.convert("1970-01-01"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10T10:20:30.123"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20:30.123456789"));
+
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10 10:20:30.123"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20:30.123456789"));
+
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20+05:00"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10T10:20:30.123-06:00"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10T10:20:30.123456789+03:00"));
+
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20+05:00"));
+            assertEquals(date(-125908819200000L), conversion.convert("-2020-02-10 10:20:30.123-06:00"));
+            assertEquals(date(1581292800000L), conversion.convert("2020-02-10 10:20:30.123456789+03:00"));
 
             // double check back and forth conversion
-
             ZonedDateTime zdt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Converter forward = converterFor(DATE, KEYWORD);
             Converter back = converterFor(KEYWORD, DATE);
             assertEquals(asDateOnly(zdt), back.convert(forward.convert(zdt)));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
             assertEquals("cannot cast [0xff] to [date]: Text '0xff' could not be parsed at index 0", e.getMessage());
+            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("2020-02-"));
+            assertEquals("cannot cast [2020-02-] to [date]: Text '2020-02-' could not be parsed at index 8", e.getMessage());
+            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("2020-"));
+            assertEquals("cannot cast [2020-] to [date]: Text '2020-' could not be parsed at index 5", e.getMessage());
+            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("-2020-02-"));
+            assertEquals("cannot cast [-2020-02-] to [date]: Text '-2020-02-' could not be parsed at index 9", e.getMessage());
+            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("-2020-"));
+            assertEquals("cannot cast [-2020-] to [date]: Text '-2020-' could not be parsed at index 6", e.getMessage());
         }
     }
 
@@ -285,7 +304,6 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(dateTime(18000000L), conversion.convert("1970-01-01T00:00:00-05:00"));
 
             // double check back and forth conversion
-
             ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Converter forward = converterFor(DATETIME, KEYWORD);
             Converter back = converterFor(KEYWORD, DATETIME);
@@ -614,6 +632,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         assertEquals(BOOLEAN, commonType(BOOLEAN, BOOLEAN));
         assertEquals(NULL, commonType(NULL, NULL));
         assertEquals(INTEGER, commonType(INTEGER, KEYWORD));
+        assertEquals(DOUBLE, commonType(DOUBLE, CONSTANT_KEYWORD));
         assertEquals(LONG, commonType(TEXT, LONG));
         assertEquals(SHORT, commonType(SHORT, BYTE));
         assertEquals(FLOAT, commonType(BYTE, FLOAT));
@@ -623,6 +642,11 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         // strings
         assertEquals(TEXT, commonType(TEXT, KEYWORD));
         assertEquals(TEXT, commonType(KEYWORD, TEXT));
+        assertEquals(TEXT, commonType(TEXT, CONSTANT_KEYWORD));
+        assertEquals(TEXT, commonType(CONSTANT_KEYWORD, TEXT));
+        assertEquals(KEYWORD, commonType(KEYWORD, CONSTANT_KEYWORD));
+        assertEquals(KEYWORD, commonType(CONSTANT_KEYWORD, KEYWORD));
+        assertEquals(CONSTANT_KEYWORD, commonType(CONSTANT_KEYWORD, CONSTANT_KEYWORD));
 
         // numeric and intervals
         assertEquals(INTERVAL_YEAR_TO_MONTH, commonType(INTERVAL_YEAR_TO_MONTH, LONG));

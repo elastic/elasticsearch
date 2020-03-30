@@ -49,7 +49,6 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray mins;
     DoubleArray maxes;
 
-
     StatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat format,
                         SearchContext context, Aggregator parent,
                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {

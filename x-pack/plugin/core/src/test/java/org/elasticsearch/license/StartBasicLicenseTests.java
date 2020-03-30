@@ -55,12 +55,6 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
             assertEquals("trial", getLicenseResponse.license().type());
         });
 
-        // Testing that you can start a basic license when you have no license
-        if (randomBoolean()) {
-            licensingClient.prepareDeleteLicense().get();
-            assertNull(licensingClient.prepareGetLicense().get().license());
-        }
-
         RestClient restClient = getRestClient();
         Response response = restClient.performRequest(new Request("GET", "/_license/basic_status"));
         String body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));

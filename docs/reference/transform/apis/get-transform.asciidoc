@@ -10,8 +10,6 @@
 
 Retrieves configuration information for {transforms}.
 
-beta[]
-
 [[get-transform-request]]
 ==== {api-request-title}
 

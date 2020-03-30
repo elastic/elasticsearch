@@ -7,11 +7,16 @@
 package org.elasticsearch.xpack.eql.parser;
 
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SingleStatementContext;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
-public class AstBuilder extends ExpressionBuilder {
+public class AstBuilder extends LogicalPlanBuilder {
+
+    AstBuilder(ParserParams params) {
+        super(params);
+    }
 
     @Override
-    public Object visitSingleStatement(SingleStatementContext ctx) {
-        return expression(ctx.statement());
+    public LogicalPlan visitSingleStatement(SingleStatementContext ctx) {
+        return plan(ctx.statement());
     }
 }

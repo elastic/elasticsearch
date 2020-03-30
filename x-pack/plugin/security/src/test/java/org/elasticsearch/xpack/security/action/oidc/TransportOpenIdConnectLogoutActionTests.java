@@ -40,6 +40,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -172,7 +173,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
 
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState,
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, new SecurityContext(settings, threadContext),
                                         securityIndex, securityIndex, clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,

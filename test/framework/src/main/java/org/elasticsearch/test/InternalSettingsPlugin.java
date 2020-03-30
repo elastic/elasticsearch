@@ -53,8 +53,7 @@ public final class InternalSettingsPlugin extends Plugin {
                 IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING,
                 IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING,
                 IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING,
-                IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
-                IndexSettings.INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING
+                IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING
             );
     }
 }

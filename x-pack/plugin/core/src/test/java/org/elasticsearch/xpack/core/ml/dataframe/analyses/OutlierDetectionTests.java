@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -18,7 +19,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDetection> {
+public class OutlierDetectionTests extends AbstractBWCSerializationTestCase<OutlierDetection> {
 
     @Override
     protected OutlierDetection doParseInstance(XContentParser parser) throws IOException {
@@ -42,6 +43,17 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
             .setOutlierFraction(randomDoubleBetween(0.0, 1.0, true))
             .setStandardizationEnabled(randomBoolean())
             .build();
+    }
+
+    public static OutlierDetection mutateForVersion(OutlierDetection instance, Version version) {
+        if (version.before(Version.V_7_5_0)) {
+            return new OutlierDetection.Builder(instance)
+                .setComputeFeatureInfluence(true)
+                .setOutlierFraction(0.05)
+                .setStandardizationEnabled(true)
+                .build();
+        }
+        return instance;
     }
 
     @Override
@@ -100,5 +112,10 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
         OutlierDetection outlierDetection = createRandom();
         assertThat(outlierDetection.persistsState(), is(false));
         expectThrows(UnsupportedOperationException.class, () -> outlierDetection.getStateDocId("foo"));
+    }
+
+    @Override
+    protected OutlierDetection mutateInstanceForVersion(OutlierDetection instance, Version version) {
+        return mutateForVersion(instance, version);
     }
 }

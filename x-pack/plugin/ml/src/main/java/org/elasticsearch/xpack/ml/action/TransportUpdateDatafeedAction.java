@@ -38,7 +38,6 @@ import java.util.Map;
 public class TransportUpdateDatafeedAction extends
     TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
 
-    private final Client client;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobConfigProvider jobConfigProvider;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
@@ -51,7 +50,6 @@ public class TransportUpdateDatafeedAction extends
         super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateDatafeedAction.Request::new,
                 indexNameExpressionResolver);
 
-        this.client = client;
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);

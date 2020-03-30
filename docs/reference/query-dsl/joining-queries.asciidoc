@@ -29,4 +29,7 @@ include::has-parent-query.asciidoc[]
 
 include::parent-id-query.asciidoc[]
 
-
+=== Notes
+==== Allow expensive queries
+Joining queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.

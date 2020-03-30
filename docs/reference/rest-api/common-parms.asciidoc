@@ -99,6 +99,28 @@ tag::bytes[]
 (Optional, <<byte-units,byte size units>>) Unit used to display byte values.
 end::bytes[]
 
+tag::checkpointing-changes-last-detected-at[]
+The timestamp when changes were last detected in the source indices.
+end::checkpointing-changes-last-detected-at[]
+
+tag::cluster-health-status[]
+(string)
+Health status of the cluster, based on the state of its primary and replica
+shards. Statuses are:
+
+  `green`:::
+  All shards are assigned.
+
+  `yellow`:::
+  All primary shards are assigned, but one or more replica shards are
+  unassigned. If a node in the cluster fails, some
+  data could be unavailable until that node is repaired.
+
+  `red`:::
+  One or more primary shards are unassigned, so some data is unavailable. This
+  can occur briefly during cluster startup as primary shards are assigned.
+end::cluster-health-status[]
+
 tag::committed[]
 If `true`,
 the segments is synced to disk. Segments that are synced can survive a hard reboot.
@@ -160,6 +182,11 @@ is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
 documents when a segment is merged.
 end::docs-deleted[]
 
+tag::docs-processed[]
+The number of documents that have been processed from the source index of
+the {transform}.
+end::docs-processed[]
+
 tag::enrich-policy[]
 Enrich policy name
 used to limit the request.
@@ -188,6 +215,20 @@ Expansion of wildcards will include hidden indices.
 Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
+
+tag::exponential-avg-checkpoint-duration-ms[]
+Exponential moving average of the duration of the checkpoint, in milliseconds.
+end::exponential-avg-checkpoint-duration-ms[]
+
+tag::exponential-avg-documents-indexed[]
+Exponential moving average of the number of new documents that have been
+indexed.
+end::exponential-avg-documents-indexed[]
+
+tag::exponential-avg-documents-processed[]
+Exponential moving average of the number of documents that have been
+processed.
+end::exponential-avg-documents-processed[]
 
 tag::field_statistics[]
 `field_statistics`::
@@ -362,6 +403,18 @@ tag::index[]
 used to limit the request.
 end::index[]
 
+tag::index-failures[]
+The number of indexing failures.
+end::index-failures[]
+
+tag::index-time-ms[]
+The amount of time spent indexing, in milliseconds.
+end::index-time-ms[]
+
+tag::index-total[]
+The number of indices created.
+end::index-total[]
+
 tag::bulk-index[]
 `_index`::
 (Optional, string)
@@ -505,6 +558,13 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
+tag::node-filter[]
+`<node_filter>`::
+(Optional, string)
+Comma-separated list of <<cluster-nodes,node filters>> used to limit returned
+information. Defaults to all nodes in the cluster.
+end::node-filter[]
+
 tag::node-id[]
 `<node_id>`::
 (Optional, string) Comma-separated list of node IDs or names used to limit
@@ -549,6 +609,11 @@ tag::pipeline[]
 (Optional, string) ID of the pipeline to use to preprocess incoming documents.
 end::pipeline[]
 
+tag::pages-processed[]
+The number of search or bulk index operations processed. Documents are
+processed in batches instead of individually.
+end::pages-processed[]
+
 tag::path-pipeline[]
 `<pipeline>`::
 (Optional, string) Comma-separated list or wildcard expression of pipeline IDs
@@ -568,10 +633,12 @@ are supported:
 * <<search-aggregations-metrics-avg-aggregation,Average>>
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>
+* <<search-aggregations-bucket-filter-aggregation,Filter>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
+* <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
 * <<search-aggregations-metrics-sum-aggregation,Sum>>
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>
@@ -681,12 +748,24 @@ tag::scroll_size[]
 Defaults to 100.
 end::scroll_size[]
 
+tag::search-failures[]
+The number of search failures.
+end::search-failures[]
+
+tag::search-time-ms[]
+The amount of time spent searching, in milliseconds.
+end::search-time-ms[]
+
 tag::search_timeout[]
-`search_timeout`::
+`timeout`::
 (Optional, <<time-units, time units>>)
 Explicit timeout for each search request.
 Defaults to no timeout.
 end::search_timeout[]
+
+tag::search-total[]
+The number of search operations on the source index for the {transform}.
+end::search-total[]
 
 tag::search_type[]
 `search_type`::
@@ -776,6 +855,26 @@ tag::source-query-transforms[]
 A query clause that retrieves a subset of data from the source index. See
 <<query-dsl>>.
 end::source-query-transforms[]
+
+tag::state-transform[]
+The status of the {transform}, which can be one of the following values:
++
+--
+* `aborting`: The {transform} is aborting.
+* `failed`: The {transform} failed. For more information about the failure,
+check the reason field.
+* `indexing`: The {transform} is actively processing data and creating new
+documents.
+* `started`: The {transform} is running but not actively indexing data.
+* `stopped`: The {transform} is stopped.
+* `stopping`: The {transform} is stopping.
+--
+end::state-transform[]
+
+tag::state-transform-reason[]
+If a {transform} has a `failed` state, this property provides details about the
+reason for the failure.
+end::state-transform-reason[]
 
 tag::stats[]
 `stats`::
@@ -872,6 +971,13 @@ expression. If you do not specify one of these options, the API returns
 information for all {transforms}.
 end::transform-id-wildcard[]
 
+tag::trigger-count[]
+The number of times the {transform} has been triggered by the scheduler. For 
+example, the scheduler triggers the {transform} indexer to check for updates
+or ingest new data at an interval specified in the
+<<put-transform-request-body,`frequency` property>>.
+end::trigger-count[]
+
 tag::cat-v[]
 `v`::
 (Optional, boolean) If `true`, the response includes column headings.
@@ -897,7 +1003,7 @@ end::segment-version[]
 tag::version_type[]
 `version_type`::
 (Optional, enum) Specific version type: `internal`, `external`,
-`external_gte`, `force`.
+`external_gte`.
 end::version_type[]
 
 tag::wait_for_active_shards[]

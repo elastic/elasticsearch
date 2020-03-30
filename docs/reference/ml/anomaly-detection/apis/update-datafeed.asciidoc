@@ -101,6 +101,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
 (Optional, unsigned integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
+`indices_options`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=indices-options]
+
 [[ml-update-datafeed-example]]
 ==== {api-examples-title}
 

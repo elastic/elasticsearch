@@ -260,7 +260,7 @@ public abstract class Rounding implements Writeable {
             this.unit = unit;
             this.timeZone = timeZone;
             this.unitRoundsToMidnight = this.unit.field.getBaseUnit().getDuration().toMillis() > 3600000L;
-            this.fixedOffsetMillis = timeZone.getRules().isFixedOffset() == true ?
+            this.fixedOffsetMillis = timeZone.getRules().isFixedOffset() ?
                 timeZone.getRules().getOffset(Instant.EPOCH).getTotalSeconds() * 1000 : TZ_OFFSET_NON_FIXED;
         }
 
@@ -481,7 +481,7 @@ public abstract class Rounding implements Writeable {
                 throw new IllegalArgumentException("Zero or negative time interval not supported");
             this.interval = interval;
             this.timeZone = timeZone;
-            this.fixedOffsetMillis = timeZone.getRules().isFixedOffset() == true ?
+            this.fixedOffsetMillis = timeZone.getRules().isFixedOffset() ?
                 timeZone.getRules().getOffset(Instant.EPOCH).getTotalSeconds() * 1000 : TZ_OFFSET_NON_FIXED;
         }
 

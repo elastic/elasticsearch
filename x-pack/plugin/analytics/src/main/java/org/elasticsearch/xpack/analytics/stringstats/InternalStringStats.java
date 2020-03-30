@@ -107,6 +107,10 @@ public class InternalStringStats extends InternalAggregation {
         return count;
     }
 
+    long getTotalLength () {
+        return totalLength;
+    }
+
     public int getMinLength() {
         return minLength;
     }
@@ -151,6 +155,14 @@ public class InternalStringStats extends InternalAggregation {
     /** Calculate base 2 logarithm */
     static double log2(double d) {
         return Math.log(d) / Math.log(2.0);
+    }
+
+    Map<String, Long> getCharOccurrences() {
+        return charOccurrences;
+    }
+
+    boolean getShowDistribution() {
+        return showDistribution;
     }
 
     public String getCountAsString() {
@@ -237,7 +249,7 @@ public class InternalStringStats extends InternalAggregation {
             builder.field(Fields.MAX_LENGTH.getPreferredName(), maxLength);
             builder.field(Fields.AVG_LENGTH.getPreferredName(), getAvgLength());
             builder.field(Fields.ENTROPY.getPreferredName(), getEntropy());
-            if (showDistribution == true) {
+            if (showDistribution) {
                 builder.field(Fields.DISTRIBUTION.getPreferredName(), getDistribution());
             }
             if (format != DocValueFormat.RAW) {
@@ -245,7 +257,7 @@ public class InternalStringStats extends InternalAggregation {
                 builder.field(Fields.MAX_LENGTH_AS_STRING.getPreferredName(), format.format(getMaxLength()));
                 builder.field(Fields.AVG_LENGTH_AS_STRING.getPreferredName(), format.format(getAvgLength()));
                 builder.field(Fields.ENTROPY_AS_STRING.getPreferredName(), format.format(getEntropy()));
-                if (showDistribution == true) {
+                if (showDistribution) {
                     builder.startObject(Fields.DISTRIBUTION_AS_STRING.getPreferredName());
                     for (Map.Entry<String, Double> e: getDistribution().entrySet()) {
                         builder.field(e.getKey(), format.format(e.getValue()).toString());
@@ -259,7 +271,7 @@ public class InternalStringStats extends InternalAggregation {
             builder.nullField(Fields.AVG_LENGTH.getPreferredName());
             builder.field(Fields.ENTROPY.getPreferredName(), 0.0);
 
-            if (showDistribution == true) {
+            if (showDistribution) {
                 builder.nullField(Fields.DISTRIBUTION.getPreferredName());
             }
         }
@@ -282,6 +294,7 @@ public class InternalStringStats extends InternalAggregation {
             minLength == other.minLength &&
             maxLength == other.maxLength &&
             totalLength == other.totalLength &&
+            Objects.equals(charOccurrences, other.charOccurrences) &&
             showDistribution == other.showDistribution;
     }
 }

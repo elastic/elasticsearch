@@ -70,7 +70,7 @@ setup:
           }
 
 ---
-"Test get job stats after uploading data prompting the creation of some stats":
+"Test cat anomaly detector jobs":
 
   - do:
       ml.post_data:
@@ -86,24 +86,24 @@ setup:
   - match: { flushed: true }
 
   - do:
-      cat.ml.jobs:
+      cat.ml_jobs:
         job_id: job-stats-test
   - match:
       $body: |
-        / #id                    state    data.processed_records     model.bytes    model.memory_status     forecast.total     bucket.count
+        / #id                    state    data.processed_records     model.bytes    model.memory_status     forecasts.total     buckets.count
         ^ (job\-stats\-test \s+  \w+  \s+ \d+                   \s+  .*?        \s+ \w+                 \s+ \d+           \s+  \d+         \n)+  $/
 
   - do:
-      cat.ml.jobs:
+      cat.ml_jobs:
         v: true
         job_id: job-stats-test
   - match:
       $body: |
-        /^  id                \s+  state \s+ data\.processed_records \s+ model\.bytes \s+ model\.memory_status \s+ forecast\.total \s+ bucket\.count  \n
+        /^  id                \s+  state \s+ data\.processed_records \s+ model\.bytes \s+ model\.memory_status \s+ forecasts\.total \s+ buckets\.count  \n
            (job\-stats\-test  \s+  \w+   \s+ \d+                     \s+ .*?         \s+ \w+                  \s+ \d+             \s+ \d+            \n)+  $/
 
   - do:
-      cat.ml.jobs:
+      cat.ml_jobs:
         h: id,data.processed_records,data.processed_fields,data.input_bytes
         v: true
   - match:

@@ -38,7 +38,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -568,6 +568,11 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     public TopHitsAggregationBuilder subAggregations(Builder subFactories) {
         throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
                 + getType() + "] cannot accept sub-aggregations");
+    }
+
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
     }
 
     @Override

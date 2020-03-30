@@ -19,8 +19,7 @@ The cluster level settings for retention are shown below, and can be changed dyn
 | `slm.retention_schedule` | `0 30 1 * * ?` | A periodic or absolute time schedule for when
   retention should be run. Supports all values supported by the cron scheduler: <<schedule-cron,Cron
   scheduler configuration>>. Retention can also be manually run using the
-  <<slm-api-execute-retention>> API. Defaults to daily at 1:30am in the master
-  node's timezone.
+  <<slm-api-execute-retention>> API. Defaults to daily at 1:30am UTC.
 
 | `slm.retention_duration` | `"1h"` | A limit of how long SLM should spend deleting old snapshots.
 |=====================================

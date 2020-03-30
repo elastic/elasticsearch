@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -165,9 +166,11 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
                 throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
             }
 
+            MetaDataCreateIndexService.validateIndexOrAliasName(request.name,
+                (s1, s2) -> new IllegalArgumentException("data_stream [" + s1 + "] " + s2));
+
             MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(
                 new DataStream(request.name, request.timestampFieldName, Collections.emptyList()));
-
             logger.info("adding data stream [{}]", request.name);
             return ClusterState.builder(currentState).metaData(builder).build();
         }

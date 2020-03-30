@@ -105,6 +105,11 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
                     + getType() + "] cannot accept sub-aggregations");
         }
+
+        @Override
+        public final BucketCardinality bucketCardinality() {
+            return BucketCardinality.NONE;
+        }
     }
 
     private String field = null;

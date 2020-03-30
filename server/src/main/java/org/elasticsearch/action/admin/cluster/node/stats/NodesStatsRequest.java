@@ -219,7 +219,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SCRIPT("script"),
         DISCOVERY("discovery"),
         INGEST("ingest"),
-        ADAPTIVE_SELECTION("adaptive_selection");
+        ADAPTIVE_SELECTION("adaptive_selection"),
+        SCRIPT_CACHE("script_cache");
 
         private String metricName;
 

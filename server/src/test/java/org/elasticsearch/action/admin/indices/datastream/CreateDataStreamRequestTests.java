@@ -82,4 +82,13 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
             () -> CreateDataStreamAction.TransportAction.createDataStream(cs, req));
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] already exists"));
     }
+
+    public void testCreateDataStreamWithInvalidName() {
+        final String dataStreamName = "_My-da#ta- ,stream-";
+        ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
+        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> CreateDataStreamAction.TransportAction.createDataStream(cs, req));
+        assertThat(e.getMessage(), containsString("must not contain the following characters"));
+    }
 }

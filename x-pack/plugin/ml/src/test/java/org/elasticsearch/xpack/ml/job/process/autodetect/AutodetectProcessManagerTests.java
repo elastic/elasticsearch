@@ -29,6 +29,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -115,7 +116,6 @@ import static org.mockito.Mockito.spy;
  */
 public class AutodetectProcessManagerTests extends ESTestCase {
 
-    private Environment environment;
     private Client client;
     private ThreadPool threadPool;
     private AnalysisRegistry analysisRegistry;
@@ -123,6 +123,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private JobResultsProvider jobResultsProvider;
     private JobResultsPersister jobResultsPersister;
     private JobDataCountsPersister jobDataCountsPersister;
+    private AnnotationPersister annotationPersister;
     private AutodetectCommunicator autodetectCommunicator;
     private AutodetectProcessFactory autodetectFactory;
     private NormalizerFactory normalizerFactory;
@@ -140,19 +141,19 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        environment = TestEnvironment.newEnvironment(settings);
         client = mock(Client.class);
 
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
 
-        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
+        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(TestEnvironment.newEnvironment(settings));
         jobManager = mock(JobManager.class);
         jobResultsProvider = mock(JobResultsProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
         when(jobResultsPersister.bulkPersisterBuilder(any(), any())).thenReturn(mock(JobResultsPersister.Builder.class));
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
+        annotationPersister = mock(AnnotationPersister.class);
         autodetectCommunicator = mock(AutodetectCommunicator.class);
         autodetectFactory = mock(AutodetectProcessFactory.class);
         normalizerFactory = mock(NormalizerFactory.class);
@@ -704,9 +705,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     }
 
     private AutodetectProcessManager createManager(Settings settings) {
-        return new AutodetectProcessManager(environment, settings,
+        return new AutodetectProcessManager(settings,
             client, threadPool, new NamedXContentRegistry(Collections.emptyList()), auditor, clusterService, jobManager, jobResultsProvider,
-            jobResultsPersister, jobDataCountsPersister, autodetectFactory, normalizerFactory, nativeStorageProvider,
+            jobResultsPersister, jobDataCountsPersister, annotationPersister, autodetectFactory, normalizerFactory, nativeStorageProvider,
             new IndexNameExpressionResolver());
     }
     private AutodetectProcessManager createSpyManagerAndCallProcessData(String jobId) {

@@ -50,7 +50,7 @@ The above sentence would produce the following term:
 You can combine the `keyword` tokenizer with token filters to normalise
 structured data, such as product IDs or email addresses.
 
-For example, the following <<indices-analyze,analyze API>> request uses
+For example, the following <<indices-analyze,analyze API>> request uses the
 `keyword` tokenizer and <<analysis-lowercase-tokenfilter,`lowercase`>> filter to
 convert an email address to lowercase.
 

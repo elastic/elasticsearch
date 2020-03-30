@@ -53,14 +53,14 @@ abstract class SearchProgressListener {
      * @param clusters The statistics for remote clusters included in the search.
      * @param fetchPhase <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
      **/
-    public void onListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {}
+    protected void onListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {}
 
     /**
      * Executed when a shard returns a query result.
      *
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards} )}.
      */
-    public void onQueryResult(int shardIndex) {}
+    protected void onQueryResult(int shardIndex) {}
 
     /**
      * Executed when a shard reports a query failure.
@@ -69,7 +69,7 @@ abstract class SearchProgressListener {
      * @param shardTarget The last shard target that thrown an exception.
      * @param exc The cause of the failure.
      */
-    public void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
+    protected void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
     /**
      * Executed when a partial reduce is created. The number of partial reduce can be controlled via
@@ -80,7 +80,7 @@ abstract class SearchProgressListener {
      * @param aggs The partial result for aggregations.
      * @param reducePhase The version number for this reduce.
      */
-    public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
+    protected void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
 
     /**
      * Executed once when the final reduce is created.
@@ -90,14 +90,14 @@ abstract class SearchProgressListener {
      * @param aggs The final result for aggregations.
      * @param reducePhase The version number for this reduce.
      */
-    public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
+    protected void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
 
     /**
      * Executed when a shard returns a fetch result.
      *
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
      */
-    public void onFetchResult(int shardIndex) {}
+    protected void onFetchResult(int shardIndex) {}
 
     /**
      * Executed when a shard reports a fetch failure.
@@ -105,7 +105,7 @@ abstract class SearchProgressListener {
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
      * @param exc The cause of the failure.
      */
-    public void onFetchFailure(int shardIndex, Exception exc) {}
+    protected void onFetchFailure(int shardIndex, Exception exc) {}
 
     final void notifyListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {
         this.shards = shards;
@@ -142,9 +142,9 @@ abstract class SearchProgressListener {
         }
     }
 
-    final void notifyReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+    protected final void notifyFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
         try {
-            onReduce(shards, totalHits, aggs, reducePhase);
+            onFinalReduce(shards, totalHits, aggs, reducePhase);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on reduce"), e);
         }
@@ -168,7 +168,7 @@ abstract class SearchProgressListener {
         }
     }
 
-    final List<SearchShard> searchShards(List<? extends SearchPhaseResult> results) {
+    static List<SearchShard> buildSearchShards(List<? extends SearchPhaseResult> results) {
         return results.stream()
             .filter(Objects::nonNull)
             .map(SearchPhaseResult::getSearchShardTarget)
@@ -176,14 +176,14 @@ abstract class SearchProgressListener {
             .collect(Collectors.toUnmodifiableList());
     }
 
-    final List<SearchShard> searchShards(SearchShardTarget[] results) {
+    static List<SearchShard> buildSearchShards(SearchShardTarget[] results) {
         return Arrays.stream(results)
             .filter(Objects::nonNull)
             .map(e -> new SearchShard(e.getClusterAlias(), e.getShardId()))
             .collect(Collectors.toUnmodifiableList());
     }
 
-    final List<SearchShard> searchShards(GroupShardsIterator<SearchShardIterator> its) {
+    static List<SearchShard> buildSearchShards(GroupShardsIterator<SearchShardIterator> its) {
         return StreamSupport.stream(its.spliterator(), false)
             .map(e -> new SearchShard(e.getClusterAlias(), e.shardId()))
             .collect(Collectors.toUnmodifiableList());

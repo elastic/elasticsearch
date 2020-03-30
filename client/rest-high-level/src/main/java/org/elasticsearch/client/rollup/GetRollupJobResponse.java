@@ -177,16 +177,18 @@ public class GetRollupJobResponse {
     public static class RollupIndexerJobStats extends IndexerJobStats {
 
         RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
-                              long indexTime, long indexTotal, long searchTime, long searchTotal, long indexFailures, long searchFailures) {
+                              long indexTime, long indexTotal, long searchTime, long searchTotal, long processingTime,
+                              long processingTotal, long indexFailures, long searchFailures) {
             super(numPages, numInputDocuments, numOuputDocuments, numInvocations,
-                    indexTime, searchTime, indexTotal, searchTotal, indexFailures, searchFailures);
+                    indexTime, searchTime, processingTime, indexTotal, searchTotal, processingTotal, indexFailures, searchFailures);
         }
 
         private static final ConstructingObjectParser<RollupIndexerJobStats, Void> PARSER = new ConstructingObjectParser<>(
                 STATS.getPreferredName(),
                 true,
                 args -> new RollupIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3],
-                    (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9]));
+                    (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9],
+                    (long) args[10], (long) args[11]));
         static {
             PARSER.declareLong(constructorArg(), NUM_PAGES);
             PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
@@ -196,6 +198,8 @@ public class GetRollupJobResponse {
             PARSER.declareLong(constructorArg(), INDEX_TOTAL);
             PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
             PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
+            PARSER.declareLong(constructorArg(), PROCESSING_TIME_IN_MS);
+            PARSER.declareLong(constructorArg(), PROCESSING_TOTAL);
             PARSER.declareLong(constructorArg(), INDEX_FAILURES);
             PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
         }

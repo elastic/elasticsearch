@@ -78,7 +78,10 @@ class TransformClusterStateListener implements ClusterStateListener {
         }
 
         final IndicesAliasesRequest request = client.admin().indices().prepareAliases()
-                .addAlias(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED, TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS)
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add()
+                    .index(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED)
+                    .alias(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS)
+                    .isHidden(true))
                 .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), TRANSFORM_ORIGIN, request,

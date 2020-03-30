@@ -77,7 +77,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
-    private final SearchPhaseResults<Result> results;
+    final SearchPhaseResults<Result> results;
     private final ClusterState clusterState;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
@@ -375,6 +375,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // we do make sure to clean it on a successful response from a shard
         SearchShardTarget shardTarget = shardIt.newSearchShardTarget(nodeId);
         onShardFailure(shardIndex, shardTarget, e);
+        final ShardRouting nextShard = shardIt.nextOrNull();
+        final boolean lastShard = nextShard == null;
+        if (lastShard) {
+            onShardGroupFailure(shardIndex, shardTarget, e);
+        }
 
         if (totalOps.incrementAndGet() == expectedTotalOps) {
             if (logger.isDebugEnabled()) {
@@ -385,11 +390,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
-            onShardGroupFailure(shardIndex, shardTarget, e);
             onPhaseDone();
         } else {
-            final ShardRouting nextShard = shardIt.nextOrNull();
-            final boolean lastShard = nextShard == null;
             // trace log this exception
             logger.trace(() -> new ParameterizedMessage(
                 "{}: Failed to execute [{}] lastShard [{}]",
@@ -405,7 +407,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
                     }
                 }
-                onShardGroupFailure(shardIndex, shardTarget, e);
             }
         }
     }
@@ -466,7 +467,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param result the result returned form the shard
      * @param shardIt the shard iterator
      */
-    private void onShardResult(Result result, SearchShardIterator shardIt) {
+    protected void onShardResult(Result result, SearchShardIterator shardIt) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
         successfulOps.incrementAndGet();

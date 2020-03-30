@@ -856,8 +856,8 @@ setup:
 ---
 "date_histogram on date_nanos":
   - skip:
-      version: " - 7.99.99"
-      reason: Fixed in 8.0.0 with backport pending to 7.7.0
+      version: " - 7.6.99"
+      reason: Fixed in 7.7.0
   - do:
       index:
         index:   test

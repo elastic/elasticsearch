@@ -10,11 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
@@ -37,32 +35,36 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     private static final String OLD_LOGSTASH_INDEX_NAME = "logstash-index-template";
     private static final String TEMPLATE_VERSION_VARIABLE = "logstash.template.version";
 
-    private final boolean enabled;
-
-    public Logstash(Settings settings) {
-        this.enabled = XPackSettings.LOGSTASH_ENABLED.get(settings);
-    }
+    public Logstash() {}
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionHandler<>(XPackUsageFeatureAction.LOGSTASH, LogstashUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.LOGSTASH, LogstashInfoTransportAction.class));
+            new ActionHandler<>(XPackInfoFeatureAction.LOGSTASH, LogstashInfoTransportAction.class)
+        );
     }
 
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             templates.keySet().removeIf(OLD_LOGSTASH_INDEX_NAME::equals);
-            TemplateUtils.loadTemplateIntoMap("/" + LOGSTASH_TEMPLATE_FILE_NAME + ".json", templates, LOGSTASH_INDEX_TEMPLATE_NAME,
-                    Version.CURRENT.toString(), TEMPLATE_VERSION_VARIABLE, LogManager.getLogger(Logstash.class));
+            TemplateUtils.loadTemplateIntoMap(
+                "/" + LOGSTASH_TEMPLATE_FILE_NAME + ".json",
+                templates,
+                LOGSTASH_INDEX_TEMPLATE_NAME,
+                Version.CURRENT.toString(),
+                TEMPLATE_VERSION_VARIABLE,
+                LogManager.getLogger(Logstash.class)
+            );
             assert templates.get(LOGSTASH_INDEX_TEMPLATE_NAME).mappings() != null;
             return templates;
         };
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME,
-            "Contains data for Logstash Central Management"));
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        return Collections.singletonList(
+            new SystemIndexDescriptor(LOGSTASH_CONCRETE_INDEX_NAME, "Contains data for Logstash Central Management")
+        );
     }
 }

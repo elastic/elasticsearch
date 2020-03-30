@@ -4,9 +4,9 @@
 <titleabbrev>Geo-shape</titleabbrev>
 ++++
 
-Filter documents indexed using the `geo_shape` type.
+Filter documents indexed using the `geo_shape` or `geo_point` type.
 
-Requires the <<geo-shape,`geo_shape` Mapping>>.
+Requires the <<geo-shape,`geo_shape` Mapping>> or the <<geo-point,`geo_point` Mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
 `geo_shape` mapping to find documents that have a shape that intersects
@@ -142,7 +142,7 @@ GET /example/_search
 The <<spatial-strategy, geo_shape strategy>> mapping parameter determines
 which spatial relation operators may be used at search time.
 
-The following is a complete list of spatial relation operators available:
+The following is a complete list of spatial relation operators available when searching a field of type `geo_shape`:
 
 * `INTERSECTS` - (default) Return all documents whose `geo_shape` field
 intersects the query geometry.
@@ -153,6 +153,11 @@ is within the query geometry.
 * `CONTAINS` - Return all documents whose `geo_shape` field
 contains the query geometry.
 
+When searching a field of type `geo_point` there is a single supported spatial relation operator:
+
+* `INTERSECTS` - (default) Return all documents whose `geo_point` field
+intersects the query geometry.
+
 [float]
 ==== Ignore Unmapped
 
@@ -161,6 +166,15 @@ and will not match any documents for this query. This can be useful when
 querying multiple indexes which might have different mappings. When set to
 `false` (the default value) the query will throw an exception if the field
 is not mapped.
+
+==== Shape Types supported for Geo-Point
+
+When searching a field of type `geo_point` the following shape types are not supported:
+
+* `POINT`
+* `LINE`
+* `MULTIPOINT`
+* `MULTILINE`
 
 ==== Notes
 Geo-shape queries on geo-shapes implemented with <<prefix-trees, `PrefixTrees`>> will not be executed if

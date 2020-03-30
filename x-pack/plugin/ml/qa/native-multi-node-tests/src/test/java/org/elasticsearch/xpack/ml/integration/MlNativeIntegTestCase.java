@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,12 +32,15 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -157,9 +159,17 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             new DeleteExpiredDataAction.Request()).get();
 
         // We need to refresh to ensure the deletion is visible
-        client().admin().indices().prepareRefresh("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
+        refresh("*");
 
         return response;
+    }
+
+    protected PutFilterAction.Response putMlFilter(MlFilter filter) {
+        return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
+    }
+
+    protected GetFiltersAction.Response getMlFilters() {
+        return client().execute(GetFiltersAction.INSTANCE, new GetFiltersAction.Request()).actionGet();
     }
 
     @Override

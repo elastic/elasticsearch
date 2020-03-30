@@ -28,6 +28,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -107,10 +109,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         xcb = xcb.endObject().endObject().endObject();
 
         return xcb;
-    }
-
-    public void testIndexPointsFilterRectangle() throws Exception {
-        super.testIndexPointsFilterRectangle(Strings.toString(createRandomMapping()));
     }
 
     public void testShapeFetchingPath() throws Exception {
@@ -754,5 +752,63 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 0);
+    }
+
+    public void testDistanceQuery() throws Exception {
+        String mapping = Strings.toString(createRandomMapping());
+        client().admin().indices().prepareCreate("test_distance").setMapping(mapping).get();
+        ensureGreen();
+
+        CircleBuilder circleBuilder = new CircleBuilder().center(new Coordinate(1, 0)).radius(350, DistanceUnit.KILOMETERS);
+
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("geo", new PointBuilder(2, 2)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("geo", new PointBuilder(3, 1)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("geo", new PointBuilder(-20, -30)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("geo", new PointBuilder(20, 30)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        SearchResponse response = client().prepareSearch("test_distance")
+            .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.WITHIN))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        response = client().prepareSearch("test_distance")
+            .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        response = client().prepareSearch("test_distance")
+            .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        response = client().prepareSearch("test_distance")
+            .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+            .get();
+        assertEquals(0, response.getHits().getTotalHits().value);
+    }
+
+    public void testIndexRectangleSpanningDateLine() throws Exception {
+        String mapping = Strings.toString(createRandomMapping());
+
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        ensureGreen();
+
+        EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(178, 10), new Coordinate(-178, -10));
+
+        XContentBuilder docSource = envelopeBuilder.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
+        client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+
+        ShapeBuilder filterShape = new PointBuilder(179, 0);
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", filterShape);
+        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
+        SearchResponse result = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
     }
 }

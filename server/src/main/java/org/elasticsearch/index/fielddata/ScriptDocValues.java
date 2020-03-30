@@ -452,7 +452,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    // We need to make a copy here, because BytesBinaryDVAtomicFieldData's SortedBinaryDocValues
+                    // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortedBinaryDocValues
                     // implementation reuses the returned BytesRef. Otherwise we would end up with the same BytesRef
                     // instance for all slots in the values array.
                     values[i].copyBytes(in.nextValue());

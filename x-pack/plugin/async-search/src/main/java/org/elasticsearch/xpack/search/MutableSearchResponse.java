@@ -14,11 +14,10 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,9 +38,8 @@ class MutableSearchResponse {
     private final int skippedShards;
     private final Clusters clusters;
     private final AtomicArray<ShardSearchFailure> shardFailures;
-    private final Supplier<ReduceContext> reduceContextSupplier;
+    private final Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier;
 
-    private int version;
     private boolean isPartial;
     private boolean isFinalReduce;
     private int successfulShards;
@@ -56,14 +54,14 @@ class MutableSearchResponse {
      * @param totalShards The number of shards that participate in the request, or -1 to indicate a failure.
      * @param skippedShards The number of skipped shards, or -1 to indicate a failure.
      * @param clusters The remote clusters statistics.
-     * @param reduceContextSupplier A supplier to run final reduce on partial aggregations.
+     * @param aggReduceContextSupplier A supplier to run final reduce on partial aggregations.
      */
-    MutableSearchResponse(int totalShards, int skippedShards, Clusters clusters, Supplier<ReduceContext> reduceContextSupplier) {
+    MutableSearchResponse(int totalShards, int skippedShards, Clusters clusters,
+            Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
         this.totalShards = totalShards;
         this.skippedShards = skippedShards;
         this.clusters = clusters;
-        this.reduceContextSupplier = reduceContextSupplier;
-        this.version = 0;
+        this.aggReduceContextSupplier = aggReduceContextSupplier;
         this.shardFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards-skippedShards);
         this.isPartial = true;
         this.sections = totalShards == -1 ? null : new InternalSearchResponse(
@@ -83,8 +81,6 @@ class MutableSearchResponse {
             throw new IllegalStateException("received partial response out of order: "
                 + newSections.getNumReducePhases() + " < " + sections.getNumReducePhases());
         }
-        failIfFrozen();
-        ++ version;
         this.successfulShards = successfulShards;
         this.sections = newSections;
         this.isPartial = true;
@@ -97,7 +93,6 @@ class MutableSearchResponse {
      */
     synchronized void updateFinalResponse(int successfulShards, SearchResponseSections newSections) {
         failIfFrozen();
-        ++ version;
         this.successfulShards = successfulShards;
         this.sections = newSections;
         this.isPartial = false;
@@ -111,7 +106,6 @@ class MutableSearchResponse {
      */
     synchronized void updateWithFailure(Exception exc) {
         failIfFrozen();
-        ++ version;
         this.isPartial = true;
         this.failure = ElasticsearchException.guessRootCauses(exc)[0];
         this.frozen = true;
@@ -137,7 +131,7 @@ class MutableSearchResponse {
         if (totalShards != -1) {
             if (sections.aggregations() != null && isFinalReduce == false) {
                 InternalAggregations oldAggs = (InternalAggregations) sections.aggregations();
-                InternalAggregations newAggs = topLevelReduce(singletonList(oldAggs), reduceContextSupplier.get());
+                InternalAggregations newAggs = topLevelReduce(singletonList(oldAggs), aggReduceContextSupplier.get());
                 sections = new InternalSearchResponse(sections.hits(), newAggs, sections.suggest(),
                     null, sections.timedOut(), sections.terminatedEarly(), sections.getNumReducePhases());
                 isFinalReduce = true;
@@ -148,7 +142,7 @@ class MutableSearchResponse {
         } else {
             resp = null;
         }
-        return new AsyncSearchResponse(task.getSearchId().getEncoded(), version, resp, failure, isPartial,
+        return new AsyncSearchResponse(task.getSearchId().getEncoded(), resp, failure, isPartial,
             frozen == false, task.getStartTime(), expirationTime);
     }
 
@@ -160,7 +154,7 @@ class MutableSearchResponse {
 
     private ShardSearchFailure[] buildShardFailures() {
         if (shardFailures == null) {
-            return new ShardSearchFailure[0];
+            return ShardSearchFailure.EMPTY_ARRAY;
         }
         List<ShardSearchFailure> failures = new ArrayList<>();
         for (int i = 0; i < shardFailures.length(); i++) {

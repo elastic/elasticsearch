@@ -67,22 +67,11 @@ If you use {es} {security-features}, you must have:
 Use the put enrich policy API
 to create a new <<enrich-policy,enrich policy>>.
 
-// tag::update-enrich-policy[]
 [WARNING]
 ====
-Once created, you can't update or change an enrich policy.
-Instead, you can:
-
-.   Create and <<execute-enrich-policy-api,execute>> a new enrich policy.
-
-.   Replace the previous enrich policy
-    with the new enrich policy
-    in any in-use enrich processors.
-
-.   Use the <<delete-enrich-policy-api, delete enrich policy>> API
-    to delete the previous enrich policy.
+include::../../enrich.asciidoc[tag=update-enrich-policy]
 ====
-// end::update-enrich-policy[]
+
 
 
 [[put-enrich-policy-api-path-params]]

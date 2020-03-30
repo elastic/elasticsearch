@@ -132,8 +132,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         IndexFieldData<?> ifd1 = ifdService.getForField(mapper1);
         IndexFieldData<?> ifd2 = ifdService.getForField(mapper2);
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
-        AtomicFieldData loadField1 = ifd1.load(leafReaderContext);
-        AtomicFieldData loadField2 = ifd2.load(leafReaderContext);
+        LeafFieldData loadField1 = ifd1.load(leafReaderContext);
+        LeafFieldData loadField2 = ifd2.load(leafReaderContext);
 
         assertEquals(2, onCacheCalled.get());
         assertEquals(0, onRemovalCalled.get());
@@ -201,7 +201,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         });
         IndexFieldData<?> ifd = ifdService.getForField(mapper1);
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
-        AtomicFieldData load = ifd.load(leafReaderContext);
+        LeafFieldData load = ifd.load(leafReaderContext);
         assertEquals(1, onCacheCalled.get());
         assertEquals(0, onRemovalCalled.get());
         reader.close();

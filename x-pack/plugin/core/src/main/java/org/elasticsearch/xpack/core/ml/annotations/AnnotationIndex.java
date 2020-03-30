@@ -44,9 +44,11 @@ public class AnnotationIndex {
                                                          final ActionListener<Boolean> finalListener) {
 
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
-            final IndicesAliasesRequest request = client.admin().indices().prepareAliases()
-                .addAlias(INDEX_NAME, READ_ALIAS_NAME)
-                .addAlias(INDEX_NAME, WRITE_ALIAS_NAME).request();
+            final IndicesAliasesRequest request =
+                client.admin().indices().prepareAliases()
+                    .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(INDEX_NAME).alias(READ_ALIAS_NAME).isHidden(true))
+                    .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(INDEX_NAME).alias(WRITE_ALIAS_NAME).isHidden(true))
+                    .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
                 ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
                 client.admin().indices()::aliases);

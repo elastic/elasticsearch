@@ -164,7 +164,8 @@ public class EvilLoggerTests extends ESTestCase {
                  */
                 final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
                 final Set<String> actualWarningValues =
-                        warnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
+                        warnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, true))
+                            .collect(Collectors.toSet());
                 for (int j = 0; j < 128; j++) {
                     assertThat(
                             actualWarningValues,

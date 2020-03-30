@@ -43,6 +43,11 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String SLM_POLICY_NAME = "slm-history-ilm-policy";
 
+    @Override
+    protected boolean requiresMasterNode() {
+        return true;
+    }
+
     public static final IndexTemplateConfig TEMPLATE_SLM_HISTORY = new IndexTemplateConfig(
         SLM_TEMPLATE_NAME,
         "/slm-history.json",

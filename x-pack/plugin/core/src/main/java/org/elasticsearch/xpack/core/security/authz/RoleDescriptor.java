@@ -212,6 +212,16 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return result;
     }
 
+
+    public boolean isEmpty() {
+        return clusterPrivileges.length == 0
+            && configurableClusterPrivileges.length == 0
+            && indicesPrivileges.length == 0
+            && applicationPrivileges.length == 0
+            && runAs.length == 0
+            && metadata.size() == 0;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return toXContent(builder, params, false);

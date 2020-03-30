@@ -54,8 +54,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         this.searchPhaseController = searchPhaseController;
         SearchProgressListener progressListener = task.getProgressListener();
         SearchSourceBuilder sourceBuilder = request.source();
-        progressListener.notifyListShards(progressListener.searchShards(this.shardsIts),
-            progressListener.searchShards(toSkipShardsIts), clusters, sourceBuilder == null || sourceBuilder.size() != 0);
+        progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),
+            SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, sourceBuilder == null || sourceBuilder.size() != 0);
     }
 
     @Override

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
@@ -31,6 +33,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -38,6 +41,9 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -46,11 +52,14 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -62,16 +71,20 @@ import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
+import java.util.regex.Pattern;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -121,7 +134,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, MockAnalysisPlugin.class);
     }
 
     @Override
@@ -1762,6 +1775,107 @@ public class SearchQueryIT extends ESIntegTestCase {
        }
 
    }
+
+   /**
+    * Test that wildcard queries on keyword fields get normalized
+    */
+    public void testWildcardQueryNormalizationOnKeywordField() {
+       assertAcked(prepareCreate("test")
+               .setSettings(Settings.builder()
+                       .put("index.analysis.normalizer.lowercase_normalizer.type", "custom")
+                       .putList("index.analysis.normalizer.lowercase_normalizer.filter", "lowercase")
+                       .build())
+                .setMapping("field1", "type=keyword,normalizer=lowercase_normalizer"));
+       client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
+       refresh();
+
+        {
+            WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
+            SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+            assertHitCount(searchResponse, 1L);
+
+            wildCardQuery = wildcardQuery("field1", "bb*");
+            searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+            assertHitCount(searchResponse, 1L);
+        }
+   }
+
+    /**
+     * Test that wildcard queries on text fields get normalized
+     */
+     public void testWildcardQueryNormalizationOnTextField() {
+        assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder()
+                        .put("index.analysis.analyzer.lowercase_analyzer.type", "custom")
+                        .put("index.analysis.analyzer.lowercase_analyzer.tokenizer", "standard")
+                        .putList("index.analysis.analyzer.lowercase_analyzer.filter", "lowercase")
+                        .build())
+                 .setMapping("field1", "type=text,analyzer=lowercase_analyzer"));
+        client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
+        refresh();
+
+         {
+             WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
+             SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+             assertHitCount(searchResponse, 1L);
+
+             wildCardQuery = wildcardQuery("field1", "bb*");
+             searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+             assertHitCount(searchResponse, 1L);
+         }
+    }
+
+    /**
+     * Reserved characters should be excluded when the normalization is applied for keyword fields.
+     * See https://github.com/elastic/elasticsearch/issues/46300 for details.
+     */
+    public void testWildcardQueryNormalizationKeywordSpecialCharacters() {
+        assertAcked(prepareCreate("test")
+                .setSettings(Settings.builder().put("index.analysis.char_filter.no_wildcard.type", "mock_pattern_replace")
+                        .put("index.analysis.normalizer.no_wildcard.type", "custom")
+                        .put("index.analysis.normalizer.no_wildcard.char_filter", "no_wildcard").build())
+                .setMapping("field", "type=keyword,normalizer=no_wildcard"));
+        client().prepareIndex("test").setId("1").setSource("field", "label-1").get();
+        refresh();
+
+        WildcardQueryBuilder wildCardQuery = wildcardQuery("field", "la*");
+        SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+        assertHitCount(searchResponse, 1L);
+
+        wildCardQuery = wildcardQuery("field", "la*el-?");
+        searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+        assertHitCount(searchResponse, 1L);
+    }
+
+    public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
+
+        @Override
+        public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+            return singletonMap("mock_pattern_replace", (indexSettings, env, name, settings) -> {
+                class Factory implements NormalizingCharFilterFactory {
+
+                    private final Pattern pattern = Regex.compile("[\\*\\?]", null);
+
+                    @Override
+                    public String name() {
+                        return name;
+                    }
+
+                    @Override
+                    public Reader create(Reader reader) {
+                        return new PatternReplaceCharFilter(pattern, "", reader);
+                    }
+                }
+                return new Factory();
+            });
+        }
+
+        @Override
+        public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+            return singletonMap("keyword", (indexSettings, environment, name, settings) -> TokenizerFactory.newFactory(name,
+                    () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
+        }
+    }
 
     /**
      * Test correct handling {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexReader, MultiTermQuery)}. That rewrite method is e.g.

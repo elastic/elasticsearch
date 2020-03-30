@@ -199,7 +199,7 @@ public class ILMHistoryStore implements Closeable {
                 .setSettings((Map<String, ?>) templateAsMap.get("settings"))
                 .setMapping((Map<String, Object>) templateAsMap.get("mappings"))
                 .setWaitForActiveShards(1)
-                .addAlias(new Alias(ILM_HISTORY_ALIAS).writeIndex(true))
+                .addAlias(new Alias(ILM_HISTORY_ALIAS).writeIndex(true).isHidden(true))
                 .execute(new ActionListener<>() {
                     @Override
                     public void onResponse(CreateIndexResponse response) {

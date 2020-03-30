@@ -21,7 +21,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.TaskId;
@@ -35,17 +35,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
-class AsyncSearchTask extends SearchTask {
+final class AsyncSearchTask extends SearchTask {
+    private final BooleanSupplier checkSubmitCancellation;
     private final AsyncSearchId searchId;
     private final Client client;
     private final ThreadPool threadPool;
-    private final Supplier<ReduceContext> reduceContextSupplier;
+    private final Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier;
     private final Listener progressListener;
 
     private final Map<String, String> originHeaders;
@@ -68,30 +70,33 @@ class AsyncSearchTask extends SearchTask {
      * @param type The type of the task.
      * @param action The action name.
      * @param parentTaskId The parent task id.
+     * @param checkSubmitCancellation A boolean supplier that checks if the submit task has been cancelled.
      * @param originHeaders All the request context headers.
      * @param taskHeaders The filtered request headers for the task.
      * @param searchId The {@link AsyncSearchId} of the task.
      * @param threadPool The threadPool to schedule runnable.
-     * @param reduceContextSupplier A supplier to create final reduce contexts.
+     * @param aggReduceContextSupplier A supplier to create final reduce contexts.
      */
     AsyncSearchTask(long id,
                     String type,
                     String action,
                     TaskId parentTaskId,
+                    BooleanSupplier checkSubmitCancellation,
                     TimeValue keepAlive,
                     Map<String, String> originHeaders,
                     Map<String, String> taskHeaders,
                     AsyncSearchId searchId,
                     Client client,
                     ThreadPool threadPool,
-                    Supplier<ReduceContext> reduceContextSupplier) {
+                    Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
         super(id, type, action, "async_search", parentTaskId, taskHeaders);
+        this.checkSubmitCancellation = checkSubmitCancellation;
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.originHeaders = originHeaders;
         this.searchId = searchId;
         this.client = client;
         this.threadPool = threadPool;
-        this.reduceContextSupplier = reduceContextSupplier;
+        this.aggReduceContextSupplier = aggReduceContextSupplier;
         this.progressListener = new Listener();
         this.searchResponse = new AtomicReference<>();
         setProgressListener(progressListener);
@@ -111,8 +116,7 @@ class AsyncSearchTask extends SearchTask {
         return searchId;
     }
 
-    @Override
-    public SearchProgressActionListener getProgressListener() {
+    Listener getSearchProgressActionListener() {
         return progressListener;
     }
 
@@ -193,7 +197,7 @@ class AsyncSearchTask extends SearchTask {
             if (hasCompleted) {
                 executeImmediately = true;
             } else {
-                completionListeners.put(completionId++, resp -> listener.accept(resp));
+                completionListeners.put(completionId++, listener::accept);
             }
         }
         if (executeImmediately) {
@@ -292,59 +296,63 @@ class AsyncSearchTask extends SearchTask {
         return searchResponse.get().toAsyncSearchResponse(this, expirationTimeMillis);
     }
 
-    // cancels the task if it expired
-    private void checkExpiration() {
+    // checks if the search task should be cancelled
+    private void checkCancellation() {
         long now = System.currentTimeMillis();
-        if (expirationTimeMillis < now) {
+        if (expirationTimeMillis < now || checkSubmitCancellation.getAsBoolean()) {
+            // we cancel the search task if the initial submit task was cancelled,
+            // this is needed because the task cancellation mechanism doesn't
+            // handle the cancellation of grand-children.
             cancelTask(() -> {});
         }
     }
 
-    private class Listener extends SearchProgressActionListener {
+    class Listener extends SearchProgressActionListener {
         @Override
-        public void onQueryResult(int shardIndex) {
-            checkExpiration();
+        protected void onQueryResult(int shardIndex) {
+            checkCancellation();
         }
 
         @Override
-        public void onFetchResult(int shardIndex) {
-            checkExpiration();
+        protected void onFetchResult(int shardIndex) {
+            checkCancellation();
         }
 
         @Override
-        public void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+        protected void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             // best effort to cancel expired tasks
-            checkExpiration();
-            searchResponse.get().addShardFailure(shardIndex, new ShardSearchFailure(exc, shardTarget));
+            checkCancellation();
+            searchResponse.get().addShardFailure(shardIndex,
+                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null));
         }
 
         @Override
-        public void onFetchFailure(int shardIndex, Exception exc) {
-            checkExpiration();
+        protected void onFetchFailure(int shardIndex, Exception exc) {
+            checkCancellation();
         }
 
         @Override
-        public void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
+        protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
             // best effort to cancel expired tasks
-            checkExpiration();
+            checkCancellation();
             searchResponse.compareAndSet(null,
-                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, reduceContextSupplier));
+                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, aggReduceContextSupplier));
             executeInitListeners();
         }
 
         @Override
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
             // best effort to cancel expired tasks
-            checkExpiration();
+            checkCancellation();
             searchResponse.get().updatePartialResponse(shards.size(),
                 new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), aggs,
                     null, null, false, null, reducePhase), aggs == null);
         }
 
         @Override
-        public void onReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+        public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
             // best effort to cancel expired tasks
-            checkExpiration();
+            checkCancellation();
             searchResponse.get().updatePartialResponse(shards.size(),
                 new InternalSearchResponse(new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), aggs,
                     null, null, false, null, reducePhase), true);
@@ -361,7 +369,7 @@ class AsyncSearchTask extends SearchTask {
             if (searchResponse.get() == null) {
                 // if the failure occurred before calling onListShards
                 searchResponse.compareAndSet(null,
-                    new MutableSearchResponse(-1, -1, null, reduceContextSupplier));
+                    new MutableSearchResponse(-1, -1, null, aggReduceContextSupplier));
             }
             searchResponse.get().updateWithFailure(exc);
             executeInitListeners();

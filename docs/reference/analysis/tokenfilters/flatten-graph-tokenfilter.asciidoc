@@ -4,8 +4,6 @@
 <titleabbrev>Flatten graph</titleabbrev>
 ++++
 
-experimental[This functionality is marked as experimental in Lucene]
-
 The `flatten_graph` token filter accepts an arbitrary graph token
 stream, such as that produced by
 <<analysis-synonym-graph-tokenfilter>>, and flattens it into a single

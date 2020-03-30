@@ -176,7 +176,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     @Override
     public BucketComparator bucketComparator(String key, SortOrder order) {
-        if (key == null || false == "doc_count".equals(key)) {
+        if (key == null || "doc_count".equals(key)) {
             return (lhs, rhs) -> order.reverseMul() * Integer.compare(bucketDocCount(lhs), bucketDocCount(rhs));
         }
         throw new IllegalArgumentException("Ordering on a single-bucket aggregation can only be done on its doc_count. " +

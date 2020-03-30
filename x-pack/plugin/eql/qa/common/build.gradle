@@ -3,4 +3,9 @@ test.enabled = false
 
 dependencies {
   compile project(':test:framework')
+  compile project(path: xpackModule('core'), configuration: 'default')
+  compile project(path: xpackModule('core'), configuration: 'testArtifacts')
+
+  // TOML parser for EqlActionIT tests
+  compile 'io.ous:jtoml:2.0.0'
 }

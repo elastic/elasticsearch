@@ -25,8 +25,9 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class AsyncSearchResponse extends ActionResponse implements StatusToXContentObject {
     @Nullable
     private final String id;
-    private final int version;
+    @Nullable
     private final SearchResponse searchResponse;
+    @Nullable
     private final ElasticsearchException error;
     private final boolean isRunning;
     private final boolean isPartial;
@@ -38,19 +39,17 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
      * Creates an {@link AsyncSearchResponse} with meta-information only (not-modified).
      */
     public AsyncSearchResponse(String id,
-                               int version,
                                boolean isPartial,
                                boolean isRunning,
                                long startTimeMillis,
                                long expirationTimeMillis) {
-        this(id, version, null, null, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
+        this(id, null, null, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
     }
 
     /**
      * Creates a new {@link AsyncSearchResponse}
      *
      * @param id The id of the search for further retrieval, <code>null</code> if not stored.
-     * @param version The version number of this response.
      * @param searchResponse The actual search response.
      * @param error The error if the search failed, <code>null</code> if the search is running
      *                or has completed without failure.
@@ -59,7 +58,6 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
      * @param startTimeMillis The start date of the search in milliseconds since epoch.
      */
     public AsyncSearchResponse(String id,
-                               int version,
                                SearchResponse searchResponse,
                                ElasticsearchException error,
                                boolean isPartial,
@@ -67,7 +65,6 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
                                long startTimeMillis,
                                long expirationTimeMillis) {
         this.id = id;
-        this.version = version;
         this.error = error;
         this.searchResponse = searchResponse;
         this.isPartial = isPartial;
@@ -78,7 +75,6 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
 
     public AsyncSearchResponse(StreamInput in) throws IOException {
         this.id = in.readOptionalString();
-        this.version = in.readVInt();
         this.error = in.readOptionalWriteable(ElasticsearchException::new);
         this.searchResponse = in.readOptionalWriteable(SearchResponse::new);
         this.isPartial = in.readBoolean();
@@ -90,7 +86,6 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(id);
-        out.writeVInt(version);
         out.writeOptionalWriteable(error);
         out.writeOptionalWriteable(searchResponse);
         out.writeBoolean(isPartial);
@@ -100,7 +95,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     public AsyncSearchResponse clone(String id) {
-        return new AsyncSearchResponse(id, version, searchResponse, error, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
+        return new AsyncSearchResponse(id, searchResponse, error, isPartial, false, startTimeMillis, expirationTimeMillis);
     }
 
     /**
@@ -109,13 +104,6 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     @Nullable
     public String getId() {
         return id;
-    }
-
-    /**
-     * Returns the version of this response.
-     */
-    public int getVersion() {
-        return version;
     }
 
     /**
@@ -187,11 +175,10 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         if (id != null) {
             builder.field("id", id);
         }
-        builder.field("version", version);
         builder.field("is_partial", isPartial);
         builder.field("is_running", isRunning);
-        builder.field("start_time_in_millis", startTimeMillis);
-        builder.field("expiration_time_in_millis", expirationTimeMillis);
+        builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
+        builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
 
         if (searchResponse != null) {
             builder.field("response");

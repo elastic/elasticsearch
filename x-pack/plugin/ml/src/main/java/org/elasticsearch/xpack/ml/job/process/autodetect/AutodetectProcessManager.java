@@ -333,7 +333,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     updateProcessMessage.setFilter(filter);
 
                     if (updateParams.isUpdateScheduledEvents()) {
-                        jobManager.getJob(jobTask.getJobId(), new ActionListener<>() {
+                        jobManager.getJob(jobTask.getJobId(), new ActionListener<Job>() {
                             @Override
                             public void onResponse(Job job) {
                                 Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> stats = getStatistics(jobTask);
@@ -681,7 +681,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setJobState(JobTask jobTask, JobState state, String reason) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
-        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<>() {
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
             @Override
             public void onResponse(PersistentTask<?> persistentTask) {
                 logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId());
@@ -700,7 +700,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
         JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
-        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<>() {
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
             @Override
             public void onResponse(PersistentTask<?> persistentTask) {
                 try {

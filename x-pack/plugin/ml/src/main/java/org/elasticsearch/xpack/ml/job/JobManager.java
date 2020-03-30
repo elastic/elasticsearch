@@ -256,7 +256,7 @@ public class JobManager {
             return;
         }
 
-        ActionListener<Boolean> putJobListener = new ActionListener<>() {
+        ActionListener<Boolean> putJobListener = new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean mappingsUpdated) {
 

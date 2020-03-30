@@ -32,11 +32,8 @@ import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.hasToString;
 
 /**
  * Simple unit-tests for Environment.java
@@ -122,34 +119,6 @@ public class EnvironmentTests extends ESTestCase {
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
         assertThat(environment.configFile(), equalTo(pathHome.resolve("config")));
-    }
-
-    public void testNodeDoesNotRequireLocalStorage() {
-        final Path pathHome = createTempDir().toAbsolutePath();
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", pathHome)
-                        .put("node.local_storage", false)
-                        .put("node.master", false)
-                        .put("node.data", false)
-                        .build();
-        final Environment environment = new Environment(settings, null);
-        assertThat(environment.dataFiles(), arrayWithSize(0));
-    }
-
-    public void testNodeDoesNotRequireLocalStorageButHasPathData() {
-        final Path pathHome = createTempDir().toAbsolutePath();
-        final Path pathData = pathHome.resolve("data");
-        final Settings settings =
-                Settings.builder()
-                        .put("path.home", pathHome)
-                        .put("path.data", pathData)
-                        .put("node.local_storage", false)
-                        .put("node.master", false)
-                        .put("node.data", false)
-                        .build();
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> new Environment(settings, null));
-        assertThat(e, hasToString(containsString("node does not require local storage yet path.data is set to [" + pathData + "]")));
     }
 
     public void testNonExistentTempPathValidation() {

@@ -323,9 +323,7 @@ public class ThreadPool implements Scheduler {
     }
 
     /**
-     * Schedules a one-shot command to run after a given delay. The command is not run in the context of the calling thread. To preserve the
-     * context of the calling thread you may call <code>threadPool.getThreadContext().preserveContext</code> on the runnable before passing
-     * it to this method.
+     * Schedules a one-shot command to run after a given delay. The command is run in the context of the calling thread.
      *
      * @param command the command to run
      * @param delay delay before the task executes
@@ -339,6 +337,7 @@ public class ThreadPool implements Scheduler {
      */
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+        command = threadContext.preserveContext(command);
         if (!Names.SAME.equals(executor)) {
             command = new ThreadedRunnable(command, executor(executor));
         }
@@ -369,11 +368,6 @@ public class ThreadPool implements Scheduler {
                 },
                 (e) -> logger.warn(() -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
                         command, executor), e));
-    }
-
-    @Override
-    public Runnable preserveContext(Runnable command) {
-        return getThreadContext().preserveContext(command);
     }
 
     protected final void stopCachedTimeThread() {

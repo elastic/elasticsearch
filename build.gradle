@@ -45,6 +45,7 @@ apply from: 'gradle/build-scan.gradle'
 apply from: 'gradle/build-complete.gradle'
 apply from: 'gradle/runtime-jdk-provision.gradle'
 apply from: 'gradle/ide.gradle'
+apply from: 'gradle/formatting.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -104,47 +105,6 @@ subprojects {
   plugins.withType(BuildPlugin).whenPluginAdded {
     project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
-
-    // Projects that should be formatted and checked with Spotless are
-    // listed here, by project path. Once the number of formatted projects
-    // is greater than the number of unformatted projects, this can be
-    // switched to an exclude list, and eventually removed completely.
-    def projectPathsToFormat = [
-      ':benchmarks',
-      ':build-tools',
-      ':distribution:tools:java-version-checker',
-      ':distribution:tools:keystore-cli',
-      ':distribution:tools:launchers',
-      ':distribution:tools:plugin-cli',
-      ':qa:os',
-      ':qa:wildfly',
-      ':x-pack:plugin:autoscaling',
-      ':x-pack:plugin:enrich',
-      ':x-pack:plugin:logstash'
-    ]
-
-    if (projectPathsToFormat.contains(project.path)) {
-      project.apply plugin: "com.diffplug.gradle.spotless"
-
-      spotless {
-        java {
-          // Normally this isn't necessary, but we have Java sources in
-          // non-standard places
-          target '**/*.java'
-
-          removeUnusedImports()
-          eclipse().configFile rootProject.file('.eclipseformat.xml')
-          trimTrailingWhitespace()
-
-          // See CONTRIBUTING.md for details of when to enabled this.
-          if (System.getProperty('spotless.paddedcell') != null) {
-            paddedCell()
-          }
-        }
-      }
-
-      precommit.dependsOn 'spotlessJavaCheck'
-    }
   }
 }
 

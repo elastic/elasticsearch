@@ -154,6 +154,19 @@ public abstract class AggregationBuilder
         return factoriesBuilder.buildPipelineTree();
     }
 
+    /**
+     * Rough measure of how many buckets this aggregation can return. Just
+     * "zero", "one", and "many".
+     */
+    public enum BucketCardinality {
+        NONE, ONE, MANY;
+    }
+    /**
+     * Do aggregations built by this builder contain buckets? If so, do they
+     * contain *always* contain a single bucket?
+     */
+    public abstract BucketCardinality bucketCardinality();
+
     /** Common xcontent fields shared among aggregator builders */
     public static final class CommonFields extends ParseField.CommonFields {
         public static final ParseField VALUE_TYPE = new ParseField("value_type");

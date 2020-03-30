@@ -127,7 +127,7 @@ public class AutoDateHistogramAggregationBuilder
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(numBuckets);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalString(minimumIntervalExpression);
         }
     }

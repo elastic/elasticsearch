@@ -66,7 +66,7 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
         // The atomic flag prevents multiple simultaneous attempts to create the
         // index if there is a flurry of cluster state updates in quick succession
         if (event.localNodeMaster() && isIndexCreationInProgress.compareAndSet(false, true)) {
-            AnnotationIndex.createAnnotationsIndexIfNecessary(settings, client, event.state(), ActionListener.wrap(
+            AnnotationIndex.createAnnotationsIndexIfNecessary(client, event.state(), ActionListener.wrap(
                 r -> {
                     isIndexCreationInProgress.set(false);
                     if (r) {

@@ -67,53 +67,78 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
   behavior may be desired if the source index does not exist until after the
   {transform} is updated.
 
+[role="child_attributes"]
 [[update-transform-request-body]]
 ==== {api-request-body-title}
 
 `description`::
   (Optional, string) Free text description of the {transform}.
 
+//Begin dest
 `dest`::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
-  
-`dest`.`index`:::
++
+.Properties of `dest`
+[%collapsible%open]
+====
+
+`index`:::
 (Required, string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
-`dest`.`pipeline`:::
+`pipeline`:::
 (Optional, string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+====
+//End dest
 
 `frequency`::
 (Optional, <<time-units, time units>>)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=frequency]
 
+//Begin source
 `source`::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
-  
-`source`.`index`:::
++
+.Properties of `source`
+[%collapsible%open]
+====  
+
+`index`:::
 (Required, string or array)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
     
-`source`.`query`:::
+`query`:::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
-  
+====
+//End source
+
+//Begin sync
 `sync`::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
-  
-`sync`.`time`:::
++
+.Properties of `sync`
+[%collapsible%open]
+====
+
+//Begin sync.time
+`time`:::
 (Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
 
-`sync`.`time`.`delay`::::
+`delay`::::
 (Optional, <<time-units, time units>>)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
 
-`sync`.`time`.`field`::::
+`field`::::
 (Required, string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
@@ -124,6 +149,10 @@ you might need to set the `delay` such that it accounts for data transmission
 delays.
 
 --
+=====
+//End sync.time
+====
+//End sync
 
 [[update-transform-example]]
 ==== {api-examples-title}

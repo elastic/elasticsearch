@@ -166,10 +166,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                         case NO_FOLDER_FOUND:
                             folderNotFoundCache.add(shardId);
                             break;
-                        case NO_LOCAL_STORAGE:
-                            assert false : "shard deletion only runs on data nodes which always have local storage";
-                            // nothing to do
-                            break;
                         case STILL_ALLOCATED:
                             // nothing to do
                             break;

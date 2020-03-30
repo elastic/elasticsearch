@@ -254,6 +254,7 @@ public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
         assertThat(exc.getMessage(), containsString("no such index"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54180")
     public void testCancellation() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
         request.getSearchRequest().source(

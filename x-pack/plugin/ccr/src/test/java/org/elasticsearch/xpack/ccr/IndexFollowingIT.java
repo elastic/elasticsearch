@@ -992,7 +992,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(false));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54204")
     public void testUpdateAnalysisLeaderIndexSettings() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, 0);
         assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
@@ -1060,7 +1059,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             } catch (Exception e) {
                 throw new AssertionError("error while searching", e);
             }
-        });
+        }, 30, TimeUnit.SECONDS);
         assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(true));
     }
 

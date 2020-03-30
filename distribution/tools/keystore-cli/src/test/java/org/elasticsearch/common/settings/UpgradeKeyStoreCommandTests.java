@@ -50,8 +50,10 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testKeystoreUpgrade() throws Exception {
         final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
-        try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
-             OutputStream os = Files.newOutputStream(keystore)) {
+        try (
+            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
+            OutputStream os = Files.newOutputStream(keystore)
+        ) {
             final byte[] buffer = new byte[4096];
             int read;
             while ((read = is.read(buffer, 0, buffer.length)) >= 0) {

@@ -25,11 +25,9 @@ setup:
 
 ---
 "basic":
-  - skip:
-      version: " - 7.7.99"
-      reason: Tracked in https://github.com/elastic/elasticsearch/issues/54382
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -37,7 +35,7 @@ setup:
               auto_date_histogram:
                 field: date
                 buckets: 2
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.histo.buckets: 2 }
   - match: { aggregations.histo.buckets.0.key_as_string: "2020-03-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.0.doc_count: 2 }

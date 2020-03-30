@@ -58,7 +58,6 @@ they are not included in the explanation.
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
-
 [[ml-explain-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
@@ -66,7 +65,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
   (Optional, object) Intended configuration of {dfanalytics-job}. Note that `id` 
   and `dest` don't need to be provided in the context of this API.
 
-
+[role="child_attributes"]
 [[ml-explain-dfanalytics-results]]
 ==== {api-response-body-title}
 

@@ -444,7 +444,10 @@ end::data-description[]
 tag::data-frame-analytics[]
 An array of {dfanalytics-job} resources, which are sorted by the `id` value in 
 ascending order.
-
++
+.Properties of {dfanalytics-job} resources
+[%collapsible%open]
+====
 `analysis`:::
 (object) The type of analysis that is performed on the `source`.
 
@@ -721,14 +724,11 @@ end::feature-influence-threshold[]
 
 tag::field-selection[]
 An array of objects that explain selection for each field, sorted by 
-the field names. Each object in the array has the following properties:
-
-`name`:::
-(string) The field name.
-
-`mapping_types`:::
-(string) The mapping types of the field.
-
+the field names.
++
+.Properties of `field_selection` objects
+[%collapsible%open]
+====
 `is_included`:::
 (boolean) Whether the field is selected to be included in the analysis.
 
@@ -739,8 +739,15 @@ the field names. Each object in the array has the following properties:
 (string) The feature type of this field for the analysis. May be `categorical` 
 or `numerical`.
 
+`mapping_types`:::
+(string) The mapping types of the field.
+
+`name`:::
+(string) The field name.
+
 `reason`:::
 (string) The reason a field is not selected to be included in the analysis.
+====
 end::field-selection[]
 
 tag::filter[]
@@ -968,18 +975,21 @@ allowed to contain. The maximum value is 2000.
 end::max-trees[]
 
 tag::memory-estimation[]
-An object containing the memory estimates. The object has the 
-following properties:
-
-`expected_memory_without_disk`:::
-(string) Estimated memory usage under the assumption that the whole 
-{dfanalytics} should happen in memory (i.e. without overflowing to disk).
-
+An object containing the memory estimates.
++
+.Properties of `memory_estimation`
+[%collapsible%open]
+====
 `expected_memory_with_disk`:::
 (string) Estimated memory usage under the assumption that overflowing to disk is 
 allowed during {dfanalytics}. `expected_memory_with_disk` is usually smaller 
 than `expected_memory_without_disk` as using disk allows to limit the main 
 memory needed to perform {dfanalytics}.
+
+`expected_memory_without_disk`:::
+(string) Estimated memory usage under the assumption that the whole 
+{dfanalytics} should happen in memory (i.e. without overflowing to disk).
+====
 end::memory-estimation[]
 
 tag::method[]

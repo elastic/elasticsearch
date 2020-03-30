@@ -28,7 +28,7 @@ include-tagged::{doc-tests-file}[{api}-request-arguments]
 --------------------------------------------------
 <1> The minimum time that the request should wait before 
 returning a partial result (defaults to no wait).
-<2> The expiration time of the result (defaults to none).
+<2> The expiration time of the request (defaults to none).
 
 
 [id="{upid}-{api}-sync"]

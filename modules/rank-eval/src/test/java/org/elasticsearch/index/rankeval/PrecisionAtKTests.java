@@ -114,7 +114,7 @@ public class PrecisionAtKTests extends ESTestCase {
         rated.add(createRatedDoc("test", "1", RELEVANT_RATING));
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test"), 3);
-        searchHits[2] = new SearchHit(2, "2", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+        searchHits[2] = new SearchHit(2, "2", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap(), Collections.emptyMap());
         searchHits[2].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
 
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", searchHits, rated);
@@ -133,7 +133,8 @@ public class PrecisionAtKTests extends ESTestCase {
     public void testNoRatedDocs() throws Exception {
         SearchHit[] hits = new SearchHit[5];
         for (int i = 0; i < 5; i++) {
-            hits[i] = new SearchHit(i, i + "", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", new Text(MapperService.SINGLE_MAPPING_NAME),
+                Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", hits, Collections.emptyList());
@@ -255,7 +256,7 @@ public class PrecisionAtKTests extends ESTestCase {
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", new Text(""), Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         }
         return hits;

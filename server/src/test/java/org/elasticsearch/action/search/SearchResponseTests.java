@@ -208,7 +208,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContent() {
-        SearchHit hit = new SearchHit(1, "id1", new Text("type"), Collections.emptyMap());
+        SearchHit hit = new SearchHit(1, "id1", new Text("type"), Collections.emptyMap(), Collections.emptyMap());
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         {

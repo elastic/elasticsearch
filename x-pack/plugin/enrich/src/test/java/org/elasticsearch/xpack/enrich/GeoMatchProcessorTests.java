@@ -176,6 +176,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
                 randomInt(100),
                 e.getKey(),
                 new Text(MapperService.SINGLE_MAPPING_NAME),
+                Collections.emptyMap(),
                 Collections.emptyMap()
             );
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {

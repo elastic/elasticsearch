@@ -66,6 +66,11 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
     protected StringStatsAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                       ValuesSourceConfig<ValuesSource.Bytes> config,
                                                       AggregatorFactory parent,

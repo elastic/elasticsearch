@@ -87,6 +87,11 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory<Bytes> innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Bytes> config,
             AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         throw new UnsupportedOperationException();

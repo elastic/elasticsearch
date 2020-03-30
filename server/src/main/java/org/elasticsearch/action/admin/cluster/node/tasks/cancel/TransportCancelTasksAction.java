@@ -102,8 +102,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     @Override
-    protected void taskOperation(CancelTasksRequest request, CancellableTask cancellableTask,
-                                              ActionListener<TaskInfo> listener) {
+    protected void taskOperation(CancelTasksRequest request, CancellableTask cancellableTask, ActionListener<TaskInfo> listener) {
         String nodeId = clusterService.localNode().getId();
         if (cancellableTask.shouldCancelChildrenOnCancellation()) {
             StepListener<Void> completedListener = new StepListener<>();

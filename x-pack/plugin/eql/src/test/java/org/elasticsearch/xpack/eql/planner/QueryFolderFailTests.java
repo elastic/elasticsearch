@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.planner;
 
+import org.elasticsearch.xpack.eql.analysis.VerificationException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
@@ -17,9 +18,10 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
     }
 
     public void testPropertyEquationInClauseFilterUnsupported() {
-        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
+        VerificationException e = expectThrows(VerificationException.class,
                 () -> plan("process where opcode in (1,3) and process_name in (parent_process_name, \"SYSTEM\")"));
         String msg = e.getMessage();
-        assertEquals("Line 1:52: Comparisons against variables are not (currently) supported; offender [parent_process_name] in [==]", msg);
+        assertEquals("Found 1 problem\nline 1:35: Comparisons against variables are not (currently) supported; " +
+            "offender [parent_process_name] in [process_name in (parent_process_name, \"SYSTEM\")]", msg);
     }
 }

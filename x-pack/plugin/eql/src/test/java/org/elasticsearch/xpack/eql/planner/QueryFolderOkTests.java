@@ -20,6 +20,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
 public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
+
     private final String name;
     private final String query;
     private final Object expect;

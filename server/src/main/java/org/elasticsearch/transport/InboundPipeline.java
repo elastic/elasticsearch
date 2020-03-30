@@ -156,10 +156,6 @@ public class InboundPipeline implements Releasable {
     }
 
     private void releasePendingBytes(int bytesConsumed) {
-        if (isClosed) {
-            // Are released by the close method
-            return;
-        }
         int bytesToRelease = bytesConsumed;
         while (bytesToRelease != 0) {
             try (ReleasableBytesReference reference = pending.pollFirst()) {

@@ -408,16 +408,16 @@ public class TaskManager implements ClusterStateApplier {
     /**
      * Start rejecting new child requests as the parent task was cancelled.
      *
-     * @param taskId            the parent task id
-     * @param onEmptyChildNodes called when all child nodes are unregistered (i.e, all child tasks are completed or failed)
+     * @param taskId                the parent task id
+     * @param onChildTasksCompleted called when all child tasks are completed or failed
      * @return the set of current nodes that have outstanding child tasks
      */
-    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, Runnable onEmptyChildNodes) {
+    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, Runnable onChildTasksCompleted) {
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
-            return holder.startBan(onEmptyChildNodes);
+            return holder.startBan(onChildTasksCompleted);
         } else {
-            onEmptyChildNodes.run();
+            onChildTasksCompleted.run();
             return Collections.emptySet();
         }
     }
@@ -480,7 +480,7 @@ public class TaskManager implements ClusterStateApplier {
         private Runnable cancellationListener = null;
         private ObjectIntMap<DiscoveryNode> childTasksPerNode = null;
         private boolean banChildren = false;
-        private Runnable onEmptyChildNodes; // called when all child nodes are unregistered
+        private Runnable onChildTasksCompleted = null;
 
         CancellableTaskHolder(CancellableTask task) {
             this.task = task;
@@ -568,7 +568,7 @@ public class TaskManager implements ClusterStateApplier {
                     childTasksPerNode.remove(node);
                 }
                 if (childTasksPerNode.isEmpty()) {
-                    runnable = onEmptyChildNodes;
+                    runnable = this.onChildTasksCompleted;
                 } else {
                     runnable = null;
                 }
@@ -578,24 +578,23 @@ public class TaskManager implements ClusterStateApplier {
             }
         }
 
-        Set<DiscoveryNode> startBan(Runnable onEmptyChildNodes) {
+        Set<DiscoveryNode> startBan(Runnable onChildTasksCompleted) {
             final Set<DiscoveryNode> pendingChildNodes;
             synchronized (this) {
                 if (banChildren) {
+                    throw new TaskCancelledException("Task is being cancelled already");
+                }
+                banChildren = true;
+                if (childTasksPerNode == null) {
                     pendingChildNodes = Collections.emptySet();
                 } else {
-                    banChildren = true;
-                    if (childTasksPerNode == null) {
-                        pendingChildNodes = Collections.emptySet();
-                    } else {
-                        pendingChildNodes = StreamSupport.stream(childTasksPerNode.spliterator(), false)
-                            .map(e -> e.key).collect(Collectors.toUnmodifiableSet());
-                    }
-                    this.onEmptyChildNodes = onEmptyChildNodes;
+                    pendingChildNodes = StreamSupport.stream(childTasksPerNode.spliterator(), false)
+                        .map(e -> e.key).collect(Collectors.toUnmodifiableSet());
                 }
+                this.onChildTasksCompleted = onChildTasksCompleted;
             }
             if (pendingChildNodes.isEmpty()) {
-                onEmptyChildNodes.run();
+                onChildTasksCompleted.run();
             }
             return pendingChildNodes;
         }

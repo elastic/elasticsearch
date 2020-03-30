@@ -417,8 +417,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                final ActionListener<Snapshot> userCreateSnapshotListener) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 
-            boolean snapshotCreated;
-
             boolean hadAbortedInitializations;
 
             @Override
@@ -436,8 +434,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         throw new InvalidSnapshotNameException(
                             repository.getMetadata().name(), snapshotName, "snapshot with the same name already exists");
                     }
-
-                    snapshotCreated = true;
 
                     logger.info("snapshot [{}] started", snapshot.snapshot());
                     final Version version =
@@ -508,7 +504,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             logger.warn(() -> new ParameterizedMessage("[{}] failed to create snapshot",
                                 snapshot.snapshot().getSnapshotId()), e);
                             removeSnapshotFromClusterState(snapshot.snapshot(), null, e,
-                                new CleanupAfterErrorListener(snapshot, true, userCreateSnapshotListener, e));
+                                new CleanupAfterErrorListener(userCreateSnapshotListener, e));
                         }
 
                         @Override
@@ -545,67 +541,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 logger.warn(() -> new ParameterizedMessage("failed to create snapshot [{}]",
                     snapshot.snapshot().getSnapshotId()), e);
                 removeSnapshotFromClusterState(snapshot.snapshot(), null, e,
-                    new CleanupAfterErrorListener(snapshot, snapshotCreated, userCreateSnapshotListener, e));
+                    new CleanupAfterErrorListener(userCreateSnapshotListener, e));
             }
         });
     }
 
-    private class CleanupAfterErrorListener implements ActionListener<SnapshotInfo> {
+    private static class CleanupAfterErrorListener implements ActionListener<SnapshotInfo> {
 
-        private final SnapshotsInProgress.Entry snapshot;
-        private final boolean snapshotCreated;
         private final ActionListener<Snapshot> userCreateSnapshotListener;
         private final Exception e;
 
-        CleanupAfterErrorListener(SnapshotsInProgress.Entry snapshot, boolean snapshotCreated,
-                                  ActionListener<Snapshot> userCreateSnapshotListener, Exception e) {
-            this.snapshot = snapshot;
-            this.snapshotCreated = snapshotCreated;
+        CleanupAfterErrorListener(ActionListener<Snapshot> userCreateSnapshotListener, Exception e) {
             this.userCreateSnapshotListener = userCreateSnapshotListener;
             this.e = e;
         }
 
         @Override
         public void onResponse(SnapshotInfo snapshotInfo) {
-            cleanupAfterError(this.e);
+            userCreateSnapshotListener.onFailure(e);
         }
 
         @Override
         public void onFailure(Exception e) {
             e.addSuppressed(this.e);
-            cleanupAfterError(e);
+            userCreateSnapshotListener.onFailure(e);
         }
 
         public void onNoLongerMaster() {
             userCreateSnapshotListener.onFailure(e);
-        }
-
-        private void cleanupAfterError(Exception exception) {
-            threadPool.generic().execute(() -> {
-                if (snapshotCreated) {
-                    final MetaData metaData = clusterService.state().metaData();
-                    repositoriesService.repository(snapshot.snapshot().getRepository())
-                        .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
-                            buildGenerations(snapshot, metaData),
-                            snapshot.startTime(),
-                            ExceptionsHelper.stackTrace(exception),
-                            0,
-                            Collections.emptyList(),
-                            snapshot.repositoryStateId(),
-                            snapshot.includeGlobalState(),
-                            metaDataForSnapshot(snapshot, metaData),
-                            snapshot.userMetadata(),
-                            snapshot.version(),
-                            ActionListener.runAfter(ActionListener.wrap(ignored -> {
-                            }, inner -> {
-                                inner.addSuppressed(exception);
-                                logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot in repository",
-                                    snapshot.snapshot()), inner);
-                            }), () -> userCreateSnapshotListener.onFailure(e)));
-                } else {
-                    userCreateSnapshotListener.onFailure(e);
-                }
-            });
         }
     }
 

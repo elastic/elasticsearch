@@ -534,7 +534,7 @@ An object containing the parameters of the {classanalysis}.
 `class_assignment_objective`::::
 (string)
 Defines whether class assignment maximizes the accuracy or the minimum recall 
-metric. Possible values are `accuracy` and `minimum_recall`.
+metric. Possible values are `maximize_accuracy` and `maximize_minimum_recall`.
 
 `downsample_factor`::::
 (double)
@@ -571,7 +571,7 @@ times the maximum optimization rounds per hyperparameter.
 
 `max_trees`::::
 (integer)
-The maximum number of trees.
+The maximum number of trees in the forest.
 
 `num_folds`::::
 (integer)

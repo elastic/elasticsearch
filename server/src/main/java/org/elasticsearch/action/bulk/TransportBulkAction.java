@@ -388,7 +388,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * */
     private final class BulkOperation extends ActionRunnable<BulkResponse> {
         private final Task task;
-        private volatile BulkRequest bulkRequest; // set to null once all requests are sent out
+        private BulkRequest bulkRequest; // set to null once all requests are sent out
         private final AtomicArray<BulkItemResponse> responses;
         private final long startTimeNanos;
         private final ClusterStateObserver observer;

@@ -36,7 +36,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testAuthorizedIndicesUserWithoutRoles() {
         List<String> authorizedIndices =
-            RBACEngine.resolveAuthorizedIndicesFromRole(Role.EMPTY, "", MetaData.EMPTY_META_DATA.getAliasAndIndexLookup());
+            RBACEngine.resolveAuthorizedIndicesFromRole(Role.EMPTY, "", MetaData.EMPTY_META_DATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
 
@@ -72,7 +72,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
         Role roles = future.actionGet();
         List<String> list =
-            RBACEngine.resolveAuthorizedIndicesFromRole(roles, SearchAction.NAME, metaData.getAliasAndIndexLookup());
+            RBACEngine.resolveAuthorizedIndicesFromRole(roles, SearchAction.NAME, metaData.getIndicesLookup());
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
         assertFalse(list.contains("bbbbb"));
         assertFalse(list.contains("ba"));
@@ -83,7 +83,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
     public void testAuthorizedIndicesUserWithSomeRolesEmptyMetaData() {
         Role role = Role.builder("role").add(IndexPrivilege.ALL, "*").build();
         List<String> authorizedIndices =
-            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, MetaData.EMPTY_META_DATA.getAliasAndIndexLookup());
+            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, MetaData.EMPTY_META_DATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
 
@@ -91,7 +91,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Role role = Role.builder("user_role").add(IndexPrivilege.ALL, "*").cluster(Collections.singleton("all"), Collections.emptySet())
             .build();
         List<String> authorizedIndices =
-            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, MetaData.EMPTY_META_DATA.getAliasAndIndexLookup());
+            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, MetaData.EMPTY_META_DATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
 
@@ -116,7 +116,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 .build();
 
         List<String> authorizedIndices =
-            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup());
+            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getIndicesLookup());
         assertThat(authorizedIndices, containsInAnyOrder("an-index", "another-index"));
         assertThat(authorizedIndices, not(contains(internalSecurityIndex)));
         assertThat(authorizedIndices, not(contains(RestrictedIndicesNames.SECURITY_MAIN_ALIAS)));
@@ -142,12 +142,12 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 .build();
 
         List<String> authorizedIndices =
-            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup());
+            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getIndicesLookup());
         assertThat(authorizedIndices, containsInAnyOrder(
             "an-index", "another-index", RestrictedIndicesNames.SECURITY_MAIN_ALIAS, internalSecurityIndex));
 
         List<String> authorizedIndicesSuperUser =
-            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup());
+            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getIndicesLookup());
         assertThat(authorizedIndicesSuperUser, containsInAnyOrder(
             "an-index", "another-index", RestrictedIndicesNames.SECURITY_MAIN_ALIAS, internalSecurityIndex));
     }

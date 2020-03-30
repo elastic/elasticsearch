@@ -451,28 +451,39 @@ ascending order.
 `analysis`:::
 (object) The type of analysis that is performed on the `source`.
 
+//Begin analyzed_fields
 `analyzed_fields`:::
 (object) Contains `includes` and/or `excludes` patterns that select which fields 
 are included in the analysis.
-
-`analyzed_fields`.`excludes`:::
++
+.Properties of `analyzed_fields`
+[%collapsible%open]
+=====
+`excludes`:::
 (Optional, array) An array of strings that defines the fields that are excluded 
 from the analysis.
     
-`analyzed_fields`.`includes`:::
+`includes`:::
 (Optional, array) An array of strings that defines the fields that are included 
 in the analysis.
-
+=====
+//End analyzed_fields
+//Begin dest
 `dest`:::
 (string) The destination configuration of the analysis.
-
-`dest`.`index`:::
++
+.Properties of `dest`
+[%collapsible%open]
+=====
+`index`:::
 (string) The _destination index_ that stores the results of the 
 {dfanalytics-job}.
 
-`dest`.`results_field`:::
+`results_field`:::
 (string) The name of the field that stores the results of the analysis. Defaults 
 to `ml`.
+=====
+//End dest
 
 `id`:::
 (string) The unique identifier of the {dfanalytics-job}.
@@ -483,29 +494,40 @@ to `ml`.
 `source`:::
 (object) The configuration of how the analysis data is sourced. It has an 
 `index` parameter and optionally a `query` and a `_source`.
-  
-`source`.`index`:::
++
+.Properties of `source`
+[%collapsible%open]
+=====
+`index`:::
 (array) Index or indices on which to perform the analysis. It can be a single 
 index or index pattern as well as an array of indices or patterns.
     
-`source`.`query`:::
+`query`:::
 (object) The query that has been specified for the {dfanalytics-job}. The {es} 
 query domain-specific language (<<query-dsl,DSL>>). This value corresponds to 
 the query object in an {es} search POST body. By default, this property has the 
 following value: `{"match_all": {}}`.
 
-`source`.`_source`:::
+`_source`:::
 (object) Contains the specified `includes` and/or `excludes` patterns that 
 select which fields are present in the destination. Fields that are excluded 
 cannot be included in the analysis.
-
-`source`.`_source`.`excludes`:::
++
+.Properties of `_source`
+[%collapsible%open]
+======
+`excludes`:::
 (array) An array of strings that defines the fields that are excluded from the 
 destination.
         
-`source`.`_source`.`includes`:::
+`includes`:::
 (array) An array of strings that defines the fields that are included in the 
 destination.
+======
+//End of _source
+=====
+//End source
+====
 end::data-frame-analytics[]
 
 tag::data-frame-analytics-stats[]

@@ -119,14 +119,16 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         private final long cumulativeCardinalityUsage;
         private final long stringStatsUsage;
         private final long topMetricsUsage;
+        private final long ttestUsage;
 
         public NodeResponse(DiscoveryNode node, long boxplotUsage, long cumulativeCardinalityUsage, long stringStatsUsage,
-                long topMetricsUsage) {
+                long topMetricsUsage, long ttestUsage) {
             super(node);
             this.boxplotUsage = boxplotUsage;
             this.cumulativeCardinalityUsage = cumulativeCardinalityUsage;
             this.stringStatsUsage = stringStatsUsage;
             this.topMetricsUsage = topMetricsUsage;
+            this.ttestUsage = ttestUsage;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
@@ -144,6 +146,11 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
                 stringStatsUsage = 0;
                 topMetricsUsage = 0;
             }
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.8.0 after backport
+                ttestUsage = in.readVLong();
+            } else {
+                ttestUsage = 0;
+            }
         }
 
         @Override
@@ -156,6 +163,9 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
                 out.writeVLong(stringStatsUsage);
                 out.writeVLong(topMetricsUsage);
+            }
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // Will drop to 7.8.0 after backport
+                out.writeVLong(ttestUsage);
             }
         }
 
@@ -183,6 +193,10 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         }
 
         public long getTopMetricsUsage() {
+            return topMetricsUsage;
+        }
+
+        public long getTTestUsage() {
             return topMetricsUsage;
         }
     }

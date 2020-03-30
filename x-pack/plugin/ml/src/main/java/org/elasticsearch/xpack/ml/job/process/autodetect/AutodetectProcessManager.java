@@ -337,12 +337,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                             @Override
                             public void onResponse(Job job) {
                                 Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> stats = getStatistics(jobTask);
-                                DataCounts dataCounts;
-                                if (stats.isPresent()) {
-                                    dataCounts = stats.get().v1();
-                                } else {
-                                    dataCounts = new DataCounts(job.getId());
-                                }
+                                DataCounts dataCounts = stats.isPresent() ? stats.get().v1() : new DataCounts(job.getId());
                                 ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder()
                                         .start(job.earliestValidTimestamp(dataCounts));
                                 jobResultsProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);

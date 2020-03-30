@@ -2,6 +2,9 @@
 [testenv="basic"]
 [[eql-syntax]]
 == EQL syntax reference
+++++
+<titleabbrev>Syntax reference</titleabbrev>
+++++
 
 experimental::[]
 
@@ -283,3 +286,12 @@ dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
 `my-field`
 `my field`
 ----
+
+[discrete]
+[[eql-functions]]
+=== Functions
+
+{es} supports several of EQL's built-in functions. You can use these functions
+to convert data types, perform math, manipulate strings, and more.
+
+For a list of supported functions, see <<eql-function-ref>>.

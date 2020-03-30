@@ -216,12 +216,11 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             clearCache(indexName);
         }
 
-        final int randomTieBreaker = randomIntBetween(1, numDocs - 1);
+        final int randomTieBreaker = randomIntBetween(0, numDocs - 1);
         Map<String, Object> searchResults;
         switch (randomInt(3)) {
             case 0:
-                searchResults
-                    = search(indexName, QueryBuilders.termQuery("field", String.valueOf(randomTieBreaker)), ignoreThrottled);
+                searchResults = search(indexName, QueryBuilders.termQuery("field", String.valueOf(randomTieBreaker)), ignoreThrottled);
                 assertThat(extractValue(searchResults, "hits.total.value"), equalTo(1));
                 @SuppressWarnings("unchecked")
                 Map<String, Object> searchHit = (Map<String, Object>) ((List<?>) extractValue(searchResults, "hits.hits")).get(0);

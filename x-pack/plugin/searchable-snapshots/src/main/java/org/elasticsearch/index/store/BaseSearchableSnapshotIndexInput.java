@@ -7,13 +7,11 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
@@ -29,6 +27,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         this.blobContainer = Objects.requireNonNull(blobContainer);
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
+        assert fileInfo.metadata().hashEqualsContents() == false
+            : "this method should only be used with blobs that are NOT stored in metadata's hash field (fileInfo: " + fileInfo + ')';
     }
 
     public BaseSearchableSnapshotIndexInput(
@@ -43,20 +43,6 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     }
 
     protected InputStream openInputStream(final long position, final long length) throws IOException {
-        // TODO move this at the Directory level
-        if (fileInfo.metadata().hashEqualsContents()) {
-            // extract blob content from metadata hash
-            final BytesRef data = fileInfo.metadata().hash();
-            if ((position < 0L) || (length < 0L) || (position + length > data.bytes.length)) {
-                throw new IllegalArgumentException(
-                    "Invalid arguments (pos=" + position + ", length=" + length + ") for hash content (length=" + data.bytes.length + ')'
-                );
-            }
-            return new ByteArrayInputStream(data.bytes, Math.toIntExact(position), Math.toIntExact(length));
-        }
-
-        assert assertCurrentThreadMayAccessBlobStore();
-
         final long startPart = getPartNumberForPosition(position);
         final long endPart = getPartNumberForPosition(position + length);
         if ((startPart == endPart) || fileInfo.numberOfParts() == 1L) {

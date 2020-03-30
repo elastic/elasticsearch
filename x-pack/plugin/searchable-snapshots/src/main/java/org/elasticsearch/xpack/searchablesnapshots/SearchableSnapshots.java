@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -77,6 +79,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
         Setting.simpleString("index.store.snapshot.index_uuid", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
     public static final Setting<Boolean> SNAPSHOT_CACHE_ENABLED_SETTING =
         Setting.boolSetting("index.store.snapshot.cache.enabled", true, Setting.Property.IndexScope);
+    // The file extensions that are excluded from the cache
+    public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING =
+        Setting.listSetting("index.store.snapshot.cache.excluded_file_types", Collections.emptyList(), Function.identity(),
+            Setting.Property.IndexScope, Setting.Property.NodeScope);
+    public static final Setting<ByteSizeValue> SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING =
+        Setting.byteSizeSetting("index.store.snapshot.uncached_chunk_size", new ByteSizeValue(-1, ByteSizeUnit.BYTES),
+            Setting.Property.IndexScope, Setting.Property.NodeScope);
 
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
@@ -97,6 +106,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Rep
             SNAPSHOT_SNAPSHOT_ID_SETTING,
             SNAPSHOT_INDEX_ID_SETTING,
             SNAPSHOT_CACHE_ENABLED_SETTING,
+            SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
+            SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING
         );

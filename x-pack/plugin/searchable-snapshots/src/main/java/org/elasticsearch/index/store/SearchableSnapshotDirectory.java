@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.Directory;
@@ -12,8 +13,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -21,16 +24,16 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.cache.CacheFile;
+import org.elasticsearch.index.store.cache.CacheKey;
+import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
+import org.elasticsearch.index.store.direct.DirectBlobContainerIndexInput;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheBufferedIndexInput;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheFile;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.IndexInputStats;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -38,6 +41,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -46,10 +50,12 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
 
 /**
  * Implementation of {@link Directory} that exposes files from a snapshot as a Lucene directory. Because snapshot are immutable this
@@ -73,6 +79,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final Map<String, IndexInputStats> stats;
     private final CacheService cacheService;
     private final boolean useCache;
+    private final Set<String> excludedFileTypes;
+    private final long uncachedChunkSize; // if <0 use BlobContainer#readBlobPreferredLength
     private final Path cacheDir;
     private final AtomicBoolean closed;
 
@@ -99,6 +107,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.cacheDir = Objects.requireNonNull(cacheDir);
         this.closed = new AtomicBoolean(false);
         this.useCache = SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings);
+        this.excludedFileTypes = new HashSet<>(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.get(indexSettings));
+        this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
     }
 
     public BlobContainer blobContainer() {
@@ -231,14 +241,33 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
+
         final BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfo(name);
-        final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
-        if (useCache) {
-            return new CacheBufferedIndexInput(this, fileInfo, context, inputStats);
-        } else {
-            long preferredLength = blobContainer().readBlobPreferredLength();
-            return new SearchableSnapshotIndexInput(blobContainer(), fileInfo, context, preferredLength, BufferedIndexInput.BUFFER_SIZE);
+        if (fileInfo.metadata().hashEqualsContents()) {
+            final BytesRef content = fileInfo.metadata().hash();
+            return new ByteArrayIndexInput("ByteArrayIndexInput(" + name + ')', content.bytes, content.offset, content.length);
         }
+
+        final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
+        if (useCache && isExcludedFromCache(name) == false) {
+            return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats);
+        } else {
+            return new DirectBlobContainerIndexInput(
+                blobContainer(), fileInfo, context, getUncachedChunkSize(), BufferedIndexInput.BUFFER_SIZE);
+        }
+    }
+
+    private long getUncachedChunkSize() {
+        if (uncachedChunkSize < 0) {
+            return blobContainer().readBlobPreferredLength();
+        } else {
+            return uncachedChunkSize;
+        }
+    }
+
+    private boolean isExcludedFromCache(String name) {
+        final String ext = IndexFileNames.getExtension(name);
+        return ext != null && excludedFileTypes.contains(ext);
     }
 
     @Override

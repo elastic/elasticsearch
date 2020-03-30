@@ -99,6 +99,10 @@ tag::bytes[]
 (Optional, <<byte-units,byte size units>>) Unit used to display byte values.
 end::bytes[]
 
+tag::checkpointing-changes-last-detected-at[]
+The timestamp when changes were last detected in the source indices.
+end::checkpointing-changes-last-detected-at[]
+
 tag::cluster-health-status[]
 (string)
 Health status of the cluster, based on the state of its primary and replica
@@ -178,6 +182,11 @@ is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
 documents when a segment is merged.
 end::docs-deleted[]
 
+tag::docs-processed[]
+The number of documents that have been processed from the source index of
+the {transform}.
+end::docs-processed[]
+
 tag::enrich-policy[]
 Enrich policy name
 used to limit the request.
@@ -206,6 +215,20 @@ Expansion of wildcards will include hidden indices.
 Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
+
+tag::exponential-avg-checkpoint-duration-ms[]
+Exponential moving average of the duration of the checkpoint, in milliseconds.
+end::exponential-avg-checkpoint-duration-ms[]
+
+tag::exponential-avg-documents-indexed[]
+Exponential moving average of the number of new documents that have been
+indexed.
+end::exponential-avg-documents-indexed[]
+
+tag::exponential-avg-documents-processed[]
+Exponential moving average of the number of documents that have been
+processed.
+end::exponential-avg-documents-processed[]
 
 tag::field_statistics[]
 `field_statistics`::
@@ -379,6 +402,18 @@ tag::index[]
 (Optional, string) Comma-separated list or wildcard expression of index names
 used to limit the request.
 end::index[]
+
+tag::index-failures[]
+The number of indexing failures.
+end::index-failures[]
+
+tag::index-time-ms[]
+The amount of time spent indexing, in milliseconds.
+end::index-time-ms[]
+
+tag::index-total[]
+The number of indices created.
+end::index-total[]
 
 tag::bulk-index[]
 `_index`::
@@ -574,6 +609,11 @@ tag::pipeline[]
 (Optional, string) ID of the pipeline to use to preprocess incoming documents.
 end::pipeline[]
 
+tag::pages-processed[]
+The number of search or bulk index operations processed. Documents are
+processed in batches instead of individually.
+end::pages-processed[]
+
 tag::path-pipeline[]
 `<pipeline>`::
 (Optional, string) Comma-separated list or wildcard expression of pipeline IDs
@@ -708,12 +748,24 @@ tag::scroll_size[]
 Defaults to 100.
 end::scroll_size[]
 
+tag::search-failures[]
+The number of search failures.
+end::search-failures[]
+
+tag::search-time-ms[]
+The amount of time spent searching, in milliseconds.
+end::search-time-ms[]
+
 tag::search_timeout[]
 `timeout`::
 (Optional, <<time-units, time units>>)
 Explicit timeout for each search request.
 Defaults to no timeout.
 end::search_timeout[]
+
+tag::search-total[]
+The number of search operations on the source index for the {transform}.
+end::search-total[]
 
 tag::search_type[]
 `search_type`::
@@ -803,6 +855,26 @@ tag::source-query-transforms[]
 A query clause that retrieves a subset of data from the source index. See
 <<query-dsl>>.
 end::source-query-transforms[]
+
+tag::state-transform[]
+The status of the {transform}, which can be one of the following values:
++
+--
+* `aborting`: The {transform} is aborting.
+* `failed`: The {transform} failed. For more information about the failure,
+check the reason field.
+* `indexing`: The {transform} is actively processing data and creating new
+documents.
+* `started`: The {transform} is running but not actively indexing data.
+* `stopped`: The {transform} is stopped.
+* `stopping`: The {transform} is stopping.
+--
+end::state-transform[]
+
+tag::state-transform-reason[]
+If a {transform} has a `failed` state, this property provides details about the
+reason for the failure.
+end::state-transform-reason[]
 
 tag::stats[]
 `stats`::
@@ -898,6 +970,13 @@ Identifier for the {transform}. It can be a {transform} identifier or a wildcard
 expression. If you do not specify one of these options, the API returns
 information for all {transforms}.
 end::transform-id-wildcard[]
+
+tag::trigger-count[]
+The number of times the {transform} has been triggered by the scheduler. For 
+example, the scheduler triggers the {transform} indexer to check for updates
+or ingest new data at an interval specified in the
+<<put-transform-request-body,`frequency` property>>.
+end::trigger-count[]
 
 tag::cat-v[]
 `v`::

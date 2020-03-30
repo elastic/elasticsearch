@@ -243,19 +243,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         boolean dedicatedTransformNode,
         boolean pastDataNode,
         boolean transformRemoteNodes,
-        boolean transformLocanOnlyNodes,
+        boolean transformLocalOnlyNodes,
         boolean currentDataNode
     ) {
 
         Map<String, String> transformNodeAttributes = new HashMap<>();
         transformNodeAttributes.put(Transform.TRANSFORM_ENABLED_NODE_ATTR, "true");
-        transformNodeAttributes.put(Transform.TRANSFORM_REMOTE_ENABLED_NODE_ATTR, "true");
         Map<String, String> transformNodeAttributesDisabled = new HashMap<>();
         transformNodeAttributesDisabled.put(Transform.TRANSFORM_ENABLED_NODE_ATTR, "false");
-        transformNodeAttributesDisabled.put(Transform.TRANSFORM_REMOTE_ENABLED_NODE_ATTR, "true");
-        Map<String, String> transformNodeAttributesNoRemote = new HashMap<>();
-        transformNodeAttributesNoRemote.put(Transform.TRANSFORM_ENABLED_NODE_ATTR, "true");
-        transformNodeAttributesNoRemote.put(Transform.TRANSFORM_REMOTE_ENABLED_NODE_ATTR, "false");
 
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
 
@@ -265,7 +260,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     "dedicated-transform-node",
                     buildNewFakeTransportAddress(),
                     transformNodeAttributes,
-                    Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
                     Version.CURRENT
                 )
             );
@@ -277,7 +272,9 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     "past-data-node-1",
                     buildNewFakeTransportAddress(),
                     transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE,
+                        DiscoveryNodeRole.MASTER_ROLE,
+                        DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
                     Version.V_7_7_0
                 )
             );
@@ -289,7 +286,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     "current-data-node-with-2-tasks",
                     buildNewFakeTransportAddress(),
                     transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE)),
+                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
                     Version.CURRENT
                 )
             )
@@ -298,18 +295,18 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                         "current-data-node-with-1-tasks",
                         buildNewFakeTransportAddress(),
                         transformNodeAttributes,
-                        new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE)),
+                        new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
                         Version.CURRENT
                     )
                 );
         }
 
-        if (transformLocanOnlyNodes) {
+        if (transformLocalOnlyNodes) {
             nodes.add(
                 new DiscoveryNode(
                     "current-data-node-with-0-tasks-transform-remote-disabled",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributesNoRemote,
+                    transformNodeAttributes,
                     new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
                     Version.CURRENT
                 )
@@ -322,7 +319,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     "current-data-node-with-transform-disabled",
                     buildNewFakeTransportAddress(),
                     transformNodeAttributesDisabled,
-                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
+                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE),
                     Version.CURRENT
                 )
             );

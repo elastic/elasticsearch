@@ -26,10 +26,6 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ForLoopNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.Arrays;
-
-import static java.util.Collections.emptyList;
-
 /**
  * Represents a for loop.
  */
@@ -154,10 +150,5 @@ public class SFor extends AStatement {
         output.statementNode = forLoopNode;
 
         return output;
-    }
-
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), Arrays.asList(initializer, condition, afterthought, block));
     }
 }

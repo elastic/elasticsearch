@@ -126,7 +126,11 @@ public class SamlMetadataGeneratorTests extends IdpSamlTestCase {
         //no exception thrown
         SignatureException e = expectThrows(SignatureException.class,
             () -> SignatureValidator.validate(signature, readCredentials("RSA", 2048)));
-        assertThat(e.getMessage(), containsString("Unable to evaluate key against signature"));
+        if (inFipsJvm()) {
+            assertThat(e.getMessage(), containsString("Signature cryptographic validation not successful"));
+        } else {
+            assertThat(e.getMessage(), containsString("Unable to evaluate key against signature"));
+        }
     }
 
 }

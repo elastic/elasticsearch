@@ -34,7 +34,7 @@
       },
       "keep_on_completion":{
         "type":"boolean",
-        "description":"Control whether the response should be stored in the cluster if it completed within the provided [wait_for_completion] time (default: true)",
+        "description":"Control whether the response should be stored in the cluster if it completed within the provided [wait_for_completion] time (default: false)",
         "default":false
       },
       "keep_alive": {

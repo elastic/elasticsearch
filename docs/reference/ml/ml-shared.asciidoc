@@ -526,7 +526,7 @@ An object containing statistical data about the {classanalysis}.
 //Begin class_hyperparameters
 `hyperparameters`::::
 (object)
-An object containing the hyperparameters of the {classanalysis}.
+An object containing the parameters of the {classanalysis}.
 +
 .Properties of `hyperparameters`
 [%collapsible%open]

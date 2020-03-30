@@ -29,11 +29,11 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,18 +42,27 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     public static final String NAME = "value_count";
 
     public static final ObjectParser<ValueCountAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, name -> new ValueCountAggregationBuilder(name, null));
+            ObjectParser.fromBuilder(NAME, ValueCountAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
 
-    public ValueCountAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, CoreValuesSourceType.ANY, targetValueType);
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        ValueCountAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    }
+
+    public ValueCountAggregationBuilder(String name) {
+        super(name);
     }
 
     protected ValueCountAggregationBuilder(ValueCountAggregationBuilder clone,
                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.BYTES;
     }
 
     @Override
@@ -65,7 +74,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
      * Read from a stream.
      */
     public ValueCountAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY);
+        super(in);
     }
 
     @Override
@@ -80,7 +89,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
 
     @Override
     protected ValueCountAggregatorFactory innerBuild(QueryShardContext queryShardContext,
-                                                        ValuesSourceConfig<ValuesSource> config,
+                                                        ValuesSourceConfig config,
                                                         AggregatorFactory parent,
                                                         AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new ValueCountAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);

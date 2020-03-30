@@ -158,7 +158,8 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
     private void assertSameDocs(int numberOfDocuments, String... indices) {
         refresh(indices);
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(0)
-            .aggregation(new TermsAggregationBuilder("unique_count", ValueType.LONG)
+            .aggregation(new TermsAggregationBuilder("unique_count")
+                .userValueTypeHint(ValueType.LONG)
                 .field("data")
                 .order(BucketOrder.count(true))
                 .size(numberOfDocuments + 1)

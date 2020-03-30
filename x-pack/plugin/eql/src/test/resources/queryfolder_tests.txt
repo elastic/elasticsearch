@@ -66,13 +66,6 @@ process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
 "term":{"opcode":{"value":3
 
 
-substringFunction
-process where substring(file_name, -4) == '.exe'
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
-"params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}
-
-
 stringFunction
 process where string(pid) == "123"
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
@@ -90,3 +83,10 @@ InternalEqlScriptUtils.string(InternalQlScriptUtils.docValue(doc,params.v0)),par
 stringFunction
 process where process_name == string(null)
 "term":{"process_name":{"value":"null"
+
+
+substringFunction
+process where substring(file_name, -4) == '.exe'
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+"params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}

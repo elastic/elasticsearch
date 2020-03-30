@@ -531,6 +531,10 @@ An object containing the parameters of the {classanalysis}.
 .Properties of `hyperparameters`
 [%collapsible%open]
 ======
+`alpha`::::
+(double)
+Regularization factor to penalize deeper trees when training decision trees.
+
 `class_assignment_objective`::::
 (string)
 Defines whether class assignment maximizes the accuracy or the minimum recall 
@@ -554,6 +558,14 @@ by 5%.
 (double)
 The fraction of features that is used when selecting a random bag for each 
 candidate split.
+
+`gamma`::::
+(double)
+Regularization factor to penalize trees with large numbers of nodes.
+
+`lambda`::::
+(double)
+Regularization factor to penalize large leaf weights.
 
 `max_attempts_to_add_tree`::::
 (integer)
@@ -582,15 +594,6 @@ Maximum number of folds for the cross-validation procedure.
 Determines the maximum number of splits for every feature that can occur in a 
 decision tree when the tree is trained.
 
-`regularization_depth_penalty_multiplier`::::
-(double)
-Regularization factor to penalize deeper trees when training decision trees.
-
-`regularization_leaf_weight_penalty_multiplier`::::
-(double)
-Regularization factor to penalize large leaf weights. This parameter is also 
-referred to as `lambda`.
-
 `regularization_soft_tree_depth_limit`::::
 (double)
 Tree depth limit is used for calculating the tree depth penalty. This is a soft 
@@ -600,10 +603,6 @@ limit, it can be exceeded.
 (double)
 Tree depth tolerance is used for calculating the tree depth penalty. This is a 
 soft limit, it can be exceeded.
-
-`regularization_tree_size_penalty_multiplier`::::
-(double)
-Regularization factor to penalize trees with large numbers of nodes.
 ======
 //End class_hyperparameters
 
@@ -733,11 +732,15 @@ An object containing statistical data about the {reganalysis}.
 //Begin reg_hyperparameters
 `hyperparameters`::::
 (object)
-An object containing the hyperparameters of the {reganalysis}.
+An object containing the paramters of the {reganalysis}.
 +
 .Properties of `hyperparameters`
 [%collapsible%open]
 ======
+`alpha`::::
+(double)
+Regularization factor to penalize deeper trees when training decision trees.
+
 `downsample_factor`::::
 (double)
 The value of the downsample factor.
@@ -757,6 +760,14 @@ by 5%.
 The fraction of features that is used when selecting a random bag for each 
 candidate split.
 
+`gamma`::::
+(double)
+Regularization factor to penalize trees with large numbers of nodes.
+
+`lambda`::::
+(double)
+Regularization factor to penalize large leaf weights.
+
 `max_attempts_to_add_tree`::::
 (integer)
 If the algorithm fails to determine a non-trivial tree (more than a single 
@@ -773,7 +784,7 @@ times the maximum optimization rounds per hyperparameter.
 
 `max_trees`::::
 (integer)
-The maximum number of trees.
+The maximum number of trees in the forest.
 
 `num_folds`::::
 (integer)
@@ -784,15 +795,6 @@ Maximum number of folds for the cross-validation procedure.
 Determines the maximum number of splits for every feature that can occur in a 
 decision tree when the tree is trained.
 
-`regularization_depth_penalty_multiplier`::::
-(double)
-Regularization factor to penalize deeper trees when training decision trees.
-
-`regularization_leaf_weight_penalty_multiplier`::::
-(double)
-Regularization factor to penalize large leaf weights. This parameter is also 
-referred to as `lambda`.
-
 `regularization_soft_tree_depth_limit`::::
 (double)
 Tree depth limit is used for calculating the tree depth penalty. This is a soft 
@@ -802,10 +804,6 @@ limit, it can be exceeded.
 (double)
 Tree depth tolerance is used for calculating the tree depth penalty. This is a 
 soft limit, it can be exceeded.
-
-`regularization_tree_size_penalty_multiplier`::::
-(double)
-Regularization factor to penalize trees with large numbers of nodes.
 ======
 //End reg_hyperparameters
 

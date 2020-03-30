@@ -147,7 +147,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
         final RemoteClusterLicenseChecker licenseChecker =
                 new RemoteClusterLicenseChecker(client, operationMode ->
-                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true));
+                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
         final AtomicReference<RemoteClusterLicenseChecker.LicenseCheck> licenseCheck = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -190,7 +190,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
         final RemoteClusterLicenseChecker licenseChecker =
                 new RemoteClusterLicenseChecker(client, operationMode ->
-                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true));
+                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
         final AtomicReference<RemoteClusterLicenseChecker.LicenseCheck> licenseCheck = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -237,7 +237,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
         final RemoteClusterLicenseChecker licenseChecker =
                 new RemoteClusterLicenseChecker(client, operationMode ->
-                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true));
+                    XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
         final AtomicReference<Exception> exception = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(
@@ -278,7 +278,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
             final RemoteClusterLicenseChecker licenseChecker =
                     new RemoteClusterLicenseChecker(client, operationMode ->
-                        XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true));
+                        XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
 
             final List<String> remoteClusterAliases = Collections.singletonList("valid");
             licenseChecker.checkRemoteClusterLicenses(
@@ -318,7 +318,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
             final RemoteClusterLicenseChecker licenseChecker =
                     new RemoteClusterLicenseChecker(client, operationMode ->
-                        XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true));
+                        XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
 
             final AtomicBoolean listenerInvoked = new AtomicBoolean();
             threadPool.getThreadContext().putHeader("key", "value");
@@ -394,7 +394,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
         final RemoteClusterLicenseChecker licenseChecker =
             new RemoteClusterLicenseChecker(client, operationMode ->
-                XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM, true));
+                XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM));
         final AtomicReference<Exception> exception = new AtomicReference<>();
 
         licenseChecker.checkRemoteClusterLicenses(

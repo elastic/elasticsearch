@@ -132,6 +132,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
@@ -534,6 +535,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         new MlIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
 
         AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
+        AnnotationPersister anomalyDetectionAnnotationPersister = new AnnotationPersister(client, anomalyDetectionAuditor);
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService.getNodeName());
         InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService.getNodeName());
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
@@ -611,15 +613,17 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
-        AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(environment, settings, client, threadPool,
+        AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, client, threadPool,
                 xContentRegistry, anomalyDetectionAuditor, clusterService, jobManager, jobResultsProvider, jobResultsPersister,
-                jobDataCountsPersister, autodetectProcessFactory, normalizerFactory, nativeStorageProvider, indexNameExpressionResolver);
+                jobDataCountsPersister, anomalyDetectionAnnotationPersister, autodetectProcessFactory, normalizerFactory,
+                nativeStorageProvider, indexNameExpressionResolver);
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedJobBuilder datafeedJobBuilder =
             new DatafeedJobBuilder(
                 client,
                 xContentRegistry,
                 anomalyDetectionAuditor,
+                anomalyDetectionAnnotationPersister,
                 System::currentTimeMillis,
                 jobConfigProvider,
                 jobResultsProvider,

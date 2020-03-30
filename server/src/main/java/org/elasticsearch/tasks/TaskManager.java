@@ -162,8 +162,7 @@ public class TaskManager implements ClusterStateApplier {
             @Override
             public void onFailure(Exception e) {
                 try {
-                    unregisterChildNode.close();
-                    unregister(task);
+                    Releasables.close(unregisterChildNode, () -> unregister(task));
                 } finally {
                     onFailure.accept(task, e);
                 }
@@ -177,8 +176,9 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
         assert oldHolder == null;
-        // Check if this task was banned before we start it
-        if (task.getParentTaskId().isSet()) {
+        // Check if this task was banned before we start it. The empty check is used to avoid
+        // computing the hash code of the parent taskId as most of the time banedParents is empty.
+        if (task.getParentTaskId().isSet() && banedParents.isEmpty() == false) {
             String reason = banedParents.get(task.getParentTaskId());
             if (reason != null) {
                 try {

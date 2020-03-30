@@ -163,7 +163,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
     private Cipher getPacketDecryptionCipher(byte[] packet) throws IOException {
         GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, packet, 0, GCM_IV_LENGTH_IN_BYTES);
         try {
-            Cipher packetCipher = Cipher.getInstance(EncryptedRepository.GCM_ENCRYPTION_SCHEME);
+            Cipher packetCipher = Cipher.getInstance(EncryptedRepository.DATA_ENCRYPTION_SCHEME);
             packetCipher.init(Cipher.DECRYPT_MODE, secretKey, gcmParameterSpec);
             return packetCipher;
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException e) {

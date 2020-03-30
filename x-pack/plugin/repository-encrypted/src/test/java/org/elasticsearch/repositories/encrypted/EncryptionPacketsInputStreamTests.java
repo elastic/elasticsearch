@@ -394,7 +394,7 @@ public class EncryptionPacketsInputStreamTests extends ESTestCase {
                 GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE,
                         Arrays.copyOfRange(ciphertextArray, ciphertextOffset,
                                 ciphertextOffset + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES));
-                Cipher packetCipher = Cipher.getInstance(EncryptedRepository.GCM_ENCRYPTION_SCHEME);
+                Cipher packetCipher = Cipher.getInstance(EncryptedRepository.DATA_ENCRYPTION_SCHEME);
                 packetCipher.init(Cipher.DECRYPT_MODE, secretKey, gcmParameterSpec);
                 try (InputStream packetDecryptionInputStream = new CipherInputStream(new ByteArrayInputStream(ciphertextArray,
                         ciphertextOffset + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES,

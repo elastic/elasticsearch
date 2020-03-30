@@ -174,7 +174,7 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
     private static Cipher getPacketEncryptionCipher(SecretKey secretKey, byte[] packetIv) throws IOException {
         GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES * Byte.SIZE, packetIv);
         try {
-            Cipher packetCipher = Cipher.getInstance(EncryptedRepository.GCM_ENCRYPTION_SCHEME);
+            Cipher packetCipher = Cipher.getInstance(EncryptedRepository.DATA_ENCRYPTION_SCHEME);
             packetCipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmParameterSpec);
             return packetCipher;
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException e) {

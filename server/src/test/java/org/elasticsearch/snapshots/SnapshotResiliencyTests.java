@@ -340,6 +340,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+		@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/54459")
     public void testSnapshotWithNodeDisconnects() {
         final int dataNodes = randomIntBetween(2, 10);
         final int masterNodes = randomFrom(1, 3, 5);

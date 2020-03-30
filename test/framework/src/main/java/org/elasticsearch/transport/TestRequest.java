@@ -16,15 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.transport;
 
-package org.elasticsearch.search.aggregations.bucket;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-import org.elasticsearch.search.aggregations.AggregationBuilder;
+import java.io.IOException;
 
-/**
- * Marker interface to indicate that the {@link AggregationBuilder} is for a
- * multi-bucket aggregation.
- */
-public interface MultiBucketAggregationBuilder {
+public class TestRequest extends TransportRequest {
 
+    String value;
+
+    public TestRequest(String value) {
+        this.value = value;
+    }
+
+    public TestRequest(StreamInput in) throws IOException {
+        super(in);
+        this.value = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(value);
+    }
 }

@@ -85,9 +85,4 @@ public class SExpression extends AStatement {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(expression);
-    }
 }

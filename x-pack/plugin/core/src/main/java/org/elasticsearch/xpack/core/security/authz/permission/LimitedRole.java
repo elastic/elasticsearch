@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -62,7 +62,7 @@ public final class LimitedRole extends Role {
 
     @Override
     public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
-                                          Map<String, AliasOrIndex> aliasAndIndexLookup,
+                                          Map<String, IndexAbstraction> aliasAndIndexLookup,
                                           FieldPermissionsCache fieldPermissionsCache) {
         IndicesAccessControl indicesAccessControl =
             super.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);

@@ -108,9 +108,4 @@ public class ENewObj extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, type);
-    }
 }

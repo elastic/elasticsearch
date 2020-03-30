@@ -1059,7 +1059,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             } catch (Exception e) {
                 throw new AssertionError("error while searching", e);
             }
-        });
+        }, 30, TimeUnit.SECONDS);
         assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(true));
     }
 

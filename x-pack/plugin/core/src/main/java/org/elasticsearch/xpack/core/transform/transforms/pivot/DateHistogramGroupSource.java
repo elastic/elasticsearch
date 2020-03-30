@@ -7,15 +7,18 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
@@ -105,6 +108,11 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         public int hashCode() {
             return Objects.hash(interval);
         }
+
+        @Override
+        public String toString() {
+            return interval.toString();
+        }
     }
 
     public static class CalendarInterval implements Interval {
@@ -169,6 +177,11 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         public int hashCode() {
             return Objects.hash(interval);
         }
+
+        @Override
+        public String toString() {
+            return interval.toString();
+        }
     }
 
     private Interval readInterval(StreamInput in) throws IOException {
@@ -195,11 +208,26 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     private static final ConstructingObjectParser<DateHistogramGroupSource, Void> LENIENT_PARSER = createParser(true);
 
     private final Interval interval;
-    private ZoneId timeZone;
+    private final ZoneId timeZone;
+    private Rounding rounding;
 
-    public DateHistogramGroupSource(String field, ScriptConfig scriptConfig, Interval interval) {
+    public DateHistogramGroupSource(String field, ScriptConfig scriptConfig, Interval interval, ZoneId timeZone) {
         super(field, scriptConfig);
         this.interval = interval;
+        this.timeZone = timeZone;
+
+        Rounding.DateTimeUnit timeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
+        final Rounding.Builder roundingBuilder;
+        if (timeUnit != null) {
+            roundingBuilder = new Rounding.Builder(timeUnit);
+        } else {
+            roundingBuilder = new Rounding.Builder(TimeValue.parseTimeValue(interval.toString(), interval.getName()));
+        }
+
+        if (timeZone != null) {
+            roundingBuilder.timeZone(timeZone);
+        }
+        this.rounding = roundingBuilder.build();
     }
 
     public DateHistogramGroupSource(StreamInput in) throws IOException {
@@ -218,6 +246,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
             ScriptConfig scriptConfig = (ScriptConfig) args[1];
             String fixedInterval = (String) args[2];
             String calendarInterval = (String) args[3];
+            ZoneId zoneId = (ZoneId) args[4];
 
             Interval interval = null;
 
@@ -231,7 +260,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
                 throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found none");
             }
 
-            return new DateHistogramGroupSource(field, scriptConfig, interval);
+            return new DateHistogramGroupSource(field, scriptConfig, interval, zoneId);
         });
 
         declareValuesSourceFields(parser, lenient);
@@ -239,7 +268,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         parser.declareString(optionalConstructorArg(), new ParseField(FixedInterval.NAME));
         parser.declareString(optionalConstructorArg(), new ParseField(CalendarInterval.NAME));
 
-        parser.declareField(DateHistogramGroupSource::setTimeZone, p -> {
+        parser.declareField(optionalConstructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return ZoneId.of(p.text());
             } else {
@@ -267,8 +296,8 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         return timeZone;
     }
 
-    public void setTimeZone(ZoneId timeZone) {
-        this.timeZone = timeZone;
+    public Rounding getRounding() {
+        return rounding;
     }
 
     @Override
@@ -315,9 +344,16 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     }
 
     @Override
-    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
-        // no need for an extra range filter as this is already done by checkpoints
-        return null;
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(
+        Set<String> changedBuckets,
+        String synchronizationField,
+        long synchronizationTimestamp
+    ) {
+        if (synchronizationField != null && synchronizationField.equals(field) && synchronizationTimestamp > 0) {
+            return new RangeQueryBuilder(field).gte(rounding.round(synchronizationTimestamp)).format("epoch_millis");
+        } else {
+            return null;
+        }
     }
 
     @Override

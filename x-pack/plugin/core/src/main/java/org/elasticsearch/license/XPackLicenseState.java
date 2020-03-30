@@ -586,7 +586,7 @@ public class XPackLicenseState {
     public boolean isVectorsAllowed() {
         return allowForAllLicenses();
     }
-    
+
 
     /**
      * Determine if Wildcard support should be enabled.
@@ -595,7 +595,7 @@ public class XPackLicenseState {
      */
     public synchronized boolean isWildcardAllowed() {
         return status.active;
-    }    
+    }
 
     public boolean isOdbcAllowed() {
         return isAllowedByLicense(OperationMode.PLATINUM);
@@ -621,22 +621,11 @@ public class XPackLicenseState {
     }
 
     /**
-     * @return true if security has been disabled due it being the default setting for this license type.
-     *  The conditions necessary for this are:
-     *         <ul>
-     *             <li>A trial or basic license</li>
-     *             <li>xpack.security.enabled not specified as a setting</li>
-     *         </ul>
+     * Returns whether security is enabled, taking into account the default enabled state
+     * based on the current license level.
      */
-    public boolean isSecurityDisabledByLicenseDefaults() {
-        return checkAgainstStatus(status -> {
-            switch (status.mode) {
-                case TRIAL:
-                case BASIC:
-                    return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
-            }
-            return false;
-        });
+    public boolean isSecurityEnabled() {
+        return isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
     }
 
     public static boolean isTransportTlsRequired(License license, Settings settings) {

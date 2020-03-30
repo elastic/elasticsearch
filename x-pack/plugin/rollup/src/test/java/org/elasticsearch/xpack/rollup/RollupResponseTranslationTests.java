@@ -448,7 +448,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 .must(QueryBuilders.termQuery("field", "foo"))
                 .should(QueryBuilders.termQuery("field", "bar"));
         SignificantTermsAggregationBuilder builder = new SignificantTermsAggregationBuilder(
-                "test", ValueType.STRING)
+                "test")
                 .field("field")
                 .backgroundFilter(filter);
 
@@ -1015,9 +1015,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     public void testUnsupportedMetric() throws IOException {
 
 
-        AggregationBuilder nonRollup = new CardinalityAggregationBuilder("test_metric", ValueType.LONG).field("foo");
+        AggregationBuilder nonRollup = new CardinalityAggregationBuilder("test_metric").userValueTypeHint(ValueType.LONG)
+            .field("foo");
         String fieldName = "foo.max." + RollupField.VALUE;
-        AggregationBuilder rollup = new CardinalityAggregationBuilder("test_metric", ValueType.LONG).field(fieldName);
+        AggregationBuilder rollup = new CardinalityAggregationBuilder("test_metric").userValueTypeHint(ValueType.LONG)
+            .field(fieldName);
 
         NumberFieldMapper.Builder nrValueMapper = new NumberFieldMapper.Builder("foo",
                 NumberFieldMapper.NumberType.LONG);
@@ -1049,10 +1051,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     }
 
     public void testStringTerms() throws IOException {
-        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
+        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
                 .field("stringField");
 
-        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
+        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
                 .field("stringfield.terms." + RollupField.VALUE)
                 .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                         .field("stringfield.terms." + RollupField.COUNT_FIELD));
@@ -1090,10 +1092,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     }
 
     public void testStringTermsNullValue() throws IOException {
-        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
+        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
             .field("stringField");
 
-        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms", ValueType.STRING)
+        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
             .field("stringfield.terms." + RollupField.VALUE)
             .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                 .field("stringfield.terms." + RollupField.COUNT_FIELD));
@@ -1138,10 +1140,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     }
 
     public void testLongTerms() throws IOException {
-        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms", ValueType.LONG)
+        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.LONG)
                 .field("longField");
 
-        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms", ValueType.LONG)
+        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.LONG)
                 .field("longfield.terms." + RollupField.VALUE)
                 .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                         .field("longfield.terms." + RollupField.COUNT_FIELD));

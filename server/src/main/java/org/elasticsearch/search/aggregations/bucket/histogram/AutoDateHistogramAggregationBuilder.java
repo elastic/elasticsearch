@@ -19,14 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import static java.util.Map.entry;
-
-import java.io.IOException;
-import java.time.ZoneId;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
@@ -42,16 +34,21 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Objects;
+
+import static java.util.Map.entry;
 
 public class AutoDateHistogramAggregationBuilder
-        extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AutoDateHistogramAggregationBuilder> {
+        extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
 
     public static final String NAME = "auto_date_histogram";
 
@@ -61,7 +58,7 @@ public class AutoDateHistogramAggregationBuilder
     public static final ObjectParser<AutoDateHistogramAggregationBuilder, String> PARSER =
         ObjectParser.fromBuilder(NAME, AutoDateHistogramAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
         PARSER.declareInt(AutoDateHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
         PARSER.declareStringOrNull(AutoDateHistogramAggregationBuilder::setMinimumIntervalExpression, MINIMUM_INTERVAL_FIELD);
     }
@@ -129,12 +126,12 @@ public class AutoDateHistogramAggregationBuilder
 
     /** Create a new builder with the given name. */
     public AutoDateHistogramAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.NUMERIC, ValueType.DATE);
+        super(name);
     }
 
     /** Read from a stream, for internal use only. */
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.DATE);
+        super(in);
         numBuckets = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             minimumIntervalExpression = in.readOptionalString();
@@ -146,6 +143,12 @@ public class AutoDateHistogramAggregationBuilder
         super(clone, factoriesBuilder, metaData);
         this.numBuckets = clone.numBuckets;
         this.minimumIntervalExpression = clone.minimumIntervalExpression;
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        // TODO: This should probably be DATE, but we're not failing tests with BYTES, so needs more tests?
+        return CoreValuesSourceType.BYTES;
     }
 
     @Override
@@ -179,8 +182,13 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
-                                                                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
+                                                       AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         RoundingInfo[] roundings = buildRoundings(timeZone(), getMinimumIntervalExpression());
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
             .map(rounding -> rounding.innerIntervals)

@@ -23,6 +23,7 @@ setup:
 "basic":
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -35,7 +36,7 @@ setup:
                   - from: 1000000
                     to: 5000000
                   - from: 5000000
-  - match: { hits.total.value: 3 }
+  - match: { hits.total: 3 }
   - length: { aggregations.distance.buckets: 3 }
   - match: { aggregations.distance.buckets.0.key: "*-1000000.0" }
   - match: { aggregations.distance.buckets.0.doc_count: 1 }

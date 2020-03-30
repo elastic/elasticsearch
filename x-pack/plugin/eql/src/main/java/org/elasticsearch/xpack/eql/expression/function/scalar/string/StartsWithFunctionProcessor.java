@@ -62,7 +62,11 @@ public class StartsWithFunctionProcessor implements Processor {
     protected Processor source() {
         return source;
     }
-    
+
+    protected Processor pattern() {
+        return pattern;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -73,12 +77,14 @@ public class StartsWithFunctionProcessor implements Processor {
             return false;
         }
         
-        return Objects.equals(source(), ((StartsWithFunctionProcessor) obj).source());
+        StartsWithFunctionProcessor other = (StartsWithFunctionProcessor) obj;
+        return Objects.equals(source(), other.source())
+                && Objects.equals(pattern(), other.pattern());
     }
     
     @Override
     public int hashCode() {
-        return Objects.hash(source());
+        return Objects.hash(source(), pattern());
     }
     
 

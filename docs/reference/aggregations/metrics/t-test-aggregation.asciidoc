@@ -44,8 +44,8 @@ GET node_upgrade/_search
 --------------------------------------------------
 // TEST[setup:node_upgrade]
 <1> The field `startup_time_before` must be a numeric field
-<b> The field `startup_time_after` must be a numeric field
-<1> The field `startup_time_before` since we have data from the same nodes, we are using paired t-test.
+<2> The field `startup_time_after` must be a numeric field
+<3> Since we have data from the same nodes, we are using paired t-test.
 
 The response will look like this:
 

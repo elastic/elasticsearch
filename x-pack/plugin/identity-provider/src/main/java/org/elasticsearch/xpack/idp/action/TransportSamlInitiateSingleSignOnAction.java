@@ -57,11 +57,15 @@ public class TransportSamlInitiateSingleSignOnAction
     protected void doExecute(Task task, SamlInitiateSingleSignOnRequest request,
                              ActionListener<SamlInitiateSingleSignOnResponse> listener) {
         final SamlAuthenticationState authenticationState = request.getSamlAuthenticationState();
-        identityProvider.getRegisteredServiceProvider(request.getSpEntityId(), false, ActionListener.wrap(
+        identityProvider.resolveServiceProvider(
+            request.getSpEntityId(),
+            request.getAssertionConsumerService(),
+            false,
+            ActionListener.wrap(
             sp -> {
                 if (null == sp) {
-                    final String message = "Service Provider with Entity ID [" + request.getSpEntityId()
-                        + "] is not registered with this Identity Provider";
+                    final String message = "Service Provider with Entity ID [" + request.getSpEntityId() + "] and ACS ["
+                        + request.getAssertionConsumerService() + "] is not known to this Identity Provider";
                     logger.debug(message);
                     possiblyReplyWithSamlFailure(authenticationState, StatusCode.RESPONDER, new IllegalArgumentException(message),
                         listener);

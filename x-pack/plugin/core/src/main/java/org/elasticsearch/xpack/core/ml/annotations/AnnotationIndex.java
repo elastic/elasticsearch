@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -55,7 +55,7 @@ public class AnnotationIndex {
         }, finalListener::onFailure);
 
         // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
-        SortedMap<String, AliasOrIndex> mlLookup = state.getMetaData().getAliasAndIndexLookup().tailMap(".ml");
+        SortedMap<String, IndexAbstraction> mlLookup = state.getMetaData().getIndicesLookup().tailMap(".ml");
         if (mlLookup.isEmpty() == false && mlLookup.firstKey().startsWith(".ml")) {
 
             // Create the annotations index if it doesn't exist already.

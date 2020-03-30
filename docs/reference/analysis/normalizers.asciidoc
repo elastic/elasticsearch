@@ -19,7 +19,7 @@ normalization a custom configuration is required.
 [float]
 === Custom normalizers
 
-Custom normalizers take a list of char
+Custom normalizers take a list of
 <<analysis-charfilters, character filters>> and a list of
 <<analysis-tokenfilters,token filters>>.
 

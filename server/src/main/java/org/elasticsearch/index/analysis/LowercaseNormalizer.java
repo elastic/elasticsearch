@@ -31,8 +31,7 @@ public final class LowercaseNormalizer extends Analyzer {
     @Override
     protected TokenStreamComponents createComponents(String s) {
         final Tokenizer tokenizer = new KeywordTokenizer();
-        TokenStream stream = tokenizer;
-        stream = new LowerCaseFilter(stream);
+        TokenStream stream = new LowerCaseFilter(tokenizer);
         return new TokenStreamComponents(tokenizer, stream);
     }
     

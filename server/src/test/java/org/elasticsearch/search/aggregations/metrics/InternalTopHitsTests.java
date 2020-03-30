@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -113,7 +114,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             } else {
                 scoreDocs[i] = new ScoreDoc(docId, score);
             }
-            hits[i] = new SearchHit(docId, Integer.toString(i), searchHitFields);
+            hits[i] = new SearchHit(docId, Integer.toString(i), searchHitFields, Collections.emptyMap());
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);

@@ -137,8 +137,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform]
 `stats`::
 (object) An object that provides statistical information about the {transform}.
 `stats`.`documents_indexed`:::
-(long) The number of documents that have been indexed into the destination index
-for the {transform}.
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
 `stats`.`documents_processed`:::
 (long)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-processed]

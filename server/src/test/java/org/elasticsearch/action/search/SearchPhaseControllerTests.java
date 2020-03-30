@@ -321,7 +321,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             List<SearchHit> searchHits = new ArrayList<>();
             for (ScoreDoc scoreDoc : mergedSearchDocs) {
                 if (scoreDoc.shardIndex == shardIndex) {
-                    searchHits.add(new SearchHit(scoreDoc.doc, "", Collections.emptyMap()));
+                    searchHits.add(new SearchHit(scoreDoc.doc, "", Collections.emptyMap(), Collections.emptyMap()));
                     if (scoreDoc.score > maxScore) {
                         maxScore = scoreDoc.score;
                     }
@@ -332,7 +332,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     for (CompletionSuggestion.Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
                         ScoreDoc doc = option.getDoc();
                         if (doc.shardIndex == shardIndex) {
-                            searchHits.add(new SearchHit(doc.doc, "", Collections.emptyMap()));
+                            searchHits.add(new SearchHit(doc.doc, "", Collections.emptyMap(), Collections.emptyMap()));
                             if (doc.score > maxScore) {
                                 maxScore = doc.score;
                             }

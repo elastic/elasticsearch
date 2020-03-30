@@ -37,7 +37,6 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class InboundPipelineTests extends ESTestCase {
 
@@ -80,10 +79,13 @@ public class InboundPipelineTests extends ESTestCase {
         };
 
         final PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, new StatsTracker(), recycler, messageHandler, errorHandler);
+        final StatsTracker statsTracker = new StatsTracker();
+        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, statsTracker, recycler, messageHandler, errorHandler);
+        final FakeTcpChannel channel = new FakeTcpChannel();
 
         final int iterations = randomIntBetween(100, 500);
         long totalMessages = 0;
+        long bytesReceived = 0;
 
         for (int i = 0; i < iterations; ++i) {
             actual.clear();
@@ -142,7 +144,8 @@ public class InboundPipelineTests extends ESTestCase {
                     final BytesReference slice = networkBytes.slice(currentOffset, bytesToRead);
                     try (ReleasableBytesReference reference = new ReleasableBytesReference(slice, () -> {})) {
                         toRelease.add(reference);
-                        pipeline.handleBytes(mock(TcpChannel.class), reference);
+                        bytesReceived += reference.length();
+                        pipeline.handleBytes(channel, reference);
                         currentOffset += bytesToRead;
                     }
                 }
@@ -168,6 +171,9 @@ public class InboundPipelineTests extends ESTestCase {
                     assertEquals(0, released.refCount());
                 }
             }
+
+            assertEquals(bytesReceived, statsTracker.getReadBytes().sum());
+            assertEquals(totalMessages, statsTracker.getReadBytes().count());
         }
     }
 

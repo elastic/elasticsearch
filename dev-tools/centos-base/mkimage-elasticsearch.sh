@@ -98,14 +98,12 @@ chmod +x "$target"/bin/busybox
 set +x
 # Add links for all the utilities (except sh, as we have bash)
 for path in $( "$target"/bin/busybox --list-full | grep -v bin/sh ); do
-  ln "$target"/bin/busybox "$target"/$path
+  ln -s "$target"/bin/busybox "$target"/$path
 done
 set -x
 
-# This comes from ca-certificates, but this is the only file we want
-CA_CERTS=/etc/pki/ca-trust/extracted/java/cacerts
-mkdir -p $(dirname "$target"/$CA_CERTS)
-cp $CA_CERTS "$target"/$CA_CERTS
+cp /build/curl "$target"/usr/bin/curl
+tar cf - /etc/pki | (cd "$target" && tar xf -)
 
 yum -c "$yum_config" --installroot="$target" -y clean all
 

@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
@@ -39,7 +38,7 @@ public class InboundPipeline implements Releasable {
     private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);
     private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
 
-    private final LongSupplier relativeTimeInMillis = () -> TimeValue.nsecToMSec(System.nanoTime());
+    private final LongSupplier relativeTimeInMillis;
     private final StatsTracker statsTracker;
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
@@ -48,15 +47,17 @@ public class InboundPipeline implements Releasable {
     private ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
 
-    public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler,
+    public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler, LongSupplier relativeTimeInMillis,
                            BiConsumer<TcpChannel, InboundMessage> messageHandler,
                            BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
-        this(statsTracker, new InboundDecoder(version, recycler), new InboundAggregator(), messageHandler, errorHandler);
+        this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler), new InboundAggregator(), messageHandler,
+            errorHandler);
     }
 
-    private InboundPipeline(StatsTracker statsTracker, InboundDecoder decoder, InboundAggregator aggregator,
-                            BiConsumer<TcpChannel, InboundMessage> messageHandler,
+    private InboundPipeline(StatsTracker statsTracker, LongSupplier relativeTimeInMillis, InboundDecoder decoder,
+                            InboundAggregator aggregator, BiConsumer<TcpChannel, InboundMessage> messageHandler,
                             BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
+        this.relativeTimeInMillis = relativeTimeInMillis;
         this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;

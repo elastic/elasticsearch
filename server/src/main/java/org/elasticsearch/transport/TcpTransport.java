@@ -161,6 +161,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return statsTracker;
     }
 
+    public ThreadPool getThreadPool() {
+        return threadPool;
+    }
+
     @Override
     protected void doStart() {
     }

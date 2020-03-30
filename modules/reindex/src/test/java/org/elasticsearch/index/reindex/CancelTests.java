@@ -132,7 +132,7 @@ public class CancelTests extends ReindexTestCase {
         // Cancel the request while the action is blocked by the indexing operation listeners.
         // This will prevent further requests from being sent.
         ListTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTaskId(mainTask.getTaskId())
-            .setWaitForCompletion(false) // do wait for child tasks as they are being blocked
+            .setWaitForChildTasks(false) // do wait for child tasks as they are being blocked
             .get();
         cancelTasksResponse.rethrowFailures("Cancel");
         assertThat(cancelTasksResponse.getTasks(), hasSize(1));

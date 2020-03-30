@@ -185,7 +185,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         TaskId taskId = getMainTaskId();
         boolean waitForChildTasks = randomBoolean();
         ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
-            .setWaitForCompletion(waitForChildTasks)
+            .setWaitForChildTasks(waitForChildTasks)
             .execute();
         if (waitForChildTasks) {
             assertFalse(cancelFuture.isDone());

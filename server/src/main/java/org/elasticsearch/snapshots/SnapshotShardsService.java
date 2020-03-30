@@ -87,7 +87,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
  * This service runs on data and master nodes and controls currently snapshotted shards on these nodes. It is responsible for
@@ -599,19 +598,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             changedCount++;
                         }
                     }
-
-                    if (updated) {
-                        if (completed(shards.values()) == false) {
-                            entries.add(new SnapshotsInProgress.Entry(entry, shards.build()));
-                        } else {
-                            // Snapshot is finished - mark it as done
-                            // TODO: Add PARTIAL_SUCCESS status?
-                            SnapshotsInProgress.Entry updatedEntry = new SnapshotsInProgress.Entry(entry, State.SUCCESS, shards.build());
-                            entries.add(updatedEntry);
-                        }
-                    } else {
-                        entries.add(entry);
-                    }
+                    entries.add(updated ? new SnapshotsInProgress.Entry(entry, shards.build()) : entry);
                 }
                 if (changedCount > 0) {
                     logger.trace("changed cluster state triggered by {} snapshot state updates", changedCount);

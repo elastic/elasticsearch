@@ -196,7 +196,8 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
                 SnapshotsInProgress snapshots = event.state().custom(SnapshotsInProgress.TYPE);
                 if (snapshots != null && snapshots.entries().size() > 0) {
                     final SnapshotsInProgress.Entry snapshotEntry = snapshots.entries().get(0);
-                    if (snapshotEntry.state() == SnapshotsInProgress.State.SUCCESS) {
+                    if (snapshotEntry.state() == SnapshotsInProgress.State.STARTED &&
+                        SnapshotsInProgress.completed(snapshotEntry.shards().values())) {
                         final RepositoriesMetaData repoMeta =
                             event.state().metaData().custom(RepositoriesMetaData.TYPE);
                         final RepositoryMetaData metaData = repoMeta.repository("test-repo");

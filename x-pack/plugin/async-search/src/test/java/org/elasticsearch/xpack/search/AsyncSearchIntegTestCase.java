@@ -125,7 +125,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                                                             int progressStep) throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(source, indexName);
         request.setBatchedReduceSize(progressStep);
-        request.setWaitForCompletion(TimeValue.timeValueMillis(1));
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         ClusterSearchShardsResponse response = dataNodeClient().admin().cluster()
             .prepareSearchShards(request.getSearchRequest().indices()).get();
         AtomicInteger failures = new AtomicInteger(numFailures);

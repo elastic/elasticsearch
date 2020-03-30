@@ -786,10 +786,8 @@ public final class TokenService {
                                     retryTokenDocIds.size(), tokenIds.size());
                             final TokensInvalidationResult incompleteResult = new TokensInvalidationResult(invalidated,
                                         previouslyInvalidated, failedRequestResponses);
-                            final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                    .preserveContext(() -> indexInvalidation(retryTokenDocIds, tokensIndexManager, backoff,
-                                            srcPrefix, incompleteResult, listener));
-                            client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
+                            client.threadPool().schedule(() -> indexInvalidation(retryTokenDocIds, tokensIndexManager, backoff,
+                                srcPrefix, incompleteResult, listener), backoff.next(), GENERIC);
                         } else {
                             if (retryTokenDocIds.isEmpty() == false) {
                                 logger.warn("failed to invalidate [{}] tokens out of [{}] after all retries", retryTokenDocIds.size(),
@@ -809,10 +807,8 @@ public final class TokenService {
                         traceLog("invalidate tokens", cause);
                         if (isShardNotAvailableException(cause) && backoff.hasNext()) {
                             logger.debug("failed to invalidate tokens, retrying ");
-                            final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                    .preserveContext(() -> indexInvalidation(tokenIds, tokensIndexManager, backoff, srcPrefix,
-                                            previousResult, listener));
-                            client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
+                            client.threadPool().schedule(() -> indexInvalidation(tokenIds, tokensIndexManager, backoff, srcPrefix,
+                                previousResult, listener), backoff.next(), GENERIC);
                         } else {
                             listener.onFailure(e);
                         }
@@ -894,9 +890,8 @@ public final class TokenService {
             if (backoff.hasNext()) {
                 final TimeValue backofTimeValue = backoff.next();
                 logger.debug("retrying after [{}] back off", backofTimeValue);
-                final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                        .preserveContext(() -> findTokenFromRefreshToken(refreshToken, tokensIndexManager, backoff, listener));
-                client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
+                client.threadPool().schedule(() -> findTokenFromRefreshToken(refreshToken, tokensIndexManager, backoff, listener),
+                    backofTimeValue, GENERIC);
             } else {
                 logger.warn("failed to find token from refresh token after all retries");
                 onFailure.accept(ex);
@@ -1018,10 +1013,8 @@ public final class TokenService {
                         } else if (backoff.hasNext()) {
                             logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
                                     tokenDocId, updateResponse.getResult());
-                            final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                .preserveContext(() -> innerRefresh(refreshToken, tokenDocId, source, seqNo, primaryTerm, clientAuth,
-                                    backoff, refreshRequested, listener));
-                            client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
+                            client.threadPool().schedule(() -> innerRefresh(refreshToken, tokenDocId, source, seqNo, primaryTerm,
+                                clientAuth, backoff, refreshRequested, listener), backoff.next(), GENERIC);
                         } else {
                             logger.info("failed to update the original token document [{}] after all retries, the update result was [{}]. ",
                                     tokenDocId, updateResponse.getResult());
@@ -1049,9 +1042,8 @@ public final class TokenService {
                                     if (isShardNotAvailableException(e)) {
                                         if (backoff.hasNext()) {
                                             logger.info("could not get token document [{}] for refresh, retrying", tokenDocId);
-                                            final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                                    .preserveContext(() -> getTokenDocAsync(tokenDocId, refreshedTokenIndex, this));
-                                            client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
+                                            client.threadPool().schedule(() -> getTokenDocAsync(tokenDocId, refreshedTokenIndex, this),
+                                                backoff.next(), GENERIC);
                                         } else {
                                             logger.warn("could not get token document [{}] for refresh after all retries", tokenDocId);
                                             onFailure.accept(invalidGrantException("could not refresh the requested token"));
@@ -1064,10 +1056,8 @@ public final class TokenService {
                         } else if (isShardNotAvailableException(e)) {
                             if (backoff.hasNext()) {
                                 logger.debug("failed to update the original token document [{}], retrying", tokenDocId);
-                                final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                    .preserveContext(() -> innerRefresh(refreshToken, tokenDocId, source, seqNo, primaryTerm,
-                                        clientAuth, backoff, refreshRequested, listener));
-                                client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
+                                client.threadPool().schedule(() -> innerRefresh(refreshToken, tokenDocId, source, seqNo, primaryTerm,
+                                    clientAuth, backoff, refreshRequested, listener), backoff.next(), GENERIC);
                             } else {
                                 logger.warn("failed to update the original token document [{}], after all retries", tokenDocId);
                                 onFailure.accept(invalidGrantException("could not refresh the requested token"));

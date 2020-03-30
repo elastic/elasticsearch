@@ -51,6 +51,10 @@ public class EInstanceof extends AExpression {
                 "not a statement: result not used from instanceof with target type [" + type + "]"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to an instanceof with target type [" + type + "]"));
+        }
+
         Class<?> resolvedType;
         Class<?> expressionType;
         boolean primitiveExpression;

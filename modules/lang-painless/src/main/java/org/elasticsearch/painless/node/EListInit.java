@@ -54,6 +54,10 @@ public class EListInit extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: result not used from list initializer"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to a list initializer"));
+        }
+
         Output output = new Output();
         output.actual = ArrayList.class;
 

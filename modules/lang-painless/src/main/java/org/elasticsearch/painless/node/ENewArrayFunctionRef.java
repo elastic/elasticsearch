@@ -53,6 +53,16 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                "not a statement: new array function reference with target type [" + type + "] not used"));
+        }
+
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                "cannot assign a value to a new array function reference with target type [ + " + type  + "]"));
+        }
+
         Output output = new Output();
 
         if (input.read == false) {

@@ -32,7 +32,7 @@ import java.util.Objects;
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
  */
-public class PSubDefField extends AStoreable {
+public class PSubDefField extends AExpression {
 
     protected final String value;
 
@@ -43,7 +43,7 @@ public class PSubDefField extends AStoreable {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed

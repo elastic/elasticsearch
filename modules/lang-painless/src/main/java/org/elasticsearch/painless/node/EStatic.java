@@ -46,6 +46,10 @@ public class EStatic extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: static type [" + type + "] not used"));
         }
 
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("cannot write a value to a static type [" + type + "]"));
+        }
+
         Output output = new Output();
         output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
 

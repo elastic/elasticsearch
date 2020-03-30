@@ -41,6 +41,10 @@ public class ENull extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: null constant not used"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to a null constant"));
+        }
+
         Output output = new Output();
 
         if (input.expected != null) {

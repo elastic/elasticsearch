@@ -48,6 +48,10 @@ public class ENumeric extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: numeric constant [" + value + "] not used"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to a numeric constant [" + value + "]"));
+        }
+
         Output output = new Output();
         Object constant;
 

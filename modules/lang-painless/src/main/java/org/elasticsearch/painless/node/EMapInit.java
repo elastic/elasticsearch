@@ -57,6 +57,10 @@ public class EMapInit extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: result not used from map initializer"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to a map initializer"));
+        }
+
         Output output = new Output();
         output.actual = HashMap.class;
 

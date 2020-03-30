@@ -71,21 +71,13 @@ public class EAssignment extends AExpression {
         PainlessCast there = null;
         PainlessCast back = null;
 
-        Output leftOutput;
+        Input leftInput = new Input();
+        leftInput.read = input.read;
+        leftInput.write = true;
+        Output leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
         Output rightOutput;
-
-        if (lhs instanceof AStoreable) {
-            AStoreable lhs = (AStoreable)this.lhs;
-            AStoreable.Input leftInput = new AStoreable.Input();
-
-            leftInput.read = input.read;
-            leftInput.write = true;
-            leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
-        } else {
-            throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
-        }
 
         if (pre && post) {
             throw createError(new IllegalStateException("Illegal tree structure."));

@@ -30,7 +30,7 @@ import java.util.Objects;
 /**
  * Represents an array length field load.
  */
-public class PSubArrayLength extends AStoreable {
+public class PSubArrayLength extends AExpression {
 
     protected final String type;
     protected final String value;
@@ -43,12 +43,12 @@ public class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
         if ("length".equals(value)) {
             if (input.write) {
-                throw createError(new IllegalArgumentException("Cannot write to read-only field [length] for an array."));
+                throw createError(new IllegalArgumentException("cannot assign a value write to read-only field [length] for an array."));
             }
 
             output.actual = int.class;

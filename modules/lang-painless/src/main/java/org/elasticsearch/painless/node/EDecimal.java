@@ -46,6 +46,10 @@ public class EDecimal extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: decimal constant [" + value + "] not used"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to a decimal constant [" + value + "]"));
+        }
+
         Output output = new Output();
         Object constant;
 

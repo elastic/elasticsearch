@@ -52,6 +52,10 @@ public class EConditional extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: result not used from conditional operation [?:]"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to a conditional operation [?:]"));
+        }
+
         Output output = new Output();
 
         Input conditionInput = new Input();

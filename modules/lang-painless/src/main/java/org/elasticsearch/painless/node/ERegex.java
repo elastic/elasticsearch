@@ -62,6 +62,11 @@ public class ERegex extends AExpression {
                 "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                "cannot assign a value to a regex constant [" + pattern + "] with flags [" + flags + "]"));
+        }
+
         Output output = new Output();
 
         if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {

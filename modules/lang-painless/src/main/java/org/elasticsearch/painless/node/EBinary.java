@@ -56,6 +56,11 @@ public class EBinary extends AExpression {
                 "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                "cannot assign a value to a(n) " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
+
         Class<?> promote = null;            // promoted type
         Class<?> shiftDistance = null;      // for shifts, the rhs is promoted independently
         boolean originallyExplicit = input.explicit; // record whether there was originally an explicit cast

@@ -32,7 +32,7 @@ import java.util.Objects;
 /**
  * Represents a list load/store shortcut.  (Internal only.)
  */
-public class PSubListShortcut extends AStoreable {
+public class PSubListShortcut extends AExpression {
 
     protected final Class<?> targetClass;
     protected final AExpression index;
@@ -45,7 +45,7 @@ public class PSubListShortcut extends AStoreable {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);

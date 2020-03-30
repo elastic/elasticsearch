@@ -38,7 +38,7 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
 /**
  * Represents a field load/store and defers to a child subnode.
  */
-public class PField extends AStoreable {
+public class PField extends AExpression {
 
     protected final boolean nullSafe;
     protected final String value;
@@ -51,18 +51,7 @@ public class PField extends AStoreable {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
-        AStoreable.Input storeableInput = new AStoreable.Input();
-        storeableInput.read = input.read;
-        storeableInput.expected = input.expected;
-        storeableInput.explicit = input.explicit;
-        storeableInput.internal = input.internal;
-
-        return analyze(classNode, scriptRoot, scope, storeableInput);
-    }
-
-    @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         if (input.read == false && input.write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
         }
@@ -74,7 +63,7 @@ public class PField extends AStoreable {
         prefixInput.expected = prefixOutput.actual;
         prefix.cast(prefixInput, prefixOutput);
 
-        AStoreable sub = null;
+        AExpression sub = null;
 
         if (prefixOutput.actual.isArray()) {
             sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual), value);

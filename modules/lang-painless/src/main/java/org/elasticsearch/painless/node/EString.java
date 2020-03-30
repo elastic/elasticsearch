@@ -46,6 +46,10 @@ public class EString extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: string constant [" + constant + "] not used"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to a string constant [" + constant + "]"));
+        }
+
         Output output = new Output();
         output.actual = String.class;
 

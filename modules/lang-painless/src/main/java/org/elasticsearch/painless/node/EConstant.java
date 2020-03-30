@@ -46,6 +46,10 @@ public class EConstant extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: constant [" + constant + "] not used"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to a constant [" + constant + "]"));
+        }
+
         Output output = new Output();
 
         if (constant instanceof String) {

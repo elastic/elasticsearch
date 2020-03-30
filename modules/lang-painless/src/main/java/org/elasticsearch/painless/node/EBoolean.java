@@ -44,6 +44,10 @@ public class EBoolean extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: boolean constant [" + constant + "] not used"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to a boolean constant [" + constant + "]"));
+        }
+
         Output output = new Output();
 
         output.actual = boolean.class;

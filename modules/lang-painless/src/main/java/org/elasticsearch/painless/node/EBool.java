@@ -52,6 +52,11 @@ public class EBool extends AExpression {
                 "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                "cannot assign a value to a(n) " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
+
         Output output = new Output();
 
         Input leftInput = new Input();

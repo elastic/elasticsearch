@@ -53,6 +53,10 @@ public class ENewArray extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: result not used from new array"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to a new array"));
+        }
+
         Output output = new Output();
 
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);

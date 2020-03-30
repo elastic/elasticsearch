@@ -52,6 +52,11 @@ public class ENewObj extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                "cannot assign a value to a new object with constructor [" + type + "/" + arguments.size() + "]"));
+        }
+
         Output output = new Output();
 
         output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);

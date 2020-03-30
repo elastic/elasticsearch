@@ -48,6 +48,10 @@ public class EExplicit extends AExpression {
                 "not a statement: result not used from explicit cast with target type [" + type + "]"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to an explicit cast with target type [" + type + "]"));
+        }
+
         Output output = new Output();
 
         output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);

@@ -34,7 +34,7 @@ import java.util.Objects;
 /**
  * Represents an array load/store and defers to a child subnode.
  */
-public class PBrace extends AStoreable {
+public class PBrace extends AExpression {
 
     protected final AExpression index;
 
@@ -45,18 +45,7 @@ public class PBrace extends AStoreable {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AExpression.Input input) {
-        AStoreable.Input storeableInput = new AStoreable.Input();
-        storeableInput.read = input.read;
-        storeableInput.expected = input.expected;
-        storeableInput.explicit = input.explicit;
-        storeableInput.internal = input.internal;
-
-        return analyze(classNode, scriptRoot, scope, storeableInput);
-    }
-
-    @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         if (input.read == false && input.write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of brace operator not used"));
         }
@@ -68,7 +57,7 @@ public class PBrace extends AStoreable {
         prefixInput.expected = prefixOutput.actual;
         prefix.cast(prefixInput, prefixOutput);
 
-        AStoreable sub;
+        AExpression sub;
 
         if (prefixOutput.actual.isArray()) {
             sub = new PSubBrace(location, prefixOutput.actual, index);

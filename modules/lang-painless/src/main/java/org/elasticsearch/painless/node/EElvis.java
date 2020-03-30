@@ -50,6 +50,10 @@ public class EElvis extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: result not used from elvis operation [?:]"));
         }
 
+        if (input.write) {
+            throw createError(new IllegalArgumentException("cannot assign a value to an elvis operation [?:]"));
+        }
+
         Output output = new Output();
 
         if (input.expected != null && input.expected.isPrimitive()) {

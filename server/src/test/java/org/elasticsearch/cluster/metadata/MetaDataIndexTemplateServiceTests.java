@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -75,6 +76,53 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                                 "must be one of [true, false, checksum] but was: blargh"));
     }
 
+    public void testIndexTemplateValidationWithSpecifiedReplicas() throws Exception {
+        PutRequest request = new PutRequest("test", "test_replicas");
+        request.patterns(singletonList("test_shards_wait*"));
+
+        Settings.Builder settingsBuilder = builder()
+        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+        .put(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
+
+        request.settings(settingsBuilder.build());
+
+        List<Throwable> throwables = putTemplateDetail(request);
+
+        assertThat(throwables, is(empty()));
+    }
+
+    public void testIndexTemplateValidationErrorsWithSpecifiedReplicas() throws Exception {
+        PutRequest request = new PutRequest("test", "test_specified_replicas");
+        request.patterns(singletonList("test_shards_wait*"));
+
+        Settings.Builder settingsBuilder = builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "3");
+
+        request.settings(settingsBuilder.build());
+
+        List<Throwable> throwables = putTemplateDetail(request);
+
+        assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
+        assertThat(throwables.get(0).getMessage(), containsString("[3]: cannot be greater than number of shard copies [2]"));
+    }
+
+    public void testIndexTemplateValidationWithDefaultReplicas() throws Exception {
+        PutRequest request = new PutRequest("test", "test_default_replicas");
+        request.patterns(singletonList("test_wait_shards_default_replica*"));
+
+        Settings.Builder settingsBuilder = builder()
+            .put(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
+
+        request.settings(settingsBuilder.build());
+
+        List<Throwable> throwables = putTemplateDetail(request);
+
+        assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
+        assertThat(throwables.get(0).getMessage(), containsString("[2]: cannot be greater than number of shard copies [1]"));
+    }
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
         request.patterns(singletonList("_test_shards*"));
@@ -235,6 +283,37 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate componentTemplate4 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(IllegalArgumentException.class,
             () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4));
+    }
+
+    public void testAddIndexTemplateV2() {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        state = MetaDataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
+
+        assertNotNull(state.metaData().templatesV2().get("foo"));
+        assertThat(state.metaData().templatesV2().get("foo"), equalTo(template));
+
+        final ClusterState throwState = ClusterState.builder(state).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> MetaDataIndexTemplateService.addIndexTemplateV2(throwState, true, "foo", template));
+        assertThat(e.getMessage(), containsString("index template [foo] already exists"));
+
+        state = MetaDataIndexTemplateService.addIndexTemplateV2(state, randomBoolean(), "bar", template);
+        assertNotNull(state.metaData().templatesV2().get("bar"));
+    }
+
+    public void testRemoveIndexTemplateV2() {
+        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        IndexTemplateMissingException e = expectThrows(IndexTemplateMissingException.class,
+            () -> MetaDataIndexTemplateService.innerRemoveIndexTemplateV2(ClusterState.EMPTY_STATE, "foo"));
+        assertThat(e.getMessage(), equalTo("index_template [foo] missing"));
+
+        final ClusterState state = MetaDataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
+        assertNotNull(state.metaData().templatesV2().get("foo"));
+        assertThat(state.metaData().templatesV2().get("foo"), equalTo(template));
+
+        ClusterState updatedState = MetaDataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo");
+        assertNull(updatedState.metaData().templatesV2().get("foo"));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

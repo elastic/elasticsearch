@@ -107,9 +107,4 @@ public class EComp extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(left, operation.symbol, right);
-    }
 }

@@ -16,33 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.transport;
 
-package org.elasticsearch.action.support.nodes;
-
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-// TODO: this class can be removed in master once 7.x is bumped to 7.4.0
-public abstract class BaseNodeRequest extends TransportRequest {
+public class TestResponse extends TransportResponse {
 
-    public BaseNodeRequest() {}
+    String value;
 
-    public BaseNodeRequest(StreamInput in) throws IOException {
+    public TestResponse(String value) {
+        this.value = value;
+    }
+
+    public TestResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_7_3_0)) {
-            in.readString(); // previously nodeId
-        }
+        this.value = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        if (out.getVersion().before(Version.V_7_3_0)) {
-            out.writeString(""); // previously nodeId
-        }
+        out.writeString(value);
     }
 }

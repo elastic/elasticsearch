@@ -91,9 +91,4 @@ public class EInstanceof extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(expression, type);
-    }
 }

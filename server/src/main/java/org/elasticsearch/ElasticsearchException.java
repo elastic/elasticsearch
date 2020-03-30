@@ -276,7 +276,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(this.getMessage());
         out.writeException(this.getCause());
-        writeStackTraces(this, out);
+        writeStackTraces(this, out, StreamOutput::writeException);
         out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
     }
@@ -715,7 +715,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Serializes the given exceptions stacktrace elements as well as it's suppressed exceptions to the given output stream.
      */
-    public static <T extends Throwable> T writeStackTraces(T throwable, StreamOutput out) throws IOException {
+    public static <T extends Throwable> T writeStackTraces(T throwable, StreamOutput out,
+                                                           Writer<Throwable> exceptionWriter) throws IOException {
         StackTraceElement[] stackTrace = throwable.getStackTrace();
         out.writeVInt(stackTrace.length);
         for (StackTraceElement element : stackTrace) {
@@ -727,7 +728,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         Throwable[] suppressed = throwable.getSuppressed();
         out.writeVInt(suppressed.length);
         for (Throwable t : suppressed) {
-            out.writeException(t);
+            exceptionWriter.write(out, t);
         }
         return throwable;
     }

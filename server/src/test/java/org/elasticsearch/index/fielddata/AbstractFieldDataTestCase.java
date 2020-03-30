@@ -175,9 +175,9 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         IndexFieldData<?> fieldData = getForField("non_existing_field");
         int max = randomInt(7);
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData previous = null;
+            LeafFieldData previous = null;
             for (int i = 0; i < max; i++) {
-                AtomicFieldData current = fieldData.load(readerContext);
+                LeafFieldData current = fieldData.load(readerContext);
                 assertThat(current.ramBytesUsed(), equalTo(0L));
                 if (previous != null) {
                     assertThat(current, not(sameInstance(previous)));

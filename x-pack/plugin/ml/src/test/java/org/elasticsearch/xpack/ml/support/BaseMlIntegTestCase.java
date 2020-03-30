@@ -127,6 +127,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     protected Job.Builder createJob(String id, ByteSizeValue modelMemoryLimit) {
+        return createJob(id, modelMemoryLimit, false);
+    }
+
+    protected Job.Builder createJob(String id, ByteSizeValue modelMemoryLimit, boolean allowLazyOpen) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
@@ -141,6 +145,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         }
         builder.setAnalysisConfig(analysisConfig);
         builder.setDataDescription(dataDescription);
+        builder.setAllowLazyOpen(allowLazyOpen);
         return builder;
     }
 

@@ -23,7 +23,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -132,6 +135,207 @@ public class MetaDataIndexTemplateService {
         });
     }
 
+    /**
+     * Add the given component template to the cluster state. If {@code create} is true, an
+     * exception will be thrown if the component template already exists
+     */
+    public void putComponentTemplate(final String cause, final boolean create, final String name, final TimeValue masterTimeout,
+                                     final ComponentTemplate template, final ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("create-component-template [" + name + "], cause [" + cause + "]",
+            new ClusterStateUpdateTask(Priority.URGENT) {
+
+                @Override
+                public TimeValue timeout() {
+                    return masterTimeout;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    return addComponentTemplate(currentState, create, name, template);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new AcknowledgedResponse(true));
+                }
+            });
+    }
+
+    // Package visible for testing
+    ClusterState addComponentTemplate(final ClusterState currentState, final boolean create,
+                                             final String name, final ComponentTemplate template) throws Exception {
+        if (create && currentState.metaData().componentTemplates().containsKey(name)) {
+            throw new IllegalArgumentException("component template [" + name + "] already exists");
+        }
+
+        CompressedXContent mappings = template.template().mappings();
+        String stringMappings = mappings == null ? null : mappings.string();
+        validateTemplate(template.template().settings(), stringMappings, indicesService, xContentRegistry);
+
+        logger.info("adding component template [{}]", name);
+        return ClusterState.builder(currentState)
+            .metaData(MetaData.builder(currentState.metaData()).put(name, template))
+            .build();
+    }
+
+    /**
+     * Remove the given component template from the cluster state. The component template name
+     * supports simple regex wildcards for removing multiple component templates at a time.
+     */
+    public void removeComponentTemplate(final String name, final TimeValue masterTimeout,
+                                        final ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("remove-component-template [" + name + "]",
+            new ClusterStateUpdateTask(Priority.URGENT) {
+
+                @Override
+                public TimeValue timeout() {
+                    return masterTimeout;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    Set<String> templateNames = new HashSet<>();
+                    for (String templateName : currentState.metaData().componentTemplates().keySet()) {
+                        if (Regex.simpleMatch(name, templateName)) {
+                            templateNames.add(templateName);
+                        }
+                    }
+                    if (templateNames.isEmpty()) {
+                        // if its a match all pattern, and no templates are found (we have none), don't
+                        // fail with index missing...
+                        if (Regex.isMatchAllPattern(name)) {
+                            return currentState;
+                        }
+                        // TODO: perhaps introduce a ComponentTemplateMissingException?
+                        throw new IndexTemplateMissingException(name);
+                    }
+                    MetaData.Builder metaData = MetaData.builder(currentState.metaData());
+                    for (String templateName : templateNames) {
+                        logger.info("removing component template [{}]", templateName);
+                        metaData.removeComponentTemplate(templateName);
+                    }
+                    return ClusterState.builder(currentState).metaData(metaData).build();
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new AcknowledgedResponse(true));
+                }
+            });
+    }
+
+    /**
+     * Add the given component template to the cluster state. If {@code create} is true, an
+     * exception will be thrown if the component template already exists
+     */
+    public void putIndexTemplateV2(final String cause, final boolean create, final String name, final TimeValue masterTimeout,
+                                   final IndexTemplateV2 template, final ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("create-index-template-v2 [" + name + "], cause [" + cause + "]",
+            new ClusterStateUpdateTask(Priority.URGENT) {
+
+                @Override
+                public TimeValue timeout() {
+                    return masterTimeout;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return addIndexTemplateV2(currentState, create, name, template);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new AcknowledgedResponse(true));
+                }
+            });
+    }
+
+    // Package visible for testing
+    static ClusterState addIndexTemplateV2(final ClusterState currentState, final boolean create,
+                                           final String name, final IndexTemplateV2 template) {
+        if (create && currentState.metaData().templatesV2().containsKey(name)) {
+            throw new IllegalArgumentException("index template [" + name + "] already exists");
+        }
+
+        // TODO: validation of index template
+        // validateAndAddTemplate(request, templateBuilder, indicesService, xContentRegistry);
+
+        logger.info("adding index template [{}]", name);
+        return ClusterState.builder(currentState)
+            .metaData(MetaData.builder(currentState.metaData()).put(name, template))
+            .build();
+    }
+
+    /**
+     * Remove the given index template from the cluster state. The index template name
+     * supports simple regex wildcards for removing multiple index templates at a time.
+     */
+    public void removeIndexTemplateV2(final String name, final TimeValue masterTimeout,
+                                      final ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask("remove-index-template-v2 [" + name + "]",
+            new ClusterStateUpdateTask(Priority.URGENT) {
+
+                @Override
+                public TimeValue timeout() {
+                    return masterTimeout;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return innerRemoveIndexTemplateV2(currentState, name);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new AcknowledgedResponse(true));
+                }
+            });
+    }
+
+    // Package visible for testing
+    static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String name) {
+        Set<String> templateNames = new HashSet<>();
+        for (String templateName : currentState.metaData().templatesV2().keySet()) {
+            if (Regex.simpleMatch(name, templateName)) {
+                templateNames.add(templateName);
+            }
+        }
+        if (templateNames.isEmpty()) {
+            // if its a match all pattern, and no templates are found (we have none), don't
+            // fail with index missing...
+            if (Regex.isMatchAllPattern(name)) {
+                return currentState;
+            }
+            throw new IndexTemplateMissingException(name);
+        }
+        MetaData.Builder metaData = MetaData.builder(currentState.metaData());
+        for (String templateName : templateNames) {
+            logger.info("removing index template [{}]", templateName);
+            metaData.removeIndexTemplate(templateName);
+        }
+        return ClusterState.builder(currentState).metaData(metaData).build();
+    }
+
     public void putTemplate(final PutRequest request, final PutListener listener) {
         Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
@@ -174,7 +378,20 @@ public class MetaDataIndexTemplateService {
                     throw new IllegalArgumentException("index_template [" + request.name + "] already exists");
                 }
 
-                validateAndAddTemplate(request, templateBuilder, indicesService, xContentRegistry);
+                templateBuilder.order(request.order);
+                templateBuilder.version(request.version);
+                templateBuilder.patterns(request.indexPatterns);
+                templateBuilder.settings(request.settings);
+
+                if (request.mappings != null) {
+                    try {
+                        templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
+                    } catch (Exception e) {
+                        throw new MapperParsingException("Failed to parse mapping: {}", e, request.mappings);
+                    }
+                }
+
+                validateTemplate(request.settings, request.mappings, indicesService, xContentRegistry);
 
                 for (Alias alias : request.aliases) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
@@ -255,20 +472,20 @@ public class MetaDataIndexTemplateService {
         return matchedTemplates;
     }
 
-    private static void validateAndAddTemplate(final PutRequest request, IndexTemplateMetaData.Builder templateBuilder,
-            IndicesService indicesService, NamedXContentRegistry xContentRegistry) throws Exception {
+    private static void validateTemplate(Settings settings, String mappings,
+                                         IndicesService indicesService, NamedXContentRegistry xContentRegistry) throws Exception {
         Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
         try {
             // use the provided values, otherwise just pick valid dummy values
-            int dummyPartitionSize = IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(request.settings);
-            int dummyShards = request.settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS,
+            int dummyPartitionSize = IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
+            int dummyShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS,
                     dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
 
             //create index service for parsing and validating "mappings"
             Settings dummySettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(request.settings)
+                .put(settings)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, dummyShards)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -278,19 +495,9 @@ public class MetaDataIndexTemplateService {
             IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList(), false);
             createdIndex = dummyIndexService.index();
 
-            templateBuilder.order(request.order);
-            templateBuilder.version(request.version);
-            templateBuilder.patterns(request.indexPatterns);
-            templateBuilder.settings(request.settings);
-
-            if (request.mappings != null) {
-                try {
-                    templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
-                } catch (Exception e) {
-                    throw new MapperParsingException("Failed to parse mapping: {}", e, request.mappings);
-                }
+            if (mappings != null) {
                 dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME,
-                    MapperService.parseMapping(xContentRegistry, request.mappings), MergeReason.MAPPING_UPDATE);
+                    MapperService.parseMapping(xContentRegistry, mappings), MergeReason.MAPPING_UPDATE);
             }
 
         } finally {

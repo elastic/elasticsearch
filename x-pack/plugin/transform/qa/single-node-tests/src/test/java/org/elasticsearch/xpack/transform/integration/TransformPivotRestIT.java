@@ -56,6 +56,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         }
 
         createReviewsIndex();
+        createReviewsIndexNano();
         indicesCreated = true;
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
 
@@ -496,9 +497,17 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     }
 
     public void testDateHistogramPivot() throws Exception {
-        String transformId = "simple_date_histogram_pivot";
-        String transformIndex = "pivot_reviews_via_date_histogram";
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+        assertDateHistogramPivot(REVIEWS_INDEX_NAME);
+    }
+
+    public void testDateHistogramPivotNanos() throws Exception {
+        assertDateHistogramPivot(REVIEWS_DATE_NANO_INDEX_NAME);
+    }
+
+    private void assertDateHistogramPivot(String indexName) throws Exception {
+        String transformId = "simple_date_histogram_pivot_" + indexName;
+        String transformIndex = "pivot_reviews_via_date_histogram_" + indexName;
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
 
         final Request createTransformRequest = createRequestWithAuth(
             "PUT",
@@ -506,13 +515,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = "{"
-            + " \"source\": {\"index\":\""
-            + REVIEWS_INDEX_NAME
-            + "\"},"
-            + " \"dest\": {\"index\":\""
-            + transformIndex
-            + "\"},";
+        String config = "{" + " \"source\": {\"index\":\"" + indexName + "\"}," + " \"dest\": {\"index\":\"" + transformIndex + "\"},";
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"

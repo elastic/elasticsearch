@@ -46,3 +46,20 @@
             filter:       [nori_readingform]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: 향가 }
+---
+"Number filter":
+    - do:
+        indices.analyze:
+          body:
+            text:                   십만이천오백과 ３.２천
+            tokenizer:
+              type:                 nori_tokenizer
+              discard_punctuation:  false
+            filter:
+              - type:               nori_part_of_speech
+                stoptags:           ["SP"]
+              - type:               nori_number
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: "102500"}
+    - match:  { tokens.1.token: 과}
+    - match:  { tokens.2.token: "3200"}

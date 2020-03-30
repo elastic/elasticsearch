@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -290,5 +291,14 @@ public class SearchResponseTests extends ESTestCase {
         assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
         assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
         assertEquals(searchResponse.getClusters(), deserialized.getClusters());
+    }
+
+    public void testToXContentEmptyClusters() throws IOException {
+        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 0, 1,
+            ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(0, Strings.toString(builder).length());
     }
 }

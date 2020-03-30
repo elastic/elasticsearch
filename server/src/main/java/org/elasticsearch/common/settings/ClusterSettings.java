@@ -19,7 +19,6 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -98,7 +97,6 @@ import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
@@ -113,7 +111,6 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -183,9 +180,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         }
     }
 
-    public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS;
-    static {
-        final Set<Setting<?>> alwaysEnabled = Set.of(
+    public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
             BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
@@ -299,7 +294,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER,
             RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
             RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
-            RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
             RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
@@ -364,10 +358,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
             NetworkService.TCP_RECEIVE_BUFFER_SIZE,
             IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
             IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
+            ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
+            ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
+            ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
+            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
-            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE,
             ScriptService.TYPES_ALLOWED_SETTING,
             ScriptService.CONTEXTS_ALLOWED_SETTING,
             IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
@@ -404,6 +401,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             Node.NODE_DATA_SETTING,
             Node.NODE_MASTER_SETTING,
             Node.NODE_INGEST_SETTING,
+            Node.NODE_REMOTE_CLUSTER_CLIENT,
             Node.NODE_ATTRIBUTES,
             Node.NODE_LOCAL_STORAGE_SETTING,
             AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
@@ -479,15 +477,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING);
 
-        if (Build.CURRENT.isSnapshot()) {
-            Set<Setting<?>> modifiable = new HashSet<>(alwaysEnabled);
-            modifiable.add(RestController.RESTRICT_SYSTEM_INDICES);
-            BUILT_IN_CLUSTER_SETTINGS = Set.copyOf(modifiable);
-        } else {
-            BUILT_IN_CLUSTER_SETTINGS = alwaysEnabled;
-        }
-    }
-
-    static final List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
+    static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 
 }

@@ -20,27 +20,48 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double[] percents;
     private final PercentilesConfig percentilesConfig;
     private final boolean keyed;
 
+    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(PercentileRanksAggregationBuilder.NAME,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            new PercentilesAggregatorSupplier() {
+                @Override
+                public Aggregator build(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+                                        double[] percents, PercentilesConfig percentilesConfig, boolean keyed, DocValueFormat formatter,
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+
+                    return percentilesConfig.createPercentileRanksAggregator(name, valuesSource, context, parent, percents, keyed,
+                        formatter, pipelineAggregators, metaData);
+                }
+            }
+        );
+    }
+
     PercentileRanksAggregatorFactory(String name,
-                                     ValuesSourceConfig<ValuesSource> config,
+                                     ValuesSourceConfig config,
                                      double[] percents,
                                      PercentilesConfig percentilesConfig,
                                      boolean keyed,
@@ -71,7 +92,15 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory<Val
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
-        return percentilesConfig.createPercentileRanksAggregator(name, valuesSource, searchContext, parent, percents, keyed,
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            PercentileRanksAggregationBuilder.NAME);
+
+        if (aggregatorSupplier instanceof PercentilesAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected PercentilesAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
+        }
+        PercentilesAggregatorSupplier percentilesAggregatorSupplier = (PercentilesAggregatorSupplier) aggregatorSupplier;
+        return percentilesAggregatorSupplier.build(name, valuesSource, searchContext, parent, percents, percentilesConfig, keyed,
             config.format(), pipelineAggregators, metaData);
     }
 }

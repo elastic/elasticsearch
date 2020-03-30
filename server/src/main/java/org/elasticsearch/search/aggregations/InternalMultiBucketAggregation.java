@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -144,15 +145,15 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     }
 
     /**
-     * Unlike {@link InternalAggregation#reducePipelines(InternalAggregation, ReduceContext)}, a multi-bucket
-     * agg needs to first reduce the buckets (and their parent pipelines) before allowing sibling pipelines
-     * to materialize
+     * Amulti-bucket agg needs to first reduce the buckets and *their* pipelines
+     * before allowing sibling pipelines to materialize.
      */
     @Override
-    public final InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+    public final InternalAggregation reducePipelines(
+            InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelineTree) {
         assert reduceContext.isFinalReduce();
-        List<B> materializedBuckets = reducePipelineBuckets(reduceContext);
-        return super.reducePipelines(create(materializedBuckets), reduceContext);
+        List<B> materializedBuckets = reducePipelineBuckets(reduceContext, pipelineTree);
+        return super.reducePipelines(create(materializedBuckets), reduceContext, pipelineTree);
     }
 
     @Override
@@ -172,12 +173,13 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
         return modified ? create(newBuckets) : this;
     }
 
-    private List<B> reducePipelineBuckets(ReduceContext reduceContext) {
+    private List<B> reducePipelineBuckets(ReduceContext reduceContext, PipelineTree pipelineTree) {
         List<B> reducedBuckets = new ArrayList<>();
         for (B bucket : getBuckets()) {
             List<InternalAggregation> aggs = new ArrayList<>();
             for (Aggregation agg : bucket.getAggregations()) {
-                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext));
+                PipelineTree subTree = pipelineTree.subTree(agg.getName());
+                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
             }
             reducedBuckets.add(createBucket(new InternalAggregations(aggs), bucket));
         }

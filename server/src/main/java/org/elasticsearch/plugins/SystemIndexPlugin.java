@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 
 import java.util.Collection;
@@ -34,10 +33,9 @@ public interface SystemIndexPlugin extends ActionPlugin {
     /**
      * Returns a {@link Collection} of {@link SystemIndexDescriptor}s that describe this plugin's system indices, including
      * name, mapping, and settings.
-     * @param settings The node's settings
      * @return Descriptions of the system indices managed by this plugin.
      */
-    default Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    default Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return Collections.emptyList();
     }
 }

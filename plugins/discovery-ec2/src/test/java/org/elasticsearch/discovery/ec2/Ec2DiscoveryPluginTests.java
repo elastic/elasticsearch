@@ -39,7 +39,6 @@ import java.util.Arrays;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class Ec2DiscoveryPluginTests extends ESTestCase {
 
@@ -96,7 +95,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
     public void testDefaultEndpoint() throws IOException {
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY)) {
             final String endpoint = ((AmazonEC2Mock) plugin.ec2Service.client().client()).endpoint;
-            assertThat(endpoint, nullValue());
+            assertThat(endpoint, is(""));
         }
     }
 
@@ -199,8 +198,9 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         Ec2DiscoveryPluginMock(Settings settings) {
             super(settings, new AwsEc2ServiceImpl() {
                 @Override
-                AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
-                    return new AmazonEC2Mock(credentials, configuration);
+                AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration,
+                                      String endpoint) {
+                    return new AmazonEC2Mock(credentials, configuration, endpoint);
                 }
             });
         }
@@ -212,13 +212,9 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         final AWSCredentialsProvider credentials;
         final ClientConfiguration configuration;
 
-        AmazonEC2Mock(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
+        AmazonEC2Mock(AWSCredentialsProvider credentials, ClientConfiguration configuration, String endpoint) {
             this.credentials = credentials;
             this.configuration = configuration;
-        }
-
-        @Override
-        public void setEndpoint(String endpoint) throws IllegalArgumentException {
             this.endpoint = endpoint;
         }
 

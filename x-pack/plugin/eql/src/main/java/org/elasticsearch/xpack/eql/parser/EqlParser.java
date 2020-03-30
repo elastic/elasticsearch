@@ -43,7 +43,7 @@ public class EqlParser {
     public LogicalPlan createStatement(String eql) {
         return createStatement(eql, new ParserParams());
     }
-    
+
     public LogicalPlan createStatement(String eql, ParserParams params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", eql);
@@ -131,51 +131,6 @@ public class EqlParser {
 
         PostProcessor(List<String> ruleNames) {
             this.ruleNames = ruleNames;
-        }
-
-
-        @Override
-        public void exitFunctionExpression(EqlBaseParser.FunctionExpressionContext context) {
-            Token token = context.name;
-            String functionName = token.getText();
-
-            switch (functionName) {
-                case "add":
-                case "between":
-                case "cidrMatch":
-                case "concat":
-                case "divide":
-                case "endsWith":
-                case "indexOf":
-                case "length":
-                case "match":
-                case "modulo":
-                case "multiply":
-                case "number":
-                case "startsWith":
-                case "string":
-                case "stringContains":
-                case "substring":
-                case "subtract":
-                case "wildcard":
-                    break;
-
-                case "arrayContains":
-                case "arrayCount":
-                case "arraySearch":
-                    throw new ParsingException(
-                        "Unsupported function [" + functionName + "]",
-                        null,
-                        token.getLine(),
-                        token.getCharPositionInLine());
-
-                default:
-                    throw new ParsingException(
-                        "Unknown function [" + functionName + "]",
-                        null,
-                        token.getLine(),
-                        token.getCharPositionInLine());
-            }
         }
 
         @Override

@@ -30,7 +30,7 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
  * Represents a constant inserted into the tree replacing
  * other constants during constant folding.  (Internal only.)
  */
-final class EConstant extends AExpression {
+public class EConstant extends AExpression {
 
     protected Object constant;
 
@@ -41,9 +41,8 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
 
         if (constant instanceof String) {
             output.actual = String.class;
@@ -69,25 +68,13 @@ final class EConstant extends AExpression {
                     "for constant node"));
         }
 
-        return output;
-    }
-
-    @Override
-    ConstantNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(location);
         constantNode.setExpressionType(output.actual);
         constantNode.setConstant(constant);
 
-        return constantNode;
-    }
+        output.expressionNode = constantNode;
 
-    @Override
-    public String toString() {
-        String c = constant.toString();
-        if (constant instanceof String) {
-            c = "'" + c + "'";
-        }
-        return singleLineToString(constant.getClass().getSimpleName(), c);
+        return output;
     }
 }

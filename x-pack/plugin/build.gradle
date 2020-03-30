@@ -12,8 +12,6 @@ dependencies {
 
 configurations {
   testArtifacts.extendsFrom testRuntime
-  restXpackSpecs
-  restXpackTests
 }
 
 artifacts {

@@ -57,6 +57,11 @@ dependencies {
   compile 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
+}
 // needed to be consistent with ssl host checking
 String host = InetAddress.getLoopbackAddress().getHostAddress()
 

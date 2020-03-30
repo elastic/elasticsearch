@@ -30,15 +30,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicHistogramFieldData;
+import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -51,10 +51,10 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -204,8 +204,8 @@ public class HistogramFieldMapper extends FieldMapper {
                     return new IndexHistogramFieldData(indexSettings.getIndex(), fieldType.name()) {
 
                         @Override
-                        public AtomicHistogramFieldData load(LeafReaderContext context) {
-                            return new AtomicHistogramFieldData() {
+                        public LeafHistogramFieldData load(LeafReaderContext context) {
+                            return new LeafHistogramFieldData() {
                                 @Override
                                 public HistogramValues getHistogramValues() throws IOException {
                                     try {
@@ -258,7 +258,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public AtomicHistogramFieldData loadDirect(LeafReaderContext context) throws Exception {
+                        public LeafHistogramFieldData loadDirect(LeafReaderContext context) throws Exception {
                             return load(context);
                         }
 
@@ -280,8 +280,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         public ValuesSourceType getValuesSourceType() {
-            // TODO: Histogram ValuesSourceType should move into this plugin.
-            return CoreValuesSourceType.HISTOGRAM;
+            return AnalyticsValuesSourceType.HISTOGRAM;
         }
 
         @Override

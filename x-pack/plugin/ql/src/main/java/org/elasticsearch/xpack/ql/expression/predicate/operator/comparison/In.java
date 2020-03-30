@@ -95,7 +95,7 @@ public class In extends ScalarFunction {
         List<Object> values = new ArrayList<>(new LinkedHashSet<>(foldAndConvertListOfValues(list, value.dataType())));
 
         return new ScriptTemplate(
-            formatTemplate(format("{sql}.","in({}, {})", leftScript.template())),
+            formatTemplate(format("{ql}.","in({}, {})", leftScript.template())),
             paramsBuilder()
                 .script(leftScript.params())
                 .variable(values)

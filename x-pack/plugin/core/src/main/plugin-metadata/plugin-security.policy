@@ -2,6 +2,10 @@ grant {
   // bouncy castle
   permission java.security.SecurityPermission "putProviderProperty.BC";
 
+  // needed in (cf. o.e.x.c.s.s.RestorableContextClassLoader)
+  permission java.lang.RuntimePermission "getClassLoader";
+  permission java.lang.RuntimePermission "setContextClassLoader";
+
   // needed for x-pack security extension
   permission java.security.SecurityPermission "createPolicy.JavaPolicy";
   permission java.security.SecurityPermission "getPolicy";

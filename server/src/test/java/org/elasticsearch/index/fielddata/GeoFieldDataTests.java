@@ -23,7 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.index.fielddata.plain.AbstractAtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLeafGeoPointFieldData;
 
 import java.util.List;
 
@@ -157,10 +157,10 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
         IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData fieldData = indexFieldData.load(readerContext);
+            LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoPointValues fieldValues = ((AbstractLeafGeoPointFieldData)fieldData).getGeoPointValues();
             assertValues(fieldValues, 0);
             assertValues(fieldValues, 1);
             assertValues(fieldValues, 2);
@@ -173,10 +173,10 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
         IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData fieldData = indexFieldData.load(readerContext);
+            LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoPointValues fieldValues = ((AbstractLeafGeoPointFieldData)fieldData).getGeoPointValues();
             assertValues(fieldValues, 0);
             assertMissing(fieldValues, 1);
             assertValues(fieldValues, 2);
@@ -189,10 +189,10 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
         IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData fieldData = indexFieldData.load(readerContext);
+            LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoPointValues fieldValues = ((AbstractLeafGeoPointFieldData)fieldData).getGeoPointValues();
             assertValues(fieldValues, 0);
             assertValues(fieldValues, 1);
             assertValues(fieldValues, 2);
@@ -205,10 +205,10 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
         IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData fieldData = indexFieldData.load(readerContext);
+            LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoPointValues fieldValues = ((AbstractLeafGeoPointFieldData)fieldData).getGeoPointValues();
 
             assertValues(fieldValues, 0);
             assertMissing(fieldValues, 1);

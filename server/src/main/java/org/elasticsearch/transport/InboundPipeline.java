@@ -20,8 +20,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -29,7 +27,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -77,6 +74,7 @@ public class InboundPipeline implements Releasable {
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
+        statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());
 
         final ReleasableBytesReference composite;
@@ -143,15 +141,14 @@ public class InboundPipeline implements Releasable {
             } else if (fragment == InboundDecoder.END_CONTENT) {
                 assert aggregator.isAggregating();
                 try (InboundMessage aggregated = aggregator.finishAggregation()) {
-                    final int bytesReceived = aggregated.getHeader().getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
-                    statsTracker.markBytesReceived(bytesReceived);
+                    statsTracker.markMessageReceived();
                     messageHandler.accept(channel, aggregated);
                 }
             } else if (fragment instanceof Exception) {
                 final Header header;
                 if (aggregator.isAggregating()) {
                     header = aggregator.cancelAggregation();
-                    statsTracker.markBytesReceived(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+                    statsTracker.markMessageReceived();
                 } else {
                     header = null;
                 }

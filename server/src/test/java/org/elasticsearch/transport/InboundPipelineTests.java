@@ -172,8 +172,8 @@ public class InboundPipelineTests extends ESTestCase {
                 }
             }
 
-            assertEquals(bytesReceived, statsTracker.getReadBytes().sum());
-            assertEquals(totalMessages, statsTracker.getReadBytes().count());
+            assertEquals(bytesReceived, statsTracker.getBytesRead());
+            assertEquals(totalMessages, statsTracker.getMessagesReceived());
         }
     }
 

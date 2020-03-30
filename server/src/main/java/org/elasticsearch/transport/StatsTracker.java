@@ -21,24 +21,44 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.metrics.MeanMetric;
 
+import java.util.concurrent.atomic.LongAdder;
+
 public class StatsTracker {
 
-    private final MeanMetric readBytesMetric = new MeanMetric();
+    private final LongAdder bytesRead = new LongAdder();
+    private final LongAdder messagesReceived = new LongAdder();
     private final MeanMetric writeBytesMetric = new MeanMetric();
 
-    public void markBytesReceived(long bytesReceived) {
-        readBytesMetric.inc(bytesReceived);
+    public void markBytesRead(long bytesReceived) {
+        bytesRead.add(bytesReceived);
+    }
+
+    public void markMessageReceived() {
+        messagesReceived.increment();
     }
 
     public void markBytesWritten(long bytesWritten) {
         writeBytesMetric.inc(bytesWritten);
     }
 
-    public MeanMetric getReadBytes() {
-        return readBytesMetric;
+    public long getBytesRead() {
+        return bytesRead.sum();
     }
+
+    public long getMessagesReceived() {
+        return messagesReceived.sum();
+    }
+
 
     public MeanMetric getWriteBytes() {
         return writeBytesMetric;
+    }
+
+    public long getBytesWritten() {
+        return writeBytesMetric.sum();
+    }
+
+    public long getMessagesSent() {
+        return writeBytesMetric.count();
     }
 }

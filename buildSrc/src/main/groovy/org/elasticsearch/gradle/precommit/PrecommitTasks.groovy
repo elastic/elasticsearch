@@ -142,6 +142,19 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis).configureEach {
             dependsOn(buildResources)
+
+            //  use the runtime classpath if we have it, but some qa projects don't have one...
+            if (name.endsWith('Test')) {
+                Configuration runtime = project.configurations.findByName('testRuntimeClasspath')
+                if (runtime != null) {
+                    classpath = runtime.plus(project.configurations.getByName('testCompileClasspath'))
+                }
+            } else {
+                Configuration runtime = project.configurations.findByName('runtimeClasspath')
+                if (runtime != null) {
+                    classpath = runtime.plus(project.configurations.getByName('compileClasspath'))
+                }
+            }
             targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
             if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
                 project.logger.warn(

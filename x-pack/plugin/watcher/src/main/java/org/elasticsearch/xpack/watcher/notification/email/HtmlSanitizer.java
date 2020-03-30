@@ -76,7 +76,7 @@ public class HtmlSanitizer {
         PolicyFactory policy = createCommonPolicy(allow, disallow);
         sanitizer = s -> {
             try {
-                return (String) sanitizeHandle.invoke(policy, s);
+                return (String) sanitizeHandle.invokeExact(policy, s);
             } catch (Throwable e) {
                 throw new RuntimeException("Failed to invoke sanitize method of PolicyFactory", e);
             }

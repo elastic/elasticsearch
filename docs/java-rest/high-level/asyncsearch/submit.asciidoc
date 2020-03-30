@@ -32,8 +32,8 @@ include-tagged::{doc-tests-file}[{api}-request-arguments]
 <1> The minimum time that the request should wait before
 returning a partial result (defaults to 1 second).
 <2> The expiration time of the request (defaults to 5 days).
-<3> Controls whether the results should be stored if request completed
-within the provided `wait_for_completion` time (default: false)
+<3> Controls whether the results should be stored if the request
+completed within the provided `wait_for_completion` time (default: false)
 
 [id="{upid}-{api}-sync"]
 ==== Synchronous Execution

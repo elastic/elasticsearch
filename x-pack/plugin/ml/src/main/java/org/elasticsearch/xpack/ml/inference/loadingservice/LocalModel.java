@@ -71,7 +71,8 @@ public class LocalModel<T extends InferenceConfig> implements Model<T> {
     @Override
     public void infer(Map<String, Object> fields, InferenceConfigUpdate<T> update, ActionListener<InferenceResults> listener) {
         if (update.isSupported(this.inferenceConfig) == false) {
-            listener.onFailure(ExceptionsHelper.badRequestException("Model [{}] has inference config of type [{}] which is not supported by inference request of type [{}]",
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                "Model [{}] has inference config of type [{}] which is not supported by inference request of type [{}]",
                 this.modelId,
                 this.inferenceConfig.getName(),
                 update.getName()));

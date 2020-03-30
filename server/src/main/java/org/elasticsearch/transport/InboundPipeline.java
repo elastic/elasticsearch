@@ -69,49 +69,41 @@ public class InboundPipeline implements Releasable {
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         pending.add(reference.retain());
 
-        try (ReleasableBytesReference composite = getPendingBytes()) {
-            final ArrayList<Object> fragments = fragmentList.get();
-            int bytesConsumed = 0;
-            boolean continueHandling = true;
+        final ArrayList<Object> fragments = fragmentList.get();
+        boolean continueHandling = true;
 
-            while (continueHandling && isClosed == false) {
-                boolean continueDecoding = true;
-                while (continueDecoding) {
-                    final int remaining = composite.length() - bytesConsumed;
-                    if (remaining != 0) {
-                        try (ReleasableBytesReference toDecode = sliceToDecode(bytesConsumed, composite)) {
-                            final int bytesDecoded = decoder.decode(toDecode, fragments::add);
-                            if (bytesDecoded != 0) {
-                                bytesConsumed += bytesDecoded;
-                                if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
-                                    continueDecoding = false;
-                                }
-                            } else {
-                                continueDecoding = false;
-                            }
+        while (continueHandling && isClosed == false) {
+            boolean continueDecoding = true;
+            while (continueDecoding && pending.isEmpty() == false) {
+                int bytesConsumed = 0;
+                try (ReleasableBytesReference toDecode = getPendingBytes()) {
+                    final int bytesDecoded = decoder.decode(toDecode, fragments::add);
+                    if (bytesDecoded != 0) {
+                        bytesConsumed += bytesDecoded;
+                        if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
+                            continueDecoding = false;
                         }
                     } else {
                         continueDecoding = false;
                     }
                 }
-
-                if (fragments.isEmpty()) {
-                    continueHandling = false;
-                } else {
-                    try {
-                        forwardFragments(channel, fragments);
-                    } finally {
-                        for (Object fragment : fragments) {
-                            if (fragment instanceof ReleasableBytesReference) {
-                                ((ReleasableBytesReference) fragment).close();
-                            }
-                        }
-                        fragments.clear();
-                    }
-                }
+                releasePendingBytes(bytesConsumed);
             }
 
-            releasePendingBytes(bytesConsumed);
+            if (fragments.isEmpty()) {
+                continueHandling = false;
+            } else {
+                try {
+                    forwardFragments(channel, fragments);
+                } finally {
+                    for (Object fragment : fragments) {
+                        if (fragment instanceof ReleasableBytesReference) {
+                            ((ReleasableBytesReference) fragment).close();
+                        }
+                    }
+                    fragments.clear();
+                }
+            }
         }
     }
 
@@ -160,15 +152,6 @@ public class InboundPipeline implements Releasable {
             }
             final Releasable releasable = () -> Releasables.closeWhileHandlingException(bytesReferences);
             return new ReleasableBytesReference(new CompositeBytesReference(bytesReferences), releasable);
-        }
-    }
-
-    private ReleasableBytesReference sliceToDecode(int bytesConsumed, ReleasableBytesReference composite) {
-        final int remaining = composite.length() - bytesConsumed;
-        if (bytesConsumed == 0) {
-            return composite.retain();
-        } else {
-            return composite.retainedSlice(bytesConsumed, remaining);
         }
     }
 

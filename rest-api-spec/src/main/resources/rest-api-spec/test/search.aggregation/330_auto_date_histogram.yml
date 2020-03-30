@@ -25,6 +25,9 @@ setup:
 
 ---
 "basic":
+  - skip:
+      version: " - 7.99.99"
+      reason: BWC test failures https://github.com/elastic/elasticsearch/issues/54396 && waiting for backport https://github.com/elastic/elasticsearch/pull/54379
   - do:
       search:
         body:

@@ -28,6 +28,9 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndex
 
 /**
  * Generates a snapshot name for the given index and records it in the index metadata along with the provided snapshot repository.
+ * <p>
+ * The generated snapshot name will be in the format {day-indexName-policyName-randomUUID}
+ * eg.: 2020.03.30-myindex-mypolicy-cmuce-qfvmn_dstqw-ivmjc1etsa
  */
 public class GenerateSnapshotNameStep extends ClusterStateActionStep {
 

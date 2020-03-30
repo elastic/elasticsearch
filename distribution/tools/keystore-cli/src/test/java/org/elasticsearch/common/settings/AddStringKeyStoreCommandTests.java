@@ -256,9 +256,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         final String key = randomAlphaOfLength(4) + '@' + randomAlphaOfLength(4);
         final UserException e = expectThrows(UserException.class, () -> execute(key));
         final String exceptionString = "Setting name [" + key + "] does not match the allowed setting name pattern [[A-Za-z0-9_\\-.]+]";
-        assertThat(
-            e,
-            hasToString(containsString(exceptionString)));
+        assertThat(e, hasToString(containsString(exceptionString)));
     }
 
     public void testAddToUnprotectedKeystore() throws Exception {

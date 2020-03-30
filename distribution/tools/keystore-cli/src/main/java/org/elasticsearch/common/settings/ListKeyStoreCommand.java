@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.settings;
 
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

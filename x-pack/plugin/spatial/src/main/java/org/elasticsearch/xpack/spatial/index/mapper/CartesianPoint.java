@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -27,6 +28,9 @@ import java.util.Locale;
  * Represents a point in the cartesian space.
  */
 public final class CartesianPoint implements ToXContentFragment {
+
+    private static final ParseField X_FIELD = new ParseField("x");
+    private static final ParseField Y_FIELD = new ParseField("y");
 
     private float x;
     private float y;
@@ -58,27 +62,31 @@ public final class CartesianPoint implements ToXContentFragment {
         String[] vals = value.split(",");
         if (vals.length != 2) {
             throw new ElasticsearchParseException("failed to parse [{}], expected 2 coordinates "
-                + "but found: [{}]", vals.length);
+                + "but found: [{}]", vals, vals.length);
         }
         final float x;
         final float y;
         try {
             x = Float.parseFloat(vals[0].trim());
             if (Float.isFinite(x) == false) {
-                throw new ElasticsearchParseException("invalid x value [{}]; " +
-                    "must be between -3.4028234663852886E38 and 3.4028234663852886E38", x);
+                throw new ElasticsearchParseException("invalid [{}] value [{}]; " +
+                    "must be between -3.4028234663852886E38 and 3.4028234663852886E38",
+                    X_FIELD.getPreferredName(),
+                    x);
             }
          } catch (NumberFormatException ex) {
-            throw new ElasticsearchParseException("x must be a number");
+            throw new ElasticsearchParseException("[{}]] must be a number", X_FIELD.getPreferredName());
         }
         try {
             y = Float.parseFloat(vals[1].trim());
             if (Float.isFinite(y) == false) {
-                throw new ElasticsearchParseException("invalid y value [{}]; " +
-                    "must be between -3.4028234663852886E38 and 3.4028234663852886E38", y);
+                throw new ElasticsearchParseException("invalid [{}] value [{}]; " +
+                    "must be between -3.4028234663852886E38 and 3.4028234663852886E38",
+                    Y_FIELD.getPreferredName(),
+                    y);
             }
         } catch (NumberFormatException ex) {
-            throw new ElasticsearchParseException("y must be a number");
+            throw new ElasticsearchParseException("[{}]] must be a number", Y_FIELD.getPreferredName());
         }
         return reset(x, y);
     }
@@ -92,8 +100,8 @@ public final class CartesianPoint implements ToXContentFragment {
             throw new ElasticsearchParseException("Invalid WKT format", e);
         }
         if (geometry.type() != ShapeType.POINT) {
-            throw new ElasticsearchParseException("[geo_point] supports only POINT among WKT primitives, " +
-                "but found " + geometry.type());
+            throw new ElasticsearchParseException("[{}] supports only POINT among WKT primitives, " +
+                "but found {}", PointFieldMapper.CONTENT_TYPE, geometry.type());
         }
         org.elasticsearch.geometry.Point point = (org.elasticsearch.geometry.Point) geometry;
         return reset((float) point.getX(), (float) point.getY());
@@ -138,7 +146,7 @@ public final class CartesianPoint implements ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field("x", x).field("y", y).endObject();
+        return builder.startObject().field(X_FIELD.getPreferredName(), x).field(Y_FIELD.getPreferredName(), y).endObject();
     }
 
     public static CartesianPoint parsePoint(XContentParser parser, CartesianPoint point)
@@ -152,7 +160,7 @@ public final class CartesianPoint implements ToXContentFragment {
                 while (subParser.nextToken() != XContentParser.Token.END_OBJECT) {
                     if (subParser.currentToken() == XContentParser.Token.FIELD_NAME) {
                         String field = subParser.currentName();
-                        if ("x".equals(field)) {
+                        if (field.equals(X_FIELD.getPreferredName())) {
                             subParser.nextToken();
                             switch (subParser.currentToken()) {
                                 case VALUE_NUMBER:
@@ -164,9 +172,10 @@ public final class CartesianPoint implements ToXContentFragment {
                                     }
                                     break;
                                 default:
-                                    throw new ElasticsearchParseException("x must be a number");
+                                    throw new ElasticsearchParseException("[{}] must be a number",
+                                        X_FIELD.getPreferredName());
                             }
-                        } else if ("y".equals(field)) {
+                        } else if (field.equals(Y_FIELD.getPreferredName())) {
                             subParser.nextToken();
                             switch (subParser.currentToken()) {
                                 case VALUE_NUMBER:
@@ -178,10 +187,13 @@ public final class CartesianPoint implements ToXContentFragment {
                                     }
                                     break;
                                 default:
-                                    throw new ElasticsearchParseException("y must be a number");
+                                    throw new ElasticsearchParseException("[{}] must be a number",
+                                        Y_FIELD.getPreferredName());
                             }
                         } else {
-                            throw new ElasticsearchParseException("field must be either [{}] or [{}]", "x", "y");
+                            throw new ElasticsearchParseException("field must be either [{}] or [{}]",
+                                X_FIELD.getPreferredName(),
+                                Y_FIELD.getPreferredName());
                         }
                     } else {
                         throw new ElasticsearchParseException("token [{}] not allowed", subParser.currentToken());
@@ -189,11 +201,13 @@ public final class CartesianPoint implements ToXContentFragment {
                 }
             }
            if (numberFormatException != null) {
-                throw new ElasticsearchParseException("[{}] and [{}] must be valid float values", numberFormatException, "x", "y");
+                throw new ElasticsearchParseException("[{}] and [{}] must be valid float values", numberFormatException,
+                    X_FIELD.getPreferredName(),
+                    Y_FIELD.getPreferredName());
             } else if (Float.isNaN(x)) {
-                throw new ElasticsearchParseException("field [{}] missing", x);
+                throw new ElasticsearchParseException("field [{}] missing", X_FIELD.getPreferredName());
             } else if (Float.isNaN(y)) {
-                throw new ElasticsearchParseException("field [{}] missing", y);
+                throw new ElasticsearchParseException("field [{}] missing", Y_FIELD.getPreferredName());
             } else {
                 return point.reset(x, y);
             }
@@ -209,7 +223,8 @@ public final class CartesianPoint implements ToXContentFragment {
                         } else if (element == 2) {
                             y = subParser.floatValue();
                         } else {
-                            throw new ElasticsearchParseException("[point] field type does not accept > 2 dimensions");
+                            throw new ElasticsearchParseException("[{}}] field type does not accept > 2 dimensions",
+                                PointFieldMapper.CONTENT_TYPE);
                         }
                     } else {
                         throw new ElasticsearchParseException("numeric value expected");

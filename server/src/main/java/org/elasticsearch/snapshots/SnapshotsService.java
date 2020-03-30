@@ -1355,8 +1355,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // However other snapshots are running - cannot continue
                         throw new ConcurrentSnapshotExecutionException(snapshot, "another snapshot is currently running cannot delete");
                     }
+                    // TODO: NOCOMMIT this is super hacky, we need another step during the delete that makes sure
+                    //       we actually always have a consistent repo state id here
+                    //       NOTE: maybe this is fine though ... since any write in between loading RepositoryData and
+                    //       getting here would've set the generation in the metadata
                     final long genInRepo =
-                        Math.max(repositoriesService.repository(snapshot.getRepository()).getMetadata().generation(), repoGen);
+                        Math.max(repositoriesService.repository(snapshot.getRepository()).getMetadata().generation(), repositoryStateId);
                     // add the snapshot deletion to the cluster state
                     SnapshotDeletionsInProgress.Entry entry = new SnapshotDeletionsInProgress.Entry(
                         snapshot,

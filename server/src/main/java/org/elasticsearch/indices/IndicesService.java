@@ -1029,8 +1029,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public enum ShardDeletionCheckResult {
         FOLDER_FOUND_CAN_DELETE, // shard data exists and can be deleted
         STILL_ALLOCATED, // the shard is still allocated / active on this node
-        NO_FOLDER_FOUND, // the shards data locations do not exist
-        NO_LOCAL_STORAGE // node does not have local storage (see DiscoveryNode.nodeRequiresLocalStorage)
+        NO_FOLDER_FOUND // the shards data locations do not exist
     }
 
     /**
@@ -1042,25 +1041,21 @@ public class IndicesService extends AbstractLifecycleComponent
     public ShardDeletionCheckResult canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
         assert shardId.getIndex().equals(indexSettings.getIndex());
         final IndexService indexService = indexService(shardId.getIndex());
-        if (nodeEnv.hasNodeFile()) {
-            final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
-            if (isAllocated) {
-                return ShardDeletionCheckResult.STILL_ALLOCATED; // we are allocated - can't delete the shard
-            } else if (indexSettings.hasCustomDataPath()) {
-                // lets see if it's on a custom path (return false if the shared doesn't exist)
-                // we don't need to delete anything that is not there
-                return Files.exists(nodeEnv.resolveCustomLocation(indexSettings.customDataPath(), shardId)) ?
-                        ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
-                        ShardDeletionCheckResult.NO_FOLDER_FOUND;
-            } else {
-                // lets see if it's path is available (return false if the shared doesn't exist)
-                // we don't need to delete anything that is not there
-                return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)) ?
-                        ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
-                        ShardDeletionCheckResult.NO_FOLDER_FOUND;
-            }
+        final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
+        if (isAllocated) {
+            return ShardDeletionCheckResult.STILL_ALLOCATED; // we are allocated - can't delete the shard
+        } else if (indexSettings.hasCustomDataPath()) {
+            // lets see if it's on a custom path (return false if the shared doesn't exist)
+            // we don't need to delete anything that is not there
+            return Files.exists(nodeEnv.resolveCustomLocation(indexSettings.customDataPath(), shardId)) ?
+                ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
+                ShardDeletionCheckResult.NO_FOLDER_FOUND;
         } else {
-            return ShardDeletionCheckResult.NO_LOCAL_STORAGE;
+            // lets see if it's path is available (return false if the shared doesn't exist)
+            // we don't need to delete anything that is not there
+            return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)) ?
+                ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
+                ShardDeletionCheckResult.NO_FOLDER_FOUND;
         }
     }
 

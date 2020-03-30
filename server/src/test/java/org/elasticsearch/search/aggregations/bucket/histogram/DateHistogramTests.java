@@ -136,6 +136,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
             case DATE_FIELD_NAME:
                 value = millis;
                 break;
+
             case DATE_NANOS_FIELD_NAME:
                 value = DateUtils.toNanoSeconds(millis);
                 break;
@@ -149,7 +150,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
 
     public void testRewriteTimeZone() throws IOException {
         DateFormatter format = DateFormatter.forPattern("strict_date_optional_time");
-        for (String fieldName : new String[] { DATE_NANOS_FIELD_NAME }) {
+        for (String fieldName : new String[] { DATE_FIELD_NAME, DATE_NANOS_FIELD_NAME }) {
             try (Directory dir = newDirectory();
                  IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
 

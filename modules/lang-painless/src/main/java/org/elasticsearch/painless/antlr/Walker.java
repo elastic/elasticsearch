@@ -159,7 +159,6 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
-import org.objectweb.asm.util.Printer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -170,26 +169,21 @@ import java.util.List;
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     public static SClass buildPainlessTree(ScriptClassInfo mainMethod, String sourceName,
-                                            String sourceText, CompilerSettings settings, PainlessLookup painlessLookup,
-                                            Printer debugStream) {
-        return new Walker(mainMethod, sourceName, sourceText, settings, painlessLookup, debugStream).source;
+                                           String sourceText, CompilerSettings settings, PainlessLookup painlessLookup) {
+        return new Walker(mainMethod, sourceName, sourceText, settings, painlessLookup).source;
     }
 
     private final ScriptClassInfo scriptClassInfo;
     private final SClass source;
     private final CompilerSettings settings;
-    private final Printer debugStream;
     private final String sourceName;
-    private final String sourceText;
     private final PainlessLookup painlessLookup;
 
     private Walker(ScriptClassInfo scriptClassInfo, String sourceName, String sourceText,
-                   CompilerSettings settings, PainlessLookup painlessLookup, Printer debugStream) {
+                   CompilerSettings settings, PainlessLookup painlessLookup) {
         this.scriptClassInfo = scriptClassInfo;
-        this.debugStream = debugStream;
         this.settings = settings;
-        this.sourceName = Location.computeSourceName(sourceName);
-        this.sourceText = sourceText;
+        this.sourceName = sourceName;
         this.painlessLookup = painlessLookup;
         this.source = (SClass)visit(buildAntlrTree(sourceText));
     }
@@ -279,7 +273,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
                 location(ctx), statements), true, false, false, true);
         functions.add(execute);
 
-        return new SClass(scriptClassInfo, sourceName, sourceText, debugStream, location(ctx), functions);
+        return new SClass(location(ctx), functions);
     }
 
     @Override

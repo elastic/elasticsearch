@@ -106,9 +106,4 @@ public class EElvis extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(lhs, rhs);
-    }
 }

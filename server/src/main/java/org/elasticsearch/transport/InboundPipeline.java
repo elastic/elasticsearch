@@ -75,11 +75,10 @@ public class InboundPipeline implements Releasable {
         while (continueHandling && isClosed == false) {
             boolean continueDecoding = true;
             while (continueDecoding && pending.isEmpty() == false) {
-                int bytesConsumed = 0;
                 try (ReleasableBytesReference toDecode = getPendingBytes()) {
                     final int bytesDecoded = decoder.decode(toDecode, fragments::add);
                     if (bytesDecoded != 0) {
-                        bytesConsumed += bytesDecoded;
+                        releasePendingBytes(bytesDecoded);
                         if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
                             continueDecoding = false;
                         }
@@ -87,7 +86,6 @@ public class InboundPipeline implements Releasable {
                         continueDecoding = false;
                     }
                 }
-                releasePendingBytes(bytesConsumed);
             }
 
             if (fragments.isEmpty()) {

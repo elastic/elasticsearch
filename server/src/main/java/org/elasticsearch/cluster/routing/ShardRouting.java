@@ -19,9 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -43,8 +40,6 @@ import java.util.List;
  * indexRoutings like id, state, version, etc.
  */
 public final class ShardRouting implements Writeable, ToXContentObject {
-
-    private static final Logger logger = LogManager.getLogger(ShardRouting.class);
 
     /**
      * Used if shard size is not available
@@ -93,9 +88,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             "replica shards always recover from primary";
         assert (currentNodeId == null) == (state == ShardRoutingState.UNASSIGNED)  :
             "unassigned shard must not be assigned to a node " + this;
-        if (expectedShardSize == UNAVAILABLE_EXPECTED_SHARD_SIZE && state != ShardRoutingState.UNASSIGNED) {
-            logger.info(this.toString(), new ElasticsearchException("stack trace"));
-        }
     }
 
     @Nullable

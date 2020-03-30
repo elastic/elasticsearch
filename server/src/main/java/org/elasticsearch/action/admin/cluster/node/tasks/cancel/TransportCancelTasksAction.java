@@ -149,7 +149,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             listener.onResponse(null);
             return;
         }
-        logger.trace("cancelling task {} on child nodes", task.getId());
+        logger.trace("cancelling task {} on child nodes {}", task.getId(), childNodes);
         GroupedActionListener<Void> groupedListener =
             new GroupedActionListener<>(ActionListener.map(listener, r -> null), childNodes.size());
         final BanParentTaskRequest banRequest = BanParentTaskRequest.createSetBanParentTaskRequest(
@@ -175,7 +175,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         final BanParentTaskRequest request =
             BanParentTaskRequest.createRemoveBanParentTaskRequest(new TaskId(clusterService.localNode().getId(), task.getId()));
         for (DiscoveryNode node : childNodes) {
-            logger.debug("Sending remove ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node);
+            logger.trace("Sending remove ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node);
             transportService.sendRequest(node, BAN_PARENT_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }

@@ -134,7 +134,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             mainAction.startChildTask(taskId, req, future);
             TransportException te = expectThrows(TransportException.class, future::actionGet);
             assertThat(te.getCause(), instanceOf(TaskCancelledException.class));
-            assertThat(te.getCause().getMessage(), equalTo("The parent task was cancelled, shouldn't start any children tasks"));
+            assertThat(te.getCause().getMessage(), equalTo("The parent task was cancelled, shouldn't start any child tasks"));
         }
         for (ChildRequest req : outstandingRequests) {
             beforeExecuteLatches.get(req).countDown();

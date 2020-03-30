@@ -417,8 +417,6 @@ public class TaskManager implements ClusterStateApplier {
         if (holder != null) {
             return holder.startBan(onEmptyChildNodes);
         } else {
-            logger.warn("Trying to cancel task without registered cancellable task " + taskId);
-            // We still need to set ban on local node for persistent tasks
             onEmptyChildNodes.run();
             return Collections.emptySet();
         }
@@ -555,7 +553,7 @@ public class TaskManager implements ClusterStateApplier {
 
         synchronized void registerChildNode(DiscoveryNode node) {
             if (banChildren) {
-                throw new TaskCancelledException("The parent task was cancelled, shouldn't start any children tasks");
+                throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
             }
             if (childTasksPerNode == null) {
                 childTasksPerNode = new ObjectIntHashMap<>();
@@ -584,7 +582,6 @@ public class TaskManager implements ClusterStateApplier {
             final Set<DiscoveryNode> pendingChildNodes;
             synchronized (this) {
                 if (banChildren) {
-                    logger.warn("Trying to start ban twice for task " + task.getId());
                     pendingChildNodes = Collections.emptySet();
                 } else {
                     banChildren = true;

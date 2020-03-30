@@ -24,8 +24,8 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.FuncRefNode;
 import org.elasticsearch.painless.ir.FunctionNode;
-import org.elasticsearch.painless.ir.NewArrayFuncRefNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.VariableNode;
@@ -125,13 +125,13 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
 
         classNode.addFunctionNode(functionNode);
 
-        NewArrayFuncRefNode newArrayFuncRefNode = new NewArrayFuncRefNode();
+        FuncRefNode funcRefNode = new FuncRefNode();
 
-        newArrayFuncRefNode.setLocation(location);
-        newArrayFuncRefNode.setExpressionType(output.actual);
-        newArrayFuncRefNode.setFuncRef(ref);
+        funcRefNode.setLocation(location);
+        funcRefNode.setExpressionType(output.actual);
+        funcRefNode.setFuncRef(ref);
 
-        output.expressionNode = newArrayFuncRefNode;
+        output.expressionNode = funcRefNode;
 
         return output;
     }

@@ -63,9 +63,4 @@ public class ENull extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString();
-    }
 }

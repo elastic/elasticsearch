@@ -15,6 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.store.cache.CacheFile;
+import org.elasticsearch.index.store.cache.CacheKey;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,7 +52,7 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     // overridable by tests
-    CacheService(final ByteSizeValue cacheSize, final ByteSizeValue rangeSize) {
+    public CacheService(final ByteSizeValue cacheSize, final ByteSizeValue rangeSize) {
         this.cacheSize = Objects.requireNonNull(cacheSize);
         this.rangeSize = Objects.requireNonNull(rangeSize);
         this.cache = CacheBuilder.<CacheKey, CacheFile>builder()
@@ -86,14 +88,14 @@ public class CacheService extends AbstractLifecycleComponent {
     /**
      * @return the cache size (in bytes)
      */
-    long getCacheSize() {
+    public long getCacheSize() {
         return cacheSize.getBytes();
     }
 
     /**
      * @return the cache range size (in bytes)
      */
-    int getRangeSize() {
+    public int getRangeSize() {
         return Math.toIntExact(rangeSize.getBytes());
     }
 

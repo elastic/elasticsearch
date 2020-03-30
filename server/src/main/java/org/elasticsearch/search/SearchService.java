@@ -63,6 +63,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
@@ -672,6 +673,36 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } finally {
             Releasables.close(engineSearcher, readerContext, decreaseScrollContexts);
         }
+    }
+
+    /**
+     * Opens the reader context for given shardId. The newly opened reader context will be keep
+     * until the {@code keepAlive} elapsed unless it is manually released.
+     */
+    public void openReaderContext(ShardId shardId, TimeValue keepAlive, ActionListener<SearchContextId> listener) {
+        checkKeepAliveLimit(keepAlive.millis());
+        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final IndexShard shard = indexService.getShard(shardId.id());
+        final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
+        shard.awaitShardSearchActive(ignored ->
+            runAsync(shard, () -> {
+                Releasable releasable = null;
+                try {
+                    final Engine.Searcher engineSearcher = shard.acquireSearcher("search");
+                    releasable = engineSearcher;
+                    final ReaderContext readerContext = new ReaderContext(
+                        idGenerator.incrementAndGet(), shard, engineSearcher, keepAlive.millis(), false);
+                    releasable = readerContext;
+                    searchOperationListener.onNewReaderContext(readerContext);
+                    readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(readerContext));
+                    putReaderContext(readerContext);
+                    releasable = null;
+                    return readerContext.id();
+                } finally {
+                    Releasables.close(releasable);
+                }
+            }, listener)
+        );
     }
 
     final SearchContext createContext(ReaderContext reader,

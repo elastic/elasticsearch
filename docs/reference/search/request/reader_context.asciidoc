@@ -1,0 +1,92 @@
+[[reader-context]]
+==== Reader Context
+
+By default, a search request executes against the latest point in time readers of the
+target indices. Sometimes it's preferred to execute multiple search requests using
+the same point in time readers. For example, the combined result of the initial and
+subsequent search_after requests is more consistent if they use the same point in time
+readers.
+
+Point in time readers must be opened in a separate step before being used in subsequent
+search requests. The keep_alive parameter tells Elasticsearch how long it should keep
+the ``reader_context'' alive, e.g. `?keep_alive=5m`.
+
+[source,console]
+--------------------------------------------------
+POST /twitter/_open_reader?keep_alive=1m
+--------------------------------------------------
+// TEST[setup:twitter]
+
+The result from the above request includes a `reader_id`, which should
+be passed to the `id` of the `reader` parameter of a search request.
+
+POST /_search <1>
+{
+    "size": 100,
+    "query": {
+        "match" : {
+            "title" : "elasticsearch"
+        }
+    },
+    "reader": {
+	    "id":  "46ToAwEHdHdpdHRlchZSa1dRZDFELVNLbTZkQVJudUtGMFFnAAAWNVAwS09JWTdTRUdibWE1ZC1id0tjQRRURnhPWjNFQmI3bmVOeVZReS1tRAAAAAAAAAAB", <2>
+	    "keep_alive": "1m"  <3>
+    }
+}
+
+<1> A search request with `reader.id` must not specify `index`, `routing`,
+and `preferences` as these parameters are copied from the `reader.id`.
+<2> The `reader.id` parameter tells Elasticsearch to execute the request using
+the point-in-time readers from this id.
+<3> The `reader.keep_alive` parameter tells Elasticsearch how long it should extend
+the time to live of these readers.
+
+IMPORTANT: The open_reader request and each subsequent search request can return
+different `reader_id`; thus always use the most recently received `reader_id`
+for the next search request.
+
+[[reader-keep-alive]]
+===== Keeping the reader context alive
+The `keep_alive` parameter (passed to a `open_reader` request and search
+request) extends the time to live of open reader contexts. The value
+(e.g. `1m`, see <<time-units>>) does not need to be long enough to
+process all data -- it just needs to be long enough for the next request.
+
+Normally, the background merge process optimizes the index by merging together
+smaller segments to create new, bigger segments. Once the smaller segments are
+no longer needed they are deleted. However, open reader contexts prevents the
+old segments from being deleted since they are still in use.
+
+TIP: Keeping older segments alive means that more disk space and file handles
+are needed. Ensure that you have configured your nodes to have ample free file
+handles. See <<file-descriptors>>.
+
+Additionally, if a segment contains deleted or updated documents then the reader
+context must keep track of whether each document in the segment was live at the
+time of the initial search request. Ensure that your nodes have sufficient heap
+space if you have many open reader contexts on an index that is subject to ongoing
+deletes or updates.
+
+You can check how many reader contexts are open with the
+<<cluster-nodes-stats,nodes stats API>>:
+
+[source,console]
+---------------------------------------
+GET /_nodes/stats/indices/search
+---------------------------------------
+
+===== Clear reader API
+
+Reader contexts are automatically closed when the `reader.keep_alive` has
+been elapsed. However keeping readers open has a cost, as discussed in the
+<<reader-keep-alive,previous section>> so readers should be explicitly
+closed as soon as they are no longer used in search requests.
+
+[source,console]
+---------------------------------------
+DELETE /_search/reader
+{
+    "id" : "46ToAwEHdHdpdHRlchZSa1dRZDFELVNLbTZkQVJudUtGMFFnAAAWNVAwS09JWTdTRUdibWE1ZC1id0tjQRRURnhPWjNFQmI3bmVOeVZReS1tRAAAAAAAAAAB"
+}
+---------------------------------------
+// TEST[catch:missing]

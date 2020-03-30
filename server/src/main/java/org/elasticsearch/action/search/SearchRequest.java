@@ -282,9 +282,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException = source.aggregations().validate(validationException);
             }
         }
-        if (reader() != null && reader().getId() != null) {
+        if (reader() != null) {
             if (indices.length > 0) {
-                validationException = addValidationError("[indices] cannot be used with reader contexts", validationException);
+                validationException = addValidationError("[index] cannot be used with reader contexts", validationException);
+            }
+            if (routing() != null) {
+                validationException = addValidationError("[routing] cannot be used with reader contexts", validationException);
+            }
+            if (preference() != null) {
+                validationException = addValidationError("[preference] cannot be used with reader contexts", validationException);
             }
         }
         return validationException;

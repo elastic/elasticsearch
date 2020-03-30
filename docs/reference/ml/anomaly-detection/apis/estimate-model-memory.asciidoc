@@ -26,7 +26,7 @@ configuration details and cardinality estimates for the fields it references.
 
 `analysis_config`::
 (Required, object) For a list of the properties that you can specify in the
-`analysis_config` component of the body of this API, see <<put-analysisconfig>>.
+`analysis_config` component of the body of this API, see <<put-analysisconfig,`analysis_config`>>.
 
 `max_bucket_cardinality`::
 (Optional, object) Estimates of the highest cardinality in a single bucket

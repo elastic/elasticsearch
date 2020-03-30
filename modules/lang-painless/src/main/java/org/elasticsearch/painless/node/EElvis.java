@@ -46,12 +46,12 @@ public class EElvis extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: result not used from elvis operation [?:]"));
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to elvis operation [?:]"));
         }
 
-        if (input.write) {
-            throw createError(new IllegalArgumentException("cannot assign a value to an elvis operation [?:]"));
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: result not used from elvis operation [?:]"));
         }
 
         Output output = new Output();

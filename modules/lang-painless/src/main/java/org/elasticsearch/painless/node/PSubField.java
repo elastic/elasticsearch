@@ -48,7 +48,7 @@ public class PSubField extends AExpression {
 
          if (input.write && Modifier.isFinal(field.javaField.getModifiers())) {
              throw createError(new IllegalArgumentException(
-                    "cannot assign a value to read-only field [" + field.javaField.getName() + "]"));
+                    "invalid assignment: cannot assign a value to read-only field [" + field.javaField.getName() + "]"));
          }
 
          output.actual = field.typeParameter;

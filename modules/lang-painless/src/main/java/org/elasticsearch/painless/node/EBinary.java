@@ -51,14 +51,14 @@ public class EBinary extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException(
-                "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
-        }
-
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                "cannot assign a value to a(n) " + operation.name + " operation " + "[" + operation.symbol + "]"));
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
         Class<?> promote = null;            // promoted type

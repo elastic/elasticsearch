@@ -42,12 +42,13 @@ public class EDecimal extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: decimal constant [" + value + "] not used"));
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to decimal constant [" + value + "]"));
         }
 
-        if (input.write) {
-            throw createError(new IllegalArgumentException("cannot assign a value to a decimal constant [" + value + "]"));
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: decimal constant [" + value + "] not used"));
         }
 
         Output output = new Output();

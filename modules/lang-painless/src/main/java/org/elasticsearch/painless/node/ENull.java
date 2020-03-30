@@ -37,12 +37,12 @@ public class ENull extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: null constant not used"));
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to null constant"));
         }
 
-        if (input.write) {
-            throw createError(new IllegalArgumentException("cannot assign a value to a null constant"));
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: null constant not used"));
         }
 
         Output output = new Output();

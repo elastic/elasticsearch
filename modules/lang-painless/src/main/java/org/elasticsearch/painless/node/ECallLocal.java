@@ -56,7 +56,7 @@ public class ECallLocal extends AExpression {
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                "cannot assign a value to a function call [" + name + "/" + arguments.size() + "]"));
+                    "invalid assignment: cannot assign a value to function call [" + name + "/" + arguments.size() + "]"));
         }
 
         FunctionTable.LocalFunction localFunction = null;

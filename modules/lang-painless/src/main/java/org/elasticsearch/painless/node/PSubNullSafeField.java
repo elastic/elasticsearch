@@ -42,7 +42,7 @@ public class PSubNullSafeField extends AExpression {
         Output output = new Output();
 
         if (input.write) {
-            throw createError(new IllegalArgumentException("cannot assign a value to a null safe operation [?.]"));
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a null safe operation [?.]"));
         }
 
         Input guardedInput = new Input();

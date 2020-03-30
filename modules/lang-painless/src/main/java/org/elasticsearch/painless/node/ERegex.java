@@ -57,14 +57,14 @@ public class ERegex extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException(
-                "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
-        }
-
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                "cannot assign a value to a regex constant [" + pattern + "] with flags [" + flags + "]"));
+                    "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"));
+        }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
         }
 
         Output output = new Output();

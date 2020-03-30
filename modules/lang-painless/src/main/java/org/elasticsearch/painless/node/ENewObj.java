@@ -54,7 +54,7 @@ public class ENewObj extends AExpression {
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                "cannot assign a value to a new object with constructor [" + type + "/" + arguments.size() + "]"));
+                    "invalid assignment cannot assign a value to new object with constructor [" + type + "/" + arguments.size() + "]"));
         }
 
         Output output = new Output();

@@ -42,12 +42,12 @@ public class EStatic extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: static type [" + type + "] not used"));
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot write a value to a static type [" + type + "]"));
         }
 
         if (input.read == false) {
-            throw createError(new IllegalArgumentException("cannot write a value to a static type [" + type + "]"));
+            throw createError(new IllegalArgumentException("not a statement: static type [" + type + "] not used"));
         }
 
         Output output = new Output();

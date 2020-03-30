@@ -44,12 +44,13 @@ public class ENumeric extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: numeric constant [" + value + "] not used"));
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to numeric constant [" + value + "]"));
         }
 
-        if (input.write) {
-            throw createError(new IllegalArgumentException("cannot assign a value to a numeric constant [" + value + "]"));
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: numeric constant [" + value + "] not used"));
         }
 
         Output output = new Output();

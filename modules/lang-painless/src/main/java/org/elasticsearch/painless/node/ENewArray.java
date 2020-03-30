@@ -49,12 +49,12 @@ public class ENewArray extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: result not used from new array"));
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to new array"));
         }
 
-        if (input.write) {
-            throw createError(new IllegalArgumentException("cannot assign a value to a new array"));
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: result not used from new array"));
         }
 
         Output output = new Output();

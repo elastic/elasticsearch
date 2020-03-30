@@ -50,12 +50,12 @@ public class EListInit extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: result not used from list initializer"));
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to list initializer"));
         }
 
-        if (input.write) {
-            throw createError(new IllegalArgumentException("cannot assign a value to a list initializer"));
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: result not used from list initializer"));
         }
 
         Output output = new Output();

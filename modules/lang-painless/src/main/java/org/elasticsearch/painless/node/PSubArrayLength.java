@@ -48,7 +48,8 @@ public class PSubArrayLength extends AExpression {
 
         if ("length".equals(value)) {
             if (input.write) {
-                throw createError(new IllegalArgumentException("cannot assign a value write to read-only field [length] for an array."));
+                throw createError(new IllegalArgumentException(
+                        "invalid assignment: cannot assign a value write to read-only field [length] for an array."));
             }
 
             output.actual = int.class;

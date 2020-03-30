@@ -594,12 +594,12 @@ Maximum number of folds for the cross-validation procedure.
 Determines the maximum number of splits for every feature that can occur in a 
 decision tree when the tree is trained.
 
-`regularization_soft_tree_depth_limit`::::
+`soft_tree_depth_limit`::::
 (double)
 Tree depth limit is used for calculating the tree depth penalty. This is a soft 
 limit, it can be exceeded.
 
-`regularization_soft_tree_depth_tolerance`::::
+`soft_tree_depth_tolerance`::::
 (double)
 Tree depth tolerance is used for calculating the tree depth penalty. This is a 
 soft limit, it can be exceeded.
@@ -795,12 +795,12 @@ Maximum number of folds for the cross-validation procedure.
 Determines the maximum number of splits for every feature that can occur in a 
 decision tree when the tree is trained.
 
-`regularization_soft_tree_depth_limit`::::
+`soft_tree_depth_limit`::::
 (double)
 Tree depth limit is used for calculating the tree depth penalty. This is a soft 
 limit, it can be exceeded.
 
-`regularization_soft_tree_depth_tolerance`::::
+`soft_tree_depth_tolerance`::::
 (double)
 Tree depth tolerance is used for calculating the tree depth penalty. This is a 
 soft limit, it can be exceeded.

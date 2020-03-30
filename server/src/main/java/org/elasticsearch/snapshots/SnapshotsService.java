@@ -829,7 +829,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         changed = true;
                         // A snapshot in INIT state hasn't yet written anything to the repository so we simply remove it
                         // from the cluster state  without any further cleanup
-                        continue;
                     }
                     assert updatedSnapshot.shards().size() == snapshot.shards().size()
                         : "Shard count changed during snapshot status update from [" + snapshot + "] to [" + updatedSnapshot + "]";

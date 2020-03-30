@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -31,9 +32,9 @@ public class SamlMetadataRequest extends ActionRequest {
         out.writeOptionalString(assertionConsumerService);
     }
 
-    public SamlMetadataRequest(String spEntityId, String acs) {
+    public SamlMetadataRequest(String spEntityId, @Nullable String acs) {
         this.spEntityId = Objects.requireNonNull(spEntityId, "Service Provider entity id must be provided");
-        this.assertionConsumerService = acs; // may be null
+        this.assertionConsumerService = acs;
     }
 
     public SamlMetadataRequest() {

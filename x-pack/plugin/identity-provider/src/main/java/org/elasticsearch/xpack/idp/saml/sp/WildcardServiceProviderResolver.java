@@ -154,7 +154,7 @@ public class WildcardServiceProviderResolver {
 
             case 1:
                 final SamlServiceProvider serviceProvider = Iterables.get(matches.values(), 0);
-                logger.debug("Found exactly 1 wildcard service for [{}] [{}] - [{}]", entityId, acs, serviceProvider);
+                logger.trace("Found exactly 1 wildcard service for [{}] [{}] - [{}]", entityId, acs, serviceProvider);
                 currentState.cache.put(cacheKey, serviceProvider);
                 return serviceProvider;
 

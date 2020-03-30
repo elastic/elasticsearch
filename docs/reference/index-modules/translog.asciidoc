@@ -80,9 +80,7 @@ update, or bulk request. This setting accepts the following parameters:
 [[index-modules-translog-retention]]
 ==== Translog retention
 
-deprecated::[7.4.0, translog retention settings are deprecated in favor of
-<<index-modules-history-retention,soft deletes>>. These settings are
-effectively ignored since 7.4 and will be removed in a future version].
+deprecated::[7.4.0, "Translog retention settings are deprecated in favor of <<index-modules-history-retention,soft deletes>>. These settings are effectively ignored since 7.4 and will be removed in a future version."]
 
 If an index is not using <<index-modules-history-retention,soft deletes>> to
 retain historical operations then {es} recovers each replica shard by replaying

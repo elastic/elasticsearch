@@ -42,6 +42,7 @@ might result in poor mappings. As a work-around, create the destination index
 or an index template with your preferred mappings before you start the
 {transform}.
 
+[role="child_attributes"]
 [[preview-transform-request-body]]
 ==== {api-request-body-title}
 
@@ -49,83 +50,127 @@ or an index template with your preferred mappings before you start the
 `description`::
 (Optional, string) Free text description of the {transform}.
 
+//Begin dest
 `dest`::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
-  
-`dest`.`index`:::
++
+.Properties of `dest`
+[%collapsible%open]
+====
+`index`:::
 (Optional, string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
-`dest`.`pipeline`:::
+`pipeline`:::
 (Optional, string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+====
+//End dest
 
 `frequency`::
 (Optional, <<time-units, time units>>)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=frequency]
 
+//Begin pivot
 `pivot`::
 (Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot]
++
+.Properties of `pivot`
+[%collapsible%open]
+====
 
-`pivot`.`aggregations` or `aggs`:::
+`aggregations` or `aggs`:::
 (Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
 
-`pivot`.`group_by`:::
+`group_by`:::
 (Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
 
-`pivot`.`max_page_search_size`:::
+`max_page_search_size`:::
 (Optional, integer)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-max-page-search-size]
+====
+//End pivot
 
+//Begin source
 `source`::
 (Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
++
+.Properties of `source`
+[%collapsible%open]
+====
 
-`source`.`index`:::
+`index`:::
 (Required, string or array)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
 
-`source`.`query`:::
+`query`:::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+====
+//End source
 
+//Begin sync
 `sync`::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
-  
-`sync`.`time`:::
++
+.Properties of `sync`
+[%collapsible%open]
+====
+//Begin sync.time
+
+`time`:::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
++
+.Properties of `analysis_config`
+[%collapsible%open]
+=====
 
-`sync`.`time`.`delay`::::
+`delay`::::
 (Optional, <<time-units, time units>>)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
     
-`sync`.`time`.`field`::::
+`field`::::
 (Optional, string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
+=====
+//End sync.time
+====
+//End sync
 
-
+[role="child_attributes"]
 [[preview-transform-response]]
 ==== {api-response-body-title}
 
 `preview`::
-  (array) An array of documents. In particular, they are the JSON
-  representation of the documents that would be created in the destination index
-  by the {transform}.
-  
+(array) An array of documents. In particular, they are the JSON representation 
+of the documents that would be created in the destination index by the 
+{transform}.
+
+//Begin generated_dest_index  
 `generated_dest_index`::
-  (object) Contains details about the destination index.
-    `mappings`:::
-    (object) The <<mapping,mappings>> for each document in the destination index. 
-    `settings`:::
-    (object) The <<index-modules-settings,index settings>> for the destination
-    index.
-    `aliases`::: The aliases for the destination index.
+(object) Contains details about the destination index.
++
+.Properties of `generated_dest_index`
+[%collapsible%open]
+====
+
+`aliases`:::
+(object) The aliases for the destination index.
+
+`mappings`:::
+(object) The <<mapping,mappings>> for each document in the destination index. 
+
+`settings`:::
+(object) The <<index-modules-settings,index settings>> for the destination index.
+====
+//End generated_dest_index
 
 ==== {api-examples-title}
 

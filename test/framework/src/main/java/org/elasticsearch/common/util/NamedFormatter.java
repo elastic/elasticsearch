@@ -59,7 +59,7 @@ public class NamedFormatter {
             }
 
             final String paramName = match.group(3);
-            if (values.containsKey(paramName) == true) {
+            if (values.containsKey(paramName)) {
                 return values.get(paramName).toString();
             }
 

@@ -261,7 +261,7 @@ GET _tasks?group_by=none
 The `X-Opaque-Id` header, when provided on the HTTP request header, is going to 
 be returned as a header in the response as well as in the `headers` field for in 
 the task information. This allows to track certain calls, or associate certain 
-tasks with a the client that started them:
+tasks with the client that started them:
 
 [source,sh]
 --------------------------------------------------

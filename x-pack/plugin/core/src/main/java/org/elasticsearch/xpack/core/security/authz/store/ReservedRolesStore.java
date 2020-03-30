@@ -12,6 +12,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -113,7 +114,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME,
                         new String[] {
                             "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml", "manage_token", "manage_oidc",
-                            GetBuiltinPrivilegesAction.NAME, "delegate_pki", GetLifecycleAction.NAME,  PutLifecycleAction.NAME
+                            InvalidateApiKeyAction.NAME, "grant_api_key",
+                            GetBuiltinPrivilegesAction.NAME, "delegate_pki", GetLifecycleAction.NAME,  PutLifecycleAction.NAME,
+                            // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
+                            "cluster:admin/analyze"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
@@ -122,9 +126,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                         .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".management-beats").privileges("create_index", "read", "write").build(),
-                                // .apm-* is for APM's agent configuration index creation
+                                // APM agent configuration
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".apm-agent-configuration").privileges("all").build(),
+                                // APM custom link index creation
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices(".apm-custom-link").privileges("all").build(),
+                                // APM telemetry queries APM indices in kibana task runner
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("apm-*")
+                                    .privileges("read", "read_cross_cluster").build(),
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },
@@ -173,7 +184,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("machine_learning_admin", new RoleDescriptor("machine_learning_admin", new String[] { "manage_ml" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".ml-anomalies*", ".ml-notifications*", ".ml-state*", ".ml-meta*")
+                                        .indices(".ml-anomalies*", ".ml-notifications*", ".ml-state*", ".ml-meta*", ".ml-stats-*")
                                         .privileges("view_index_metadata", "read").build(),
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
                                         .privileges("view_index_metadata", "read", "write").build()
@@ -275,7 +286,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     }
 
     public static boolean isReserved(String role) {
-        return RESERVED_ROLES.containsKey(role) || UsernamesField.SYSTEM_ROLE.equals(role) || UsernamesField.XPACK_ROLE.equals(role);
+        return RESERVED_ROLES.containsKey(role) || UsernamesField.SYSTEM_ROLE.equals(role) ||
+                UsernamesField.XPACK_ROLE.equals(role) || UsernamesField.ASYNC_SEARCH_ROLE.equals(role);
     }
 
     public Map<String, Object> usageStats() {

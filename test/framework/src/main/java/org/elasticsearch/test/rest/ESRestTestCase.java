@@ -22,6 +22,7 @@ package org.elasticsearch.test.rest;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
@@ -99,6 +100,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
@@ -547,9 +549,29 @@ public abstract class ESRestTestCase extends ESTestCase {
                         adminClient().performRequest(new Request("DELETE", "_template/" + template));
                     }
                 }
+                try {
+                    adminClient().performRequest(new Request("DELETE", "_index_template/*"));
+                    adminClient().performRequest(new Request("DELETE", "_component_template/*"));
+                } catch (ResponseException e) {
+                    if (e.getResponse().getStatusLine().getStatusCode() == 405) {
+                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                    } else {
+                        throw e;
+                    }
+                }
             } else {
                 logger.debug("Clearing all templates");
                 adminClient().performRequest(new Request("DELETE", "_template/*"));
+                try {
+                    adminClient().performRequest(new Request("DELETE", "_index_template/*"));
+                    adminClient().performRequest(new Request("DELETE", "_component_template/*"));
+                } catch (ResponseException e) {
+                    if (e.getResponse().getStatusLine().getStatusCode() == 405) {
+                        // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                    } else {
+                        throw e;
+                    }
+                }
             }
         }
 
@@ -570,8 +592,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices() throws IOException {
+        boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
-            final Response response = adminClient().performRequest(new Request("DELETE", "*"));
+            final Request deleteRequest = new Request("DELETE", "*");
+            deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
             }
@@ -701,6 +726,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             logger.debug("deleting rollup job [{}]", jobId);
             adminClient().performRequest(request);
         }
+    }
+
+    protected void refreshAllIndices() throws IOException {
+        boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
+        Request refreshRequest = new Request("POST", "/_refresh");
+        refreshRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+        client().performRequest(refreshRequest);
     }
 
     private void waitForPendingRollupTasks() throws Exception {
@@ -947,14 +979,18 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
+        ensureHealth(client(), index, requestConsumer);
+    }
+
+    protected static void ensureHealth(RestClient client, String index, Consumer<Request> requestConsumer) throws IOException {
         Request request = new Request("GET", "/_cluster/health" + (index.isBlank() ? "" : "/" + index));
         requestConsumer.accept(request);
         try {
-            client().performRequest(request);
+            client.performRequest(request);
         } catch (ResponseException e) {
             if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
                 try {
-                    final Response clusterStateResponse = client().performRequest(new Request("GET", "/_cluster/state?pretty"));
+                    final Response clusterStateResponse = client.performRequest(new Request("GET", "/_cluster/state?pretty"));
                     fail("timed out waiting for green state for index [" + index + "] " +
                         "cluster state [" + EntityUtils.toString(clusterStateResponse.getEntity()) + "]");
                 } catch (Exception inner) {
@@ -1112,6 +1148,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         case ".logstash-management":
         case "security_audit_log":
         case ".slm-history":
+        case ".async-search":
             return true;
         default:
             return false;
@@ -1211,7 +1248,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         final Request request = new Request("GET", "_nodes");
         request.addParameter("filter_path", "nodes.*.version");
 
-        final Response response = client().performRequest(request);
+        final Response response = adminClient().performRequest(request);
         final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
 
         Version minVersion = null;
@@ -1281,5 +1318,36 @@ public abstract class ESRestTestCase extends ESTestCase {
                     assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
                 });
         }, 60, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Wait for the license to be applied and active. The specified admin client is used to check the license and this is done using
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} to give some time to the License to be applied on nodes.
+     *
+     * @param restClient the client to use
+     * @throws Exception if an exception is thrown while checking the status of the license
+     */
+    protected static void waitForActiveLicense(final RestClient restClient) throws Exception {
+        assertBusy(() -> {
+            final Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder());
+
+            final Response response = restClient.performRequest(request);
+            assertOK(response);
+
+            try (InputStream is = response.getEntity().getContent()) {
+                XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+                final Map<String, ?> map = XContentHelper.convertToMap(xContentType.xContent(), is, true);
+                assertThat(map, notNullValue());
+                assertThat("License must exist", map.containsKey("license"), equalTo(true));
+                @SuppressWarnings("unchecked")
+                final Map<String, ?> license = (Map<String, ?>) map.get("license");
+                assertThat("Expecting non-null license", license, notNullValue());
+                assertThat("License status must exist", license.containsKey("status"), equalTo(true));
+                final String status = (String) license.get("status");
+                assertThat("Expecting non-null license status", status, notNullValue());
+                assertThat("Expecting active license", status, equalTo("active"));
+            }
+        });
     }
 }

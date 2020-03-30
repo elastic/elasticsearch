@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -56,10 +55,10 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeAction<Dele
     @Override
     protected void masterOperation(Task task, final DeleteLicenseRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) throws ElasticsearchException {
-        licenseService.removeLicense(request, new ActionListener<ClusterStateUpdateResponse>() {
+        licenseService.removeLicense(request, new ActionListener<PostStartBasicResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                listener.onResponse(new AcknowledgedResponse(clusterStateUpdateResponse.isAcknowledged()));
+            public void onResponse(PostStartBasicResponse postStartBasicResponse) {
+                listener.onResponse(new AcknowledgedResponse(postStartBasicResponse.isAcknowledged()));
             }
 
             @Override

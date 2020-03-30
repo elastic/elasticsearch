@@ -55,11 +55,11 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         client().admin().indices().preparePutMapping("test")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
-        assertThat(mapperService.fullName("s"), notNullValue());
-        assertEquals(IndexOptions.NONE, mapperService.fullName("s").indexOptions());
+        assertThat(mapperService.fieldType("s"), notNullValue());
+        assertEquals(IndexOptions.NONE, mapperService.fieldType("s").indexOptions());
 
-        assertThat(mapperService.fullName("l"), notNullValue());
-        assertNotSame(IndexOptions.NONE, mapperService.fullName("l").indexOptions());
+        assertThat(mapperService.fieldType("l"), notNullValue());
+        assertNotSame(IndexOptions.NONE, mapperService.fieldType("l").indexOptions());
     }
 
     public void testSimple() throws Exception {

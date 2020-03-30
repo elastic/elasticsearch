@@ -292,7 +292,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         if (shardSize != null) {
             suggestionContext.setShardSize(shardSize);
         }
-        MappedFieldType mappedFieldType = mapperService.fullName(suggestionContext.getField());
+        MappedFieldType mappedFieldType = mapperService.fieldType(suggestionContext.getField());
         if (mappedFieldType == null || mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
             throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }

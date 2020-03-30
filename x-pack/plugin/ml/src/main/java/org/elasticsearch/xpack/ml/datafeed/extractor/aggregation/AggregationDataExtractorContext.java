@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 
@@ -25,10 +26,11 @@ class AggregationDataExtractorContext {
     final long end;
     final boolean includeDocCount;
     final Map<String, String> headers;
+    final IndicesOptions indicesOptions;
 
     AggregationDataExtractorContext(String jobId, String timeField, Set<String> fields, List<String> indices, QueryBuilder query,
                                     AggregatorFactories.Builder aggs, long start, long end, boolean includeDocCount,
-                                    Map<String, String> headers) {
+                                    Map<String, String> headers, IndicesOptions indicesOptions) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);
@@ -39,5 +41,6 @@ class AggregationDataExtractorContext {
         this.end = end;
         this.includeDocCount = includeDocCount;
         this.headers = headers;
+        this.indicesOptions = Objects.requireNonNull(indicesOptions);
     }
 }

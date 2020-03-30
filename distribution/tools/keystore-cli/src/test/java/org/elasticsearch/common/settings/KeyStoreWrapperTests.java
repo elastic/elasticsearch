@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -114,7 +115,17 @@ public class KeyStoreWrapperTests extends ESTestCase {
             SecurityException.class,
             () -> loadedkeystore.decrypt(new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' })
         );
-        assertThat(exception.getMessage(), containsString("Provided keystore password was incorrect"));
+        if (inFipsJvm()) {
+            assertThat(
+                exception.getMessage(),
+                anyOf(
+                    containsString("Provided keystore password was incorrect"),
+                    containsString("Keystore has been corrupted or tampered with")
+                )
+            );
+        } else {
+            assertThat(exception.getMessage(), containsString("Provided keystore password was incorrect"));
+        }
     }
 
     public void testCannotReadStringFromClosedKeystore() throws Exception {

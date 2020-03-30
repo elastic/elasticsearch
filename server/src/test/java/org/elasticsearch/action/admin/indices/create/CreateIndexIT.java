@@ -52,7 +52,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -303,7 +303,7 @@ public class CreateIndexIT extends ESIntegTestCase {
             .addAlias(new Alias("alias1").writeIndex(true))
             .get());
 
-        assertThrows(client().admin().indices().prepareCreate("test-idx-2")
+        assertRequestBuilderThrows(client().admin().indices().prepareCreate("test-idx-2")
                 .setSettings(settings)
                 .addAlias(new Alias("alias1").writeIndex(true)),
             IllegalStateException.class);

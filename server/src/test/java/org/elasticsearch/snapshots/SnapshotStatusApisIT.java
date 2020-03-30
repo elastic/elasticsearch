@@ -42,7 +42,9 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
@@ -170,5 +172,27 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         expectThrows(SnapshotMissingException.class, () -> client().admin().cluster()
             .prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet());
+    }
+
+    public void testGetSnapshotsWithoutIndices() {
+        logger.info("--> creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(
+            Settings.builder().put("location", randomRepoPath()).build()));
+
+        logger.info("--> snapshot");
+        final SnapshotInfo snapshotInfo =
+            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+                .setIndices().setWaitForCompletion(true).get().getSnapshotInfo();
+
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.totalShards(), is(0));
+
+        logger.info("--> verify that snapshot without index shows up in non-verbose listing");
+        final List<SnapshotInfo> snapshotInfos =
+            client().admin().cluster().prepareGetSnapshots("test-repo").setVerbose(false).get().getSnapshots("test-repo");
+        assertThat(snapshotInfos, hasSize(1));
+        final SnapshotInfo found = snapshotInfos.get(0);
+        assertThat(found.snapshotId(), is(snapshotInfo.snapshotId()));
+        assertThat(found.state(), is(SnapshotState.SUCCESS));
     }
 }

@@ -3,9 +3,9 @@
 === PKI user authentication
 
 You can configure {es} to use Public Key Infrastructure (PKI) certificates to
-authenticate users. This requires clients connecting directly to {es} to
-present X.509 certificates. The certificates must first be accepted for
-authentication on the SSL/TLS layer on {es}. Only then they are optionally
+authenticate users. In this scenario, clients connecting directly to {es} must
+present X.509 certificates. First, the certificates must be accepted for
+authentication on the SSL/TLS layer on {es}. Then they are optionally
 further validated by a PKI realm. See <<pki-realm-for-direct-clients>>.
 
 You can also use PKI certificates to authenticate to {kib}, however this

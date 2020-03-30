@@ -1,7 +1,7 @@
 {
   "ml.flush_job":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-flush-job.html"
     },
     "stability":"stable",
     "url":{

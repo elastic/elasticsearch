@@ -64,9 +64,6 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
                                                 final LeafBucketCollector sub) throws IOException {
         final SortedNumericDocValues values = getValues(valuesSource, ctx);
-        if (subCollectors == null) {
-            subCollectors = sub;
-        }
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override
@@ -78,7 +75,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                         final long val = values.nextValue();
                         if (previous != val || i == 0) {
                             if ((includeExclude == null) || (includeExclude.accept(val))) {
-                                doCollect(val, docId);
+                                doCollect(sub, val, docId);
                             }
                             previous = val;
                         }
@@ -153,7 +150,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
         }
 
-        CollectionUtil.introSort(buckets, ORDER.comparator(this));
+        CollectionUtil.introSort(buckets, ORDER.comparator());
         return new LongRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, buckets, maxDocCount, filter);
     }
 

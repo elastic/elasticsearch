@@ -123,7 +123,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             Platform.LINUX,
             null,
             null,
-            "platform not allowed for elasticsearch distribution [testdistro]"
+            "platform cannot be set on elasticsearch distribution [testdistro]"
         );
     }
 
@@ -175,7 +175,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             null,
             null,
             true,
-            "bundledJdk not allowed for elasticsearch distribution [testdistro]"
+            "bundledJdk cannot be set on elasticsearch distribution [testdistro]"
         );
     }
 

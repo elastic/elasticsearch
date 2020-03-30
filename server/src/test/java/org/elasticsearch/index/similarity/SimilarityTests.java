@@ -79,9 +79,9 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .put("index.similarity.my_similarity.discount_overlaps", false)
             .build();
         MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
-        assertThat(mapperService.fullName("field1").similarity().get(), instanceOf(LegacyBM25Similarity.class));
+        assertThat(mapperService.fieldType("field1").similarity().get(), instanceOf(LegacyBM25Similarity.class));
 
-        LegacyBM25Similarity similarity = (LegacyBM25Similarity) mapperService.fullName("field1").similarity().get();
+        LegacyBM25Similarity similarity = (LegacyBM25Similarity) mapperService.fieldType("field1").similarity().get();
         assertThat(similarity.getK1(), equalTo(2.0f));
         assertThat(similarity.getB(), equalTo(0.5f));
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));
@@ -95,7 +95,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject().endObject();
 
         MapperService mapperService = createIndex("foo", Settings.EMPTY, mapping).mapperService();
-        assertThat(mapperService.fullName("field1").similarity().get(), instanceOf(BooleanSimilarity.class));
+        assertThat(mapperService.fieldType("field1").similarity().get(), instanceOf(BooleanSimilarity.class));
     }
 
     public void testResolveSimilaritiesFromMapping_DFR() throws IOException {
@@ -113,9 +113,9 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .put("index.similarity.my_similarity.normalization.h2.c", 3f)
             .build();
         MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
-        assertThat(mapperService.fullName("field1").similarity().get(), instanceOf(DFRSimilarity.class));
+        assertThat(mapperService.fieldType("field1").similarity().get(), instanceOf(DFRSimilarity.class));
 
-        DFRSimilarity similarity = (DFRSimilarity) mapperService.fullName("field1").similarity().get();
+        DFRSimilarity similarity = (DFRSimilarity) mapperService.fieldType("field1").similarity().get();
         assertThat(similarity.getBasicModel(), instanceOf(BasicModelG.class));
         assertThat(similarity.getAfterEffect(), instanceOf(AfterEffectL.class));
         assertThat(similarity.getNormalization(), instanceOf(NormalizationH2.class));
@@ -137,9 +137,9 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .put("index.similarity.my_similarity.normalization.h2.c", 3f)
             .build();
         MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
-        assertThat(mapperService.fullName("field1").similarity().get(), instanceOf(IBSimilarity.class));
+        assertThat(mapperService.fieldType("field1").similarity().get(), instanceOf(IBSimilarity.class));
 
-        IBSimilarity similarity = (IBSimilarity) mapperService.fullName("field1").similarity().get();
+        IBSimilarity similarity = (IBSimilarity) mapperService.fieldType("field1").similarity().get();
         assertThat(similarity.getDistribution(), instanceOf(DistributionSPL.class));
         assertThat(similarity.getLambda(), instanceOf(LambdaTTF.class));
         assertThat(similarity.getNormalization(), instanceOf(NormalizationH2.class));
@@ -158,7 +158,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .put("index.similarity.my_similarity.independence_measure", "chisquared")
             .build();
         MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
-        MappedFieldType fieldType = mapperService.fullName("field1");
+        MappedFieldType fieldType = mapperService.fieldType("field1");
 
         assertThat(fieldType.similarity().get(), instanceOf(DFISimilarity.class));
         DFISimilarity similarity = (DFISimilarity) fieldType.similarity().get();
@@ -178,9 +178,9 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .build();
 
         MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
-        assertThat(mapperService.fullName("field1").similarity().get(), instanceOf(LMDirichletSimilarity.class));
+        assertThat(mapperService.fieldType("field1").similarity().get(), instanceOf(LMDirichletSimilarity.class));
 
-        LMDirichletSimilarity similarity = (LMDirichletSimilarity) mapperService.fullName("field1").similarity().get();
+        LMDirichletSimilarity similarity = (LMDirichletSimilarity) mapperService.fieldType("field1").similarity().get();
         assertThat(similarity.getMu(), equalTo(3000f));
     }
 
@@ -196,9 +196,9 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .put("index.similarity.my_similarity.lambda", 0.7f)
             .build();
         MapperService mapperService = createIndex("foo", indexSettings, mapping).mapperService();
-        assertThat(mapperService.fullName("field1").similarity().get(), instanceOf(LMJelinekMercerSimilarity.class));
+        assertThat(mapperService.fieldType("field1").similarity().get(), instanceOf(LMJelinekMercerSimilarity.class));
 
-        LMJelinekMercerSimilarity similarity = (LMJelinekMercerSimilarity) mapperService.fullName("field1").similarity().get();
+        LMJelinekMercerSimilarity similarity = (LMJelinekMercerSimilarity) mapperService.fieldType("field1").similarity().get();
         assertThat(similarity.getLambda(), equalTo(0.7f));
     }
 

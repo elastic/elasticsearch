@@ -22,6 +22,7 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -45,17 +46,7 @@ public final class TranslogDeletionPolicy {
      * translog generation
      */
     private final Map<Long, Counter> translogRefCounts = new HashMap<>();
-
-    /**
-     * the translog generation that is requires to properly recover from the oldest non deleted
-     * {@link org.apache.lucene.index.IndexCommit}.
-     */
-    private long minTranslogGenerationForRecovery = 1;
-
-    /**
-     * This translog generation is used to calculate the number of uncommitted operations since the last index commit.
-     */
-    private long translogGenerationOfLastCommit = 1;
+    private long localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
 
 
     public TranslogDeletionPolicy() {
@@ -66,23 +57,12 @@ public final class TranslogDeletionPolicy {
         }
     }
 
-    public synchronized void setMinTranslogGenerationForRecovery(long newGen) {
-        if (newGen < minTranslogGenerationForRecovery || newGen > translogGenerationOfLastCommit) {
-            throw new IllegalArgumentException("Invalid minTranslogGenerationForRecovery can't go backwards; new [" + newGen + "]," +
-                "current [" + minTranslogGenerationForRecovery + "], lastGen [" + translogGenerationOfLastCommit + "]");
+    public synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
+        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
+            throw new IllegalArgumentException("local checkpoint of the safe commit can't go backwards: " +
+                "current [" + this.localCheckpointOfSafeCommit + "] new [" + newCheckpoint + "]");
         }
-        minTranslogGenerationForRecovery = newGen;
-    }
-
-    /**
-     * Sets the translog generation of the last index commit.
-     */
-    public synchronized void setTranslogGenerationOfLastCommit(long lastGen) {
-        if (lastGen < translogGenerationOfLastCommit || lastGen < minTranslogGenerationForRecovery) {
-            throw new IllegalArgumentException("Invalid translogGenerationOfLastCommit; new [" + lastGen + "]," +
-                "current [" + translogGenerationOfLastCommit + "], minRequiredGen [" + minTranslogGenerationForRecovery + "]");
-        }
-        translogGenerationOfLastCommit = lastGen;
+        this.localCheckpointOfSafeCommit = newCheckpoint;
     }
 
     /**
@@ -132,28 +112,19 @@ public final class TranslogDeletionPolicy {
     }
 
     /**
-     * returns the minimum translog generation that is still required by the system. Any generation below
-     * the returned value may be safely deleted
+     * Returns the minimum translog generation that is still required by the locks (via {@link #acquireTranslogGen(long)}.
      */
-    synchronized long minTranslogGenRequired() {
-        return Math.min(getMinTranslogGenRequiredByLocks(), minTranslogGenerationForRecovery);
-    }
-
-    private long getMinTranslogGenRequiredByLocks() {
+    synchronized long getMinTranslogGenRequiredByLocks() {
         return translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
     }
 
-    /** returns the translog generation that will be used as a basis of a future store/peer recovery */
-    public synchronized long getMinTranslogGenerationForRecovery() {
-        return minTranslogGenerationForRecovery;
+    /**
+     * Returns the local checkpoint of the safe commit. This value is used to calculate the min required generation for recovery.
+     */
+    public synchronized long getLocalCheckpointOfSafeCommit() {
+        return localCheckpointOfSafeCommit;
     }
 
-    /**
-     * Returns a translog generation that will be used to calculate the number of uncommitted operations since the last index commit.
-     */
-    public synchronized long getTranslogGenerationOfLastCommit() {
-        return translogGenerationOfLastCommit;
-    }
 
     synchronized long getTranslogRefCount(long gen) {
         final Counter counter = translogRefCounts.get(gen);

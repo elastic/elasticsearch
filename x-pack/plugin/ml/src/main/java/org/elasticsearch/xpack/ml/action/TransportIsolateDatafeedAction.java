@@ -11,7 +11,6 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -43,9 +42,6 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
             listener.onResponse(new IsolateDatafeedAction.Response(false));
             return;
         }
-
-        String executorNode = datafeedTask.getExecutorNode();
-        DiscoveryNodes nodes = state.nodes();
 
         request.setNodes(datafeedTask.getExecutorNode());
         super.doExecute(task, request, listener);

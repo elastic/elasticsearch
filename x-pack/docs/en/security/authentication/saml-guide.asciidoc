@@ -879,7 +879,7 @@ an {es} access token and a refresh token. The access token is used as credential
 for subsequent calls to {es}. The refresh token enables the user to get new {es}
 access tokens after the current one expires.
 
-[[saml-no-kibana-realm]]]
+[[saml-no-kibana-realm]]
 ==== SAML realm
 
 You must create a SAML realm and configure it accordingly

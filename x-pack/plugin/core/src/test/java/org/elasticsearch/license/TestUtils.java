@@ -282,6 +282,11 @@ public class TestUtils {
             builder.subscriptionType((type != null) ? type : randomFrom("dev", "gold", "platinum", "silver"));
             builder.feature(randomAlphaOfLength(10));
         }
+        if ("enterprise".equals(licenseType)) {
+            builder.version(License.VERSION_ENTERPRISE)
+                .maxResourceUnits(randomIntBetween(5, 500))
+                .maxNodes(-1);
+        }
         final LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         return signer.sign(builder.build());
     }

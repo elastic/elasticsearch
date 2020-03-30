@@ -30,8 +30,9 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -40,7 +41,10 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -82,12 +86,18 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
     }
 
     @Override
-    public AtomicOrdinalsFieldData load(LeafReaderContext context) {
-        return new SortedSetDVBytesAtomicFieldData(context.reader(), fieldName, scriptFunction);
+    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+        throw new IllegalArgumentException("only supported on numeric fields");
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public LeafOrdinalsFieldData load(LeafReaderContext context) {
+        return new SortedSetDVBytesLeafFieldData(context.reader(), fieldName, scriptFunction);
+    }
+
+    @Override
+    public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

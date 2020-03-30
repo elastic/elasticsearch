@@ -10,6 +10,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.FeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -102,6 +103,45 @@ public class InferenceProcessorTests extends ESTestCase {
         assertThat(document.getFieldValue("ml.my_processor.predicted_value", String.class), equalTo("foo"));
     }
 
+    public void testMutateDocumentClassificationFeatureInfluence() {
+        ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, 2);
+        InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            "ml.my_processor",
+            "classification_model",
+            classificationConfig,
+            Collections.emptyMap());
+
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        List<ClassificationInferenceResults.TopClassEntry> classes = new ArrayList<>(2);
+        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6));
+        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4));
+
+        List<FeatureImportance> featureInfluence = new ArrayList<>();
+        featureInfluence.add(FeatureImportance.forRegression("feature_1", 1.13));
+        featureInfluence.add(FeatureImportance.forRegression("feature_2", -42.0));
+
+        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+            Collections.singletonList(new ClassificationInferenceResults(1.0,
+                "foo",
+                classes,
+                featureInfluence,
+                classificationConfig)),
+            true);
+        inferenceProcessor.mutateDocument(response, document);
+
+        assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("classification_model"));
+        assertThat(document.getFieldValue("ml.my_processor.predicted_value", String.class), equalTo("foo"));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.importance", Double.class), equalTo(-42.0));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.feature_name", String.class), equalTo("feature_2"));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.importance", Double.class), equalTo(1.13));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.feature_name", String.class), equalTo("feature_1"));
+    }
+
     @SuppressWarnings("unchecked")
     public void testMutateDocumentClassificationTopNClassesWithSpecificField() {
         ClassificationConfig classificationConfig = new ClassificationConfig(2, "result", "tops");
@@ -152,6 +192,36 @@ public class InferenceProcessorTests extends ESTestCase {
 
         assertThat(document.getFieldValue("ml.my_processor.foo", Double.class), equalTo(0.7));
         assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("regression_model"));
+    }
+
+    public void testMutateDocumentRegressionWithTopFetures() {
+        RegressionConfig regressionConfig = new RegressionConfig("foo", 2);
+        InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
+            auditor,
+            "my_processor",
+            "ml.my_processor",
+            "regression_model",
+            regressionConfig,
+            Collections.emptyMap());
+
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestDocument document = new IngestDocument(source, ingestMetadata);
+
+        List<FeatureImportance> featureInfluence = new ArrayList<>();
+        featureInfluence.add(FeatureImportance.forRegression("feature_1", 1.13));
+        featureInfluence.add(FeatureImportance.forRegression("feature_2", -42.0));
+
+        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+            Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig, featureInfluence)), true);
+        inferenceProcessor.mutateDocument(response, document);
+
+        assertThat(document.getFieldValue("ml.my_processor.foo", Double.class), equalTo(0.7));
+        assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("regression_model"));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.importance", Double.class), equalTo(-42.0));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.0.feature_name", String.class), equalTo("feature_2"));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.importance", Double.class), equalTo(1.13));
+        assertThat(document.getFieldValue("ml.my_processor.feature_importance.1.feature_name", String.class), equalTo("feature_1"));
     }
 
     public void testGenerateRequestWithEmptyMapping() {

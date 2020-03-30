@@ -151,7 +151,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                 new Step.StepKey("phase", "set_priority", SetPriorityAction.NAME)));
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("forcemerge", new ForceMergeAction(5));
+        actions.put("forcemerge", new ForceMergeAction(5, null));
         actions.put("freeze", new FreezeAction());
         actions.put("allocate", new AllocateAction(1, null, null, null));
         PhaseExecutionInfo pei = new PhaseExecutionInfo("policy", new Phase("wonky", TimeValue.ZERO, actions), 1, 1);

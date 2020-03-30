@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.gcs;
 
 import com.google.api.gax.paging.Page;
 import com.google.cloud.BatchResult;
-import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
@@ -34,7 +33,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -47,11 +45,8 @@ import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -176,32 +171,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @return the InputStream used to read the blob's content
      */
     InputStream readBlob(String blobName) throws IOException {
-        final BlobId blobId = BlobId.of(bucketName, blobName);
-        final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(() -> client().reader(blobId));
-        return Channels.newInputStream(new ReadableByteChannel() {
-            @SuppressForbidden(reason = "Channel is based of a socket not a file")
-            @Override
-            public int read(ByteBuffer dst) throws IOException {
-                try {
-                    return SocketAccess.doPrivilegedIOException(() -> readChannel.read(dst));
-                } catch (StorageException e) {
-                    if (e.getCode() == HTTP_NOT_FOUND) {
-                        throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-                    }
-                    throw e;
-                }
-            }
-
-            @Override
-            public boolean isOpen() {
-                return readChannel.isOpen();
-            }
-
-            @Override
-            public void close() throws IOException {
-                SocketAccess.doPrivilegedVoidIOException(readChannel::close);
-            }
-        });
+        return new GoogleCloudStorageRetryingInputStream(client(), BlobId.of(bucketName, blobName));
     }
 
     /**

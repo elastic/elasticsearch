@@ -20,6 +20,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.TimingStatsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
@@ -41,7 +44,9 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -74,25 +79,23 @@ public class AutodetectResultProcessor {
 
     private static final Logger LOGGER = LogManager.getLogger(AutodetectResultProcessor.class);
 
-    static final long EARLY_BUCKET_THRESHOLD = 100;
-    static final int EXCESSIVE_EARLY_CATEGORY_COUNT = 1000;
-
     private final Client client;
     private final AnomalyDetectionAuditor auditor;
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
+    private final AnnotationPersister annotationPersister;
     private final AutodetectProcess process;
     private final TimingStatsReporter timingStatsReporter;
+    private final Clock clock;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
     final Semaphore updateModelSnapshotSemaphore = new Semaphore(1);
     private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
-    private long priorRunsBucketCount;
+    private final long priorRunsBucketCount;
     private long currentRunBucketCount; // only used from the process() thread, so doesn't need to be volatile
-    private boolean excessiveCategoryWarningIssued; // only used from the process() thread, so doesn't need to be volatile
     private final JobResultsPersister.Builder bulkResultsPersister;
     private boolean deleteInterimRequired;
 
@@ -106,26 +109,30 @@ public class AutodetectResultProcessor {
                                      String jobId,
                                      Renormalizer renormalizer,
                                      JobResultsPersister persister,
+                                     AnnotationPersister annotationPersister,
                                      AutodetectProcess process,
                                      ModelSizeStats latestModelSizeStats,
                                      TimingStats timingStats) {
-        this(client, auditor, jobId, renormalizer, persister, process, latestModelSizeStats, timingStats, new FlushListener());
+        this(client, auditor, jobId, renormalizer, persister, annotationPersister, process, latestModelSizeStats, timingStats,
+            Clock.systemUTC(), new FlushListener());
     }
 
     // Visible for testing
     AutodetectResultProcessor(Client client, AnomalyDetectionAuditor auditor, String jobId, Renormalizer renormalizer,
-                              JobResultsPersister persister, AutodetectProcess autodetectProcess, ModelSizeStats latestModelSizeStats,
-                              TimingStats timingStats, FlushListener flushListener) {
+                              JobResultsPersister persister, AnnotationPersister annotationPersister, AutodetectProcess autodetectProcess,
+                              ModelSizeStats latestModelSizeStats, TimingStats timingStats, Clock clock, FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
         this.renormalizer = Objects.requireNonNull(renormalizer);
         this.persister = Objects.requireNonNull(persister);
+        this.annotationPersister = Objects.requireNonNull(annotationPersister);
         this.process = Objects.requireNonNull(autodetectProcess);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
         this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, this::isAlive);
         this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
+        this.clock = Objects.requireNonNull(clock);
         this.deleteInterimRequired = true;
         this.priorRunsBucketCount = timingStats.getBucketCount();
     }
@@ -230,7 +237,7 @@ public class AutodetectResultProcessor {
         }
         CategoryDefinition categoryDefinition = result.getCategoryDefinition();
         if (categoryDefinition != null) {
-            processCategoryDefinition(categoryDefinition);
+            persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
         }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
@@ -272,6 +279,10 @@ public class AutodetectResultProcessor {
             if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                 updateModelSnapshotOnJob(modelSnapshot);
             }
+            annotationPersister.persistAnnotation(
+                ModelSnapshot.annotationDocumentId(modelSnapshot),
+                createModelSnapshotAnnotation(modelSnapshot),
+                "[" + jobId + "] failed to create annotation for model snapshot.");
         }
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
@@ -314,20 +325,19 @@ public class AutodetectResultProcessor {
         }
     }
 
-    private void processCategoryDefinition(CategoryDefinition categoryDefinition) {
-        persister.persistCategoryDefinition(categoryDefinition, this::isAlive);
-        if (categoryDefinition.getCategoryId() == EXCESSIVE_EARLY_CATEGORY_COUNT &&
-            priorRunsBucketCount + currentRunBucketCount < EARLY_BUCKET_THRESHOLD &&
-            excessiveCategoryWarningIssued == false) {
-            auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_EXCESSIVE_EARLY_CATEGORIES, EXCESSIVE_EARLY_CATEGORY_COUNT,
-                // Add 1 because category definitions are written before buckets
-                1L + priorRunsBucketCount + currentRunBucketCount));
-            // This flag won't be retained if the job is closed and reopened, or if the job migrates to another node.
-            // This means it's possible the audit message is generated multiple times.  However, that's not a
-            // disaster, and is also very unlikely in the the (best practice) cases where initial lookback covers
-            // more than 100 buckets.
-            excessiveCategoryWarningIssued = true;
-        }
+    private Annotation createModelSnapshotAnnotation(ModelSnapshot modelSnapshot) {
+        assert modelSnapshot != null;
+        Date currentTime = new Date(clock.millis());
+        return new Annotation(
+            Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_STORED, modelSnapshot.getSnapshotId()),
+            currentTime,
+            XPackUser.NAME,
+            modelSnapshot.getTimestamp(),
+            modelSnapshot.getTimestamp(),
+            jobId,
+            currentTime,
+            XPackUser.NAME,
+            "annotation");
     }
 
     private void processModelSizeStats(ModelSizeStats modelSizeStats) {
@@ -338,6 +348,8 @@ public class AutodetectResultProcessor {
 
         persister.persistModelSizeStats(modelSizeStats, this::isAlive);
         notifyModelMemoryStatusChange(modelSizeStats);
+        notifyCategorizationStatusChange(modelSizeStats);
+
         latestModelSizeStats = modelSizeStats;
     }
 
@@ -355,6 +367,16 @@ public class AutodetectResultProcessor {
                         new ByteSizeValue(modelSizeStats.getModelBytesMemoryLimit(), ByteSizeUnit.BYTES).toString(),
                         new ByteSizeValue(modelSizeStats.getModelBytesExceeded(), ByteSizeUnit.BYTES).toString()));
                 }
+            }
+        }
+    }
+
+    private void notifyCategorizationStatusChange(ModelSizeStats modelSizeStats) {
+        ModelSizeStats.CategorizationStatus categorizationStatus = modelSizeStats.getCategorizationStatus();
+        if (categorizationStatus != latestModelSizeStats.getCategorizationStatus()) {
+            if (categorizationStatus == ModelSizeStats.CategorizationStatus.WARN) {
+                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, categorizationStatus,
+                    priorRunsBucketCount + currentRunBucketCount));
             }
         }
     }

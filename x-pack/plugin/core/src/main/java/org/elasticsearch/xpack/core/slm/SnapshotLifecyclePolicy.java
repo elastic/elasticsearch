@@ -254,10 +254,10 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
      */
     public CreateSnapshotRequest toRequest() {
         CreateSnapshotRequest req = new CreateSnapshotRequest(repository, generateSnapshotName(new ResolverContext()));
+        Map<String, Object> mergedConfiguration = configuration == null ? new HashMap<>() : new HashMap<>(configuration);
         @SuppressWarnings("unchecked")
-        Map<String, Object> metadata = (Map<String, Object>) configuration.get("metadata");
+        Map<String, Object> metadata = (Map<String, Object>) mergedConfiguration.get("metadata");
         Map<String, Object> metadataWithAddedPolicyName = addPolicyNameToMetadata(metadata);
-        Map<String, Object> mergedConfiguration = new HashMap<>(configuration);
         mergedConfiguration.put("metadata", metadataWithAddedPolicyName);
         req.source(mergedConfiguration);
         req.waitForCompletion(true);

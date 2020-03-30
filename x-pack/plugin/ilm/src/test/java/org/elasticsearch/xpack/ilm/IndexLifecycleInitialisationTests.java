@@ -100,7 +100,6 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
 
         // This is necessary to prevent ILM and SLM installing a lifecycle policy, these tests assume a blank slate

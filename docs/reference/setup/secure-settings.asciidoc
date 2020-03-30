@@ -25,7 +25,7 @@ are node-specific settings that must have the same value on every node.
 Just like the settings values in `elasticsearch.yml`, changes to the keystore
 contents are not automatically applied to the running {es} node. Re-reading
 settings requires a node restart. However, certain secure settings are marked as
-*reloadable*. Such settings can be re-read and applied on a running node.
+*reloadable*. Such settings can be <<cluster-nodes-reload-secure-settings, re-read and applied on a running node>>.
 
 The values of all secure settings, *reloadable* or not, must be identical
 across all cluster nodes. After making the desired secure settings changes,
@@ -50,8 +50,8 @@ dependent on these settings have been changed. Everything should look as if the
 settings had the new value from the start.
 
 When changing multiple *reloadable* secure settings, modify all of them on each
-cluster node, then issue a `reload_secure_settings` call instead of reloading
-after each modification.
+cluster node, then issue a <<cluster-nodes-reload-secure-settings, `reload_secure_settings`>>
+call instead of reloading after each modification.
 
 There are reloadable secure settings for:
 

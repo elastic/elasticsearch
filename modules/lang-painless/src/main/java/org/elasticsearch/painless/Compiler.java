@@ -207,21 +207,20 @@ final class Compiler {
      * @return The ScriptRoot used to compile
      */
     ScriptRoot compile(Loader loader, String name, String source, CompilerSettings settings) {
+        String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
-        ScriptRoot scriptRoot = root.analyze(painlessLookup, settings);
-        ClassNode classNode = root.writeClass();
-        Map<String, Object> statics = classNode.write();
+        SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings, painlessLookup);
+        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, scriptName, source);
+        ClassNode classNode = root.writeClass(scriptRoot);
+        DefBootstrapInjectionPhase.phase(classNode);
+        ScriptInjectionPhase.phase(scriptRoot, classNode);
+        byte[] bytes = classNode.write();
 
         try {
-            Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, classNode.getBytes());
-            clazz.getField("$NAME").set(null, name);
-            clazz.getField("$SOURCE").set(null, source);
-            clazz.getField("$STATEMENTS").set(null, classNode.getStatements());
-            clazz.getField("$DEFINITION").set(null, painlessLookup);
+            Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, bytes);
 
-            for (Map.Entry<String, Object> statik : statics.entrySet()) {
-                clazz.getField(statik.getKey()).set(null, statik.getValue());
+            for (Map.Entry<String, Object> staticConstant : scriptRoot.getStaticConstants().entrySet()) {
+                clazz.getField(staticConstant.getKey()).set(null, staticConstant.getValue());
             }
 
             return scriptRoot;
@@ -238,12 +237,15 @@ final class Compiler {
      * @return The bytes for compilation.
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
+        String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, debugStream);
-        root.analyze(painlessLookup, settings);
-        ClassNode classNode = root.writeClass();
-        classNode.write();
+        SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings, painlessLookup);
+        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, scriptName, source);
+        ClassNode classNode = root.writeClass(scriptRoot);
+        classNode.setDebugStream(debugStream);
+        DefBootstrapInjectionPhase.phase(classNode);
+        ScriptInjectionPhase.phase(scriptRoot, classNode);
 
-        return classNode.getBytes();
+        return classNode.write();
     }
 }

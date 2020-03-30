@@ -51,6 +51,7 @@ those same roles.
 (Required, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
+[role="child_attributes"]
 [[ml-put-datafeed-request-body]]
 ==== {api-request-body-title}
 
@@ -97,6 +98,11 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
 `scroll_size`::
 (Optional, unsigned integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
+
+`indices_options`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=indices-options]
+
 
 [[ml-put-datafeed-example]]
 ==== {api-examples-title}

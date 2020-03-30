@@ -33,9 +33,9 @@ import java.util.Objects;
 /**
  * Represents a field load/store.
  */
-final class PSubField extends AStoreable {
+public class PSubField extends AStoreable {
 
-    private final PainlessField field;
+    protected final PainlessField field;
 
     PSubField(Location location, PainlessField field) {
         super(location);
@@ -44,38 +44,29 @@ final class PSubField extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-         if (write && Modifier.isFinal(field.javaField.getModifiers())) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
+
+         if (input.write && Modifier.isFinal(field.javaField.getModifiers())) {
              throw createError(new IllegalArgumentException("Cannot write to read-only field [" + field.javaField.getName() + "] " +
                      "for type [" + PainlessLookupUtility.typeToCanonicalTypeName(field.javaField.getDeclaringClass()) + "]."));
          }
 
-        actual = field.typeParameter;
-    }
+         output.actual = field.typeParameter;
 
-    @Override
-    DotSubNode write(ClassNode classNode) {
         DotSubNode dotSubNode = new DotSubNode();
 
         dotSubNode.setLocation(location);
-        dotSubNode.setExpressionType(actual);
+        dotSubNode.setExpressionType(output.actual);
         dotSubNode.setField(field);
 
-        return dotSubNode;
+        output.expressionNode = dotSubNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
         return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, field.javaField.getName());
     }
 }

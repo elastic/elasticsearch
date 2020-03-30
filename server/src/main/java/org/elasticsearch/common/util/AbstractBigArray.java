@@ -110,7 +110,7 @@ abstract class AbstractBigArray extends AbstractArray {
         cache[page] = v;
         assert Array.getLength(v.v()) == expectedSize;
         return v.v();
-      }
+    }
 
     protected final byte[] newBytePage(int page) {
         if (recycler != null) {

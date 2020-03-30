@@ -129,7 +129,7 @@ public class LeafFieldsLookup implements Map<Object, Object> {
     private FieldLookup loadFieldData(String name) {
         FieldLookup data = cachedFieldData.get(name);
         if (data == null) {
-            MappedFieldType fieldType = mapperService.fullName(name);
+            MappedFieldType fieldType = mapperService.fieldType(name);
             if (fieldType == null) {
                 throw new IllegalArgumentException("No field found for [" + name + "] in mapping");
             }

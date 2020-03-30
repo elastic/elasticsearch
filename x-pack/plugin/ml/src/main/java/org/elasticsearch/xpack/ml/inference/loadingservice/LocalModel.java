@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -28,11 +29,16 @@ public class LocalModel implements Model {
     private final TrainedModelDefinition trainedModelDefinition;
     private final String modelId;
     private final Set<String> fieldNames;
+    private final Map<String, String> defaultFieldMap;
 
-    public LocalModel(String modelId, TrainedModelDefinition trainedModelDefinition, TrainedModelInput input) {
+    public LocalModel(String modelId,
+                      TrainedModelDefinition trainedModelDefinition,
+                      TrainedModelInput input,
+                      Map<String, String> defaultFieldMap) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
         this.fieldNames = new HashSet<>(input.getFieldNames());
+        this.defaultFieldMap = defaultFieldMap == null ? null : new HashMap<>(defaultFieldMap);
     }
 
     long ramBytesUsed() {
@@ -61,6 +67,7 @@ public class LocalModel implements Model {
     @Override
     public void infer(Map<String, Object> fields, InferenceConfig config, ActionListener<InferenceResults> listener) {
         try {
+            Model.mapFieldsIfNecessary(fields, defaultFieldMap);
             if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
                 listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
                 return;

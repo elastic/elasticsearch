@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
-public class DataFrameAnalyticsDestTests extends AbstractSerializingTestCase<DataFrameAnalyticsDest> {
+public class DataFrameAnalyticsDestTests extends AbstractBWCSerializationTestCase<DataFrameAnalyticsDest> {
 
     @Override
     protected DataFrameAnalyticsDest doParseInstance(XContentParser parser) throws IOException {
@@ -29,8 +30,17 @@ public class DataFrameAnalyticsDestTests extends AbstractSerializingTestCase<Dat
         return new DataFrameAnalyticsDest(index, resultsField);
     }
 
+    public static DataFrameAnalyticsDest mutateForVersion(DataFrameAnalyticsDest instance, Version version) {
+        return instance;
+    }
+
     @Override
     protected Writeable.Reader<DataFrameAnalyticsDest> instanceReader() {
         return DataFrameAnalyticsDest::new;
+    }
+
+    @Override
+    protected DataFrameAnalyticsDest mutateInstanceForVersion(DataFrameAnalyticsDest instance, Version version) {
+        return mutateForVersion(instance, version);
     }
 }

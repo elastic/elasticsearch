@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.equalTo;
@@ -112,27 +113,10 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
 
         AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutIndexTemplateAction) {
-                calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(PutIndexTemplateAction.class));
-                assertThat(request, instanceOf(PutIndexTemplateRequest.class));
-                final PutIndexTemplateRequest putRequest = (PutIndexTemplateRequest) request;
-                assertThat(putRequest.name(), equalTo(SLM_TEMPLATE_NAME));
-                assertThat(putRequest.settings().get("index.lifecycle.name"), equalTo(SLM_POLICY_NAME));
-                assertNotNull(listener);
-                return new TestPutIndexTemplateResponse(true);
-            } else if (action instanceof PutLifecycleAction) {
-                // Ignore this, it's verified in another test
-                return new PutLifecycleAction.Response(true);
-            } else {
-                fail("client called with unexpected request:" + request.toString());
-                return null;
-            }
-        });
+        client.setVerifier((action, request, listener) -> verifyTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getTemplateConfigs().size())));
 
@@ -144,7 +128,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         // will not be issued anymore, leaving calledTimes to 0
         assertBusy(() -> {
             // now delete one template from the cluster state and lets retry
-            ClusterChangedEvent newEvent = createClusterChangedEvent(Collections.emptyList(), nodes);
+            ClusterChangedEvent newEvent = createClusterChangedEvent(Collections.emptyMap(), nodes);
             registry.clusterChanged(newEvent);
             assertThat(calledTimes.get(), greaterThan(1));
         });
@@ -173,7 +157,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             }
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
     }
@@ -202,7 +186,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             return null;
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), policyMap, nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
         registry.clusterChanged(event);
     }
 
@@ -234,9 +218,59 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
                 .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, policyStr)) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policy.getName());
             policyMap.put(policy.getName(), different);
-            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), policyMap, nodes);
+            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
             registry.clusterChanged(event);
         }
+    }
+
+    public void testThatVersionedOldTemplatesAreUpgraded() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.singletonMap(SLM_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION - 1),
+            nodes);
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> verifyTemplateInstalled(calledTimes, action, request, listener));
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getTemplateConfigs().size())));
+    }
+
+    public void testThatUnversionedOldTemplatesAreUpgraded() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.singletonMap(SLM_TEMPLATE_NAME, null), nodes);
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> verifyTemplateInstalled(calledTimes, action, request, listener));
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getTemplateConfigs().size())));
+    }
+
+
+    public void testSameOrHigherVersionTemplateNotUpgraded() throws Exception {
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(
+            Collections.singletonMap(SLM_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION), nodes);
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutIndexTemplateAction) {
+                fail("template should not have been re-installed");
+                return null;
+            } else if (action instanceof PutLifecycleAction) {
+                // Ignore this, it's verified in another test
+                return new PutLifecycleAction.Response(true);
+            } else {
+                fail("client called with unexpected request:" + request.toString());
+                return null;
+            }
+        });
+        registry.clusterChanged(sameVersionEvent);
+
+        ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(
+                Collections.singletonMap(SLM_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION + randomIntBetween(1, 1000)), nodes);
+        registry.clusterChanged(higherVersionEvent);
     }
 
     public void testThatMissingMasterNodeDoesNothing() {
@@ -248,19 +282,25 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             return null;
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(Arrays.asList(SLM_TEMPLATE_NAME), nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.singletonMap(SLM_TEMPLATE_NAME, null), nodes);
         registry.clusterChanged(event);
     }
 
     public void testValidate() {
-        assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyList(), Collections.emptyMap(), null)));
-        assertFalse(registry.validate(createClusterState(Settings.EMPTY, List.of(SLM_TEMPLATE_NAME), Collections.emptyMap(), null)));
+        assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), null)));
+        assertFalse(registry.validate(createClusterState(Settings.EMPTY,
+            Collections.singletonMap(SLM_TEMPLATE_NAME, null),
+            Collections.emptyMap(),
+            null)));
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         policyMap.put(SLM_POLICY_NAME, new LifecyclePolicy(SLM_POLICY_NAME, new HashMap<>()));
-        assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyList(), policyMap, null)));
+        assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyMap(), policyMap, null)));
 
-        assertTrue(registry.validate(createClusterState(Settings.EMPTY, List.of(SLM_TEMPLATE_NAME), policyMap, null)));
+        assertTrue(registry.validate(createClusterState(Settings.EMPTY,
+            Collections.singletonMap(SLM_TEMPLATE_NAME, null),
+            policyMap,
+            null)));
     }
 
     // -------------
@@ -297,14 +337,35 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         }
     }
 
-    private ClusterChangedEvent createClusterChangedEvent(List<String> existingTemplateNames, DiscoveryNodes nodes) {
-        return createClusterChangedEvent(existingTemplateNames, Collections.emptyMap(), nodes);
+    private ActionResponse verifyTemplateInstalled(
+        AtomicInteger calledTimes, ActionType<?> action, ActionRequest request, ActionListener<?> listener) {
+        if (action instanceof PutIndexTemplateAction) {
+            calledTimes.incrementAndGet();
+            assertThat(action, instanceOf(PutIndexTemplateAction.class));
+            assertThat(request, instanceOf(PutIndexTemplateRequest.class));
+            final PutIndexTemplateRequest putRequest = (PutIndexTemplateRequest) request;
+            assertThat(putRequest.name(), equalTo(SLM_TEMPLATE_NAME));
+            assertThat(putRequest.settings().get("index.lifecycle.name"), equalTo(SLM_POLICY_NAME));
+            assertThat(putRequest.version(), equalTo(INDEX_TEMPLATE_VERSION));
+            assertNotNull(listener);
+            return new TestPutIndexTemplateResponse(true);
+        } else if (action instanceof PutLifecycleAction) {
+            // Ignore this, it's verified in another test
+            return new PutLifecycleAction.Response(true);
+        } else {
+            fail("client called with unexpected request:" + request.toString());
+            return null;
+        }
     }
 
-    private ClusterChangedEvent createClusterChangedEvent(List<String> existingTemplateNames,
+    private ClusterChangedEvent createClusterChangedEvent(Map<String, Integer> existingTemplates, DiscoveryNodes nodes) {
+        return createClusterChangedEvent(existingTemplates, Collections.emptyMap(), nodes);
+    }
+
+    private ClusterChangedEvent createClusterChangedEvent(Map<String, Integer> existingTemplates,
                                                           Map<String, LifecyclePolicy> existingPolicies,
                                                           DiscoveryNodes nodes) {
-        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplateNames, existingPolicies, nodes);
+        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, nodes);
         ClusterChangedEvent realEvent = new ClusterChangedEvent("created-from-test", cs,
             ClusterState.builder(new ClusterName("test")).build());
         ClusterChangedEvent event = spy(realEvent);
@@ -313,13 +374,15 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         return event;
     }
 
-    private ClusterState createClusterState(Settings nodeSettings,
-                                            List<String> existingTemplateNames,
-                                            Map<String, LifecyclePolicy> existingPolicies,
-                                            DiscoveryNodes nodes) {
+    private ClusterState createClusterState(Settings nodeSettings, Map<String, Integer> existingTemplates,
+                                            Map<String, LifecyclePolicy> existingPolicies, DiscoveryNodes nodes) {
         ImmutableOpenMap.Builder<String, IndexTemplateMetaData> indexTemplates = ImmutableOpenMap.builder();
-        for (String name : existingTemplateNames) {
-            indexTemplates.put(name, mock(IndexTemplateMetaData.class));
+        for (Map.Entry<String, Integer> template : existingTemplates.entrySet()) {
+            final IndexTemplateMetaData mockTemplate = mock(IndexTemplateMetaData.class);
+            when(mockTemplate.version()).thenReturn(template.getValue());
+            when(mockTemplate.getVersion()).thenReturn(template.getValue());
+
+            indexTemplates.put(template.getKey(), mockTemplate);
         }
 
         Map<String, LifecyclePolicyMetadata> existingILMMeta = existingPolicies.entrySet().stream()

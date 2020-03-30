@@ -33,8 +33,9 @@ import static java.util.Objects.requireNonNull;
  * non null. If the first expression is null then it evaluates the second expression and returns it.
  */
 public class EElvis extends AExpression {
-    private AExpression lhs;
-    private AExpression rhs;
+
+    protected AExpression lhs;
+    protected AExpression rhs;
 
     public EElvis(Location location, AExpression lhs, AExpression rhs) {
         super(location);
@@ -44,60 +45,65 @@ public class EElvis extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (expected != null && expected.isPrimitive()) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
+        if (input.expected != null && input.expected.isPrimitive()) {
             throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
         }
-        lhs.expected = expected;
-        lhs.explicit = explicit;
-        lhs.internal = internal;
-        rhs.expected = expected;
-        rhs.explicit = explicit;
-        rhs.internal = internal;
-        actual = expected;
-        lhs.analyze(scriptRoot, scope);
-        rhs.analyze(scriptRoot, scope);
 
-        if (lhs.isNull) {
+        Input leftInput = new Input();
+        leftInput.expected = input.expected;
+        leftInput.explicit = input.explicit;
+        leftInput.internal = input.internal;
+        Output leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
+
+        Input rightInput = new Input();
+        rightInput.expected = input.expected;
+        rightInput.explicit = input.explicit;
+        rightInput.internal = input.internal;
+        Output rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
+
+        output.actual = input.expected;
+
+        if (lhs instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
-        if (lhs.constant != null) {
+        if (lhs instanceof EBoolean
+                || lhs instanceof ENumeric
+                || lhs instanceof EDecimal
+                || lhs instanceof EString
+                || lhs instanceof EConstant) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
-        if (lhs.actual.isPrimitive()) {
+        if (leftOutput.actual.isPrimitive()) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
-        if (rhs.isNull) {
+        if (rhs instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
         }
 
-        if (expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(lhs.actual, rhs.actual, lhs.constant, rhs.constant);
+        if (input.expected == null) {
+            Class<?> promote = AnalyzerCaster.promoteConditional(leftOutput.actual, rightOutput.actual);
 
-            lhs.expected = promote;
-            rhs.expected = promote;
-            actual = promote;
+            leftInput.expected = promote;
+            rightInput.expected = promote;
+            output.actual = promote;
         }
 
-        lhs = lhs.cast(scriptRoot, scope);
-        rhs = rhs.cast(scriptRoot, scope);
-    }
+        lhs.cast(leftInput, leftOutput);
+        rhs.cast(rightInput, rightOutput);
 
-    @Override
-    ElvisNode write(ClassNode classNode) {
         ElvisNode elvisNode = new ElvisNode();
 
-        elvisNode.setLeftNode(lhs.write(classNode));
-        elvisNode.setRightNode(rhs.write(classNode));
+        elvisNode.setLeftNode(lhs.cast(leftOutput));
+        elvisNode.setRightNode(rhs.cast(rightOutput));
 
         elvisNode.setLocation(location);
-        elvisNode.setExpressionType(actual);
+        elvisNode.setExpressionType(output.actual);
 
-        return elvisNode;
-    }
+        output.expressionNode = elvisNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(lhs, rhs);
+        return output;
     }
 }

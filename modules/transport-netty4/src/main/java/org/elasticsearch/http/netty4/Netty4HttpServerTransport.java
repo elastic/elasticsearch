@@ -44,6 +44,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -148,8 +149,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private volatile ServerBootstrap serverBootstrap;
 
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
-                                     NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
+                                     NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
+        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings);
         Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
 
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);

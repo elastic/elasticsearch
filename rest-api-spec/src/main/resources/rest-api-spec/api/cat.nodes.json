@@ -62,13 +62,13 @@
         "type":"enum",
         "description":"The unit in which to display time values",
         "options":[
-          "d (Days)",
-          "h (Hours)",
-          "m (Minutes)",
-          "s (Seconds)",
-          "ms (Milliseconds)",
-          "micros (Microseconds)",
-          "nanos (Nanoseconds)"
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
         ]
       },
       "v":{

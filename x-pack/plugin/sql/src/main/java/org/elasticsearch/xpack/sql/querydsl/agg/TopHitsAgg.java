@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
-import static org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing.LAST;
+import static org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing.LAST;
 
 public class TopHitsAgg extends LeafAgg {
 

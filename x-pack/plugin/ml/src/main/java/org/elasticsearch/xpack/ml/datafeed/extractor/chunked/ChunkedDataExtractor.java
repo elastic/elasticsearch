@@ -251,12 +251,15 @@ public class ChunkedDataExtractor implements DataExtractor {
         private SearchRequestBuilder rangeSearchRequest() {
             return new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setIndices(context.indices)
+                .setIndicesOptions(context.indicesOptions)
                 .setSource(rangeSearchBuilder())
                 .setTrackTotalHits(true);
         }
 
         private RollupSearchAction.RequestBuilder rollupRangeSearchRequest() {
-            SearchRequest searchRequest = new SearchRequest().indices(context.indices).source(rangeSearchBuilder());
+            SearchRequest searchRequest = new SearchRequest().indices(context.indices)
+                .indicesOptions(context.indicesOptions)
+                .source(rangeSearchBuilder());
             return new RollupSearchAction.RequestBuilder(client, searchRequest);
         }
     }

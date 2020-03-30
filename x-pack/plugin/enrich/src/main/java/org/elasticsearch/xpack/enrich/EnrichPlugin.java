@@ -176,11 +176,11 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         }
 
         return List.of(
-            new RestGetEnrichPolicyAction(restController),
-            new RestDeleteEnrichPolicyAction(restController),
-            new RestPutEnrichPolicyAction(restController),
-            new RestExecuteEnrichPolicyAction(restController),
-            new RestEnrichStatsAction(restController)
+            new RestGetEnrichPolicyAction(),
+            new RestDeleteEnrichPolicyAction(),
+            new RestPutEnrichPolicyAction(),
+            new RestExecuteEnrichPolicyAction(),
+            new RestEnrichStatsAction()
         );
     }
 
@@ -194,7 +194,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         NamedXContentRegistry xContentRegistry,
         Environment environment,
         NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver
     ) {
         if (enabled == false) {
             return List.of();

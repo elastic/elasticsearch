@@ -137,6 +137,7 @@ import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.elasticsearch.xpack.watcher.rest.action.RestAckWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction;
+import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction.DeactivateRestHandler;
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestGetWatchAction;
@@ -248,7 +249,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver) {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -491,7 +493,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                             InternalWatchExecutor.THREAD_POOL_NAME,
                             getWatcherThreadPoolSize(settings),
                             1000,
-                            "xpack.watcher.thread_pool");
+                            "xpack.watcher.thread_pool",
+                            false);
             return Collections.singletonList(builder);
         }
         return Collections.emptyList();
@@ -557,14 +560,16 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             return emptyList();
         }
         return Arrays.asList(
-                new RestPutWatchAction(restController),
-                new RestDeleteWatchAction(restController),
-                new RestWatcherStatsAction(restController),
-                new RestGetWatchAction(restController),
-                new RestWatchServiceAction(restController),
-                new RestAckWatchAction(restController),
-                new RestActivateWatchAction(restController),
-                new RestExecuteWatchAction(restController));
+                new RestPutWatchAction(),
+                new RestDeleteWatchAction(),
+                new RestWatcherStatsAction(),
+                new RestGetWatchAction(),
+                new RestWatchServiceAction(),
+                new RestWatchServiceAction.StopRestHandler(),
+                new RestAckWatchAction(),
+                new RestActivateWatchAction(),
+                new DeactivateRestHandler(),
+                new RestExecuteWatchAction());
     }
 
     @Override
@@ -686,9 +691,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return Collections.unmodifiableList(Arrays.asList(
+        return List.of(
             new SystemIndexDescriptor(Watch.INDEX, "Contains Watch definitions"),
             new SystemIndexDescriptor(TriggeredWatchStoreField.INDEX_NAME, "Used to track current and queued Watch execution")
-        ));
+        );
     }
 }

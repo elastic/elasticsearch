@@ -38,7 +38,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -196,12 +196,12 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         Settings readonlySettings = Settings.builder().put(settings)
             .put("readonly", true).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
-        assertThrows(client.admin().cluster().preparePutRepository("test-repo-1")
+        assertRequestBuilderThrows(client.admin().cluster().preparePutRepository("test-repo-1")
                         .setType("mock").setSettings(settings),
                 RepositoryVerificationException.class);
 
         logger.info("-->  creating read-only repository that cannot read any files - should fail");
-        assertThrows(client.admin().cluster().preparePutRepository("test-repo-2")
+        assertRequestBuilderThrows(client.admin().cluster().preparePutRepository("test-repo-2")
                 .setType("mock").setSettings(readonlySettings),
             RepositoryVerificationException.class);
 
@@ -210,14 +210,14 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                 .setType("mock").setSettings(settings).setVerify(false));
 
         logger.info("-->  verifying repository");
-        assertThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
+        assertRequestBuilderThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
 
         logger.info("-->  creating read-only repository that cannot read any files, but suppress verification - should be acked");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo-2")
             .setType("mock").setSettings(readonlySettings).setVerify(false));
 
         logger.info("-->  verifying repository");
-        assertThrows(client.admin().cluster().prepareVerifyRepository("test-repo-2"), RepositoryVerificationException.class);
+        assertRequestBuilderThrows(client.admin().cluster().prepareVerifyRepository("test-repo-2"), RepositoryVerificationException.class);
 
         Path location = randomRepoPath();
 

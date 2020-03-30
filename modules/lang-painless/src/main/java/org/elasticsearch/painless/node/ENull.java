@@ -29,44 +29,38 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 /**
  * Represents a null constant.
  */
-public final class ENull extends AExpression {
+public class ENull extends AExpression {
 
     public ENull(Location location) {
         super(location);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (!read) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+
+        if (input.read == false) {
             throw createError(new IllegalArgumentException("Must read from null constant."));
         }
 
-        isNull = true;
-
-        if (expected != null) {
-            if (expected.isPrimitive()) {
+        if (input.expected != null) {
+            if (input.expected.isPrimitive()) {
                 throw createError(new IllegalArgumentException(
-                    "Cannot cast null to a primitive type [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]."));
+                    "Cannot cast null to a primitive type [" + PainlessLookupUtility.typeToCanonicalTypeName(input.expected) + "]."));
             }
 
-            actual = expected;
+            output.actual = input.expected;
         } else {
-            actual = Object.class;
+            output.actual = Object.class;
         }
-    }
 
-    @Override
-    NullNode write(ClassNode classNode) {
         NullNode nullNode = new NullNode();
 
         nullNode.setLocation(location);
-        nullNode.setExpressionType(actual);
+        nullNode.setExpressionType(output.actual);
 
-        return nullNode;
-    }
+        output.expressionNode = nullNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString();
+        return output;
     }
 }

@@ -29,12 +29,12 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 /**
  * Represents a field load/store shortcut.  (Internal only.)
  */
-final class PSubShortcut extends AStoreable {
+public class PSubShortcut extends AStoreable {
 
-    private final String value;
-    private final String type;
-    private final PainlessMethod getter;
-    private final PainlessMethod setter;
+    protected final String value;
+    protected final String type;
+    protected final PainlessMethod getter;
+    protected final PainlessMethod setter;
 
     PSubShortcut(Location location, String value, String type, PainlessMethod getter, PainlessMethod setter) {
         super(location);
@@ -46,7 +46,9 @@ final class PSubShortcut extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, AStoreable.Input input) {
+        Output output = new Output();
+
         if (getter != null && (getter.returnType == void.class || !getter.typeParameters.isEmpty())) {
             throw createError(new IllegalArgumentException(
                 "Illegal get shortcut on field [" + value + "] for type [" + type + "]."));
@@ -61,37 +63,26 @@ final class PSubShortcut extends AStoreable {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
-        if ((getter != null || setter != null) && (!read || getter != null) && (!write || setter != null)) {
-            actual = setter != null ? setter.typeParameters.get(0) : getter.returnType;
+        if ((getter != null || setter != null) && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+            output.actual = setter != null ? setter.typeParameters.get(0) : getter.returnType;
         } else {
             throw createError(new IllegalArgumentException("Illegal shortcut on field [" + value + "] for type [" + type + "]."));
         }
-    }
 
-    @Override
-    DotSubShortcutNode write(ClassNode classNode) {
         DotSubShortcutNode dotSubShortcutNode = new DotSubShortcutNode();
 
         dotSubShortcutNode.setLocation(location);
-        dotSubShortcutNode.setExpressionType(actual);
+        dotSubShortcutNode.setExpressionType(output.actual);
         dotSubShortcutNode.setGetter(getter);
         dotSubShortcutNode.setSetter(setter);
 
-        return dotSubShortcutNode;
+        output.expressionNode = dotSubShortcutNode;
+
+        return output;
     }
 
     @Override
     boolean isDefOptimized() {
         return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, value);
     }
 }

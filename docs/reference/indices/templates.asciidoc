@@ -93,8 +93,6 @@ Name of the index template to create.
 If `true`, this request cannot replace or update existing index templates.
 Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
-
 `order`::
 (Optional,integer)
 Order in which {es} applies this template
@@ -104,7 +102,7 @@ Templates with lower `order` values are merged first.
 Templates with higher `order` values are merged later,
 overriding templates with lower values.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
 [[put-index-template-api-request-body]]

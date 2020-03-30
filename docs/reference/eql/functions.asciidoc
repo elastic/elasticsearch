@@ -1,0 +1,66 @@
+[[eql-function-ref]]
+== EQL function reference
+++++
+<titleabbrev>Function reference</titleabbrev>
+++++
+
+experimental::[]
+
+{es} supports the following EQL functions:
+
+* <<eql-fn-substring>>
+
+[discrete]
+[[eql-fn-substring]]
+=== `substring`
+
+Extracts a substring from a source string at provided start and end positions.
+
+If no end position is provided, the function extracts the remaining string.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+substring("start regsvr32.exe", 6)        // returns "regsvr32.exe"
+substring("start regsvr32.exe", 0, 5)     // returns "start"
+substring("start regsvr32.exe", 6, 14)    // returns "regsvr32"
+substring("start regsvr32.exe", -4)       // returns ".exe"
+substring("start regsvr32.exe", -4, -1)   // returns ".ex"
+----
+
+*Syntax*
+
+[source,txt]
+----
+substring(<source>, <start_pos>[, <end_pos>])
+----
+
+*Parameters*
+
+`<source>`::
+(Required, string)
+Source string.
+
+`<start_pos>`::
++
+--
+(Required, integer)
+Starting position for extraction.
+
+If this position is higher than the `<end_pos>` position or the length of the
+`<source>` string, the function returns an empty string.
+
+Positions are zero-indexed. Negative offsets are supported.
+--
+
+`<end_pos>`::
+(Optional, integer)
+Exclusive end position for extraction. If this position is not provided, the
+function returns the remaining string.
++
+Positions are zero-indexed. Negative offsets are supported.
+
+*Returns:* string
+====

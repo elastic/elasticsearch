@@ -127,7 +127,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(airlineData2);
 
         // Ensure all data is searchable
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
 
         String jobId = "mini-farequote-with-data-feeder-job";
         createFarequoteJob(jobId);

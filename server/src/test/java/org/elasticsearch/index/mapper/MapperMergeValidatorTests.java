@@ -37,7 +37,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
     public void testMismatchedFieldTypes() {
         FieldMapper existingField = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll("type", singletonList(existingField), emptyList());
+            .copyAndAddAll(singletonList(existingField), emptyList());
 
         FieldTypeLookupTests.OtherFakeFieldType newFieldType = new FieldTypeLookupTests.OtherFakeFieldType();
         newFieldType.setName("foo");
@@ -55,7 +55,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
     public void testConflictingFieldTypes() {
         FieldMapper existingField = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup()
-            .copyAndAddAll("type", singletonList(existingField), emptyList());
+            .copyAndAddAll(singletonList(existingField), emptyList());
 
         MappedFieldType newFieldType = new MockFieldMapper.FakeFieldType();
         newFieldType.setName("foo");

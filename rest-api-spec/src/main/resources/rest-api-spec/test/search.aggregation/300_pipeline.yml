@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99" #TODO change this after backport
-      reason:  These new error messages were added in 7.1
+      version: " - 7.1.99"
+      reason:  These new error messages were added in 7.2
 
   - do:
       indices.create:

@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -46,13 +47,19 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -80,16 +87,14 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -97,7 +102,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.DoubleConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -177,8 +181,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected QueryShardContext queryShardContextMock(IndexSearcher searcher, MapperService mapperService,
-                                                      IndexSettings indexSettings, CircuitBreakerService circuitBreakerService) {
-         this.queryShardContext = super.queryShardContextMock(searcher, mapperService, indexSettings, circuitBreakerService);
+                                                      IndexSettings indexSettings, CircuitBreakerService circuitBreakerService,
+                                                      BigArrays bigArrays) {
+         this.queryShardContext = super.queryShardContextMock(searcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
          return queryShardContext;
     }
 
@@ -258,6 +263,20 @@ public class MinAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testIpField() throws IOException {
+        final String fieldName = "IP_field";
+        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field(fieldName);
+
+        MappedFieldType fieldType = new IpFieldMapper.IpFieldType();
+        fieldType.setName(fieldName);
+
+        boolean v4 = randomBoolean();
+        expectThrows(IllegalArgumentException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
+            iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
+        }, min -> fail("expected an exception"), fieldType));
+    }
+
     public void testUnmappedWithMissingField() throws IOException {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("does_not_exist").missing(0L);
 
@@ -286,7 +305,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             }, (Consumer<InternalMin>) min -> {
                 fail("Should have thrown exception");
             }, fieldType));
-        assertEquals(e.getMessage(), "Expected numeric type on field [not_a_number], but got [keyword]");
+        assertEquals("Field [not_a_number] of type [keyword(indexed,tokenized)] is not supported for aggregation [min]", e.getMessage());
     }
 
     public void testBadMissingField() {
@@ -378,7 +397,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, (Consumer<InternalGlobal>) global -> {
-            assertEquals(1.0, global.getDocCount(), 2);
+            assertEquals(2, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
             assertNotNull(global.getAggregations().asMap().get("min"));
 
@@ -595,7 +614,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
     }
 
     public void testOrderByEmptyAggregation() throws IOException {
-        AggregationBuilder termsBuilder = new TermsAggregationBuilder("terms", ValueType.NUMERIC)
+        AggregationBuilder termsBuilder = new TermsAggregationBuilder("terms")
             .field("number")
             .order(BucketOrder.compound(BucketOrder.aggregation("filter>min", true)))
             .subAggregation(new FilterAggregationBuilder("filter", termQuery("number", 100))
@@ -661,11 +680,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
         fieldType.setName("number");
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min")
             .field("number")
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, INVERT_SCRIPT, Collections.emptyMap()));;
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, INVERT_SCRIPT, Collections.emptyMap()));
 
         MinAggregationBuilder nonDeterministicAggregationBuilder = new MinAggregationBuilder("min")
             .field("number")
-            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));;
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -740,41 +759,56 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 )
             );
         }
-        assertNotNull(
+        for (DateFieldMapper.Resolution resolution : DateFieldMapper.Resolution.values()) {
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(new MatchAllDocsQuery()),
+                    mockAggregator(),
+                    mockDateValuesSourceConfig("number", true, resolution)
+                )
+            );
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(new TermQuery(new Term("foo", "bar"))),
+                    null,
+                    mockDateValuesSourceConfig("number", true, resolution)
+                )
+            );
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(null),
+                    mockAggregator(),
+                    mockDateValuesSourceConfig("number", true, resolution)
+                )
+            );
+            assertNull(
+                MinAggregator.getPointReaderOrNull(
+                    mockSearchContext(null),
+                    null,
+                    mockDateValuesSourceConfig("number", false, resolution)
+                )
+            );
+        }
+        // Check that we decode a dates "just like" the doc values instance.
+        Instant expected = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2020-01-01T00:00:00Z"));
+        byte[] scratch = new byte[8];
+        LongPoint.encodeDimension(DateFieldMapper.Resolution.MILLISECONDS.convert(expected), scratch, 0);
+        assertThat(
             MinAggregator.getPointReaderOrNull(
                 mockSearchContext(new MatchAllDocsQuery()),
                 null,
-                mockDateValuesSourceConfig("number", true)
-            )
+                mockDateValuesSourceConfig("number", true, DateFieldMapper.Resolution.MILLISECONDS)
+            ).apply(scratch), equalTo(expected.toEpochMilli())
         );
-        assertNull(
+        LongPoint.encodeDimension(DateFieldMapper.Resolution.NANOSECONDS.convert(expected), scratch, 0);
+        assertThat(
             MinAggregator.getPointReaderOrNull(
                 mockSearchContext(new MatchAllDocsQuery()),
-                mockAggregator(),
-                mockDateValuesSourceConfig("number", true)
-            )
-        );
-        assertNull(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(new TermQuery(new Term("foo", "bar"))),
                 null,
-                mockDateValuesSourceConfig("number", true)
-            )
+                mockDateValuesSourceConfig("number", true, DateFieldMapper.Resolution.NANOSECONDS)
+            ).apply(scratch), equalTo(expected.toEpochMilli())
         );
-        assertNull(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(null),
-                mockAggregator(),
-                mockDateValuesSourceConfig("number", true)
-            )
-        );
-        assertNull(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(null),
-                null,
-                mockDateValuesSourceConfig("number", false)
-            )
-        );
+
     }
 
     public void testMinShortcutRandom() throws Exception {
@@ -797,21 +831,6 @@ public class MinAggregatorTests extends AggregatorTestCase {
             () -> randomDouble(),
             (n) -> new DoublePoint("number", n.doubleValue()),
             (v) -> DoublePoint.decodeDimension(v, 0));
-    }
-
-    private void testMinCase(IndexSearcher searcher,
-                                AggregationBuilder aggregationBuilder,
-                                MappedFieldType ft,
-                                DoubleConsumer testResult) throws IOException {
-        Collection<Query> queries = Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery(ft.name()));
-        for (Query query : queries) {
-            MinAggregator aggregator = createAggregator(query, aggregationBuilder, searcher, createIndexSettings(), ft);
-            aggregator.preCollection();
-            searcher.search(new MatchAllDocsQuery(), aggregator);
-            aggregator.postCollection();
-            InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
-            testResult.accept(result.getValue());
-        }
     }
 
     private void testMinShortcutCase(Supplier<Number> randomNumber,
@@ -877,10 +896,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
         return mock(Aggregator.class);
     }
 
-    private ValuesSourceConfig<ValuesSource.Numeric> mockNumericValuesSourceConfig(String fieldName,
-                                                                                   NumberFieldMapper.NumberType numType,
-                                                                                   boolean indexed) {
-        ValuesSourceConfig<ValuesSource.Numeric> config = mock(ValuesSourceConfig.class);
+    private ValuesSourceConfig mockNumericValuesSourceConfig(String fieldName,
+                                                             NumberFieldMapper.NumberType numType,
+                                                             boolean indexed) {
+        ValuesSourceConfig config = mock(ValuesSourceConfig.class);
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType(numType);
         ft.setName(fieldName);
         ft.setIndexOptions(indexed ? IndexOptions.DOCS : IndexOptions.NONE);
@@ -889,12 +908,17 @@ public class MinAggregatorTests extends AggregatorTestCase {
         return config;
     }
 
-    private ValuesSourceConfig<ValuesSource.Numeric> mockDateValuesSourceConfig(String fieldName, boolean indexed) {
-        ValuesSourceConfig<ValuesSource.Numeric> config = mock(ValuesSourceConfig.class);
-        MappedFieldType ft = new DateFieldMapper.Builder(fieldName).fieldType();
-        ft.setName(fieldName);
-        ft.setIndexOptions(indexed ? IndexOptions.DOCS : IndexOptions.NONE);
-        ft.freeze();
+    private ValuesSourceConfig mockDateValuesSourceConfig(String fieldName, boolean indexed,
+            DateFieldMapper.Resolution resolution) {
+        ValuesSourceConfig config = mock(ValuesSourceConfig.class);
+        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
+                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(),
+                new ContentPath());
+        MappedFieldType ft = new DateFieldMapper.Builder(fieldName)
+                .index(indexed)
+                .withResolution(resolution)
+                .build(builderContext)
+                .fieldType();
         when(config.fieldContext()).thenReturn(new FieldContext(fieldName, null, ft));
         return config;
     }

@@ -11,8 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -43,7 +41,13 @@ public class WeightedSumTests extends WeightedAggregatorTests<WeightedSum> {
 
     public void testAggregate() {
         double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
-        List<Double> values = Arrays.asList(1.0, 2.0, 2.0, 3.0, 5.0);
+        double[][] values = new double[][]{
+            new double[] {1.0},
+            new double[] {2.0},
+            new double[] {2.0},
+            new double[] {3.0},
+            new double[] {5.0}
+        };
 
         WeightedSum weightedSum = new WeightedSum(ones);
         assertThat(weightedSum.aggregate(weightedSum.processValues(values)), equalTo(13.0));

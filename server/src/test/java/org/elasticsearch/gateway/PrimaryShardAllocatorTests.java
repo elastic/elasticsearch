@@ -48,6 +48,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.junit.Before;
@@ -392,7 +393,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         final Snapshot snapshot = new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID()));
         RoutingTable routingTable = RoutingTable.builder()
             .addAsRestore(metaData.index(shardId.getIndex()),
-                new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT, shardId.getIndexName()))
+                new SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT,
+                    new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random()))))
             .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData)

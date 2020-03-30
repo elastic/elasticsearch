@@ -101,7 +101,7 @@ public class WatcherService {
                    ExecutionService executionService, WatchParser parser, Client client) {
         this(settings, triggerService, triggeredWatchStore, executionService, parser, client,
             EsExecutors.newFixed(LIFECYCLE_THREADPOOL_NAME, 1, 1000, daemonThreadFactory(settings, LIFECYCLE_THREADPOOL_NAME),
-                client.threadPool().getThreadContext()));
+                client.threadPool().getThreadContext(), false));
     }
 
     /**

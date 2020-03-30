@@ -78,7 +78,7 @@ public class ClusterBootstrapService {
     public ClusterBootstrapService(Settings settings, TransportService transportService,
                                    Supplier<Iterable<DiscoveryNode>> discoveredNodesSupplier, BooleanSupplier isBootstrappedSupplier,
                                    Consumer<VotingConfiguration> votingConfigurationConsumer) {
-        if (DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))) {
+        if (DiscoveryModule.isSingleNodeDiscovery(settings)) {
             if (INITIAL_MASTER_NODES_SETTING.exists(settings)) {
                 throw new IllegalArgumentException("setting [" + INITIAL_MASTER_NODES_SETTING.getKey() +
                     "] is not allowed when [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() + "] is set to [" +

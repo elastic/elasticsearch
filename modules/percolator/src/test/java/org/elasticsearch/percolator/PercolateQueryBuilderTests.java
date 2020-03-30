@@ -20,6 +20,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -56,7 +57,10 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQueryBuilder> {
 
@@ -241,9 +245,10 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         rewriteAndFetch(queryBuilder, queryShardContext).toQuery(queryShardContext);
     }
 
-    public void testBothDocumentAndDocumentsSpecified() throws IOException {
-        expectThrows(IllegalArgumentException.class,
+    public void testBothDocumentAndDocumentsSpecified() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> parseQuery("{\"percolate\" : { \"document\": {}, \"documents\": [{}, {}], \"field\":\"" + queryField + "\"}}"));
+        assertThat(e.getMessage(), containsString("The following fields are not allowed together: [document, documents]"));
     }
 
     private static BytesReference randomSource(Set<String> usedFields) {
@@ -341,4 +346,14 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertNotEquals(rewrittenQueryBuilder, percolateQueryBuilder);
     }
 
+    public void testDisallowExpensiveQueries() {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+
+        PercolateQueryBuilder queryBuilder = doCreateTestQueryBuilder(true);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> queryBuilder.toQuery(queryShardContext));
+        assertEquals("[percolate] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                e.getMessage());
+    }
 }

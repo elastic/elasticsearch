@@ -250,8 +250,8 @@ public class RestoreService implements ClusterStateApplier {
                             for (Map.Entry<String, String> indexEntry : indices.entrySet()) {
                                 String index = indexEntry.getValue();
                                 boolean partial = checkPartial(index);
-                                SnapshotRecoverySource recoverySource =
-                                    new SnapshotRecoverySource(restoreUUID, snapshot, snapshotInfo.version(), index);
+                                SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(restoreUUID, snapshot,
+                                    snapshotInfo.version(), repositoryData.resolveIndexId(index));
                                 String renamedIndexName = indexEntry.getKey();
                                 IndexMetaData snapshotIndexMetaData = metaData.index(index);
                                 snapshotIndexMetaData = updateIndexSettings(snapshotIndexMetaData,
@@ -271,7 +271,8 @@ public class RestoreService implements ClusterStateApplier {
                                     // Index doesn't exist - create it and start recovery
                                     // Make sure that the index we are about to create has a validate name
                                     boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.get(snapshotIndexMetaData.getSettings());
-                                    createIndexService.validateIndexName(renamedIndexName, currentState, isHidden);
+                                    createIndexService.validateIndexName(renamedIndexName, currentState);
+                                    createIndexService.validateDotIndex(renamedIndexName, currentState, isHidden);
                                     createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(), false);
                                     IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
                                         .state(IndexMetaData.State.OPEN)

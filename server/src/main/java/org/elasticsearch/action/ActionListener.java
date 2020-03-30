@@ -315,12 +315,28 @@ public interface ActionListener<Response> {
     /**
      * Completes the given listener with the result from the provided supplier accordingly.
      * This method is mainly used to complete a listener with a block of synchronous code.
+     *
+     * If the supplier fails, the listener's onFailure handler will be called.
+     * It is the responsibility of {@code delegate} to handle its own exceptions inside `onResponse` and `onFailure`.
      */
     static <Response> void completeWith(ActionListener<Response> listener, CheckedSupplier<Response, ? extends Exception> supplier) {
+        Response response;
         try {
-            listener.onResponse(supplier.get());
+            response = supplier.get();
         } catch (Exception e) {
-            listener.onFailure(e);
+            try {
+                listener.onFailure(e);
+            } catch (RuntimeException ex) {
+                assert false : ex;
+                throw ex;
+            }
+            return;
+        }
+        try {
+            listener.onResponse(response);
+        } catch (RuntimeException ex) {
+            assert false : ex;
+            throw ex;
         }
     }
 }

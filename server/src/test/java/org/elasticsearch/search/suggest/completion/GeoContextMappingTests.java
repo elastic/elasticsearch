@@ -62,7 +62,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fullName("completion");
+        MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(new SourceToParse("test", "1",
             BytesReference.bytes(jsonBuilder()
                         .startObject()
@@ -101,7 +101,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fullName("completion");
+        MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(new SourceToParse("test", "1",
             BytesReference.bytes(jsonBuilder()
                         .startObject()
@@ -137,7 +137,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fullName("completion");
+        MappedFieldType completionFieldType = mapperService.fieldType("completion");
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(new SourceToParse("test", "1",
             BytesReference.bytes(jsonBuilder()
                         .startObject()
@@ -181,7 +181,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject();
 
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
-        MappedFieldType completionFieldType = mapperService.fullName("completion");
+        MappedFieldType completionFieldType = mapperService.fieldType("completion");
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                 .startArray("completion")

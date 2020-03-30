@@ -123,13 +123,11 @@ public class DataLoader {
                 createString("first_name", createIndex);
                 createString("last_name", createIndex);
                 createIndex.startObject("gender").field("type", "keyword");
-                if (extraFields) {
-                    createIndex.field("copy_to", "extra_gender");
-                }
                 createIndex.endObject();
 
                 if (extraFields) {
-                    createIndex.startObject("extra_gender").field("type", "keyword").endObject();
+                    createIndex.startObject("extra_gender").field("type", "constant_keyword").endObject();
+                    createIndex.startObject("null_constant").field("type", "constant_keyword").endObject();
                     createIndex.startObject("extra.info.gender")
                         .field("type", "alias")
                         .field("path", "gender")
@@ -198,6 +196,9 @@ public class DataLoader {
                     }
                     hadLastItem = true;
                     bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
+                    if (titles.get(f).equals("gender") && extraFields) {
+                        bulk.append(",\"extra_gender\":\"Female\"");
+                    }
                 }
             }
             // append department

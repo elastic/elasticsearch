@@ -175,7 +175,8 @@ public class License implements ToXContentObject {
         BASIC((byte) 2),
         STANDARD((byte) 3),
         GOLD((byte) 4),
-        PLATINUM((byte) 5);
+        PLATINUM((byte) 5),
+        ENTERPRISE((byte) 6);
 
         private final byte id;
 
@@ -208,8 +209,9 @@ public class License implements ToXContentObject {
                 case GOLD:
                     return GOLD;
                 case PLATINUM:
-                case ENTERPRISE: // TODO Add an explicit enterprise operating mode
                     return PLATINUM;
+                case ENTERPRISE:
+                    return ENTERPRISE;
                 case TRIAL:
                     return TRIAL;
                 default:

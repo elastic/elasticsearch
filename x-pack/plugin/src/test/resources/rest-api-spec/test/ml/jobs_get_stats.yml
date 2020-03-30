@@ -292,6 +292,12 @@ setup:
             total_partition_field_count : 0,
             bucket_allocation_failures_count : 0,
             memory_status : ok,
+            categorized_doc_count : 0,
+            total_category_count : 0,
+            frequent_category_count : 0,
+            rare_category_count : 0,
+            dead_category_count : 0,
+            categorization_status : ok,
             log_time : 1495808248662
           }
 

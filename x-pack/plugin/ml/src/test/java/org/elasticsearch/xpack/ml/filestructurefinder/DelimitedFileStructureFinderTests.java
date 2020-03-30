@@ -16,10 +16,14 @@ import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ml.filestructurefinder.DelimitedFileStructureFinder.levenshteinFieldwiseCompareRows;
 import static org.elasticsearch.xpack.ml.filestructurefinder.DelimitedFileStructureFinder.levenshteinDistance;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -50,7 +54,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
         assertEquals("^\"?time\"?,\"?message\"?", structure.getExcludeLinesPattern());
-        assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -85,7 +89,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
         assertEquals("^\"?time\"?,\"?message\"?", structure.getExcludeLinesPattern());
-        assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -134,10 +138,10 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
     }
 
     public void testCreateConfigsGivenCsvWithIncompleteLastRecord() throws Exception {
-        String sample = "message,time,count\n" +
-            "\"hello\n" +
-            "world\",2018-05-17T13:41:23,1\n" +
-            "\"hello again\n"; // note that this last record is truncated
+        String sample = "time,message,count\n" +
+            "2018-05-17T13:41:23,\"hello\n" +
+            "world\",1\n" +
+            "2019-01-18T14:46:57,\"hello again\n"; // note that this last record is truncated
         assertTrue(csvFactory.canCreateFromSample(explanation, sample));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
@@ -154,13 +158,13 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         } else {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
-        assertEquals("^\"?message\"?,\"?time\"?,\"?count\"?", structure.getExcludeLinesPattern());
-        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals("^\"?time\"?,\"?message\"?,\"?count\"?", structure.getExcludeLinesPattern());
+        assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
         assertNull(structure.getShouldTrimFields());
-        assertEquals(Arrays.asList("message", "time", "count"), structure.getColumnNames());
+        assertEquals(Arrays.asList("time", "message", "count"), structure.getColumnNames());
         assertNull(structure.getGrokPattern());
         assertEquals("time", structure.getTimestampField());
         assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
@@ -193,7 +197,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?," +
             "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?,\"?\"?,\"?\"?",
             structure.getExcludeLinesPattern());
-        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -238,7 +242,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?," +
             "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?,\"?\"?,\"?\"?",
             structure.getExcludeLinesPattern());
-        assertEquals("^.*?,.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -278,7 +282,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
                 "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?," +
                 "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
             structure.getExcludeLinesPattern());
-        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -325,7 +329,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
                 "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?," +
                 "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
             structure.getExcludeLinesPattern());
-        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -435,7 +439,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         }
         // The exclude pattern needs to work on the raw text, so reflects the unmodified field names
         assertEquals("^\"?time\\.iso8601\"?,\"?message\"?", structure.getExcludeLinesPattern());
-        assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertNull(structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -590,7 +594,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
     public void testMakeCsvProcessorSettings() {
 
         String field = randomAlphaOfLength(10);
-        List<String> targetFields = Arrays.asList(generateRandomStringArray(10, field.length() - 1, false , false));
+        List<String> targetFields = Arrays.asList(generateRandomStringArray(10, field.length() - 1, false, false));
         char separator = randomFrom(',', ';', '\t', '|');
         char quote = randomFrom('"', '\'');
         boolean trim = randomBoolean();
@@ -615,10 +619,99 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         }
     }
 
+    public void testMultilineStartPatternGivenNoMultiline() {
+
+        List<String> columnNames = Stream.generate(() -> randomAlphaOfLengthBetween(5, 10)).limit(10).collect(Collectors.toList());
+        String timeFieldName;
+        TimestampFormatFinder timeFieldFormat;
+        if (randomBoolean()) {
+            timeFieldName = columnNames.get(randomIntBetween(0, columnNames.size() - 1));
+            timeFieldFormat = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
+            timeFieldFormat.addSample("2020-01-30T15:05:09");
+        } else {
+            timeFieldName = null;
+            timeFieldFormat = null;
+        }
+        Map<String, Object> mappings = new TreeMap<>();
+        for (String columnName : columnNames) {
+            if (columnName.equals(timeFieldName)) {
+                mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+            } else {
+                mappings.put(columnName,
+                    Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING,
+                        randomFrom("boolean", "long", "double", "text", "keyword")));
+            }
+        }
+
+        assertNull(DelimitedFileStructureFinder.makeMultilineStartPattern(explanation, columnNames, 1, ",", "\"", mappings, timeFieldName,
+            timeFieldFormat));
+        assertThat(explanation, contains("Not creating a multi-line start pattern as no sampled message spanned multiple lines"));
+    }
+
+    public void testMultilineStartPatternFromTimeField() {
+
+        List<String> columnNames = Stream.generate(() -> randomAlphaOfLengthBetween(5, 10)).limit(10).collect(Collectors.toList());
+        int timeFieldColumnIndex = randomIntBetween(0, columnNames.size() - 2);
+        String timeFieldName = columnNames.get(timeFieldColumnIndex);
+        TimestampFormatFinder timeFieldFormat = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
+        timeFieldFormat.addSample("2020-01-30T15:05:09");
+        Map<String, Object> mappings = new TreeMap<>();
+        for (String columnName : columnNames) {
+            if (columnName.equals(timeFieldName)) {
+                mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+            } else {
+                mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+            }
+        }
+
+        String expected = "^" + Stream.generate(() -> ".*?,").limit(timeFieldColumnIndex).collect(Collectors.joining()) +
+            "\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}";
+        assertEquals(expected, DelimitedFileStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings,
+            timeFieldName, timeFieldFormat));
+        assertThat(explanation, contains("Created a multi-line start pattern based on timestamp column [" + timeFieldName + "]"));
+    }
+
+    public void testMultilineStartPatternFromMappings() {
+
+        int randomIndex = randomIntBetween(0, 2);
+        String type = new String[]{ "boolean", "long", "double" }[randomIndex];
+        String expectedTypePattern =
+            new String[]{ "(?:true|false)", "[+-]?\\d+", "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:[eE][+-]?\\d+)?" }[randomIndex];
+        List<String> columnNames = Stream.generate(() -> randomAlphaOfLengthBetween(5, 10)).limit(10).collect(Collectors.toList());
+        int chosenFieldColumnIndex = randomIntBetween(0, columnNames.size() - 2);
+        String chosenField = columnNames.get(chosenFieldColumnIndex);
+        Map<String, Object> mappings = new TreeMap<>();
+        for (String columnName : columnNames) {
+            if (columnName.equals(chosenField)) {
+                mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, type));
+            } else {
+                mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+            }
+        }
+
+        String expected = "^" + Stream.generate(() -> ".*?,").limit(chosenFieldColumnIndex).collect(Collectors.joining()) +
+            "(?:" + expectedTypePattern + "|\"" + expectedTypePattern + "\"),";
+        assertEquals(expected, DelimitedFileStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings,
+            null, null));
+        assertThat(explanation, contains("Created a multi-line start pattern based on [" + type + "] column [" + chosenField + "]"));
+    }
+
+    public void testMultilineStartPatternDeterminationTooHard() {
+
+        List<String> columnNames = Stream.generate(() -> randomAlphaOfLengthBetween(5, 10)).limit(10).collect(Collectors.toList());
+        Map<String, Object> mappings = new TreeMap<>();
+        for (String columnName : columnNames) {
+            mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+        }
+
+        assertNull(DelimitedFileStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings, null, null));
+        assertThat(explanation, contains("Failed to create a suitable multi-line start pattern"));
+    }
+
     static Map<String, Object> randomCsvProcessorSettings() {
         String field = randomAlphaOfLength(10);
         return DelimitedFileStructureFinder.makeCsvProcessorSettings(field,
-            Arrays.asList(generateRandomStringArray(10, field.length() - 1, false , false)), randomFrom(',', ';', '\t', '|'),
+            Arrays.asList(generateRandomStringArray(10, field.length() - 1, false, false)), randomFrom(',', ';', '\t', '|'),
             randomFrom('"', '\''), randomBoolean());
     }
 }

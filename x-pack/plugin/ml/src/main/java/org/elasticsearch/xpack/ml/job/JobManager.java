@@ -30,13 +30,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -87,7 +88,6 @@ public class JobManager {
     private static final Logger logger = LogManager.getLogger(JobManager.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    private final Environment environment;
     private final JobResultsProvider jobResultsProvider;
     private final JobResultsPersister jobResultsPersister;
     private final ClusterService clusterService;
@@ -107,7 +107,6 @@ public class JobManager {
                       JobResultsPersister jobResultsPersister, ClusterService clusterService, AnomalyDetectionAuditor auditor,
                       ThreadPool threadPool, Client client, UpdateJobProcessNotifier updateJobProcessNotifier,
                       NamedXContentRegistry xContentRegistry) {
-        this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -226,7 +225,7 @@ public class JobManager {
      * The overall structure can be validated at parse time, but the exact names need to be checked separately,
      * as plugins that provide the functionality can be installed/uninstalled.
      */
-    static void validateCategorizationAnalyzer(Job.Builder jobBuilder, AnalysisRegistry analysisRegistry, Environment environment)
+    static void validateCategorizationAnalyzer(Job.Builder jobBuilder, AnalysisRegistry analysisRegistry)
         throws IOException {
         CategorizationAnalyzerConfig categorizationAnalyzerConfig = jobBuilder.getAnalysisConfig().getCategorizationAnalyzerConfig();
         if (categorizationAnalyzerConfig != null) {
@@ -242,7 +241,7 @@ public class JobManager {
                        ActionListener<PutJobAction.Response> actionListener) throws IOException {
 
         request.getJobBuilder().validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
-        validateCategorizationAnalyzer(request.getJobBuilder(), analysisRegistry, environment);
+        validateCategorizationAnalyzer(request.getJobBuilder(), analysisRegistry);
 
         Job job = request.getJobBuilder().build(new Date());
 
@@ -257,7 +256,7 @@ public class JobManager {
             return;
         }
 
-        ActionListener<Boolean> putJobListener = new ActionListener<Boolean>() {
+        ActionListener<Boolean> putJobListener = new ActionListener<>() {
             @Override
             public void onResponse(Boolean mappingsUpdated) {
 
@@ -294,7 +293,7 @@ public class JobManager {
                     return;
                 }
                 ElasticsearchMappings.addDocMappingIfMissing(
-                    AnomalyDetectorsIndex.configIndexName(), ElasticsearchMappings::configMapping, client, state, putJobListener);
+                    AnomalyDetectorsIndex.configIndexName(), MlConfigIndex::mapping, client, state, putJobListener);
             },
             putJobListener::onFailure
         );
@@ -330,9 +329,7 @@ public class JobManager {
         );
 
         ActionListener<Boolean> checkNoGroupWithTheJobId = ActionListener.wrap(
-                ok -> {
-                    jobConfigProvider.groupExists(job.getId(), checkNoJobsWithGroupId);
-                },
+                ok -> jobConfigProvider.groupExists(job.getId(), checkNoJobsWithGroupId),
                 actionListener::onFailure
         );
 
@@ -399,7 +396,7 @@ public class JobManager {
                 ));
             }
         } else {
-            logger.debug("[{}] No process update required for job update: {}", () -> request.getJobId(), () -> {
+            logger.debug("[{}] No process update required for job update: {}", request::getJobId, () -> {
                 try {
                     XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
                     request.getJobUpdate().toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);

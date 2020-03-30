@@ -53,6 +53,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
 `ccs_minimize_roundtrips`::
   (Optional, boolean) If `true`, network round-trips are minimized for 

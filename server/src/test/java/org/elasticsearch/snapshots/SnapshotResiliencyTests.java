@@ -1163,15 +1163,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
             TestClusterNode(DiscoveryNode node) throws IOException {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
-                masterService = new FakeThreadPoolMasterService(node.getName(), "test", deterministicTaskQueue::scheduleNow);
+                threadPool = deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable));
+                masterService = new FakeThreadPoolMasterService(node.getName(), "test", threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-                threadPool = deterministicTaskQueue.getThreadPool();
                 clusterService = new ClusterService(settings, clusterSettings, masterService,
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                            return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue);
+                            return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);
                         }
 
                         @Override
@@ -1211,7 +1211,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     }
                 };
                 transportService = mockTransport.createTransportService(
-                    settings, deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable)),
+                    settings, threadPool,
                     new TransportInterceptor() {
                         @Override
                         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
@@ -1272,7 +1272,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     client,
                     new MetaStateService(nodeEnv, namedXContentRegistry),
                     Collections.emptyList(),
-                    emptyMap()
+                    emptyMap(),
+                    null
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
@@ -1358,7 +1359,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     bigArrays, new FetchPhase(Collections.emptyList()), responseCollectorService, new NoneCircuitBreakerService());
                 actions.put(SearchAction.INSTANCE,
                     new TransportSearchAction(threadPool, transportService, searchService,
-                        searchTransportService, new SearchPhaseController(searchService::createReduceContext), clusterService,
+                        searchTransportService, new SearchPhaseController(searchService::aggReduceContextBuilder), clusterService,
                         actionFilters, indexNameExpressionResolver));
                 actions.put(RestoreSnapshotAction.INSTANCE,
                     new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters,

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -276,7 +275,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
     private TransportCloseJobAction createAction() {
         return new TransportCloseJobAction(mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class),
-                clusterService, mock(Client.class), mock(AnomalyDetectionAuditor.class), mock(PersistentTasksService.class),
+                clusterService, mock(AnomalyDetectionAuditor.class), mock(PersistentTasksService.class),
                 jobConfigProvider, datafeedConfigProvider);
     }
 
@@ -293,11 +292,11 @@ public class TransportCloseJobActionTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private void mockJobConfigProviderExpandIds(Set<String> expandedIds) {
         doAnswer(invocation -> {
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[3];
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[5];
             listener.onResponse(expandedIds);
 
             return null;
-        }).when(jobConfigProvider).expandJobsIds(any(), anyBoolean(), anyBoolean(), any(ActionListener.class));
+        }).when(jobConfigProvider).expandJobsIds(any(), anyBoolean(), anyBoolean(), any(), anyBoolean(), any(ActionListener.class));
     }
 
 }

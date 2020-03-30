@@ -103,7 +103,6 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
         }
     }
 
-    @Override
     protected boolean isWatcherTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("watcher/") || testName.contains("watcher\\"));

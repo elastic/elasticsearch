@@ -25,6 +25,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -86,10 +87,11 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
                                                                         CircuitBreakerService circuitBreakerService,
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
-                                                                        HttpServerTransport.Dispatcher dispatcher) {
+                                                                        HttpServerTransport.Dispatcher dispatcher,
+                                                                        ClusterSettings clusterSettings) {
         return Collections.singletonMap(NIO_HTTP_TRANSPORT_NAME,
             () -> new NioHttpServerTransport(settings, networkService, bigArrays, pageCacheRecycler, threadPool, xContentRegistry,
-                dispatcher, getNioGroupFactory(settings)));
+                dispatcher, getNioGroupFactory(settings), clusterSettings));
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {

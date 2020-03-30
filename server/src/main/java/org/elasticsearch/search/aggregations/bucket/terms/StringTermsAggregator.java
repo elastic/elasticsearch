@@ -138,7 +138,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
         long otherDocCount = 0;
-        BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
+        BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
         StringTerms.Bucket spare = null;
         for (int i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {

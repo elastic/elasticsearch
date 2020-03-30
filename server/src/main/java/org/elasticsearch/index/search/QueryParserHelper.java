@@ -140,7 +140,7 @@ public final class QueryParserHelper {
                 fieldName = fieldName + fieldSuffix;
             }
 
-            MappedFieldType fieldType = context.getMapperService().fullName(fieldName);
+            MappedFieldType fieldType = context.getMapperService().fieldType(fieldName);
             if (fieldType == null) {
                 continue;
             }

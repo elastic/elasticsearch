@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.snapshots.mockstore;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -149,7 +150,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             final SnapshotId snapshotId = new SnapshotId("foo", UUIDs.randomBase64UUID());
             // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
             repository.finalizeSnapshot(snapshotId, ShardGenerations.EMPTY, 1L, null, 5, Collections.emptyList(),
-                -1L, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(), true, future);
+                -1L, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(), Version.CURRENT, future);
             future.actionGet();
 
             // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
@@ -158,7 +159,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
                     final PlainActionFuture<SnapshotInfo> fut = PlainActionFuture.newFuture();
                     repository.finalizeSnapshot(
                         snapshotId, ShardGenerations.EMPTY, 1L, null, 6, Collections.emptyList(),
-                        0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(), true, fut);
+                        0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(), Version.CURRENT, fut);
                     fut.actionGet();
                 });
             assertThat(assertionError.getMessage(), equalTo("\nExpected: <6>\n     but: was <5>"));
@@ -167,7 +168,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             // It passes cleanly because the content of the blob except for the timestamps.
             final PlainActionFuture<SnapshotInfo> future2 = PlainActionFuture.newFuture();
             repository.finalizeSnapshot(snapshotId, ShardGenerations.EMPTY, 1L, null, 5, Collections.emptyList(),
-                0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(),true, future2);
+                0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap(),Version.CURRENT, future2);
             future2.actionGet();
         }
     }

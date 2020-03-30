@@ -3,17 +3,13 @@
 [[sql-client-apps-excel]]
 === Microsoft Excel
 
-[quote, https://www.techopedia.com/definition/5430/microsoft-excel]
-____
-https://products.office.com/en/excel[Microsoft Excel] is a software program [...] that allows users to organize, format and calculate data
-with formulas using a spreadsheet system.
-____
+You can use the {es} ODBC driver to access {es} data from Microsoft Excel.
 
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
-* Microsoft Office 2016 or higher
+* https://products.office.com/en/excel[Microsoft Office] 2016 or higher
 * {es-sql} <<sql-odbc, ODBC driver>>
 * A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
 

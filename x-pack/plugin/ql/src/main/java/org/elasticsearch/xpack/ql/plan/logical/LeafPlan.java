@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.Collections;
 import java.util.List;
 
-abstract class LeafPlan extends LogicalPlan {
+public abstract class LeafPlan extends LogicalPlan {
 
     protected LeafPlan(Source source) {
         super(source, Collections.emptyList());

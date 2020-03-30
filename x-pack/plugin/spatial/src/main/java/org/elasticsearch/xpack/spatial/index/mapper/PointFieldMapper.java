@@ -163,8 +163,10 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
             }
 
             if (nullValue != null) {
-                boolean ignoreMalformed = builder.ignoreMalformed == null ? Defaults.IGNORE_MALFORMED.value() : builder.ignoreMalformed;
-                boolean ignoreZValue = builder.ignoreZValue == null ? GeoPointFieldMapper.Defaults.IGNORE_Z_VALUE.value() : builder.ignoreZValue;
+                boolean ignoreMalformed = builder.ignoreMalformed == null ?
+                    Defaults.IGNORE_MALFORMED.value() : builder.ignoreMalformed;
+                boolean ignoreZValue = builder.ignoreZValue == null ?
+                    Defaults.IGNORE_Z_VALUE.value() : builder.ignoreZValue;
                 CartesianPoint point = CartesianPoint.parsePoint(nullValue, ignoreZValue);
                 if (ignoreMalformed == false) {
                     if (Float.isFinite(point.getX()) == false) {
@@ -242,8 +244,8 @@ public class PointFieldMapper extends FieldMapper implements ArrayValueMapperPar
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
-                + name() + "]");
+            throw new QueryShardException(context, "Spatial fields do not support exact searching, " +
+                "use dedicated spatial queries instead: [" + name() + "]");
         }
     }
 

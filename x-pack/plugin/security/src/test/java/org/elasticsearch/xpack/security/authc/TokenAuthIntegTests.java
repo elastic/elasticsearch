@@ -138,11 +138,12 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         CreateTokenResponse response = restClient.security().createToken(CreateTokenRequest.passwordGrant(
             SecuritySettingsSource.TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()), SECURITY_REQUEST_OPTIONS);
-
+        final String accessToken = response.getAccessToken();
+        final String refreshToken = response.getRefreshToken();
         Instant created = Instant.now();
 
         InvalidateTokenResponse invalidateResponse = restClient.security().invalidateToken(
-            new InvalidateTokenRequest(response.getAccessToken(), null, null, null), SECURITY_REQUEST_OPTIONS);
+            new InvalidateTokenRequest(accessToken, null, null, null), SECURITY_REQUEST_OPTIONS);
         assertThat(invalidateResponse.getInvalidatedTokens(), equalTo(1));
         assertThat(invalidateResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
@@ -168,18 +169,31 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             if (deleteTriggered.compareAndSet(false, true)) {
                 // invalidate a invalid token... doesn't matter that it is bad... we just want this action to trigger the deletion
-                ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () ->
-                    restClient.security().invalidateToken(new InvalidateTokenRequest("fooobar", null, null, null),
-                        SECURITY_REQUEST_OPTIONS));
-                assertThat(e.getMessage(), containsString("token malformed"));
-                assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
+                InvalidateTokenResponse invalidateResponseTwo = restClient.security()
+                    .invalidateToken(new InvalidateTokenRequest("fooobar", null, null, null),
+                        SECURITY_REQUEST_OPTIONS);
+                assertThat(invalidateResponseTwo.getInvalidatedTokens(), equalTo(0));
+                assertThat(invalidateResponseTwo.getPreviouslyInvalidatedTokens(), equalTo(0));
+                assertThat(invalidateResponseTwo.getErrors().size(), equalTo(0));
             }
             restClient.indices().refresh(new RefreshRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS), SECURITY_REQUEST_OPTIONS);
             SearchResponse searchResponse = restClient.search(new SearchRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
-                    .source(SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.termQuery("doc_type", "token")).terminateAfter(1)), SECURITY_REQUEST_OPTIONS);
+                .source(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.termQuery("doc_type", "token")).terminateAfter(1)), SECURITY_REQUEST_OPTIONS);
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
         }, 30, TimeUnit.SECONDS);
+
+        // Now the documents are deleted, try to invalidate the access token and refresh token again
+        InvalidateTokenResponse invalidateAccessTokenResponse = restClient.security().invalidateToken(
+            new InvalidateTokenRequest(accessToken, null, null, null), SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateAccessTokenResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateAccessTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateAccessTokenResponse.getErrors().size(), equalTo(0));
+        InvalidateTokenResponse invalidateRefreshTokenResponse = restClient.security().invalidateToken(
+            new InvalidateTokenRequest(refreshToken, null, null, null), SECURITY_REQUEST_OPTIONS);
+        assertThat(invalidateRefreshTokenResponse.getInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateRefreshTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        assertThat(invalidateRefreshTokenResponse.getErrors().size(), equalTo(0));
     }
 
     public void testInvalidateAllTokensForUser() throws Exception {

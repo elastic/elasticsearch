@@ -38,7 +38,7 @@ sequence
 join
     : JOIN (by=joinKeys)?
       joinTerm joinTerm+
-      (UNTIL joinTerm)?
+      (UNTIL until=joinTerm)?
     ;
 
 pipe

@@ -514,6 +514,7 @@ class EqlBaseParser extends Parser {
 
   public static class JoinContext extends ParserRuleContext {
     public JoinKeysContext by;
+    public JoinTermContext until;
     public TerminalNode JOIN() { return getToken(EqlBaseParser.JOIN, 0); }
     public List<JoinTermContext> joinTerm() {
       return getRuleContexts(JoinTermContext.class);
@@ -585,7 +586,7 @@ class EqlBaseParser extends Parser {
         setState(108);
         match(UNTIL);
         setState(109);
-        joinTerm();
+        ((JoinContext)_localctx).until = joinTerm();
         }
       }
 

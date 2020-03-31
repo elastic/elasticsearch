@@ -451,7 +451,7 @@ public class CachedBlobContainerIndexInputStatsTests extends ESIndexInputTestCas
 
         try (CacheService ignored = cacheService;
              SearchableSnapshotDirectory directory =
-                 new SearchableSnapshotDirectory(blobContainer, snapshot, snapshotId, indexId, shardId, indexSettings,
+                 new SearchableSnapshotDirectory(() -> blobContainer, () -> snapshot, snapshotId, indexId, shardId, indexSettings,
                      () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS), cacheService, createTempDir()) {
                      @Override
                      protected IndexInputStats createIndexInputStats(long fileLength) {

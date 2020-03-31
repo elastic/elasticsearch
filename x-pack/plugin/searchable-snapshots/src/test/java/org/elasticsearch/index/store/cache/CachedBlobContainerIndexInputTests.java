@@ -55,15 +55,18 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L,
                     List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metaData, new ByteSizeValue(input.length))), 0L, 0L, 0, 0L);
 
-                BlobContainer blobContainer = singleBlobContainer(blobName, input);
+                final BlobContainer singleBlobContainer = singleBlobContainer(blobName, input);
+                final BlobContainer blobContainer;
                 if (input.length <= cacheService.getCacheSize()) {
-                    blobContainer = new CountingBlobContainer(blobContainer, cacheService.getRangeSize());
+                    blobContainer = new CountingBlobContainer(singleBlobContainer, cacheService.getRangeSize());
+                } else {
+                    blobContainer = singleBlobContainer;
                 }
 
                 final Path cacheDir = createTempDir();
-                try (SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(blobContainer, snapshot, snapshotId, indexId,
-                    shardId, Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(), () -> 0L, cacheService, cacheDir
-                )) {
+                try (SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(() -> blobContainer, () -> snapshot,
+                        snapshotId, indexId, shardId, Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(),
+                        () -> 0L, cacheService, cacheDir)) {
                     try (IndexInput indexInput = directory.openInput(fileName, newIOContext(random()))) {
                         assertEquals(input.length, indexInput.length());
                         assertEquals(0, indexInput.getFilePointer());
@@ -102,8 +105,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
 
             final Path cacheDir = createTempDir();
-            try (SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory( blobContainer, snapshot,
-                    snapshotId, indexId, shardId, Settings.EMPTY, () -> 0L, cacheService, cacheDir)) {
+            try (SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(() -> blobContainer,
+                    () -> snapshot, snapshotId, indexId, shardId, Settings.EMPTY, () -> 0L, cacheService, cacheDir)) {
                 try (IndexInput indexInput = searchableSnapshotDirectory.openInput(fileName, newIOContext(random()))) {
                     final byte[] buffer = new byte[input.length + 1];
                     final IOException exception = expectThrows(IOException.class, () -> indexInput.readBytes(buffer, 0, buffer.length));

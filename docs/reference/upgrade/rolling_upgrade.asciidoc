@@ -118,10 +118,8 @@ GET _cat/health?v
 --------------------------------------------------
 // CONSOLE
 
-Wait for the `status` column to switch from `yellow` to `green`. Once the
-node is `green`, all primary and replica shards have been allocated.
-(If the newly-upgraded node contained any shards for which there are no
-replicas in the cluster, the status will start as `red` rather than `yellow`.)
+Wait for the `status` column to switch to `green`. Once the node is `green`, all
+primary and replica shards have been allocated.
 
 [IMPORTANT]
 ====================================================

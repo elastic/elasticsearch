@@ -35,7 +35,7 @@ public class TransportPutAutoscalingPolicyAction extends TransportMasterNodeActi
     PutAutoscalingPolicyAction.Request,
     AcknowledgedResponse> {
 
-    private final Logger logger = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
 
     @Inject
     public TransportPutAutoscalingPolicyAction(

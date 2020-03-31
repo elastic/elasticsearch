@@ -33,18 +33,14 @@ import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a function reference.
  */
-public class ENewArrayFunctionRef extends AExpression implements ILambda {
+public class ENewArrayFunctionRef extends AExpression {
 
     protected final String type;
-
-    // TODO: #54015
-    private String defPointer;
 
     public ENewArrayFunctionRef(Location location, String type) {
         super(location);
@@ -66,10 +62,6 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
 
         Output output = new Output();
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("A newly created array must be read from."));
-        }
-
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (clazz == null) {
@@ -79,23 +71,19 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
         String name = scriptRoot.getNextSyntheticName("newarray");
         scriptRoot.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
 
-        FunctionRef ref;
-
         if (input.expected == null) {
-            ref = null;
             output.actual = String.class;
-            defPointer = "Sthis." + name + ",0";
+            String defReferenceEncoding = "Sthis." + name + ",0";
 
             DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
 
             defInterfaceReferenceNode.setLocation(location);
             defInterfaceReferenceNode.setExpressionType(output.actual);
-            defInterfaceReferenceNode.setDefReferenceEncoding(defPointer);
+            defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
 
             output.expressionNode = defInterfaceReferenceNode;
         } else {
-            defPointer = null;
-            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
+            FunctionRef ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
                     location, input.expected, "this", name, 0);
             output.actual = input.expected;
 
@@ -143,15 +131,5 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
         classNode.addFunctionNode(functionNode);
 
         return output;
-    }
-
-    @Override
-    public String getPointer() {
-        return defPointer;
-    }
-
-    @Override
-    public List<Class<?>> getCaptures() {
-        return Collections.emptyList();
     }
 }

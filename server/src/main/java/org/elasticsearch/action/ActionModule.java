@@ -387,31 +387,31 @@ public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
 
-    private static final boolean ITV2_FEATURE_FLAG_REGISTERED;
+    private static final boolean ITV2_FEATURE_ENABLED;
 
     static {
-        final String property = System.getProperty("es.itv2_feature_flag_registered");
+        final String property = System.getProperty("es.itv2_feature_enabled");
         if (Build.CURRENT.isSnapshot() || "true".equals(property)) {
-            ITV2_FEATURE_FLAG_REGISTERED = true;
+            ITV2_FEATURE_ENABLED = true;
         } else if ("false".equals(property) || property == null) {
-            ITV2_FEATURE_FLAG_REGISTERED = false;
+            ITV2_FEATURE_ENABLED = false;
         } else {
-            throw new IllegalArgumentException("expected es.itv2_feature_flag_registered to be unset, true, or false but was [" +
+            throw new IllegalArgumentException("expected es.itv2_feature_enabled to be unset, true, or false but was [" +
                 property + "]");
         }
     }
 
-    private static final boolean DATASTREAMS_FEATURE_FLAG_REGISTERED;
+    private static final boolean DATASTREAMS_FEATURE_ENABLED;
 
     static {
-        final String property = System.getProperty("es.datastreams_feature_flag_registered");
+        final String property = System.getProperty("es.datastreams_feature_enabled");
         if (Build.CURRENT.isSnapshot() || "true".equals(property)) {
-            DATASTREAMS_FEATURE_FLAG_REGISTERED = true;
+            DATASTREAMS_FEATURE_ENABLED = true;
         } else if ("false".equals(property) || property == null) {
-            DATASTREAMS_FEATURE_FLAG_REGISTERED = false;
+            DATASTREAMS_FEATURE_ENABLED = false;
         } else {
             throw new IllegalArgumentException(
-                "expected es.datastreams_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
+                "expected es.datastreams_feature_enabled to be unset or [true|false] but was [" + property + "]"
             );
         }
     }
@@ -543,7 +543,7 @@ public class ActionModule extends AbstractModule {
         actions.register(PutIndexTemplateAction.INSTANCE, TransportPutIndexTemplateAction.class);
         actions.register(GetIndexTemplatesAction.INSTANCE, TransportGetIndexTemplatesAction.class);
         actions.register(DeleteIndexTemplateAction.INSTANCE, TransportDeleteIndexTemplateAction.class);
-        if (ITV2_FEATURE_FLAG_REGISTERED) {
+        if (ITV2_FEATURE_ENABLED) {
             actions.register(PutComponentTemplateAction.INSTANCE, TransportPutComponentTemplateAction.class);
             actions.register(GetComponentTemplateAction.INSTANCE, TransportGetComponentTemplateAction.class);
             actions.register(DeleteComponentTemplateAction.INSTANCE, TransportDeleteComponentTemplateAction.class);
@@ -599,7 +599,7 @@ public class ActionModule extends AbstractModule {
         actionPlugins.stream().flatMap(p -> p.getActions().stream()).forEach(actions::register);
 
         // Data streams:
-        if (DATASTREAMS_FEATURE_FLAG_REGISTERED) {
+        if (DATASTREAMS_FEATURE_ENABLED) {
             actions.register(CreateDataStreamAction.INSTANCE, CreateDataStreamAction.TransportAction.class);
             actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
             actions.register(GetDataStreamsAction.INSTANCE, GetDataStreamsAction.TransportAction.class);
@@ -693,7 +693,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetIndexTemplateAction());
         registerHandler.accept(new RestPutIndexTemplateAction());
         registerHandler.accept(new RestDeleteIndexTemplateAction());
-        if (ITV2_FEATURE_FLAG_REGISTERED) {
+        if (ITV2_FEATURE_ENABLED) {
             registerHandler.accept(new RestPutComponentTemplateAction());
             registerHandler.accept(new RestGetComponentTemplateAction());
             registerHandler.accept(new RestDeleteComponentTemplateAction());
@@ -761,7 +761,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSimulatePipelineAction());
 
         // Data Stream API
-        if (DATASTREAMS_FEATURE_FLAG_REGISTERED) {
+        if (DATASTREAMS_FEATURE_ENABLED) {
             registerHandler.accept(new RestCreateDataStreamAction());
             registerHandler.accept(new RestDeleteDataStreamAction());
             registerHandler.accept(new RestGetDataStreamsAction());

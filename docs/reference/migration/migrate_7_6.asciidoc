@@ -19,22 +19,22 @@ See also <<release-highlights>> and <<es-release-notes>>.
 === Security changes
 
 [discrete]
-==== {es} authentication API key privilege escalation
+==== {es} authentication API key privileges
 
 If you use the {es} API key service to generate API keys, the behavior of new
 API keys is impacted by the fix for
-[https://www.elastic.co/community/security]CVE-2020-7009.
+https://www.elastic.co/community/security[CVE-2020-7009].
 
 When you make a request to create API keys, you can specify an expiration and
 permissions for the API key. Previously, if you used an API key to create
 another API key (sometimes called a _derived key_), by default it had no
 privileges. It could nonetheless perform some operations such as running
-the <<security-api-authenticate,authenticate API>>. This is no longer the
-default behavior.
+the {ref}/security-api-authenticate.html[authenticate API]. This is no longer
+the default behavior.
 
 To create derived keys with no privileges, specify an empty object in the
 `role_descriptors` array when you run the
-<<security-api-create-api-key,create API key API>>. For example:
+{ref}/security-api-create-api-key.html[create API key API]. For example:
 
 [source,js]
 ----

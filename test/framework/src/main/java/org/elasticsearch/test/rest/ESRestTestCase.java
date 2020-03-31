@@ -978,10 +978,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
-    protected static void assertOK(DocWriteResponse response) {
-        assertThat(response.status().getStatus(), anyOf(equalTo(200), equalTo(201)));
-    }
-
     protected static void assertOK(StatusToXContentObject response) {
         assertThat(response.status().getStatus(), anyOf(equalTo(200), equalTo(201)));
     }

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -55,6 +56,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -340,8 +342,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             try {
                 // we flush first to make sure we get the latest writes snapshotted
                 snapshotRef = indexShard.acquireLastIndexCommit(true);
+                final IndexCommit snapshotIndexCommit = snapshotRef.getIndexCommit();
                 repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-                    snapshotRef.getIndexCommit(), snapshotStatus, version, userMetadata,
+                    snapshotRef.getIndexCommit(), getShardStateId(indexShard, snapshotIndexCommit), snapshotStatus, version, userMetadata,
                     ActionListener.runBefore(listener, snapshotRef::close));
             } catch (Exception e) {
                 IOUtils.close(snapshotRef);
@@ -350,6 +353,31 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Generates an identifier from the current state of a shard that can be used to detect whether a shard's contents
+     * have changed between two snapshots.
+     * A shard is assumed to have unchanged contents if its global- and local checkpoint are equal, its maximum
+     * sequence number has not changed and its history- and force-merge-uuid have not changed.
+     * The method returns {@code null} if global and local checkpoint are different for a shard since no safe unique
+     * shard state id can be used in this case because of the possibility of a primary failover leading to different
+     * shard content for the same sequence number on a subsequent snapshot.
+     *
+     * @param indexShard          Shard
+     * @param snapshotIndexCommit IndexCommit for shard
+     * @return shard state id or {@code null} if none can be used
+     */
+    @Nullable
+    private static String getShardStateId(IndexShard indexShard, IndexCommit snapshotIndexCommit) throws IOException {
+        final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
+        final SequenceNumbers.CommitInfo seqNumInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userCommitData.entrySet());
+        final long maxSeqNo = seqNumInfo.maxSeqNo;
+        if (maxSeqNo != seqNumInfo.localCheckpoint || maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint()) {
+            return null;
+        }
+        return userCommitData.get(Engine.HISTORY_UUID_KEY) + "-" +
+            userCommitData.getOrDefault(Engine.FORCE_MERGE_UUID_KEY, "na") + "-" + maxSeqNo;
     }
 
     /**

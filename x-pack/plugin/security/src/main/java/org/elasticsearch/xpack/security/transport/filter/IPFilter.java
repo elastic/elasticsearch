@@ -18,6 +18,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.net.InetSocketAddress;
@@ -96,7 +97,7 @@ public class IPFilter {
 
     private static final Logger logger = LogManager.getLogger(IPFilter.class);
 
-    private final AuditTrailService auditTrail;
+    private final AuditTrailService auditTrailService;
     private final XPackLicenseState licenseState;
     private final boolean alwaysAllowBoundAddresses;
 
@@ -114,9 +115,9 @@ public class IPFilter {
     private final Map<String, List<String>> profileAllowRules = Collections.synchronizedMap(new HashMap<>());
     private final Map<String, List<String>> profileDenyRules = Collections.synchronizedMap(new HashMap<>());
 
-    public IPFilter(final Settings settings, AuditTrailService auditTrail, ClusterSettings clusterSettings,
+    public IPFilter(final Settings settings, AuditTrailService auditTrailService, ClusterSettings clusterSettings,
                     XPackLicenseState licenseState) {
-        this.auditTrail = auditTrail;
+        this.auditTrailService = auditTrailService;
         this.licenseState = licenseState;
         this.alwaysAllowBoundAddresses = ALLOW_BOUND_ADDRESSES_SETTING.get(settings);
         httpDenyFilter = HTTP_FILTER_DENY_SETTING.get(settings);
@@ -205,6 +206,7 @@ public class IPFilter {
             return true;
         }
 
+        AuditTrail auditTrail = auditTrailService.get();
         for (SecurityIpFilterRule rule : rules.get(profile)) {
             if (rule.matches(peerAddress)) {
                 boolean isAllowed = rule.ruleType() == IpFilterRuleType.ACCEPT;

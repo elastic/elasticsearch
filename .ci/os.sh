@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# opensuse 15 has a missing dep for systemd 
+# opensuse 15 has a missing dep for systemd
 
 if which zypper > /dev/null ; then
     sudo zypper install -y insserv-compat
@@ -31,21 +31,21 @@ cp -v .ci/init.gradle $HOME/.gradle/init.d
 
 unset JAVA_HOME
 
-if ! [ -e "/usr/bin/bats" ] ; then 
+if ! [ -e "/usr/bin/bats" ] ; then
   git clone https://github.com/sstephenson/bats /tmp/bats
   sudo /tmp/bats/install.sh /usr
 fi
 
 
-if [ -f "/etc/os-release" ] ; then 
+if [ -f "/etc/os-release" ] ; then
     cat /etc/os-release
     . /etc/os-release
-    if [[ "$ID" == "debian" || "$ID_LIKE" == "debian" ]] ; then 
+    if [[ "$ID" == "debian" || "$ID_LIKE" == "debian" ]] ; then
         # FIXME: The base image should not have rpm installed
         sudo rm -Rf /usr/bin/rpm
-        # Work around incorrect lintian version 
-        #  https://github.com/elastic/elasticsearch/issues/48573 
-        if [ $VERSION_ID == 10 ] ; then 
+        # Work around incorrect lintian version
+        #  https://github.com/elastic/elasticsearch/issues/48573
+        if [ $VERSION_ID == 10 ] ; then
             sudo apt-get install -y --allow-downgrades lintian=2.15.0
         fi
     fi
@@ -71,7 +71,7 @@ sudo chmod 0440 /etc/sudoers.d/elasticsearch_vars
 sudo rm -Rf /elasticsearch
 sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln -s $PWD/qa/vagrant /elasticsearch/qa/
 
-# sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH 
+# sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH
 # run with --continue to run both bats and java tests even if one fails
 # be explicit about Gradle home dir so we use the same even with sudo
 sudo -E env \
@@ -79,5 +79,5 @@ sudo -E env \
   RUNTIME_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
-  ./gradlew -g $HOME/.gradle --scan --parallel $@ --continue destructivePackagingTest
+  ./gradlew -g $HOME/.gradle --scan --parallel --continue $@
 

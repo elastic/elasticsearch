@@ -422,6 +422,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final void assertWarnings(String... expectedWarnings) {
+        assertWarnings(true, expectedWarnings);
+    }
+
+    protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
@@ -429,7 +433,8 @@ public abstract class ESTestCase extends LuceneTestCase {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
             assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
             final Set<String> actualWarningValues =
-                    actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
+                    actualWarnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, stripXContentPosition))
+                        .collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
                 assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));
             }
@@ -1246,6 +1251,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
         return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data.streamInput());
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(NamedXContentRegistry namedXContentRegistry, XContent xContent,
+                                                BytesReference data) throws IOException {
+        return xContent.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, data.streamInput());
     }
 
     /**

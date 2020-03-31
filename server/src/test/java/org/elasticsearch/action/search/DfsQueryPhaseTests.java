@@ -27,18 +27,17 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
@@ -63,8 +62,6 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(
-            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
@@ -92,7 +89,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         };
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        DfsQueryPhase phase = new DfsQueryPhase(results, controller,
+        DfsQueryPhase phase = new DfsQueryPhase(results, searchPhaseController(),
             (response) -> new SearchPhase("test") {
             @Override
             public void run() throws IOException {
@@ -125,8 +122,6 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(
-            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
@@ -148,7 +143,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         };
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        DfsQueryPhase phase = new DfsQueryPhase(results, controller,
+        DfsQueryPhase phase = new DfsQueryPhase(results, searchPhaseController(),
             (response) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -184,8 +179,6 @@ public class DfsQueryPhaseTests extends ESTestCase {
         results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
         results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
 
-        SearchPhaseController controller = new SearchPhaseController(
-            (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
@@ -207,7 +200,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         };
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
-        DfsQueryPhase phase = new DfsQueryPhase(results, controller,
+        DfsQueryPhase phase = new DfsQueryPhase(results, searchPhaseController(),
             (response) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -219,4 +212,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
         assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty()); // phase execution will clean up on the contexts
     }
 
+    private SearchPhaseController searchPhaseController() {
+        return new SearchPhaseController(request -> InternalAggregationTestCase.emptyReduceContextBuilder());
+    }
  }

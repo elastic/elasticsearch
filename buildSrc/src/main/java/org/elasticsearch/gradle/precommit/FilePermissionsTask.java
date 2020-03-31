@@ -28,7 +28,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.tools.ant.taskdefs.condition.Os;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
@@ -80,7 +80,7 @@ public class FilePermissionsTask extends DefaultTask {
     @InputFiles
     @SkipWhenEmpty
     public FileCollection getFiles() {
-        return Boilerplate.getJavaSourceSets(getProject())
+        return GradleUtils.getJavaSourceSets(getProject())
             .stream()
             .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
             .reduce(FileTree::plus)

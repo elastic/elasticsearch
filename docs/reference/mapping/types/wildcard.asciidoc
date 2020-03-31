@@ -8,6 +8,7 @@
 
 A `wildcard` field stores values optimised for wildcard grep-like queries.
 Wildcard queries are possible on other field types but suffer from constraints:
+
 * `text` fields limit matching of any wildcard expressions to individual tokens rather than the original whole value held in a field
 * `keyword` fields are untokenized but slow at performing wildcard queries (especially patterns with leading wildcards).
 
@@ -46,6 +47,23 @@ POST my_index/_doc/_search
 
 --------------------------------------------------
 
+
+[[wildcard-params]]
+==== Parameters for wildcard fields
+
+The following parameters are accepted by `wildcard` fields:
+
+[horizontal]
+
+<<ignore-above,`ignore_above`>>::
+
+    Do not index any string longer than this value.  Defaults to `2147483647`
+    so that all values would be accepted.
+
+<<normalizer,`normalizer`>>::
+
+    How to pre-process the value prior to indexing. Defaults to `null`,
+    meaning the value is kept as-is.
 
 ==== Limitations
 

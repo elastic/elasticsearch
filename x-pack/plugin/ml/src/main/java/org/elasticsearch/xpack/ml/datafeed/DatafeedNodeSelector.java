@@ -32,6 +32,9 @@ public class DatafeedNodeSelector {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedNodeSelector.class);
 
+    public static final PersistentTasksCustomMetaData.Assignment AWAITING_JOB_ASSIGNMENT =
+        new PersistentTasksCustomMetaData.Assignment(null, "datafeed awaiting job assignment.");
+
     private final String datafeedId;
     private final String jobId;
     private final List<String> datafeedIndices;
@@ -76,9 +79,14 @@ public class DatafeedNodeSelector {
 
         AssignmentFailure assignmentFailure = checkAssignment();
         if (assignmentFailure == null) {
-            return new PersistentTasksCustomMetaData.Assignment(jobTask.getExecutorNode(), "");
+            String jobNode = jobTask.getExecutorNode();
+            if (jobNode == null) {
+                return AWAITING_JOB_ASSIGNMENT;
+            }
+            return new PersistentTasksCustomMetaData.Assignment(jobNode, "");
         }
         LOGGER.debug(assignmentFailure.reason);
+        assert assignmentFailure.reason.isEmpty() == false;
         return new PersistentTasksCustomMetaData.Assignment(null, assignmentFailure.reason);
     }
 

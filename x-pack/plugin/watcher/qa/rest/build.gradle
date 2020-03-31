@@ -17,10 +17,13 @@ task testJar(type: Jar) {
 
 artifacts {
   testArtifacts testJar
+  restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
 }
 
 restResources {
   restApi {
+    includeCore '_common', 'cluster', 'nodes', 'search', 'get', 'indices', 
+                'index', 'put_script', 'ingest', 'count'
     includeXpack 'watcher', 'xpack'
   }
 }

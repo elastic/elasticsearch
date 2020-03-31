@@ -34,7 +34,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.junit.Before;
@@ -193,7 +193,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             IndexNumericFieldData fielddata = (IndexNumericFieldData) ft.fielddataBuilder("index")
                 .build(indexSettings, ft, null, null, null);
             assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
-            AtomicNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
+            LeafNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
             SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());

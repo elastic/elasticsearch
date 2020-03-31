@@ -61,6 +61,13 @@ process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
 {"terms":{"opcode":[0,1,2,3]
 
 
+endsWithFunction
+process where endsWith(user_name, 'c')
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.endsWith(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
+"params":{"v0":"user_name","v1":"c"}
+
+
 lengthFunctionWithExactSubField
 process where length(file_name) > 0
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(

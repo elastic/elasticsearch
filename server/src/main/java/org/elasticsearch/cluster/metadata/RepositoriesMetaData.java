@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.MetaData.Custom;
+import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,24 +43,24 @@ import java.util.List;
 /**
  * Contains metadata about registered snapshot repositories
  */
-public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implements Custom {
+public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implements Custom {
 
     public static final String TYPE = "repositories";
 
     /**
-     * Serialization parameter used to hide the {@link RepositoryMetaData#generation()} and {@link RepositoryMetaData#pendingGeneration()}
+     * Serialization parameter used to hide the {@link RepositoryMetadata#generation()} and {@link RepositoryMetadata#pendingGeneration()}
      * in {@link org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.
      */
     public static final String HIDE_GENERATIONS_PARAM = "hide_generations";
 
-    private final List<RepositoryMetaData> repositories;
+    private final List<RepositoryMetadata> repositories;
 
     /**
      * Constructs new repository metadata
      *
      * @param repositories list of repositories
      */
-    public RepositoriesMetaData(List<RepositoryMetaData> repositories) {
+    public RepositoriesMetadata(List<RepositoryMetadata> repositories) {
         this.repositories = Collections.unmodifiableList(repositories);
     }
 
@@ -72,7 +72,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      * @param pendingGeneration new pending generation
      * @return new instance with updated generations
      */
-    public RepositoriesMetaData withUpdatedGeneration(String repoName, long safeGeneration, long pendingGeneration) {
+    public RepositoriesMetadata withUpdatedGeneration(String repoName, long safeGeneration, long pendingGeneration) {
         int indexOfRepo = -1;
         for (int i = 0; i < repositories.size(); i++) {
             if (repositories.get(i).name().equals(repoName)) {
@@ -83,9 +83,9 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
         if (indexOfRepo < 0) {
             throw new IllegalArgumentException("Unknown repository [" + repoName + "]");
         }
-        final List<RepositoryMetaData> updatedRepos = new ArrayList<>(repositories);
-        updatedRepos.set(indexOfRepo, new RepositoryMetaData(repositories.get(indexOfRepo), safeGeneration, pendingGeneration));
-        return new RepositoriesMetaData(updatedRepos);
+        final List<RepositoryMetadata> updatedRepos = new ArrayList<>(repositories);
+        updatedRepos.set(indexOfRepo, new RepositoryMetadata(repositories.get(indexOfRepo), safeGeneration, pendingGeneration));
+        return new RepositoriesMetadata(updatedRepos);
     }
 
     /**
@@ -93,7 +93,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      *
      * @return list of repositories
      */
-    public List<RepositoryMetaData> repositories() {
+    public List<RepositoryMetadata> repositories() {
         return this.repositories;
     }
 
@@ -103,8 +103,8 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      * @param name name of repository
      * @return repository metadata
      */
-    public RepositoryMetaData repository(String name) {
-        for (RepositoryMetaData repository : repositories) {
+    public RepositoryMetadata repository(String name) {
+        for (RepositoryMetadata repository : repositories) {
             if (name.equals(repository.name())) {
                 return repository;
             }
@@ -117,20 +117,20 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        RepositoriesMetaData that = (RepositoriesMetaData) o;
+        RepositoriesMetadata that = (RepositoriesMetadata) o;
 
         return repositories.equals(that.repositories);
     }
 
     /**
      * Checks if this instance and the given instance share the same repositories by checking that this instances' repositories and the
-     * repositories in {@code other} are equal or only differ in their values of {@link RepositoryMetaData#generation()} and
-     * {@link RepositoryMetaData#pendingGeneration()}.
+     * repositories in {@code other} are equal or only differ in their values of {@link RepositoryMetadata#generation()} and
+     * {@link RepositoryMetadata#pendingGeneration()}.
      *
      * @param other other repositories metadata
      * @return {@code true} iff both instances contain the same repositories apart from differences in generations
      */
-    public boolean equalsIgnoreGenerations(@Nullable RepositoriesMetaData other) {
+    public boolean equalsIgnoreGenerations(@Nullable RepositoriesMetadata other) {
         if (other == null) {
             return false;
         }
@@ -163,10 +163,10 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
         return Version.CURRENT.minimumCompatibilityVersion();
     }
 
-    public RepositoriesMetaData(StreamInput in) throws IOException {
-        RepositoryMetaData[] repository = new RepositoryMetaData[in.readVInt()];
+    public RepositoriesMetadata(StreamInput in) throws IOException {
+        RepositoryMetadata[] repository = new RepositoryMetadata[in.readVInt()];
         for (int i = 0; i < repository.length; i++) {
-            repository[i] = new RepositoryMetaData(in);
+            repository[i] = new RepositoryMetadata(in);
         }
         this.repositories = List.of(repository);
     }
@@ -181,14 +181,14 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(repositories.size());
-        for (RepositoryMetaData repository : repositories) {
+        for (RepositoryMetadata repository : repositories) {
             repository.writeTo(out);
         }
     }
 
-    public static RepositoriesMetaData fromXContent(XContentParser parser) throws IOException {
+    public static RepositoriesMetadata fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
-        List<RepositoryMetaData> repository = new ArrayList<>();
+        List<RepositoryMetadata> repository = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String name = parser.currentName();
@@ -233,12 +233,12 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
                 if (type == null) {
                     throw new ElasticsearchParseException("failed to parse repository [{}], missing repository type", name);
                 }
-                repository.add(new RepositoryMetaData(name, type, settings, generation, pendingGeneration));
+                repository.add(new RepositoryMetadata(name, type, settings, generation, pendingGeneration));
             } else {
                 throw new ElasticsearchParseException("failed to parse repositories");
             }
         }
-        return new RepositoriesMetaData(repository);
+        return new RepositoriesMetadata(repository);
     }
 
     /**
@@ -246,15 +246,15 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        for (RepositoryMetaData repository : repositories) {
+        for (RepositoryMetadata repository : repositories) {
             toXContent(repository, builder, params);
         }
         return builder;
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.API_AND_GATEWAY;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.API_AND_GATEWAY;
     }
 
     /**
@@ -264,7 +264,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      * @param builder    XContent builder
      * @param params     serialization parameters
      */
-    public static void toXContent(RepositoryMetaData repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public static void toXContent(RepositoryMetadata repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(repository.name());
         builder.field("type", repository.type());
         builder.startObject("settings");

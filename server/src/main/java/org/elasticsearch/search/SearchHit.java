@@ -741,7 +741,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     public static void declareInnerHitsParseFields(ObjectParser<Map<String, Object>, Void> parser) {
-        declareMetaDataFields(parser);
+        declareMetadataFields(parser);
         parser.declareString((map, value) -> map.put(Fields._INDEX, value), new ParseField(Fields._INDEX));
         parser.declareString((map, value) -> map.put(Fields._ID, value), new ParseField(Fields._ID));
         parser.declareString((map, value) -> map.put(Fields._NODE, value), new ParseField(Fields._NODE));
@@ -842,7 +842,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * we need to declare parse fields for each metadata field, except for _ID, _INDEX and _TYPE which are
      * handled individually. All other fields are parsed to an entry in the fields map
      */
-    private static void declareMetaDataFields(ObjectParser<Map<String, Object>, Void> parser) {
+    private static void declareMetadataFields(ObjectParser<Map<String, Object>, Void> parser) {
         /* TODO: This method and its usage in declareInnerHitsParseFields() must be replaced by
             calling an UnknownFieldConsumer. All fields on the root level of the parsed SearhHit
             should be interpreted as metadata fields.

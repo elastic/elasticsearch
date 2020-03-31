@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import java.sql.Connection;
-import java.sql.ParameterMetaData;
+import java.sql.ParameterMetadata;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
+import java.sql.ResultSetMetadata;
 
 // handles Statement, PreparedStatement and CallableStatement
 final class StatementProxy extends DebuggingInvoker {
@@ -25,11 +25,11 @@ final class StatementProxy extends DebuggingInvoker {
         if (result instanceof ResultSet) {
             return Debug.proxy(new ResultSetProxy(log, result, proxy));
         }
-        if (result instanceof ParameterMetaData) {
-            return Debug.proxy(new ParameterMetaDataProxy(log, result));
+        if (result instanceof ParameterMetadata) {
+            return Debug.proxy(new ParameterMetadataProxy(log, result));
         }
-        if (result instanceof ResultSetMetaData) {
-            return Debug.proxy(new ResultSetMetaDataProxy(log, result));
+        if (result instanceof ResultSetMetadata) {
+            return Debug.proxy(new ResultSetMetadataProxy(log, result));
         }
 
         return result;

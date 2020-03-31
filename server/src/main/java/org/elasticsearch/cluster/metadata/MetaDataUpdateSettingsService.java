@@ -61,8 +61,8 @@ import static org.elasticsearch.index.IndexSettings.same;
 /**
  * Service responsible for submitting update index settings requests
  */
-public class MetaDataUpdateSettingsService {
-    private static final Logger logger = LogManager.getLogger(MetaDataUpdateSettingsService.class);
+public class MetadataUpdateSettingsService {
+    private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);
 
     private final ClusterService clusterService;
 
@@ -73,7 +73,7 @@ public class MetaDataUpdateSettingsService {
     private final ThreadPool threadPool;
 
     @Inject
-    public MetaDataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
+    public MetadataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
                                          IndexScopedSettings indexScopedSettings, IndicesService indicesService, ThreadPool threadPool) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -85,7 +85,7 @@ public class MetaDataUpdateSettingsService {
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request,
                                final ActionListener<ClusterStateUpdateResponse> listener) {
         final Settings normalizedSettings =
-            Settings.builder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+            Settings.builder().put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
         final Set<String> skippedSettings = new HashSet<>();
@@ -124,7 +124,7 @@ public class MetaDataUpdateSettingsService {
             public ClusterState execute(ClusterState currentState) {
 
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
-                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
+                Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
 
                 // allow to change any settings to a close index, and only allow dynamic settings to be changed
                 // on an open index
@@ -134,8 +134,8 @@ public class MetaDataUpdateSettingsService {
                 for (int i = 0; i < request.indices().length; i++) {
                     Index index = request.indices()[i];
                     actualIndices[i] = index.getName();
-                    final IndexMetaData metaData = currentState.metaData().getIndexSafe(index);
-                    if (metaData.getState() == IndexMetaData.State.OPEN) {
+                    final IndexMetadata metadata = currentState.metadata().getIndexSafe(index);
+                    if (metadata.getState() == IndexMetadata.State.OPEN) {
                         openIndices.add(index);
                     } else {
                         closeIndices.add(index);
@@ -147,7 +147,7 @@ public class MetaDataUpdateSettingsService {
                             "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices));
                 }
 
-                int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
+                int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, -1);
                 if (updatedNumberOfReplicas != -1 && preserveExisting == false) {
 
                     // Verify that this won't take us over the cluster shard limit.
@@ -165,52 +165,52 @@ public class MetaDataUpdateSettingsService {
                     // operation which make these copies stale
                     // TODO: update the list once the data is deleted by the node?
                     routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
-                    metaDataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
+                    metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
                 }
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_BLOCK,
-                    IndexMetaData.INDEX_READ_ONLY_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK,
-                    IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_METADATA_BLOCK,
-                    IndexMetaData.INDEX_BLOCKS_METADATA_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_WRITE_BLOCK,
-                    IndexMetaData.INDEX_BLOCKS_WRITE_SETTING, openSettings);
-                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_BLOCK,
-                    IndexMetaData.INDEX_BLOCKS_READ_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_ONLY_BLOCK,
+                    IndexMetadata.INDEX_READ_ONLY_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK,
+                    IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_METADATA_BLOCK,
+                    IndexMetadata.INDEX_BLOCKS_METADATA_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_WRITE_BLOCK,
+                    IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetadata.INDEX_READ_BLOCK,
+                    IndexMetadata.INDEX_BLOCKS_READ_SETTING, openSettings);
 
                 if (!openIndices.isEmpty()) {
                     for (Index index : openIndices) {
-                        IndexMetaData indexMetaData = metaDataBuilder.getSafe(index);
+                        IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
                         Settings.Builder updates = Settings.builder();
-                        Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings());
+                        Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
                         if (indexScopedSettings.updateDynamicSettings(openSettings, indexSettings, updates, index.getName())) {
                             if (preserveExisting) {
-                                indexSettings.put(indexMetaData.getSettings());
+                                indexSettings.put(indexMetadata.getSettings());
                             }
                             Settings finalSettings = indexSettings.build();
                             indexScopedSettings.validate(
                                 finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
-                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
+                            metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
                         }
                     }
                 }
 
                 if (!closeIndices.isEmpty()) {
                     for (Index index : closeIndices) {
-                        IndexMetaData indexMetaData = metaDataBuilder.getSafe(index);
+                        IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
                         Settings.Builder updates = Settings.builder();
-                        Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings());
+                        Settings.Builder indexSettings = Settings.builder().put(indexMetadata.getSettings());
                         if (indexScopedSettings.updateSettings(closedSettings, indexSettings, updates, index.getName())) {
                             if (preserveExisting) {
-                                indexSettings.put(indexMetaData.getSettings());
+                                indexSettings.put(indexMetadata.getSettings());
                             }
                             Settings finalSettings = indexSettings.build();
                             indexScopedSettings.validate(
                                 finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false), true);
-                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData).settings(finalSettings));
+                            metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
                         }
                     }
                 }
@@ -218,37 +218,37 @@ public class MetaDataUpdateSettingsService {
                 if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(normalizedSettings) ||
                     IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(normalizedSettings)) {
                     for (String index : actualIndices) {
-                        MetaDataCreateIndexService.validateTranslogRetentionSettings(metaDataBuilder.get(index).getSettings());
+                        MetadataCreateIndexService.validateTranslogRetentionSettings(metadataBuilder.get(index).getSettings());
                     }
                 }
                 // increment settings versions
                 for (final String index : actualIndices) {
-                    if (same(currentState.metaData().index(index).getSettings(), metaDataBuilder.get(index).getSettings()) == false) {
-                        final IndexMetaData.Builder builder = IndexMetaData.builder(metaDataBuilder.get(index));
+                    if (same(currentState.metadata().index(index).getSettings(), metadataBuilder.get(index).getSettings()) == false) {
+                        final IndexMetadata.Builder builder = IndexMetadata.builder(metadataBuilder.get(index));
                         builder.settingsVersion(1 + builder.settingsVersion());
-                        metaDataBuilder.put(builder);
+                        metadataBuilder.put(builder);
                     }
                 }
 
-                ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder)
+                ClusterState updatedState = ClusterState.builder(currentState).metadata(metadataBuilder)
                     .routingTable(routingTableBuilder.build()).blocks(blocks).build();
 
                 // now, reroute in case things change that require it (like number of replicas)
                 updatedState = allocationService.reroute(updatedState, "settings update");
                 try {
                     for (Index index : openIndices) {
-                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
-                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
-                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
+                        final IndexMetadata currentMetadata = currentState.getMetadata().getIndexSafe(index);
+                        final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
+                        indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
                     }
                     for (Index index : closeIndices) {
-                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
-                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        final IndexMetadata currentMetadata = currentState.getMetadata().getIndexSafe(index);
+                        final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
                         // Verifies that the current index settings can be updated with the updated dynamic settings.
-                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
+                        indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
                         // Now check that we can create the index with the updated settings (dynamic and non-dynamic).
                         // This step is mandatory since we allow to update non-dynamic settings on closed indices.
-                        indicesService.verifyIndexMetadata(updatedMetaData, updatedMetaData);
+                        indicesService.verifyIndexMetadata(updatedMetadata, updatedMetadata);
                     }
                 } catch (IOException ex) {
                     throw ExceptionsHelper.convertToElastic(ex);
@@ -259,9 +259,9 @@ public class MetaDataUpdateSettingsService {
     }
 
     private int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
-        IndexMetaData indexMetaData = currentState.metaData().index(index);
-        int shardsInIndex = indexMetaData.getNumberOfShards();
-        int oldNumberOfReplicas = indexMetaData.getNumberOfReplicas();
+        IndexMetadata indexMetadata = currentState.metadata().index(index);
+        int shardsInIndex = indexMetadata.getNumberOfShards();
+        int oldNumberOfReplicas = indexMetadata.getNumberOfReplicas();
         int replicaIncrease = updatedNumberOfReplicas - oldNumberOfReplicas;
         return replicaIncrease * shardsInIndex;
     }
@@ -297,26 +297,26 @@ public class MetaDataUpdateSettingsService {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
+                Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
                 for (Map.Entry<String, Tuple<Version, String>> entry : request.versions().entrySet()) {
                     String index = entry.getKey();
-                    IndexMetaData indexMetaData = metaDataBuilder.get(index);
-                    if (indexMetaData != null) {
-                        if (Version.CURRENT.equals(indexMetaData.getCreationVersion()) == false) {
+                    IndexMetadata indexMetadata = metadataBuilder.get(index);
+                    if (indexMetadata != null) {
+                        if (Version.CURRENT.equals(indexMetadata.getCreationVersion()) == false) {
                             // no reason to pollute the settings, we didn't really upgrade anything
-                            metaDataBuilder.put(
-                                    IndexMetaData
-                                            .builder(indexMetaData)
+                            metadataBuilder.put(
+                                    IndexMetadata
+                                            .builder(indexMetadata)
                                             .settings(
                                                     Settings
                                                             .builder()
-                                                            .put(indexMetaData.getSettings())
-                                                            .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1()))
-                                            .settingsVersion(1 + indexMetaData.getSettingsVersion()));
+                                                            .put(indexMetadata.getSettings())
+                                                            .put(IndexMetadata.SETTING_VERSION_UPGRADED, entry.getValue().v1()))
+                                            .settingsVersion(1 + indexMetadata.getSettingsVersion()));
                         }
                     }
                 }
-                return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
+                return ClusterState.builder(currentState).metadata(metadataBuilder).build();
             }
         });
     }

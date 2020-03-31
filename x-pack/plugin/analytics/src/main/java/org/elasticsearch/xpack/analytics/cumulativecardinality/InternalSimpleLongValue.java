@@ -24,8 +24,8 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
     protected final long value;
 
     public InternalSimpleLongValue(String name, long value, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-                               Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                               Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.format = formatter;
         this.value = value;
     }

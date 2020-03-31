@@ -73,8 +73,8 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         super(name);
     }
 
-    private RareTermsAggregationBuilder(RareTermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    private RareTermsAggregationBuilder(RareTermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.includeExclude = clone.includeExclude;
     }
 
@@ -84,8 +84,8 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new RareTermsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new RareTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -174,7 +174,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
         return new RareTermsAggregatorFactory(name, config, includeExclude,
-            queryShardContext, parent, subFactoriesBuilder, metaData, maxDocCount, precision);
+            queryShardContext, parent, subFactoriesBuilder, metadata, maxDocCount, precision);
     }
 
     @Override

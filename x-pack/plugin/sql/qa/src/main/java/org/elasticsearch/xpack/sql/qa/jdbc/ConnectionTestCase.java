@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import org.elasticsearch.Version;
 
 import java.sql.Connection;
-import java.sql.DatabaseMetaData;
+import java.sql.DatabaseMetadata;
 import java.sql.SQLException;
 
 /**
@@ -19,7 +19,7 @@ public abstract class ConnectionTestCase extends JdbcIntegrationTestCase {
         try (Connection c = esJdbc()) {
             assertFalse(c.isClosed());
             assertTrue(c.isReadOnly());
-            DatabaseMetaData md = c.getMetaData();
+            DatabaseMetadata md = c.getMetadata();
             assertEquals(Version.CURRENT.major, md.getDatabaseMajorVersion());
             assertEquals(Version.CURRENT.minor, md.getDatabaseMinorVersion());
         }

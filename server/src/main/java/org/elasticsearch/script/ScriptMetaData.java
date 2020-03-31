@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,15 +43,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * {@link ScriptMetaData} is used to store user-defined scripts
+ * {@link ScriptMetadata} is used to store user-defined scripts
  * as part of the {@link ClusterState} using only an id as the key.
  */
-public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXContentFragment {
+public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXContentFragment {
 
     /**
      * Standard deprecation logger for used to deprecate allowance of empty templates.
      */
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptMetaData.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptMetadata.class));
 
     /**
      * A builder used to modify the currently stored scripts data held within
@@ -64,10 +64,10 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
         private final Map<String, StoredScriptSource> scripts;
 
         /**
-         * @param previous The current {@link ScriptMetaData} or {@code null} if there
-         *                 is no existing {@link ScriptMetaData}.
+         * @param previous The current {@link ScriptMetadata} or {@code null} if there
+         *                 is no existing {@link ScriptMetadata}.
          */
-        public Builder(ScriptMetaData previous) {
+        public Builder(ScriptMetadata previous) {
             this.scripts = previous == null ? new HashMap<>() : new HashMap<>(previous.scripts);
         }
 
@@ -98,18 +98,18 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
         }
 
         /**
-         * @return A {@link ScriptMetaData} with the updated {@link Map} of scripts.
+         * @return A {@link ScriptMetadata} with the updated {@link Map} of scripts.
          */
-        public ScriptMetaData build() {
-            return new ScriptMetaData(scripts);
+        public ScriptMetadata build() {
+            return new ScriptMetadata(scripts);
         }
     }
 
-    static final class ScriptMetadataDiff implements NamedDiff<MetaData.Custom> {
+    static final class ScriptMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, StoredScriptSource>> pipelines;
 
-        ScriptMetadataDiff(ScriptMetaData before, ScriptMetaData after) {
+        ScriptMetadataDiff(ScriptMetadata before, ScriptMetadata after) {
             this.pipelines = DiffableUtils.diff(before.scripts, after.scripts, DiffableUtils.getStringKeySerializer());
         }
 
@@ -124,8 +124,8 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
         }
 
         @Override
-        public MetaData.Custom apply(MetaData.Custom part) {
-            return new ScriptMetaData(pipelines.apply(((ScriptMetaData) part).scripts));
+        public Metadata.Custom apply(Metadata.Custom part) {
+            return new ScriptMetadata(pipelines.apply(((ScriptMetadata) part).scripts));
         }
 
         @Override
@@ -136,9 +136,9 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
 
     /**
      * Convenience method to build and return a new
-     * {@link ScriptMetaData} adding the specified stored script.
+     * {@link ScriptMetadata} adding the specified stored script.
      */
-    static ScriptMetaData putStoredScript(ScriptMetaData previous, String id, StoredScriptSource source) {
+    static ScriptMetadata putStoredScript(ScriptMetadata previous, String id, StoredScriptSource source) {
         Builder builder = new Builder(previous);
         builder.storeScript(id, source);
 
@@ -147,10 +147,10 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
 
     /**
      * Convenience method to build and return a new
-     * {@link ScriptMetaData} deleting the specified stored script.
+     * {@link ScriptMetadata} deleting the specified stored script.
      */
-    static ScriptMetaData deleteStoredScript(ScriptMetaData previous, String id) {
-        Builder builder = new ScriptMetaData.Builder(previous);
+    static ScriptMetadata deleteStoredScript(ScriptMetadata previous, String id) {
+        Builder builder = new ScriptMetadata.Builder(previous);
         builder.deleteScript(id);
 
         return builder.build();
@@ -162,7 +162,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     public static final String TYPE = "stored_scripts";
 
     /**
-     * This will parse XContent into {@link ScriptMetaData}.
+     * This will parse XContent into {@link ScriptMetadata}.
      *
      * The following format will be parsed:
      *
@@ -178,7 +178,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      * using the old namespace id format of [lang#id] are found to have the
      * same id but different languages an error will occur.
      */
-    public static ScriptMetaData fromXContent(XContentParser parser) throws IOException {
+    public static ScriptMetadata fromXContent(XContentParser parser) throws IOException {
         Map<String, StoredScriptSource> scripts = new HashMap<>();
         String id = null;
         StoredScriptSource source;
@@ -271,10 +271,10 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
             token = parser.nextToken();
         }
 
-        return new ScriptMetaData(scripts);
+        return new ScriptMetadata(scripts);
     }
 
-    public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new ScriptMetadataDiff(in);
     }
 
@@ -286,11 +286,11 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      *                use and empty {@link Map} to specify there were no
      *                previously stored scripts.
      */
-    ScriptMetaData(Map<String, StoredScriptSource> scripts) {
+    ScriptMetadata(Map<String, StoredScriptSource> scripts) {
         this.scripts = Collections.unmodifiableMap(scripts);
     }
 
-    public ScriptMetaData(StreamInput in) throws IOException {
+    public ScriptMetadata(StreamInput in) throws IOException {
         Map<String, StoredScriptSource> scripts = new HashMap<>();
         StoredScriptSource source;
         int size = in.readVInt();
@@ -317,7 +317,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
 
 
     /**
-     * This will write XContent from {@link ScriptMetaData}.  The following format will be written:
+     * This will write XContent from {@link ScriptMetadata}.  The following format will be written:
      *
      * {@code
      * {
@@ -338,8 +338,8 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     }
 
     @Override
-    public Diff<MetaData.Custom> diff(MetaData.Custom before) {
-        return new ScriptMetadataDiff((ScriptMetaData)before, this);
+    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+        return new ScriptMetadataDiff((ScriptMetadata)before, this);
     }
 
     @Override
@@ -353,8 +353,8 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.ALL_CONTEXTS;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.ALL_CONTEXTS;
     }
 
     /**
@@ -376,7 +376,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        ScriptMetaData that = (ScriptMetaData)o;
+        ScriptMetadata that = (ScriptMetadata)o;
 
         return scripts.equals(that.scripts);
 
@@ -389,7 +389,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
 
     @Override
     public String toString() {
-        return "ScriptMetaData{" +
+        return "ScriptMetadata{" +
             "scripts=" + scripts +
             '}';
     }

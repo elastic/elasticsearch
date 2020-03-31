@@ -46,7 +46,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements ToXContentFragment {
+public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements ToXContentFragment {
 
     private final String alias;
 
@@ -64,7 +64,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
     @Nullable
     private final Boolean isHidden;
 
-    private AliasMetaData(String alias, CompressedXContent filter, String indexRouting, String searchRouting, Boolean writeIndex,
+    private AliasMetadata(String alias, CompressedXContent filter, String indexRouting, String searchRouting, Boolean writeIndex,
                           @Nullable Boolean isHidden) {
         this.alias = alias;
         this.filter = filter;
@@ -79,9 +79,9 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         this.isHidden = isHidden;
     }
 
-    private AliasMetaData(AliasMetaData aliasMetaData, String alias) {
-        this(alias, aliasMetaData.filter(), aliasMetaData.indexRouting(), aliasMetaData.searchRouting(), aliasMetaData.writeIndex(),
-            aliasMetaData.isHidden);
+    private AliasMetadata(AliasMetadata aliasMetadata, String alias) {
+        this(alias, aliasMetadata.filter(), aliasMetadata.indexRouting(), aliasMetadata.searchRouting(), aliasMetadata.writeIndex(),
+            aliasMetadata.isHidden);
     }
 
     public String alias() {
@@ -137,15 +137,15 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         return new Builder(alias);
     }
 
-    public static Builder newAliasMetaDataBuilder(String alias) {
+    public static Builder newAliasMetadataBuilder(String alias) {
         return new Builder(alias);
     }
 
     /**
-     * Creates a new AliasMetaData instance with same content as the given one, but with a different alias name
+     * Creates a new AliasMetadata instance with same content as the given one, but with a different alias name
      */
-    public static AliasMetaData newAliasMetaData(AliasMetaData aliasMetaData, String newAlias) {
-        return new AliasMetaData(aliasMetaData, newAlias);
+    public static AliasMetadata newAliasMetadata(AliasMetadata aliasMetadata, String newAlias) {
+        return new AliasMetadata(aliasMetadata, newAlias);
     }
 
     @Override
@@ -153,7 +153,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        final AliasMetaData that = (AliasMetaData) o;
+        final AliasMetadata that = (AliasMetadata) o;
 
         if (Objects.equals(alias, that.alias) == false) return false;
         if (Objects.equals(filter, that.filter) == false) return false;
@@ -203,7 +203,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         }
     }
 
-    public AliasMetaData(StreamInput in) throws IOException {
+    public AliasMetadata(StreamInput in) throws IOException {
         alias = in.readString();
         if (in.readBoolean()) {
             filter = CompressedXContent.readCompressedString(in);
@@ -231,8 +231,8 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
         }
     }
 
-    public static Diff<AliasMetaData> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(AliasMetaData::new, in);
+    public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(AliasMetadata::new, in);
     }
 
     @Override
@@ -242,7 +242,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        AliasMetaData.Builder.toXContent(this, builder, params);
+        AliasMetadata.Builder.toXContent(this, builder, params);
         return builder;
     }
 
@@ -323,41 +323,41 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
             return this;
         }
 
-        public AliasMetaData build() {
-            return new AliasMetaData(alias, filter, indexRouting, searchRouting, writeIndex, isHidden);
+        public AliasMetadata build() {
+            return new AliasMetadata(alias, filter, indexRouting, searchRouting, writeIndex, isHidden);
         }
 
-        public static void toXContent(AliasMetaData aliasMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(aliasMetaData.alias());
+        public static void toXContent(AliasMetadata aliasMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject(aliasMetadata.alias());
 
             boolean binary = params.paramAsBoolean("binary", false);
 
-            if (aliasMetaData.filter() != null) {
+            if (aliasMetadata.filter() != null) {
                 if (binary) {
-                    builder.field("filter", aliasMetaData.filter.compressed());
+                    builder.field("filter", aliasMetadata.filter.compressed());
                 } else {
-                    builder.field("filter", XContentHelper.convertToMap(new BytesArray(aliasMetaData.filter().uncompressed()), true).v2());
+                    builder.field("filter", XContentHelper.convertToMap(new BytesArray(aliasMetadata.filter().uncompressed()), true).v2());
                 }
             }
-            if (aliasMetaData.indexRouting() != null) {
-                builder.field("index_routing", aliasMetaData.indexRouting());
+            if (aliasMetadata.indexRouting() != null) {
+                builder.field("index_routing", aliasMetadata.indexRouting());
             }
-            if (aliasMetaData.searchRouting() != null) {
-                builder.field("search_routing", aliasMetaData.searchRouting());
-            }
-
-            if (aliasMetaData.writeIndex() != null) {
-                builder.field("is_write_index", aliasMetaData.writeIndex());
+            if (aliasMetadata.searchRouting() != null) {
+                builder.field("search_routing", aliasMetadata.searchRouting());
             }
 
-            if (aliasMetaData.isHidden != null) {
-                builder.field("is_hidden", aliasMetaData.isHidden());
+            if (aliasMetadata.writeIndex() != null) {
+                builder.field("is_write_index", aliasMetadata.writeIndex());
+            }
+
+            if (aliasMetadata.isHidden != null) {
+                builder.field("is_hidden", aliasMetadata.isHidden());
             }
 
             builder.endObject();
         }
 
-        public static AliasMetaData fromXContent(XContentParser parser) throws IOException {
+        public static AliasMetadata fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder(parser.currentName());
 
             String currentFieldName = null;

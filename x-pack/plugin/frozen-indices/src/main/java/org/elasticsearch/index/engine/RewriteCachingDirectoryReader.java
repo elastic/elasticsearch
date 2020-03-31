@@ -12,7 +12,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.LeafMetaData;
+import org.apache.lucene.index.LeafMetadata;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -231,7 +231,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public LeafMetaData getMetaData() {
+        public LeafMetadata getMetadata() {
             throw new UnsupportedOperationException();
         }
 

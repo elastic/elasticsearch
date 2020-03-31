@@ -39,9 +39,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class CoordinationMetaData implements Writeable, ToXContentFragment {
+public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
-    public static final CoordinationMetaData EMPTY_META_DATA = builder().build();
+    public static final CoordinationMetadata EMPTY_META_DATA = builder().build();
 
     private final long term;
 
@@ -78,9 +78,9 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         return votingTombstones;
     }
 
-    private static final ConstructingObjectParser<CoordinationMetaData, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<CoordinationMetadata, Void> PARSER = new ConstructingObjectParser<>(
             "coordination_metadata",
-            fields -> new CoordinationMetaData(term(fields), lastCommittedConfig(fields),
+            fields -> new CoordinationMetadata(term(fields), lastCommittedConfig(fields),
                     lastAcceptedConfig(fields), votingConfigExclusions(fields)));
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TERM_PARSE_FIELD);
@@ -89,7 +89,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), VotingConfigExclusion.PARSER, VOTING_CONFIG_EXCLUSIONS_FIELD);
     }
 
-    public CoordinationMetaData(long term, VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
+    public CoordinationMetadata(long term, VotingConfiguration lastCommittedConfiguration, VotingConfiguration lastAcceptedConfiguration,
                                 Set<VotingConfigExclusion> votingConfigExclusions) {
         this.term = term;
         this.lastCommittedConfiguration = lastCommittedConfiguration;
@@ -97,7 +97,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         this.votingConfigExclusions = Set.copyOf(votingConfigExclusions);
     }
 
-    public CoordinationMetaData(StreamInput in) throws IOException {
+    public CoordinationMetadata(StreamInput in) throws IOException {
         term = in.readLong();
         lastCommittedConfiguration = new VotingConfiguration(in);
         lastAcceptedConfiguration = new VotingConfiguration(in);
@@ -108,8 +108,8 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         return new Builder();
     }
 
-    public static Builder builder(CoordinationMetaData coordinationMetaData) {
-        return new Builder(coordinationMetaData);
+    public static Builder builder(CoordinationMetadata coordinationMetadata) {
+        return new Builder(coordinationMetadata);
     }
 
     @Override
@@ -129,7 +129,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
             .field(VOTING_CONFIG_EXCLUSIONS_FIELD.getPreferredName(), votingConfigExclusions);
     }
 
-    public static CoordinationMetaData fromXContent(XContentParser parser) throws IOException {
+    public static CoordinationMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -152,9 +152,9 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof CoordinationMetaData)) return false;
+        if (!(o instanceof CoordinationMetadata)) return false;
 
-        CoordinationMetaData that = (CoordinationMetaData) o;
+        CoordinationMetadata that = (CoordinationMetadata) o;
 
         if (term != that.term) return false;
         if (!lastCommittedConfiguration.equals(that.lastCommittedConfiguration)) return false;
@@ -173,7 +173,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return "CoordinationMetaData{" +
+        return "CoordinationMetadata{" +
             "term=" + term +
             ", lastCommittedConfiguration=" + lastCommittedConfiguration +
             ", lastAcceptedConfiguration=" + lastAcceptedConfiguration +
@@ -190,8 +190,8 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         public Builder() {
 
         }
-        
-        public Builder(CoordinationMetaData state) {
+
+        public Builder(CoordinationMetadata state) {
             this.term = state.term;
             this.lastCommittedConfiguration = state.lastCommittedConfiguration;
             this.lastAcceptedConfiguration = state.lastAcceptedConfiguration;
@@ -223,8 +223,8 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public CoordinationMetaData build() {
-            return new CoordinationMetaData(term, lastCommittedConfiguration, lastAcceptedConfiguration, votingConfigExclusions);
+        public CoordinationMetadata build() {
+            return new CoordinationMetadata(term, lastCommittedConfiguration, lastAcceptedConfiguration, votingConfigExclusions);
         }
     }
 

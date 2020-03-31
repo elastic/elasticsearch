@@ -21,11 +21,11 @@ package org.elasticsearch.client.watcher;
 
 import java.util.Objects;
 
-public class WatcherMetaData {
+public class WatcherMetadata {
 
     private final boolean manuallyStopped;
 
-    public WatcherMetaData(boolean manuallyStopped) {
+    public WatcherMetadata(boolean manuallyStopped) {
         this.manuallyStopped = manuallyStopped;
     }
 
@@ -42,7 +42,7 @@ public class WatcherMetaData {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        WatcherMetaData action = (WatcherMetaData) o;
+        WatcherMetadata action = (WatcherMetadata) o;
 
         return manuallyStopped == action.manuallyStopped;
     }

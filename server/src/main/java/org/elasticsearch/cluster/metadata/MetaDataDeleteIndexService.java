@@ -49,9 +49,9 @@ import static java.util.stream.Collectors.toSet;
 /**
  * Deletes indices.
  */
-public class MetaDataDeleteIndexService {
+public class MetadataDeleteIndexService {
 
-    private static final Logger logger = LogManager.getLogger(MetaDataDeleteIndexService.class);
+    private static final Logger logger = LogManager.getLogger(MetadataDeleteIndexService.class);
 
     private final Settings settings;
     private final ClusterService clusterService;
@@ -59,7 +59,7 @@ public class MetaDataDeleteIndexService {
     private final AllocationService allocationService;
 
     @Inject
-    public MetaDataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
+    public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
@@ -90,7 +90,7 @@ public class MetaDataDeleteIndexService {
      * Delete some indices from the cluster state.
      */
     public ClusterState deleteIndices(ClusterState currentState, Set<Index> indices) {
-        final MetaData meta = currentState.metaData();
+        final Metadata meta = currentState.metadata();
         final Set<Index> indicesToDelete = indices.stream().map(i -> meta.getIndexSafe(i).getIndex()).collect(toSet());
 
         // Check if index deletion conflicts with any running snapshots
@@ -101,25 +101,25 @@ public class MetaDataDeleteIndexService {
         }
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
-        MetaData.Builder metaDataBuilder = MetaData.builder(meta);
+        Metadata.Builder metadataBuilder = Metadata.builder(meta);
         ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
 
-        final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
+        final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metadataBuilder.indexGraveyard());
         final int previousGraveyardSize = graveyardBuilder.tombstones().size();
         for (final Index index : indices) {
             String indexName = index.getName();
             logger.info("{} deleting index", index);
             routingTableBuilder.remove(indexName);
             clusterBlocksBuilder.removeIndexBlocks(indexName);
-            metaDataBuilder.remove(indexName);
+            metadataBuilder.remove(indexName);
         }
         // add tombstones to the cluster state for each deleted index
         final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstones(indices).build(settings);
-        metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
+        metadataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
         logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
             graveyardBuilder.getNumPurged(), previousGraveyardSize, currentGraveyard.getTombstones().size());
 
-        MetaData newMetaData = metaDataBuilder.build();
+        Metadata newMetadata = metadataBuilder.build();
         ClusterBlocks blocks = clusterBlocksBuilder.build();
 
         // update snapshot restore entries
@@ -137,7 +137,7 @@ public class MetaDataDeleteIndexService {
         return allocationService.reroute(
                 ClusterState.builder(currentState)
                     .routingTable(routingTableBuilder.build())
-                    .metaData(newMetaData)
+                    .metadata(newMetadata)
                     .blocks(blocks)
                     .customs(customs)
                     .build(),

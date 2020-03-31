@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.MetadataStateFormat;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -35,7 +35,7 @@ import java.util.Objects;
  * Metadata associated with this node: its persistent node ID and its version.
  * The metadata is persisted in the data folder of this node and is reused across restarts.
  */
-public final class NodeMetaData {
+public final class NodeMetadata {
 
     static final String NODE_ID_KEY = "node_id";
     static final String NODE_VERSION_KEY = "node_version";
@@ -44,7 +44,7 @@ public final class NodeMetaData {
 
     private final Version nodeVersion;
 
-    public NodeMetaData(final String nodeId, final Version nodeVersion) {
+    public NodeMetadata(final String nodeId, final Version nodeVersion) {
         this.nodeId = Objects.requireNonNull(nodeId);
         this.nodeVersion = Objects.requireNonNull(nodeVersion);
     }
@@ -53,7 +53,7 @@ public final class NodeMetaData {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        NodeMetaData that = (NodeMetaData) o;
+        NodeMetadata that = (NodeMetadata) o;
         return nodeId.equals(that.nodeId) &&
             nodeVersion.equals(that.nodeVersion);
     }
@@ -65,7 +65,7 @@ public final class NodeMetaData {
 
     @Override
     public String toString() {
-        return "NodeMetaData{" +
+        return "NodeMetadata{" +
             "nodeId='" + nodeId + '\'' +
             ", nodeVersion=" + nodeVersion +
             '}';
@@ -79,10 +79,10 @@ public final class NodeMetaData {
         return nodeVersion;
     }
 
-    public NodeMetaData upgradeToCurrentVersion() {
+    public NodeMetadata upgradeToCurrentVersion() {
         if (nodeVersion.equals(Version.V_EMPTY)) {
             assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "version is required in the node metadata from v9 onwards";
-            return new NodeMetaData(nodeId, Version.CURRENT);
+            return new NodeMetadata(nodeId, Version.CURRENT);
         }
 
         if (nodeVersion.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
@@ -95,7 +95,7 @@ public final class NodeMetaData {
                 "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]");
         }
 
-        return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetaData(nodeId, Version.CURRENT);
+        return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT);
     }
 
     private static class Builder {
@@ -110,7 +110,7 @@ public final class NodeMetaData {
             this.nodeVersion = Version.fromId(nodeVersionId);
         }
 
-        public NodeMetaData build() {
+        public NodeMetadata build() {
             final Version nodeVersion;
             if (this.nodeVersion == null) {
                 assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "version is required in the node metadata from v9 onwards";
@@ -119,11 +119,11 @@ public final class NodeMetaData {
                 nodeVersion = this.nodeVersion;
             }
 
-            return new NodeMetaData(nodeId, nodeVersion);
+            return new NodeMetadata(nodeId, nodeVersion);
         }
     }
 
-    static class NodeMetaDataStateFormat extends MetaDataStateFormat<NodeMetaData> {
+    static class NodeMetadataStateFormat extends MetadataStateFormat<NodeMetadata> {
 
         private ObjectParser<Builder, Void> objectParser;
 
@@ -131,7 +131,7 @@ public final class NodeMetaData {
          * @param ignoreUnknownFields whether to ignore unknown fields or not. Normally we are strict about this, but
          *                            {@link OverrideNodeVersionCommand} is lenient.
          */
-        NodeMetaDataStateFormat(boolean ignoreUnknownFields) {
+        NodeMetadataStateFormat(boolean ignoreUnknownFields) {
             super("node-");
             objectParser = new ObjectParser<>("node_meta_data", ignoreUnknownFields, Builder::new);
             objectParser.declareString(Builder::setNodeId, new ParseField(NODE_ID_KEY));
@@ -146,16 +146,16 @@ public final class NodeMetaData {
         }
 
         @Override
-        public void toXContent(XContentBuilder builder, NodeMetaData nodeMetaData) throws IOException {
-            builder.field(NODE_ID_KEY, nodeMetaData.nodeId);
-            builder.field(NODE_VERSION_KEY, nodeMetaData.nodeVersion.id);
+        public void toXContent(XContentBuilder builder, NodeMetadata nodeMetadata) throws IOException {
+            builder.field(NODE_ID_KEY, nodeMetadata.nodeId);
+            builder.field(NODE_VERSION_KEY, nodeMetadata.nodeVersion.id);
         }
 
         @Override
-        public NodeMetaData fromXContent(XContentParser parser) throws IOException {
+        public NodeMetadata fromXContent(XContentParser parser) throws IOException {
             return objectParser.apply(parser, null).build();
         }
     }
 
-    public static final MetaDataStateFormat<NodeMetaData> FORMAT = new NodeMetaDataStateFormat(false);
+    public static final MetadataStateFormat<NodeMetadata> FORMAT = new NodeMetadataStateFormat(false);
 }

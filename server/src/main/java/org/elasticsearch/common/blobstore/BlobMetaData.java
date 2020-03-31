@@ -22,7 +22,7 @@ package org.elasticsearch.common.blobstore;
 /**
  * An interface for providing basic metadata about a blob.
  */
-public interface BlobMetaData {
+public interface BlobMetadata {
 
     /**
      * Gets the name of the blob.

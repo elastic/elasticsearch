@@ -52,7 +52,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 /**
  * Service responsible for submitting add and remove aliases requests
  */
-public class MetaDataIndexAliasesService {
+public class MetadataIndexAliasesService {
 
     private final ClusterService clusterService;
 
@@ -60,13 +60,13 @@ public class MetaDataIndexAliasesService {
 
     private final AliasValidator aliasValidator;
 
-    private final MetaDataDeleteIndexService deleteIndexService;
+    private final MetadataDeleteIndexService deleteIndexService;
 
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public MetaDataIndexAliasesService(ClusterService clusterService, IndicesService indicesService,
-            AliasValidator aliasValidator, MetaDataDeleteIndexService deleteIndexService, NamedXContentRegistry xContentRegistry) {
+    public MetadataIndexAliasesService(ClusterService clusterService, IndicesService indicesService,
+            AliasValidator aliasValidator, MetadataDeleteIndexService deleteIndexService, NamedXContentRegistry xContentRegistry) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.aliasValidator = aliasValidator;
@@ -104,7 +104,7 @@ public class MetaDataIndexAliasesService {
             Set<Index> indicesToDelete = new HashSet<>();
             for (AliasAction action : actions) {
                 if (action.removeIndex()) {
-                    IndexMetaData index = currentState.metaData().getIndices().get(action.getIndex());
+                    IndexMetadata index = currentState.metadata().getIndices().get(action.getIndex());
                     if (index == null) {
                         throw new IndexNotFoundException(action.getIndex());
                     }
@@ -116,7 +116,7 @@ public class MetaDataIndexAliasesService {
             if (changed) {
                 currentState = deleteIndexService.deleteIndices(currentState, indicesToDelete);
             }
-            MetaData.Builder metadata = MetaData.builder(currentState.metaData());
+            Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             // Run the remaining alias actions
             final Set<String> maybeModifiedIndices = new HashSet<>();
             for (AliasAction action : actions) {
@@ -124,14 +124,14 @@ public class MetaDataIndexAliasesService {
                     // Handled above
                     continue;
                 }
-                IndexMetaData index = metadata.get(action.getIndex());
+                IndexMetadata index = metadata.get(action.getIndex());
                 if (index == null) {
                     throw new IndexNotFoundException(action.getIndex());
                 }
                 NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
                     /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
                      * index and replace it with an alias. */
-                    Function<String, IndexMetaData> indexLookup = name -> metadata.get(name);
+                    Function<String, IndexMetadata> indexLookup = name -> metadata.get(name);
                     aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, indexLookup);
                     if (Strings.hasLength(filter)) {
                         IndexService indexService = indices.get(index.getIndex().getName());
@@ -162,20 +162,20 @@ public class MetaDataIndexAliasesService {
             }
 
             for (final String maybeModifiedIndex : maybeModifiedIndices) {
-                final IndexMetaData currentIndexMetaData = currentState.metaData().index(maybeModifiedIndex);
-                final IndexMetaData newIndexMetaData = metadata.get(maybeModifiedIndex);
+                final IndexMetadata currentIndexMetadata = currentState.metadata().index(maybeModifiedIndex);
+                final IndexMetadata newIndexMetadata = metadata.get(maybeModifiedIndex);
                 // only increment the aliases version if the aliases actually changed for this index
-                if (currentIndexMetaData.getAliases().equals(newIndexMetaData.getAliases()) == false) {
-                    assert currentIndexMetaData.getAliasesVersion() == newIndexMetaData.getAliasesVersion();
-                    metadata.put(new IndexMetaData.Builder(newIndexMetaData).aliasesVersion(1 + currentIndexMetaData.getAliasesVersion()));
+                if (currentIndexMetadata.getAliases().equals(newIndexMetadata.getAliases()) == false) {
+                    assert currentIndexMetadata.getAliasesVersion() == newIndexMetadata.getAliasesVersion();
+                    metadata.put(new IndexMetadata.Builder(newIndexMetadata).aliasesVersion(1 + currentIndexMetadata.getAliasesVersion()));
                 }
             }
 
             if (changed) {
-                ClusterState updatedState = ClusterState.builder(currentState).metaData(metadata).build();
+                ClusterState updatedState = ClusterState.builder(currentState).metadata(metadata).build();
                 // even though changes happened, they resulted in 0 actual changes to metadata
                 // i.e. remove and add the same alias to the same index
-                if (!updatedState.metaData().equalsAliases(currentState.metaData())) {
+                if (!updatedState.metadata().equalsAliases(currentState.metadata())) {
                     return updatedState;
                 }
             }

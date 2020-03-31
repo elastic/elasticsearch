@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.watcher;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,13 +19,13 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Objects;
 
-public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
+public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     public static final String TYPE = "watcher";
 
     private final boolean manuallyStopped;
 
-    public WatcherMetaData(boolean manuallyStopped) {
+    public WatcherMetadata(boolean manuallyStopped) {
         this.manuallyStopped = manuallyStopped;
     }
 
@@ -44,16 +44,16 @@ public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> impl
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return EnumSet.of(MetaData.XContentContext.GATEWAY);
+    public EnumSet<Metadata.XContentContext> context() {
+        return EnumSet.of(Metadata.XContentContext.GATEWAY);
     }
 
-    public WatcherMetaData(StreamInput streamInput) throws IOException {
+    public WatcherMetadata(StreamInput streamInput) throws IOException {
         this(streamInput.readBoolean());
     }
 
-    public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(MetaData.Custom.class, TYPE, streamInput);
+    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
     }
 
     @Override
@@ -71,7 +71,7 @@ public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> impl
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        WatcherMetaData action = (WatcherMetaData) o;
+        WatcherMetadata action = (WatcherMetadata) o;
 
         return manuallyStopped == action.manuallyStopped;
     }
@@ -81,7 +81,7 @@ public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> impl
         return Objects.hash(manuallyStopped);
     }
 
-    public static MetaData.Custom fromXContent(XContentParser parser) throws IOException {
+    public static Metadata.Custom fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         Boolean manuallyStopped = null;
         String currentFieldName = null;
@@ -98,7 +98,7 @@ public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> impl
             }
         }
         if (manuallyStopped != null) {
-            return new WatcherMetaData(manuallyStopped);
+            return new WatcherMetadata(manuallyStopped);
         }
         return null;
     }

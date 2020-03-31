@@ -16,7 +16,7 @@ import java.sql.Date;
 import java.sql.NClob;
 import java.sql.Ref;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
+import java.sql.ResultSetMetadata;
 import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -259,11 +259,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     private Long dateTimeAsMillis(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
         EsType type = columnType(columnIndex);
-        
+
         if (val == null) {
             return null;
         }
-        
+
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
@@ -402,8 +402,8 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     }
 
     @Override
-    public ResultSetMetaData getMetaData() throws SQLException {
-        return new JdbcResultSetMetaData(this, cursor.columns());
+    public ResultSetMetadata getMetadata() throws SQLException {
+        return new JdbcResultSetMetadata(this, cursor.columns());
     }
 
     @Override

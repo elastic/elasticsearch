@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
-import java.sql.DatabaseMetaData;
+import java.sql.DatabaseMetadata;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.sqlType;
 
 /**
  * System command designed to be used by JDBC / ODBC for column metadata, such as
- * {@link DatabaseMetaData#getColumns(String, String, String, String)}.
+ * {@link DatabaseMetadata#getColumns(String, String, String, String)}.
  */
 public class SysColumns extends Command {
 
@@ -70,7 +70,7 @@ public class SysColumns extends Command {
     public List<Attribute> output() {
         return output(false);
     }
-    
+
     private List<Attribute> output(boolean odbcCompatible) {
         // https://github.com/elastic/elasticsearch/issues/35376
         // ODBC expects some fields as SHORT while JDBC as Integer
@@ -166,7 +166,7 @@ public class SysColumns extends Command {
             name = prefix != null ? prefix + "." + name : name;
             EsField field = entry.getValue();
             DataType type = field.getDataType();
-            
+
             // skip the nested, object and unsupported types
             if (isPrimitive(type)) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
@@ -184,7 +184,7 @@ public class SysColumns extends Command {
                             null,
                             odbcCompatible(metaSqlRadix(type), isOdbcClient),
                             // everything is nullable
-                            odbcCompatible(DatabaseMetaData.columnNullable, isOdbcClient),
+                            odbcCompatible(DatabaseMetadata.columnNullable, isOdbcClient),
                             // no remarks
                             null,
                             // no column def
@@ -213,7 +213,7 @@ public class SysColumns extends Command {
             }
         }
     }
-    
+
     private static Object odbcCompatible(Integer value, boolean isOdbcClient) {
         if (isOdbcClient && value != null) {
             return Short.valueOf(value.shortValue());

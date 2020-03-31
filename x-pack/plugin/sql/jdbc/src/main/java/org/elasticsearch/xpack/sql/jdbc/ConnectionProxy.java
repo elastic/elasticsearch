@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import java.sql.DatabaseMetaData;
+import java.sql.DatabaseMetadata;
 import java.sql.Statement;
 
 final class ConnectionProxy extends DebuggingInvoker {
@@ -19,7 +19,7 @@ final class ConnectionProxy extends DebuggingInvoker {
         if (result instanceof Statement) {
             return Debug.proxy(result, new StatementProxy(log, result, proxy));
         }
-        if (result instanceof DatabaseMetaData) {
+        if (result instanceof DatabaseMetadata) {
             return Debug.proxy(new DatabaseMetadataProxy(log, result, proxy));
         }
 

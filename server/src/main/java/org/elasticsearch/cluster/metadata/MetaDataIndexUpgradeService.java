@@ -51,16 +51,16 @@ import java.util.Set;
  * occurs during cluster upgrade, when dangling indices are imported into the cluster or indices
  * are restored from a repository.
  */
-public class MetaDataIndexUpgradeService {
+public class MetadataIndexUpgradeService {
 
-    private static final Logger logger = LogManager.getLogger(MetaDataIndexUpgradeService.class);
+    private static final Logger logger = LogManager.getLogger(MetadataIndexUpgradeService.class);
 
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
 
-    public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
+    public MetadataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
                                        IndexScopedSettings indexScopedSettings) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
@@ -75,40 +75,40 @@ public class MetaDataIndexUpgradeService {
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
      * cannot be updated the method throws an exception.
      */
-    public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
+    public IndexMetadata upgradeIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         // Throws an exception if there are too-old segments:
-        if (isUpgraded(indexMetaData)) {
+        if (isUpgraded(indexMetadata)) {
             /*
              * We still need to check for broken index settings since it might be that a user removed a plugin that registers a setting
              * needed by this index.
              */
-            return archiveBrokenIndexSettings(indexMetaData);
+            return archiveBrokenIndexSettings(indexMetadata);
         }
-        checkSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion);
+        checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
         // we have to run this first otherwise in we try to create IndexSettings
         // with broken settings and fail in checkMappingsCompatibility
-        final IndexMetaData newMetaData = archiveBrokenIndexSettings(indexMetaData);
+        final IndexMetadata newMetadata = archiveBrokenIndexSettings(indexMetadata);
         // only run the check with the upgraded settings!!
-        checkMappingsCompatibility(newMetaData);
-        return markAsUpgraded(newMetaData);
+        checkMappingsCompatibility(newMetadata);
+        return markAsUpgraded(newMetadata);
     }
 
 
     /**
      * Checks if the index was already opened by this version of Elasticsearch and doesn't require any additional checks.
      */
-    boolean isUpgraded(IndexMetaData indexMetaData) {
-        return indexMetaData.getUpgradedVersion().onOrAfter(Version.CURRENT);
+    boolean isUpgraded(IndexMetadata indexMetadata) {
+        return indexMetadata.getUpgradedVersion().onOrAfter(Version.CURRENT);
     }
 
     /**
      * Elasticsearch does not support indices created before the previous major version. They must be reindexed using an earlier version
      * before they can be opened here.
      */
-    private void checkSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
-        if (isSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion) == false) {
-            throw new IllegalStateException("The index " + indexMetaData.getIndex() + " was created with version ["
-                + indexMetaData.getCreationVersion() + "] but the minimum compatible version is ["
+    private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+        if (isSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion) == false) {
+            throw new IllegalStateException("The index " + indexMetadata.getIndex() + " was created with version ["
+                + indexMetadata.getCreationVersion() + "] but the minimum compatible version is ["
                 + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch "
                 + minimumIndexCompatibilityVersion.major + ".x before upgrading to " + Version.CURRENT + ".");
         }
@@ -117,14 +117,14 @@ public class MetaDataIndexUpgradeService {
     /*
      * Returns true if this index can be supported by the current version of elasticsearch
      */
-    private static boolean isSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
-        return indexMetaData.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
+    private static boolean isSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+        return indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
     }
 
     /**
      * Checks the mappings for compatibility with the current version
      */
-    private void checkMappingsCompatibility(IndexMetaData indexMetaData) {
+    private void checkMappingsCompatibility(IndexMetadata indexMetadata) {
         try {
 
             // We cannot instantiate real analysis server or similarity service at this point because the node
@@ -134,7 +134,7 @@ public class MetaDataIndexUpgradeService {
             // Missing analyzers and similarities plugin will still trigger the appropriate error during the
             // actual upgrade.
 
-            IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings);
+            IndexSettings indexSettings = new IndexSettings(indexMetadata, this.settings);
 
             final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarityMap
                     = new AbstractMap<String, TriFunction<Settings, Version, ScriptService, Similarity>>() {
@@ -182,35 +182,35 @@ public class MetaDataIndexUpgradeService {
                      new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
                         mapperRegistry, () -> null, () -> false);
-                mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
+                mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message
-            throw new IllegalStateException("unable to upgrade the mappings for the index [" + indexMetaData.getIndex() + "]", ex);
+            throw new IllegalStateException("unable to upgrade the mappings for the index [" + indexMetadata.getIndex() + "]", ex);
         }
     }
 
     /**
      * Marks index as upgraded so we don't have to test it again
      */
-    private IndexMetaData markAsUpgraded(IndexMetaData indexMetaData) {
-        Settings settings = Settings.builder().put(indexMetaData.getSettings())
-            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
-        return IndexMetaData.builder(indexMetaData).settings(settings).build();
+    private IndexMetadata markAsUpgraded(IndexMetadata indexMetadata) {
+        Settings settings = Settings.builder().put(indexMetadata.getSettings())
+            .put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
+        return IndexMetadata.builder(indexMetadata).settings(settings).build();
     }
 
-    IndexMetaData archiveBrokenIndexSettings(IndexMetaData indexMetaData) {
-        final Settings settings = indexMetaData.getSettings();
+    IndexMetadata archiveBrokenIndexSettings(IndexMetadata indexMetadata) {
+        final Settings settings = indexMetadata.getSettings();
         final Settings upgrade = indexScopedSettings.archiveUnknownOrInvalidSettings(
             settings,
             e -> logger.warn("{} ignoring unknown index setting: [{}] with value [{}]; archiving",
-                indexMetaData.getIndex(), e.getKey(), e.getValue()),
+                indexMetadata.getIndex(), e.getKey(), e.getValue()),
             (e, ex) -> logger.warn(() -> new ParameterizedMessage("{} ignoring invalid index setting: [{}] with value [{}]; archiving",
-                indexMetaData.getIndex(), e.getKey(), e.getValue()), ex));
+                indexMetadata.getIndex(), e.getKey(), e.getValue()), ex));
         if (upgrade != settings) {
-            return IndexMetaData.builder(indexMetaData).settings(upgrade).build();
+            return IndexMetadata.builder(indexMetadata).settings(upgrade).build();
         } else {
-            return indexMetaData;
+            return indexMetadata;
         }
     }
 }

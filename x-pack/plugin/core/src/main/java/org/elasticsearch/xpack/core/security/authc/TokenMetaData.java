@@ -18,7 +18,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
+public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
     /**
      * The type of {@link ClusterState} data.
@@ -37,12 +37,12 @@ public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Cust
         return currentKeyHash;
     }
 
-    public TokenMetaData(List<KeyAndTimestamp> keys, byte[] currentKeyHash) {
+    public TokenMetadata(List<KeyAndTimestamp> keys, byte[] currentKeyHash) {
         this.keys = keys;
         this.currentKeyHash = currentKeyHash;
     }
 
-    public TokenMetaData(StreamInput input) throws IOException {
+    public TokenMetadata(StreamInput input) throws IOException {
         currentKeyHash = input.readByteArray();
         keys = Collections.unmodifiableList(input.readList(KeyAndTimestamp::new));
     }
@@ -74,7 +74,7 @@ public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Cust
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        TokenMetaData that = (TokenMetaData)o;
+        TokenMetadata that = (TokenMetadata)o;
         return keys.equals(that.keys) && Arrays.equals(currentKeyHash, that.currentKeyHash);
     }
 
@@ -87,7 +87,7 @@ public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Cust
 
     @Override
     public String toString() {
-        return "TokenMetaData{ everything is secret }";
+        return "TokenMetadata{ everything is secret }";
     }
 
     @Override

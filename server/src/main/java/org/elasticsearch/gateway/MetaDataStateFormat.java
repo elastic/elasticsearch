@@ -58,11 +58,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * MetaDataStateFormat is a base class to write checksummed
+ * MetadataStateFormat is a base class to write checksummed
  * XContent based files to one or more directories in a standardized directory structure.
  * @param <T> the type of the XContent base data-structure
  */
-public abstract class MetaDataStateFormat<T> {
+public abstract class MetadataStateFormat<T> {
     public static final XContentType FORMAT = XContentType.SMILE;
     public static final String STATE_DIR_NAME = "_state";
     public static final String STATE_FILE_EXTENSION = ".st";
@@ -73,14 +73,14 @@ public abstract class MetaDataStateFormat<T> {
     private final String prefix;
     private final Pattern stateFilePattern;
 
-    private static final Logger logger = LogManager.getLogger(MetaDataStateFormat.class);
+    private static final Logger logger = LogManager.getLogger(MetadataStateFormat.class);
 
     /**
-     * Creates a new {@link MetaDataStateFormat} instance
+     * Creates a new {@link MetadataStateFormat} instance
      */
-    protected MetaDataStateFormat(String prefix) {
+    protected MetadataStateFormat(String prefix) {
         this.prefix = prefix;
-        this.stateFilePattern = Pattern.compile(Pattern.quote(prefix) + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
+        this.stateFilePattern = Pattern.compile(Pattern.quote(prefix) + "(\\d+)(" + MetadataStateFormat.STATE_FILE_EXTENSION + ")?");
     }
 
     private static void deleteFileIfExists(Path stateLocation, Directory directory, String fileName) throws IOException {
@@ -169,7 +169,7 @@ public abstract class MetaDataStateFormat<T> {
     private static void performStateDirectoriesFsync(List<Tuple<Path, Directory>> stateDirectories) throws WriteStateException {
         for (int i = 0; i < stateDirectories.size(); i++) {
             try {
-                stateDirectories.get(i).v2().syncMetaData();
+                stateDirectories.get(i).v2().syncMetadata();
             } catch (IOException e) {
                 throw new WriteStateException(true, "meta data directory fsync has failed " + stateDirectories.get(i).v1(), e);
             }

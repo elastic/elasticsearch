@@ -24,14 +24,14 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,19 +40,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.findTemplates;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findTemplates;
 
-public class MetaDataRolloverService {
+public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
 
     private final ThreadPool threadPool;
-    private final MetaDataCreateIndexService createIndexService;
-    private final MetaDataIndexAliasesService indexAliasesService;
+    private final MetadataCreateIndexService createIndexService;
+    private final MetadataIndexAliasesService indexAliasesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public MetaDataRolloverService(ThreadPool threadPool,
-                                   MetaDataCreateIndexService createIndexService, MetaDataIndexAliasesService indexAliasesService,
+    public MetadataRolloverService(ThreadPool threadPool,
+                                   MetadataCreateIndexService createIndexService, MetadataIndexAliasesService indexAliasesService,
                                    IndexNameExpressionResolver indexNameExpressionResolver) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
@@ -75,34 +75,34 @@ public class MetaDataRolloverService {
     public RolloverResult rolloverClusterState(ClusterState currentState, String aliasName, String newIndexName,
                                                CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
                                                boolean silent) throws Exception {
-        final MetaData metaData = currentState.metaData();
-        validate(metaData, aliasName);
-        final IndexAbstraction alias = metaData.getIndicesLookup().get(aliasName);
-        final IndexMetaData indexMetaData = alias.getWriteIndex();
-        final AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias.getName());
-        final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
-            indexMetaData.getIndex().getName());
-        final String sourceIndexName = indexMetaData.getIndex().getName();
+        final Metadata metadata = currentState.metadata();
+        validate(metadata, aliasName);
+        final IndexAbstraction alias = metadata.getIndicesLookup().get(aliasName);
+        final IndexMetadata indexMetadata = alias.getWriteIndex();
+        final AliasMetadata aliasMetadata = indexMetadata.getAliases().get(alias.getName());
+        final String sourceProvidedName = indexMetadata.getSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME,
+            indexMetadata.getIndex().getName());
+        final String sourceIndexName = indexMetadata.getIndex().getName();
         final String unresolvedName = (newIndexName != null)
             ? newIndexName
             : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
         final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
-        final boolean explicitWriteIndex = Boolean.TRUE.equals(aliasMetaData.writeIndex());
-        final Boolean isHidden = IndexMetaData.INDEX_HIDDEN_SETTING.exists(createIndexRequest.settings()) ?
-            IndexMetaData.INDEX_HIDDEN_SETTING.get(createIndexRequest.settings()) : null;
+        final boolean explicitWriteIndex = Boolean.TRUE.equals(aliasMetadata.writeIndex());
+        final Boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.exists(createIndexRequest.settings()) ?
+            IndexMetadata.INDEX_HIDDEN_SETTING.get(createIndexRequest.settings()) : null;
         createIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
-        checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, aliasName, isHidden);
+        checkNoDuplicatedAliasInIndexTemplate(metadata, rolloverIndexName, aliasName, isHidden);
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
             prepareCreateIndexRequest(unresolvedName, rolloverIndexName, createIndexRequest);
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent);
         newState = indexAliasesService.applyAliasActions(newState,
-            rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetaData.isHidden(), aliasName));
+            rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetadata.isHidden(), aliasName));
 
         RolloverInfo rolloverInfo = new RolloverInfo(aliasName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
-            .metaData(MetaData.builder(newState.metaData())
-                .put(IndexMetaData.builder(newState.metaData().index(sourceIndexName))
+            .metadata(Metadata.builder(newState.metadata())
+                .put(IndexMetadata.builder(newState.metadata().index(sourceIndexName))
                     .putRolloverInfo(rolloverInfo))).build();
 
         return new RolloverResult(rolloverIndexName, sourceIndexName, newState);
@@ -161,10 +161,11 @@ public class MetaDataRolloverService {
      * the rollover alias will point to multiple indices. This causes indexing requests to be rejected.
      * To avoid this, we make sure that there is no duplicated alias in index templates before creating a new index.
      */
-    static void checkNoDuplicatedAliasInIndexTemplate(MetaData metaData, String rolloverIndexName, String rolloverRequestAlias,
-                                                      @Nullable Boolean isHidden) {
-        final List<IndexTemplateMetaData> matchedTemplates = findTemplates(metaData, rolloverIndexName, isHidden);
-        for (IndexTemplateMetaData template : matchedTemplates) {
+    static void checkNoDuplicatedAliasInIndexTemplate(
+            Metadata metadata, String rolloverIndexName, String rolloverRequestAlias,
+            @Nullable Boolean isHidden) {
+        final List<IndexTemplateMetadata> matchedTemplates = findTemplates(metadata, rolloverIndexName, isHidden);
+        for (IndexTemplateMetadata template : matchedTemplates) {
             if (template.aliases().containsKey(rolloverRequestAlias)) {
                 throw new IllegalArgumentException(String.format(Locale.ROOT,
                     "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
@@ -173,8 +174,8 @@ public class MetaDataRolloverService {
         }
     }
 
-    static void validate(MetaData metaData, String aliasName) {
-        final IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(aliasName);
+    static void validate(Metadata metadata, String aliasName) {
+        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(aliasName);
         if (indexAbstraction == null) {
             throw new IllegalArgumentException("source alias does not exist");
         }

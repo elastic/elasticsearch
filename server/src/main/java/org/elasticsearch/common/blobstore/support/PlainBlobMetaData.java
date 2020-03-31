@@ -19,15 +19,15 @@
 
 package org.elasticsearch.common.blobstore.support;
 
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 
-public class PlainBlobMetaData implements BlobMetaData {
+public class PlainBlobMetadata implements BlobMetadata {
 
     private final String name;
 
     private final long length;
 
-    public PlainBlobMetaData(String name, long length) {
+    public PlainBlobMetadata(String name, long length) {
         this.name = name;
         this.length = length;
     }

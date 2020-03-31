@@ -57,9 +57,9 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 /**
  * Service responsible for submitting mapping changes
  */
-public class MetaDataMappingService {
+public class MetadataMappingService {
 
-    private static final Logger logger = LogManager.getLogger(MetaDataMappingService.class);
+    private static final Logger logger = LogManager.getLogger(MetadataMappingService.class);
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -69,7 +69,7 @@ public class MetaDataMappingService {
 
 
     @Inject
-    public MetaDataMappingService(ClusterService clusterService, IndicesService indicesService) {
+    public MetadataMappingService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
@@ -114,22 +114,22 @@ public class MetaDataMappingService {
         }
 
         boolean dirty = false;
-        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+        Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
 
         for (Map.Entry<String, List<RefreshTask>> entry : tasksPerIndex.entrySet()) {
-            IndexMetaData indexMetaData = mdBuilder.get(entry.getKey());
-            if (indexMetaData == null) {
+            IndexMetadata indexMetadata = mdBuilder.get(entry.getKey());
+            if (indexMetadata == null) {
                 // index got deleted on us, ignore...
                 logger.debug("[{}] ignoring tasks - index meta data doesn't exist", entry.getKey());
                 continue;
             }
-            final Index index = indexMetaData.getIndex();
+            final Index index = indexMetadata.getIndex();
             // the tasks lists to iterate over, filled with the list of mapping tasks, trying to keep
             // the latest (based on order) update mapping one per node
             List<RefreshTask> allIndexTasks = entry.getValue();
             boolean hasTaskWithRightUUID = false;
             for (RefreshTask task : allIndexTasks) {
-                if (indexMetaData.isSameUUID(task.indexUUID)) {
+                if (indexMetadata.isSameUUID(task.indexUUID)) {
                     hasTaskWithRightUUID = true;
                 } else {
                     logger.debug("{} ignoring task [{}] - index meta data doesn't match task uuid", index, task);
@@ -141,15 +141,15 @@ public class MetaDataMappingService {
 
             // construct the actual index if needed, and make sure the relevant mappings are there
             boolean removeIndex = false;
-            IndexService indexService = indicesService.indexService(indexMetaData.getIndex());
+            IndexService indexService = indicesService.indexService(indexMetadata.getIndex());
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(indexMetaData, Collections.emptyList(), false);
+                indexService = indicesService.createIndex(indexMetadata, Collections.emptyList(), false);
                 removeIndex = true;
-                indexService.mapperService().merge(indexMetaData, MergeReason.MAPPING_RECOVERY);
+                indexService.mapperService().merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
             }
 
-            IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
+            IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
             try {
                 boolean indexDirty = refreshIndexMapping(indexService, builder);
                 if (indexDirty) {
@@ -166,10 +166,10 @@ public class MetaDataMappingService {
         if (!dirty) {
             return currentState;
         }
-        return ClusterState.builder(currentState).metaData(mdBuilder).build();
+        return ClusterState.builder(currentState).metadata(mdBuilder).build();
     }
 
-    private boolean refreshIndexMapping(IndexService indexService, IndexMetaData.Builder builder) {
+    private boolean refreshIndexMapping(IndexService indexService, IndexMetadata.Builder builder) {
         boolean dirty = false;
         String index = indexService.index().getName();
         try {
@@ -184,7 +184,7 @@ public class MetaDataMappingService {
             // if the mapping is not up-to-date, re-send everything
             if (dirty) {
                 logger.warn("[{}] re-syncing mappings with cluster state]", index);
-                builder.putMapping(new MappingMetaData(mapper));
+                builder.putMapping(new MappingMetadata(mapper));
 
             }
         } catch (Exception e) {
@@ -216,12 +216,12 @@ public class MetaDataMappingService {
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
                     try {
                         for (Index index : request.indices()) {
-                            final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
-                            if (indexMapperServices.containsKey(indexMetaData.getIndex()) == false) {
-                                MapperService mapperService = indicesService.createIndexMapperService(indexMetaData);
+                            final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+                            if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
+                                MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
                                 indexMapperServices.put(index, mapperService);
                                 // add mappings for all types, we need them for cross-type validation
-                                mapperService.merge(indexMetaData, MergeReason.MAPPING_RECOVERY);
+                                mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
@@ -240,17 +240,17 @@ public class MetaDataMappingService {
                                           Map<Index, MapperService> indexMapperServices) throws IOException {
 
             CompressedXContent mappingUpdateSource = new CompressedXContent(request.source());
-            final MetaData metaData = currentState.metaData();
-            final List<IndexMetaData> updateList = new ArrayList<>();
+            final Metadata metadata = currentState.metadata();
+            final List<IndexMetadata> updateList = new ArrayList<>();
             for (Index index : request.indices()) {
                 MapperService mapperService = indexMapperServices.get(index);
                 // IMPORTANT: always get the metadata from the state since it get's batched
                 // and if we pull it from the indexService we might miss an update etc.
-                final IndexMetaData indexMetaData = currentState.getMetaData().getIndexSafe(index);
+                final IndexMetadata indexMetadata = currentState.getMetadata().getIndexSafe(index);
 
                 // this is paranoia... just to be sure we use the exact same metadata tuple on the update that
                 // we used for the validation, it makes this mechanism little less scary (a little)
-                updateList.add(indexMetaData);
+                updateList.add(indexMetadata);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 DocumentMapper existingMapper = mapperService.documentMapper();
                 DocumentMapper newMapper = mapperService.parse(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
@@ -259,13 +259,13 @@ public class MetaDataMappingService {
                     existingMapper.merge(newMapper.mapping());
                 }
             }
-            MetaData.Builder builder = MetaData.builder(metaData);
+            Metadata.Builder builder = Metadata.builder(metadata);
             boolean updated = false;
-            for (IndexMetaData indexMetaData : updateList) {
+            for (IndexMetadata indexMetadata : updateList) {
                 boolean updatedMapping = false;
                 // do the actual merge here on the master, and update the mapping source
                 // we use the exact same indexService and metadata we used to validate above here to actually apply the update
-                final Index index = indexMetaData.getIndex();
+                final Index index = indexMetadata.getIndex();
                 final MapperService mapperService = indexMapperServices.get(index);
 
                 CompressedXContent existingSource = null;
@@ -299,26 +299,26 @@ public class MetaDataMappingService {
                     }
                 }
 
-                IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
+                IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
                 DocumentMapper mapper = mapperService.documentMapper();
                 if (mapper != null) {
-                    indexMetaDataBuilder.putMapping(new MappingMetaData(mapper.mappingSource()));
+                    indexMetadataBuilder.putMapping(new MappingMetadata(mapper.mappingSource()));
                 }
                 if (updatedMapping) {
-                    indexMetaDataBuilder.mappingVersion(1 + indexMetaDataBuilder.mappingVersion());
+                    indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion());
                 }
                 /*
                  * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have
                  * already incremented the mapping version if necessary. Therefore, the mapping version increment must remain before this
                  * statement.
                  */
-                builder.put(indexMetaDataBuilder);
+                builder.put(indexMetadataBuilder);
                 updated |= updatedMapping;
             }
             if (updated) {
-                return ClusterState.builder(currentState).metaData(builder).build();
+                return ClusterState.builder(currentState).metadata(builder).build();
             } else {
                 return currentState;
             }

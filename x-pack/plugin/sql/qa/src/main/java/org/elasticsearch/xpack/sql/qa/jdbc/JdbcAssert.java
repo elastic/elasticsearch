@@ -20,7 +20,7 @@ import org.relique.jdbc.csv.CsvResultSet;
 import java.io.IOException;
 import java.sql.Date;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
+import java.sql.ResultSetMetadata;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.text.ParseException;
@@ -108,8 +108,8 @@ public class JdbcAssert {
     // metadata doesn't consume a ResultSet thus it shouldn't close it
     public static void assertResultSetMetadata(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType)
             throws SQLException {
-        ResultSetMetaData expectedMeta = expected.getMetaData();
-        ResultSetMetaData actualMeta = actual.getMetaData();
+        ResultSetMetadata expectedMeta = expected.getMetadata();
+        ResultSetMetadata actualMeta = actual.getMetadata();
 
         if (logger != null) {
             logResultSetMetadata(actual, logger);
@@ -206,8 +206,8 @@ public class JdbcAssert {
 
     private static void doAssertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,
             boolean lenientFloatingNumbers) throws SQLException {
-        ResultSetMetaData metaData = expected.getMetaData();
-        int columns = metaData.getColumnCount();
+        ResultSetMetadata metadata = expected.getMetadata();
+        int columns = metadata.getColumnCount();
 
         long count = 0;
         try {
@@ -219,10 +219,10 @@ public class JdbcAssert {
                 }
 
                 for (int column = 1; column <= columns; column++) {
-                    int type = metaData.getColumnType(column);
+                    int type = metadata.getColumnType(column);
                     Class<?> expectedColumnClass = null;
                     try {
-                        String columnClassName = metaData.getColumnClassName(column);
+                        String columnClassName = metadata.getColumnClassName(column);
 
                         // fix for CSV which returns the shortName not fully-qualified name
                         if (columnClassName != null && !columnClassName.contains(".")) {
@@ -253,12 +253,12 @@ public class JdbcAssert {
                     }
 
                     Object expectedObject = expected.getObject(column);
-                    Object actualObject = (lenientDataType && expectedColumnClass != null) 
+                    Object actualObject = (lenientDataType && expectedColumnClass != null)
                             ? actual.getObject(column, expectedColumnClass)
                             : actual.getObject(column);
 
                     String msg = format(Locale.ROOT, "Different result for column [%s], entry [%d]",
-                        metaData.getColumnName(column), count + 1);
+                        metadata.getColumnName(column), count + 1);
 
                     // handle nulls first
                     if (expectedObject == null || actualObject == null) {

@@ -19,20 +19,20 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.CorruptStateException;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.MetadataStateFormat;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Objects;
 
-public final class ShardStateMetaData {
+public final class ShardStateMetadata {
 
     private static final String SHARD_STATE_FILE_PREFIX = "state-";
     private static final String PRIMARY_KEY = "primary";
@@ -44,7 +44,7 @@ public final class ShardStateMetaData {
     @Nullable
     public final AllocationId allocationId; // can be null if we read from legacy format (see fromXContent and MultiDataPathUpgrader)
 
-    public ShardStateMetaData(boolean primary, String indexUUID, AllocationId allocationId) {
+    public ShardStateMetadata(boolean primary, String indexUUID, AllocationId allocationId) {
         assert indexUUID != null;
         this.primary = primary;
         this.indexUUID = indexUUID;
@@ -60,7 +60,7 @@ public final class ShardStateMetaData {
             return false;
         }
 
-        ShardStateMetaData that = (ShardStateMetaData) o;
+        ShardStateMetadata that = (ShardStateMetadata) o;
 
         if (primary != that.primary) {
             return false;
@@ -88,8 +88,8 @@ public final class ShardStateMetaData {
         return "primary [" + primary + "], allocation [" + allocationId + "]";
     }
 
-    public static final MetaDataStateFormat<ShardStateMetaData> FORMAT =
-        new MetaDataStateFormat<ShardStateMetaData>(SHARD_STATE_FILE_PREFIX) {
+    public static final MetadataStateFormat<ShardStateMetadata> FORMAT =
+        new MetadataStateFormat<ShardStateMetadata>(SHARD_STATE_FILE_PREFIX) {
 
         @Override
         protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {
@@ -99,23 +99,23 @@ public final class ShardStateMetaData {
         }
 
         @Override
-        public void toXContent(XContentBuilder builder, ShardStateMetaData shardStateMetaData) throws IOException {
-            builder.field(PRIMARY_KEY, shardStateMetaData.primary);
-            builder.field(INDEX_UUID_KEY, shardStateMetaData.indexUUID);
-            if (shardStateMetaData.allocationId != null) {
-                builder.field(ALLOCATION_ID_KEY, shardStateMetaData.allocationId);
+        public void toXContent(XContentBuilder builder, ShardStateMetadata shardStateMetadata) throws IOException {
+            builder.field(PRIMARY_KEY, shardStateMetadata.primary);
+            builder.field(INDEX_UUID_KEY, shardStateMetadata.indexUUID);
+            if (shardStateMetadata.allocationId != null) {
+                builder.field(ALLOCATION_ID_KEY, shardStateMetadata.allocationId);
             }
         }
 
         @Override
-        public ShardStateMetaData fromXContent(XContentParser parser) throws IOException {
+        public ShardStateMetadata fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
                 return null;
             }
             Boolean primary = null;
             String currentFieldName = null;
-            String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
+            String indexUUID = IndexMetadata.INDEX_UUID_NA_VALUE;
             AllocationId allocationId = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -141,7 +141,7 @@ public final class ShardStateMetaData {
             if (primary == null) {
                 throw new CorruptStateException("missing value for [primary] in shard state");
             }
-            return new ShardStateMetaData(primary, indexUUID, allocationId);
+            return new ShardStateMetadata(primary, indexUUID, allocationId);
         }
     };
 }

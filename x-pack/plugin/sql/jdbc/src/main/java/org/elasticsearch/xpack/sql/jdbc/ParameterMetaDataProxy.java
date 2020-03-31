@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-final class ParameterMetaDataProxy extends DebuggingInvoker {
+final class ParameterMetadataProxy extends DebuggingInvoker {
 
-    ParameterMetaDataProxy(DebugLog log, Object target) {
+    ParameterMetadataProxy(DebugLog log, Object target) {
         super(log, target, null);
     }
 }

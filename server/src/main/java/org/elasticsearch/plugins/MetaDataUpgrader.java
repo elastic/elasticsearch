@@ -19,8 +19,8 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -28,15 +28,15 @@ import java.util.Map;
 import java.util.function.UnaryOperator;
 
 /**
- * Upgrades {@link MetaData} on startup on behalf of installed {@link Plugin}s
+ * Upgrades {@link Metadata} on startup on behalf of installed {@link Plugin}s
  */
-public class MetaDataUpgrader {
-    public final UnaryOperator<Map<String, IndexTemplateMetaData>> indexTemplateMetaDataUpgraders;
+public class MetadataUpgrader {
+    public final UnaryOperator<Map<String, IndexTemplateMetadata>> indexTemplateMetadataUpgraders;
 
-    public MetaDataUpgrader(Collection<UnaryOperator<Map<String, IndexTemplateMetaData>>> indexTemplateMetaDataUpgraders) {
-        this.indexTemplateMetaDataUpgraders = templates -> {
-            Map<String, IndexTemplateMetaData> upgradedTemplates = new HashMap<>(templates);
-            for (UnaryOperator<Map<String, IndexTemplateMetaData>> upgrader : indexTemplateMetaDataUpgraders) {
+    public MetadataUpgrader(Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders) {
+        this.indexTemplateMetadataUpgraders = templates -> {
+            Map<String, IndexTemplateMetadata> upgradedTemplates = new HashMap<>(templates);
+            for (UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader : indexTemplateMetadataUpgraders) {
                 upgradedTemplates = upgrader.apply(upgradedTemplates);
             }
             return upgradedTemplates;

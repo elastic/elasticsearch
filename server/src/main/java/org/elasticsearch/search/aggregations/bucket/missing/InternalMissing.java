@@ -29,8 +29,8 @@ import java.util.Map;
 
 public class InternalMissing extends InternalSingleBucketAggregation implements Missing {
     InternalMissing(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, docCount, aggregations, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, docCount, aggregations, pipelineAggregators, metadata);
     }
 
     /**
@@ -47,6 +47,6 @@ public class InternalMissing extends InternalSingleBucketAggregation implements 
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalMissing(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
+        return new InternalMissing(name, docCount, subAggregations, pipelineAggregators(), getMetadata());
     }
 }

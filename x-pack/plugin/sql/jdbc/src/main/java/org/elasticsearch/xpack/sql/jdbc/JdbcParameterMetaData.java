@@ -7,14 +7,14 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.PreparedQuery.ParamInfo;
 
-import java.sql.ParameterMetaData;
+import java.sql.ParameterMetadata;
 import java.sql.SQLException;
 
-class JdbcParameterMetaData implements ParameterMetaData, JdbcWrapper {
+class JdbcParameterMetadata implements ParameterMetadata, JdbcWrapper {
 
     private final JdbcPreparedStatement ps;
 
-    JdbcParameterMetaData(JdbcPreparedStatement ps) {
+    JdbcParameterMetadata(JdbcPreparedStatement ps) {
         this.ps = ps;
     }
 

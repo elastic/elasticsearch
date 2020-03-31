@@ -48,7 +48,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
         createIndex.endObject().endObject();
         request.setJsonEntity(Strings.toString(createIndex));
         client().performRequest(request);
-        
+
         request = new Request("PUT", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
@@ -171,7 +171,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             }
         }
     }
-    
+
     /**
      * Test for nested documents.
      */
@@ -199,7 +199,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             assertTrue("No more entries left after row " + rs.getRow(), (i+j == 23 || rs.next()));
         }
     }
-    
+
     /**
      * Explicit pagination test for PIVOT.
      * Checks that the paging properly consumes the necessary amount of aggregations and the
@@ -207,17 +207,17 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
      */
     public void testPivotPaging() throws Exception {
         addPivotData();
-        
+
         try (Connection c = esJdbc();
              Statement s = c.createStatement()) {
-            
+
             String query = "SELECT * FROM "
                     + "(SELECT item, amount, location FROM test_pivot)"
                     + " PIVOT (AVG(amount) FOR location IN ( 'AF', 'AS', 'EU', 'NA', 'SA', 'AQ', 'AU') )";
             // set size smaller than an agg page
             s.setFetchSize(3);
             try (ResultSet rs = s.executeQuery(query)) {
-                assertEquals(8, rs.getMetaData().getColumnCount());
+                assertEquals(8, rs.getMetadata().getColumnCount());
                 for (int i = 0; i < 10; i++) {
                     assertTrue(rs.next());
                     // the page was set to a pivot row (since the initial 3 is lower as a pivot page takes number of pivot entries + 1)
@@ -226,7 +226,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
                 }
                 assertFalse(rs.next());
             }
-            
+
             // now try with a larger fetch size (8 * 2 + something) - should be 2
             s.setFetchSize(20);
             try (ResultSet rs = s.executeQuery(query)) {
@@ -241,14 +241,14 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
         }
         assertNoSearchContexts();
     }
-    
-    
+
+
     public void testPivotPagingWithLimit() throws Exception {
         addPivotData();
 
         try (Connection c = esJdbc();
              Statement s = c.createStatement()) {
-            
+
             // run a query with a limit that is not a multiple of the fetch size
             String query = "SELECT * FROM "
                     + "(SELECT item, amount, location FROM test_pivot)"
@@ -256,7 +256,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             // set size smaller than an agg page
             s.setFetchSize(20);
             try (ResultSet rs = s.executeQuery(query)) {
-                assertEquals(3, rs.getMetaData().getColumnCount());
+                assertEquals(3, rs.getMetadata().getColumnCount());
                 for (int i = 0; i < 4; i++) {
                     assertTrue(rs.next());
                     assertEquals(2, rs.getFetchSize());

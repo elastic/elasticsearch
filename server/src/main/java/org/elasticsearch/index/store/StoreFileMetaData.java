@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.Objects;
 
-public class StoreFileMetaData implements Writeable {
+public class StoreFileMetadata implements Writeable {
 
     private final String name;
 
@@ -44,11 +44,11 @@ public class StoreFileMetaData implements Writeable {
 
     private final BytesRef hash;
 
-    public StoreFileMetaData(String name, long length, String checksum, Version writtenBy) {
+    public StoreFileMetadata(String name, long length, String checksum, Version writtenBy) {
         this(name, length, checksum, writtenBy, null);
     }
 
-    public StoreFileMetaData(String name, long length, String checksum, Version writtenBy, BytesRef hash) {
+    public StoreFileMetadata(String name, long length, String checksum, Version writtenBy, BytesRef hash) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.length = length;
         this.checksum = Objects.requireNonNull(checksum, "checksum must not be null");
@@ -59,7 +59,7 @@ public class StoreFileMetaData implements Writeable {
     /**
      * Read from a stream.
      */
-    public StoreFileMetaData(StreamInput in) throws IOException {
+    public StoreFileMetadata(StreamInput in) throws IOException {
         name = in.readString();
         length = in.readVLong();
         checksum = in.readString();
@@ -128,7 +128,7 @@ public class StoreFileMetaData implements Writeable {
     /**
      * Returns <code>true</code> iff the length and the checksums are the same. otherwise <code>false</code>
      */
-    public boolean isSame(StoreFileMetaData other) {
+    public boolean isSame(StoreFileMetadata other) {
         if (checksum == null || other.checksum == null) {
             // we can't tell if either or is null so we return false in this case! this is why we don't use equals for this!
             return false;

@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -38,23 +38,23 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class IndexTemplateMetaData  {
+public class IndexTemplateMetadata  {
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<IndexTemplateMetaData, String> PARSER = new ConstructingObjectParser<>(
-        "IndexTemplateMetaData", true, (a, name) -> {
-        List<Map.Entry<String, AliasMetaData>> alias = (List<Map.Entry<String, AliasMetaData>>) a[5];
-        ImmutableOpenMap<String, AliasMetaData> aliasMap =
-            new ImmutableOpenMap.Builder<String, AliasMetaData>()
+    private static final ConstructingObjectParser<IndexTemplateMetadata, String> PARSER = new ConstructingObjectParser<>(
+        "IndexTemplateMetadata", true, (a, name) -> {
+        List<Map.Entry<String, AliasMetadata>> alias = (List<Map.Entry<String, AliasMetadata>>) a[5];
+        ImmutableOpenMap<String, AliasMetadata> aliasMap =
+            new ImmutableOpenMap.Builder<String, AliasMetadata>()
                 .putAll(alias.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
                 .build();
-        return new IndexTemplateMetaData(
+        return new IndexTemplateMetadata(
             name,
             (Integer) a[0],
             (Integer) a[1],
             (List<String>) a[2],
             (Settings) a[3],
-            (MappingMetaData) a[4],
+            (MappingMetadata) a[4],
             aliasMap);
     });
 
@@ -65,7 +65,7 @@ public class IndexTemplateMetaData  {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
             Settings.Builder templateSettingsBuilder = Settings.builder();
             templateSettingsBuilder.put(Settings.fromXContent(p));
-            templateSettingsBuilder.normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+            templateSettingsBuilder.normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
             return templateSettingsBuilder.build();
         }, new ParseField("settings"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
@@ -73,10 +73,10 @@ public class IndexTemplateMetaData  {
             if (mapping.isEmpty()) {
                 return null;
             }
-            return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mapping);
+            return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mapping);
         }, new ParseField("mappings"));
         PARSER.declareNamedObjects(optionalConstructorArg(),
-            (p, c, name) -> new AbstractMap.SimpleEntry<>(name, AliasMetaData.Builder.fromXContent(p)), new ParseField("aliases"));
+            (p, c, name) -> new AbstractMap.SimpleEntry<>(name, AliasMetadata.Builder.fromXContent(p)), new ParseField("aliases"));
     }
 
     private final String name;
@@ -107,14 +107,14 @@ public class IndexTemplateMetaData  {
 
     private final Settings settings;
 
-    private final MappingMetaData mappings;
+    private final MappingMetadata mappings;
 
-    private final ImmutableOpenMap<String, AliasMetaData> aliases;
+    private final ImmutableOpenMap<String, AliasMetadata> aliases;
 
-    public IndexTemplateMetaData(String name, int order, Integer version,
+    public IndexTemplateMetadata(String name, int order, Integer version,
                                  List<String> patterns, Settings settings,
-                                 MappingMetaData mappings,
-                                 ImmutableOpenMap<String, AliasMetaData> aliases) {
+                                 MappingMetadata mappings,
+                                 ImmutableOpenMap<String, AliasMetadata> aliases) {
         if (patterns == null || patterns.isEmpty()) {
             throw new IllegalArgumentException("Index patterns must not be null or empty; got " + patterns);
         }
@@ -148,11 +148,11 @@ public class IndexTemplateMetaData  {
         return this.settings;
     }
 
-    public MappingMetaData mappings() {
+    public MappingMetadata mappings() {
         return this.mappings;
     }
 
-    public ImmutableOpenMap<String, AliasMetaData> aliases() {
+    public ImmutableOpenMap<String, AliasMetadata> aliases() {
         return this.aliases;
     }
 
@@ -164,7 +164,7 @@ public class IndexTemplateMetaData  {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        IndexTemplateMetaData that = (IndexTemplateMetaData) o;
+        IndexTemplateMetadata that = (IndexTemplateMetadata) o;
         return order == that.order &&
             Objects.equals(name, that.name) &&
             Objects.equals(version, that.version) &&
@@ -191,9 +191,9 @@ public class IndexTemplateMetaData  {
 
         private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
-        private MappingMetaData mappings;
+        private MappingMetadata mappings;
 
-        private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
+        private final ImmutableOpenMap.Builder<String, AliasMetadata> aliases;
 
         public Builder(String name) {
             this.name = name;
@@ -201,15 +201,15 @@ public class IndexTemplateMetaData  {
             aliases = ImmutableOpenMap.builder();
         }
 
-        public Builder(IndexTemplateMetaData indexTemplateMetaData) {
-            this.name = indexTemplateMetaData.name();
-            order(indexTemplateMetaData.order());
-            version(indexTemplateMetaData.version());
-            patterns(indexTemplateMetaData.patterns());
-            settings(indexTemplateMetaData.settings());
+        public Builder(IndexTemplateMetadata indexTemplateMetadata) {
+            this.name = indexTemplateMetadata.name();
+            order(indexTemplateMetadata.order());
+            version(indexTemplateMetadata.version());
+            patterns(indexTemplateMetadata.patterns());
+            settings(indexTemplateMetadata.settings());
 
-            mappings = indexTemplateMetaData.mappings();
-            aliases = ImmutableOpenMap.builder(indexTemplateMetaData.aliases());
+            mappings = indexTemplateMetadata.mappings();
+            aliases = ImmutableOpenMap.builder(indexTemplateMetadata.aliases());
         }
 
         public Builder order(int order) {
@@ -237,27 +237,27 @@ public class IndexTemplateMetaData  {
             return this;
         }
 
-        public Builder mapping(MappingMetaData mappings) {
+        public Builder mapping(MappingMetadata mappings) {
             this.mappings = mappings;
             return this;
         }
 
-        public Builder putAlias(AliasMetaData aliasMetaData) {
-            aliases.put(aliasMetaData.alias(), aliasMetaData);
+        public Builder putAlias(AliasMetadata aliasMetadata) {
+            aliases.put(aliasMetadata.alias(), aliasMetadata);
             return this;
         }
 
-        public Builder putAlias(AliasMetaData.Builder aliasMetaData) {
-            aliases.put(aliasMetaData.alias(), aliasMetaData.build());
+        public Builder putAlias(AliasMetadata.Builder aliasMetadata) {
+            aliases.put(aliasMetadata.alias(), aliasMetadata.build());
             return this;
         }
 
-        public IndexTemplateMetaData build() {
-            return new IndexTemplateMetaData(name, order, version, indexPatterns, settings, mappings, aliases.build());
+        public IndexTemplateMetadata build() {
+            return new IndexTemplateMetadata(name, order, version, indexPatterns, settings, mappings, aliases.build());
         }
 
 
-        public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName) throws IOException {
+        public static IndexTemplateMetadata fromXContent(XContentParser parser, String templateName) throws IOException {
             return PARSER.parse(parser, templateName);
         }
     }

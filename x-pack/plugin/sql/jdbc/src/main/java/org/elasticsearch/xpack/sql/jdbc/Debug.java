@@ -17,12 +17,12 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.CallableStatement;
 import java.sql.Connection;
-import java.sql.DatabaseMetaData;
+import java.sql.DatabaseMetadata;
 import java.sql.DriverManager;
-import java.sql.ParameterMetaData;
+import java.sql.ParameterMetadata;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
+import java.sql.ResultSetMetadata;
 import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
@@ -72,20 +72,20 @@ final class Debug {
         return createProxy(Connection.class, new ConnectionProxy(logger(info, managedPrinter), connection));
     }
 
-    static DatabaseMetaData proxy(DatabaseMetadataProxy handler) {
-        return createProxy(DatabaseMetaData.class, handler);
+    static DatabaseMetadata proxy(DatabaseMetadataProxy handler) {
+        return createProxy(DatabaseMetadata.class, handler);
     }
 
-    static ParameterMetaData proxy(ParameterMetaDataProxy handler) {
-        return createProxy(ParameterMetaData.class, handler);
+    static ParameterMetadata proxy(ParameterMetadataProxy handler) {
+        return createProxy(ParameterMetadata.class, handler);
     }
 
     static ResultSet proxy(ResultSetProxy handler) {
         return createProxy(ResultSet.class, handler);
     }
 
-    static ResultSetMetaData proxy(ResultSetMetaDataProxy handler) {
-        return createProxy(ResultSetMetaData.class, handler);
+    static ResultSetMetadata proxy(ResultSetMetadataProxy handler) {
+        return createProxy(ResultSetMetadata.class, handler);
     }
 
     static Statement proxy(Object statement, StatementProxy handler) {

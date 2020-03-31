@@ -25,25 +25,25 @@ import org.elasticsearch.index.Index;
 
 import java.util.Map;
 
-public class MetaDataIndexStateServiceUtils {
+public class MetadataIndexStateServiceUtils {
 
-    private MetaDataIndexStateServiceUtils(){
+    private MetadataIndexStateServiceUtils(){
     }
 
     /**
-     * Allows to call {@link MetaDataIndexStateService#addIndexClosedBlocks(Index[], Map, ClusterState)} which is a protected method.
+     * Allows to call {@link MetadataIndexStateService#addIndexClosedBlocks(Index[], Map, ClusterState)} which is a protected method.
      */
     public static ClusterState addIndexClosedBlocks(final Index[] indices, final Map<Index, ClusterBlock> blockedIndices,
                                                     final ClusterState state) {
-        return MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
+        return MetadataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
     }
 
     /**
-     * Allows to call {@link MetaDataIndexStateService#closeRoutingTable(ClusterState, Map, Map)} which is a protected method.
+     * Allows to call {@link MetadataIndexStateService#closeRoutingTable(ClusterState, Map, Map)} which is a protected method.
      */
     public static ClusterState closeRoutingTable(final ClusterState state,
                                                  final Map<Index, ClusterBlock> blockedIndices,
                                                  final Map<Index, CloseIndexResponse.IndexResult> results) {
-        return MetaDataIndexStateService.closeRoutingTable(state, blockedIndices, results).v1();
+        return MetadataIndexStateService.closeRoutingTable(state, blockedIndices, results).v1();
     }
 }

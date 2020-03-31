@@ -19,16 +19,16 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 
 /**
- * Interface to allow merging {@link org.elasticsearch.cluster.metadata.MetaData.Custom}.
+ * Interface to allow merging {@link Metadata.Custom}.
  * When multiple Mergable Custom metadata of the same type are found (from underlying clusters), the
- * Custom metadata can be merged using {@link #merge(MetaData.Custom)}.
+ * Custom metadata can be merged using {@link #merge(Metadata.Custom)}.
  *
  * @param <T> type of custom meta data
  */
-public interface MergableCustomMetaData<T extends MetaData.Custom> {
+public interface MergableCustomMetadata<T extends Metadata.Custom> {
 
     /**
      * Merges this custom metadata with other, returning either this or <code>other</code> custom metadata.

@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -26,16 +26,16 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
 
-public class LdapMetaDataResolver {
+public class LdapMetadataResolver {
 
     private final String[] attributeNames;
     private final boolean ignoreReferralErrors;
 
-    public LdapMetaDataResolver(RealmConfig realmConfig, boolean ignoreReferralErrors) {
-        this(realmConfig.getSetting(LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), ignoreReferralErrors);
+    public LdapMetadataResolver(RealmConfig realmConfig, boolean ignoreReferralErrors) {
+        this(realmConfig.getSetting(LdapMetadataResolverSettings.ADDITIONAL_META_DATA_SETTING), ignoreReferralErrors);
     }
 
-    LdapMetaDataResolver(Collection<String> attributeNames, boolean ignoreReferralErrors) {
+    LdapMetadataResolver(Collection<String> attributeNames, boolean ignoreReferralErrors) {
         this.attributeNames = attributeNames.toArray(new String[attributeNames.size()]);
         this.ignoreReferralErrors = ignoreReferralErrors;
     }

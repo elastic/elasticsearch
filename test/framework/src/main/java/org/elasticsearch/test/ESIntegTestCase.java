@@ -124,8 +124,6 @@ import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -2176,17 +2174,5 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static boolean inFipsJvm() {
         return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
-    }
-
-    /**
-     * Ensures that all outstanding child tasks of the given parent task are banned or being cancelled.
-     */
-    protected static void ensureChildTasksCancelledOrBanned(TaskId taskId) throws Exception {
-        assertBusy(() -> {
-            for (String nodeName : internalCluster().getNodeNames()) {
-                final TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
-                assertTrue(taskManager.childTasksCancelledOrBanned(taskId));
-            }
-        });
     }
 }

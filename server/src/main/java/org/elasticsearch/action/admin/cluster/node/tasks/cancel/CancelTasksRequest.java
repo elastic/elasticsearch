@@ -34,9 +34,10 @@ import java.io.IOException;
 public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 
     public static final String DEFAULT_REASON = "by user request";
+    public static final boolean DEFAULT_WAIT_FOR_COMPLETION = false;
 
     private String reason = DEFAULT_REASON;
-    private boolean waitForChildTasks = true;
+    private boolean waitForCompletion = DEFAULT_WAIT_FOR_COMPLETION;
 
     public CancelTasksRequest() {}
 
@@ -44,7 +45,7 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
         super(in);
         this.reason = in.readString();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            waitForChildTasks = in.readBoolean();
+            waitForCompletion = in.readBoolean();
         }
     }
 
@@ -53,7 +54,7 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
         super.writeTo(out);
         out.writeString(reason);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(waitForChildTasks);
+            out.writeBoolean(waitForCompletion);
         }
     }
 
@@ -78,13 +79,14 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     }
 
     /**
-     * If true, then only returns after all child tasks are cancelled; otherwise, return after the main task is cancelled
+     * If {@code true}, the request blocks until the cancellation of the task and its child tasks is completed.
+     * Otherwise, the request can return soon after the cancellation is started. Defaults to {@code false}.
      */
-    public void setWaitForChildTasks(boolean waitForChildTasks) {
-        this.waitForChildTasks = waitForChildTasks;
+    public void setWaitForCompletion(boolean waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
     }
 
     public boolean waitForChildTasks() {
-        return waitForChildTasks;
+        return waitForCompletion;
     }
 }

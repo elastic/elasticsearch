@@ -66,7 +66,8 @@ public class RestCancelTasksAction extends BaseRestHandler {
         cancelTasksRequest.setNodes(nodesIds);
         cancelTasksRequest.setActions(actions);
         cancelTasksRequest.setParentTaskId(parentTaskId);
-        cancelTasksRequest.setWaitForChildTasks(request.paramAsBoolean("wait_for_child_tasks", true));
+        cancelTasksRequest.setWaitForCompletion(
+            request.paramAsBoolean("wait_for_child_tasks", CancelTasksRequest.DEFAULT_WAIT_FOR_COMPLETION));
         return channel ->
             client.admin().cluster().cancelTasks(cancelTasksRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
     }

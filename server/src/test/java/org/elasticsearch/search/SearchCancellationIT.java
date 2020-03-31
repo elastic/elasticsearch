@@ -122,9 +122,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         TaskInfo searchTask = listTasksResponse.getTasks().get(0);
 
         logger.info("Cancelling search");
-        CancelTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTaskId(searchTask.getTaskId())
-            .setWaitForChildTasks(false) // do not wait for the cancellation of child tasks as they're being blocked
-            .get();
+        CancelTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTaskId(searchTask.getTaskId()).get();
         assertThat(cancelTasksResponse.getTasks(), hasSize(1));
         assertThat(cancelTasksResponse.getTasks().get(0).getTaskId(), equalTo(searchTask.getTaskId()));
     }

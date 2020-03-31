@@ -163,10 +163,10 @@ public class CancellableTasksIT extends ESIntegTestCase {
         }
         TaskId taskId = getMainTaskId();
         ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
-            .setWaitForChildTasks(true).execute();
+            .waitForCompletion(true).execute();
         ensureChildTasksCancelledOrBanned(taskId);
         if (randomBoolean()) {
-            CancelTasksResponse resp = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).setWaitForChildTasks(false).get();
+            CancelTasksResponse resp = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).waitForCompletion(false).get();
             assertThat(resp.getTaskFailures(), empty());
             assertThat(resp.getNodeFailures(), empty());
         }
@@ -178,7 +178,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
         mainTaskFuture.actionGet();
         CancelTasksResponse cancelError = client().admin().cluster().prepareCancelTasks()
-            .setTaskId(taskId).setWaitForChildTasks(randomBoolean()).get();
+            .setTaskId(taskId).waitForCompletion(randomBoolean()).get();
         assertThat(cancelError.getNodeFailures(), hasSize(1));
         final Throwable notFound = ExceptionsHelper.unwrap(cancelError.getNodeFailures().get(0), ResourceNotFoundException.class);
         assertThat(notFound.getMessage(), equalTo("task [" + taskId + "] is not found"));
@@ -194,7 +194,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         TaskId taskId = getMainTaskId();
         boolean waitForChildTasks = randomBoolean();
         ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
-            .setWaitForChildTasks(waitForChildTasks)
+            .waitForCompletion(waitForChildTasks)
             .execute();
         if (waitForChildTasks) {
             assertFalse(cancelFuture.isDone());
@@ -446,5 +446,17 @@ public class CancellableTasksIT extends ESIntegTestCase {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(TaskPlugin.class);
         return plugins;
+    }
+
+    /**
+     * Ensures that all outstanding child tasks of the given parent task are banned or being cancelled.
+     */
+    protected static void ensureChildTasksCancelledOrBanned(TaskId taskId) throws Exception {
+        assertBusy(() -> {
+            for (String nodeName : internalCluster().getNodeNames()) {
+                final TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
+                assertTrue(taskManager.childTasksCancelledOrBanned(taskId));
+            }
+        });
     }
 }

@@ -3,6 +3,13 @@
 
 Also see <<breaking-changes-7.6,Breaking changes in 7.6>>.
 
+[[breaking-7.6.2]]
+[float]
+=== Breaking changes
+
+Authorization::
+* Creation of child API keys (keys created by existing keys) now requires explicit "no privileges" configuration {pull}53647[#53647], https://www.elastic.co/community/security[CVE-2020-7009]
+
 [[bug-7.6.2]]
 [float]
 === Bug fixes
@@ -12,9 +19,6 @@ Allocation::
 
 Authentication::
 * Fix potential bug in concurrent token refresh support {pull}53668[#53668]
-
-Authorization::
-* Explicitly require that delegate API keys have no privileges {pull}53647[#53647]
 
 CCR::
 * Handle no such remote cluster exception in ccr {pull}53415[#53415] (issue: {issue}53225[#53225])

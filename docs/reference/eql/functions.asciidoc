@@ -19,7 +19,6 @@ Returns `true` if a specified source string begins with a provided substring.
 
 [%collapsible]
 ====
-
 *Example*
 [source,eql]
 ----
@@ -50,7 +49,7 @@ startsWith(null, null)                  // returns null
 
 [source,txt]
 ----
-substring(<source>, <substring>)
+startsWith(<source>, <substring>)
 ----
 
 *Parameters*

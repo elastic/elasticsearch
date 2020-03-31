@@ -60,6 +60,7 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
             () -> assertFalse(scheduled.get()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54485")
     public void testNegativeSetting() throws InterruptedException {
         String collector = randomAlphaOfLength(5);
         final String timeValue = "-" + randomTimeValue();

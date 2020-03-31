@@ -41,9 +41,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -53,9 +53,9 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoTileGrid;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.ParsedGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
@@ -138,8 +138,8 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -166,16 +166,23 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
      * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid but empty.
      */
     public static InternalAggregation.ReduceContextBuilder emptyReduceContextBuilder() {
+        return emptyReduceContextBuilder(PipelineTree.EMPTY);
+    }
+
+    /**
+     * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid and nearly
+     * empty <strong>except</strong> that it contain {@link PipelineAggregator}s.
+     */
+    public static InternalAggregation.ReduceContextBuilder emptyReduceContextBuilder(PipelineTree pipelineTree) {
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null);
+                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null, () -> pipelineTree);
             }
 
             @Override
             public ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(
-                        BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineTree.EMPTY);
+                return InternalAggregation.ReduceContext.forFinalReduction(BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, pipelineTree);
             }
         };
     }
@@ -291,7 +298,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             Collections.shuffle(toReduce, random());
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
-            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(bigArrays, mockScriptService);
+            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
+                    bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
             @SuppressWarnings("unchecked")
             T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
             int initialBucketCount = 0;

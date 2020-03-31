@@ -174,6 +174,8 @@ public class DeprecationLogger {
                     "GMT" + // GMT
                     "\")?"); // closing quote (optional, since an older version can still send a warn-date)
 
+    public static final Pattern WARNING_XCONTENT_LOCATION_PATTERN = Pattern.compile("^\\[.*?]\\[-?\\d+:-?\\d+] ");
+
     /**
      * Extracts the warning value from the value of a warning header that is formatted according to RFC 7234. That is, given a string
      * {@code 299 Elasticsearch-6.0.0 "warning value"}, the return value of this method would be {@code warning value}.
@@ -181,7 +183,7 @@ public class DeprecationLogger {
      * @param s the value of a warning header formatted according to RFC 7234.
      * @return the extracted warning value
      */
-    public static String extractWarningValueFromWarningHeader(final String s) {
+    public static String extractWarningValueFromWarningHeader(final String s, boolean stripXContentPosition) {
         /*
          * We know the exact format of the warning header, so to extract the warning value we can skip forward from the front to the first
          * quote and we know the last quote is at the end of the string
@@ -196,8 +198,14 @@ public class DeprecationLogger {
          */
         final int firstQuote = s.indexOf('\"');
         final int lastQuote = s.length() - 1;
-        final String warningValue = s.substring(firstQuote + 1, lastQuote);
+        String warningValue = s.substring(firstQuote + 1, lastQuote);
         assert assertWarningValue(s, warningValue);
+        if (stripXContentPosition) {
+            Matcher matcher = WARNING_XCONTENT_LOCATION_PATTERN.matcher(warningValue);
+            if (matcher.find()) {
+                warningValue = warningValue.substring(matcher.end());
+            }
+        }
         return warningValue;
     }
 
@@ -232,7 +240,7 @@ public class DeprecationLogger {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
             assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-            assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
+            assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();

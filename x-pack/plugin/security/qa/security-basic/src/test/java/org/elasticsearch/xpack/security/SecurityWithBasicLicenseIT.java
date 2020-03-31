@@ -11,10 +11,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 
@@ -24,29 +20,12 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SecurityWithBasicLicenseIT extends ESRestTestCase {
-
-    @Override
-    protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("security_test_user", new SecureString("security-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
-    }
+public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
     public void testWithBasicLicense() throws Exception {
         checkLicenseType("basic");

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -35,13 +34,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 
 import java.io.IOException;
@@ -63,11 +61,6 @@ import java.util.stream.IntStream;
  */
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(TermsQueryBuilder.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated " +
-        "in [terms] lookup queries.";
 
     private final String fieldName;
     private final List<?> values;
@@ -402,15 +395,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     "followed by array of terms or a document lookup specification");
         }
 
-        TermsQueryBuilder builder = new TermsQueryBuilder(fieldName, values, termsLookup)
+        return new TermsQueryBuilder(fieldName, values, termsLookup)
             .boost(boost)
             .queryName(queryName);
-
-        if (builder.isTypeless() == false) {
-            deprecationLogger.deprecatedAndMaybeLog("terms_lookup_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
-        return builder;
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {

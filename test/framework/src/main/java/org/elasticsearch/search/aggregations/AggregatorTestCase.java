@@ -204,7 +204,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
         };
         ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(indexSearcher.getIndexReader(),
-            indexSearcher.getSimilarity(), queryCache, queryCachingPolicy, null);
+            indexSearcher.getSimilarity(), queryCache, queryCachingPolicy, false);
 
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.numberOfShards()).thenReturn(1);
@@ -441,7 +441,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 int r = randomIntBetween(1, toReduceSize);
                 List<InternalAggregation> toReduce = aggs.subList(0, r);
                 InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
-                        root.context().bigArrays(), getMockScriptService());
+                        root.context().bigArrays(), getMockScriptService(), () -> PipelineAggregator.PipelineTree.EMPTY);
                 A reduced = (A) aggs.get(0).reduce(toReduce, context);
                 aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
                 aggs.add(reduced);

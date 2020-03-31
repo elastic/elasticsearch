@@ -19,6 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.Objects;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
@@ -41,11 +46,6 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
-import java.io.IOException;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.util.Objects;
-
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link RoundingValuesSource} from a {@link Script} or
  * a field name using the provided interval.
@@ -54,9 +54,9 @@ public class DateHistogramValuesSourceBuilder
     extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> implements DateIntervalConsumer {
     static final String TYPE = "date_histogram";
 
-    private static final ObjectParser<DateHistogramValuesSourceBuilder, Void> PARSER;
+    static final ObjectParser<DateHistogramValuesSourceBuilder, String> PARSER =
+            ObjectParser.fromBuilder(TYPE, DateHistogramValuesSourceBuilder::new);
     static {
-        PARSER = new ObjectParser<>(DateHistogramValuesSourceBuilder.TYPE);
         PARSER.declareString(DateHistogramValuesSourceBuilder::format, new ParseField("format"));
         DateIntervalWrapper.declareIntervalFields(PARSER);
         PARSER.declareField(DateHistogramValuesSourceBuilder::offset, p -> {
@@ -74,9 +74,6 @@ public class DateHistogramValuesSourceBuilder
             }
         }, new ParseField("time_zone"), ObjectParser.ValueType.LONG);
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, ValueType.NUMERIC);
-    }
-    static DateHistogramValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new DateHistogramValuesSourceBuilder(name), null);
     }
 
     private ZoneId timeZone = null;

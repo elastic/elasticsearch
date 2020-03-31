@@ -40,28 +40,33 @@ public class ScriptCache {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);
 
+    static final Tuple<Integer, TimeValue> UNLIMITED_COMPILATION_RATE = new Tuple<>(0, TimeValue.ZERO);
+
     private final Cache<CacheKey, Object> cache;
     private final ScriptMetrics scriptMetrics;
 
     private final Object lock = new Object();
 
-    // Mutable fields
-    private long lastInlineCompileTime;
-    private double scriptsPerTimeWindow;
+    // Mutable fields, visible for tests
+    long lastInlineCompileTime;
+    double scriptsPerTimeWindow;
 
     // Cache settings or derived from settings
     final int cacheSize;
     final TimeValue cacheExpire;
     final Tuple<Integer, TimeValue> rate;
     private final double compilesAllowedPerNano;
+    private final String contextRateSetting;
 
     ScriptCache(
             int cacheMaxSize,
             TimeValue cacheExpire,
-            Tuple<Integer, TimeValue> maxCompilationRate
+            Tuple<Integer, TimeValue> maxCompilationRate,
+            String contextRateSetting
     ) {
         this.cacheSize = cacheMaxSize;
         this.cacheExpire = cacheExpire;
+        this.contextRateSetting = contextRateSetting;
 
         CacheBuilder<CacheKey, Object> cacheBuilder = CacheBuilder.builder();
         if (this.cacheSize >= 0) {
@@ -150,8 +155,7 @@ public class ScriptCache {
      * is discarded - there can never be more water in the bucket than the size of the bucket.
      */
     void checkCompilationLimit() {
-        if (rate.v1() == 0 && rate.v2().getNanos() == 0) {
-            // unlimited
+        if (rate.equals(UNLIMITED_COMPILATION_RATE)) {
             return;
         }
 
@@ -174,7 +178,7 @@ public class ScriptCache {
             // Otherwise reject the request
             throw new CircuitBreakingException("[script] Too many dynamic script compilations within, max: [" +
                 rate.v1() + "/" + rate.v2() +"]; please use indexed, or scripts with parameters instead; " +
-                "this limit can be changed by the [script.max_compilations_rate] setting",
+                "this limit can be changed by the [" + contextRateSetting + "] setting",
                 CircuitBreaker.Durability.TRANSIENT);
         }
     }

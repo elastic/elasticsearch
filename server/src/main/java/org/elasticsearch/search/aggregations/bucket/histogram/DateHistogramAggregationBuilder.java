@@ -26,14 +26,12 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -45,7 +43,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -71,10 +68,8 @@ import static java.util.Collections.unmodifiableMap;
  * A builder for histograms on date fields.
  */
 public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, DateHistogramAggregationBuilder>
-        implements MultiBucketAggregationBuilder, DateIntervalConsumer {
-
+        implements DateIntervalConsumer {
     public static final String NAME = "date_histogram";
-    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS;
 
@@ -99,11 +94,10 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         DATE_FIELD_UNITS = unmodifiableMap(dateFieldUnits);
     }
 
-    private static final ObjectParser<DateHistogramAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<DateHistogramAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, DateHistogramAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(DateHistogramAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareAnyFields(PARSER, true, true, true);
-
         DateIntervalWrapper.declareIntervalFields(PARSER);
 
         PARSER.declareField(DateHistogramAggregationBuilder::offset, p -> {
@@ -123,10 +117,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
         PARSER.declareObjectArray(DateHistogramAggregationBuilder::order, (p, c) -> InternalOrder.Parser.parseOrderParam(p),
                 Histogram.ORDER_FIELD);
-    }
-
-    public static DateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new DateHistogramAggregationBuilder(aggregationName), null);
     }
 
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();
@@ -385,6 +375,11 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
 
         dateHistogramInterval.toXContent(builder, params);
@@ -477,7 +472,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
         ZoneOffsetTransition prevOffsetTransition = tz.getRules().previousTransition(instant);
         final long prevTransition;
-        if (prevOffsetTransition  != null) {
+        if (prevOffsetTransition != null) {
             prevTransition = prevOffsetTransition.getInstant().toEpochMilli();
         } else {
             prevTransition = instant.toEpochMilli();
@@ -487,7 +482,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         if (nextOffsetTransition != null) {
             nextTransition = nextOffsetTransition.getInstant().toEpochMilli();
         } else {
-            nextTransition = instant.toEpochMilli();
+            nextTransition = Long.MAX_VALUE; // fixed time-zone after prevTransition
         }
 
         // We need all not only values but also rounded values to be within

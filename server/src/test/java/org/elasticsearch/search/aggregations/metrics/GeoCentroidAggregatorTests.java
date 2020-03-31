@@ -84,6 +84,30 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testUnmappedWithMissing() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg")
+                .field("another_field")
+                .missing("53.69437,6.475031");
+
+            GeoPoint expectedCentroid = new GeoPoint(53.69437, 6.475031);
+            Document document = new Document();
+            document.add(new LatLonDocValuesField("field", 10, 10));
+            w.addDocument(document);
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
+                fieldType.setHasDocValues(true);
+                fieldType.setName("another_field");
+                InternalGeoCentroid result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                assertEquals(result.centroid(), expectedCentroid);
+                assertTrue(AggregationInspectionHelper.hasValue(result));
+            }
+        }
+    }
+
     public void testSingleValuedField() throws Exception {
         int numDocs = scaledRandomIntBetween(64, 256);
         int numUniqueGeoPoints = randomIntBetween(1, numDocs);

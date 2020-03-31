@@ -397,10 +397,15 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
+        public BucketCardinality bucketCardinality() {
+            return BucketCardinality.NONE;
+        }
+
+        @Override
         protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                            ValuesSourceConfig<ValuesSource> config,
-                                                                            AggregatorFactory parent,
-                                                                            Builder subFactoriesBuilder) throws IOException {
+                                    ValuesSourceConfig<ValuesSource> config,
+                                    AggregatorFactory parent,
+                                    Builder subFactoriesBuilder) throws IOException {
             return null;
         }
 
@@ -447,6 +452,9 @@ public class SearchModuleTests extends ESTestCase {
         private static TestPipelineAggregationBuilder fromXContent(String name, XContentParser p) {
             return null;
         }
+
+        @Override
+        protected void validate(ValidationContext context) {}
     }
 
     /**

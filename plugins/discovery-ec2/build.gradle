@@ -25,7 +25,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.636'
+  'aws': '1.11.749'
 ]
 
 dependencies {
@@ -38,6 +38,12 @@ dependencies {
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
 }
 
 dependencyLicenses {
@@ -111,11 +117,9 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.log.Logger'
 )
 
-rootProject.globalInfo.ready {
-  if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.ignoreMissingClasses(
-      'javax.xml.bind.DatatypeConverter',
-      'javax.xml.bind.JAXBContext'
-    )
-  }
+if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.ignoreMissingClasses(
+    'javax.xml.bind.DatatypeConverter',
+    'javax.xml.bind.JAXBContext'
+  )
 }

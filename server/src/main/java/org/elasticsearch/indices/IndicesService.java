@@ -139,6 +139,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -571,6 +572,41 @@ public class IndicesService extends AbstractLifecycleComponent
             if (success == false) {
                 indexService.close("plugins_failed", true);
             }
+        }
+    }
+
+    public <T, E extends Exception> T withTempIndexService(final IndexMetaData indexMetaData,
+                                                           CheckedFunction<IndexService, T, E> indexServiceConsumer) throws IOException, E {
+        final Index index = indexMetaData.getIndex();
+        if (hasIndex(index)) {
+            throw new ResourceAlreadyExistsException(index);
+        }
+        List<IndexEventListener> finalListeners = Collections.singletonList(
+            // double check that shard is not created.
+            new IndexEventListener() {
+                @Override
+                public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
+                    assert false : "temp index should not trigger shard creation";
+                    throw new ElasticsearchException("temp index should not trigger shard creation [{}]", index);
+                }
+
+                @Override
+                public void onStoreCreated(ShardId shardId) {
+                    assert false : "temp index should not trigger store creation";
+                    throw new ElasticsearchException("temp index should not trigger store creation [{}]", index);
+                }
+            }
+        );
+        final IndexService indexService =
+            createIndexService(
+                CREATE_INDEX,
+                indexMetaData,
+                indicesQueryCache,
+                indicesFieldDataCache,
+                finalListeners,
+                indexingMemoryController);
+        try (Closeable dummy = () -> indexService.close("temp", false)) {
+            return indexServiceConsumer.apply(indexService);
         }
     }
 

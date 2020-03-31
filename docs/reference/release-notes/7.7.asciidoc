@@ -14,5 +14,9 @@ Mapping::
 
 Search::
 * A regression that allowed negative scores in a script_score query was corrected.
-A behaviour is restored that throws an error if script_score query produces
-a negative score {pull}52478[#52478].
+  A behaviour is restored that throws an error if script_score query produces
+  a negative score {pull}52478[#52478].
+* Pipeline aggregation validation errors that used to return HTTP
+  500s/Internal Server Errors now return 400/Bad Request {pull}53669[#53669].
+  As a bonus we now return a list of validation errors rather than returning
+  the first one we encounter.

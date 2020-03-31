@@ -27,11 +27,14 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,6 +52,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -303,6 +307,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeTimeZone(DateTimeZone.forID("CET"));
         out.writeOptionalTimeZone(DateTimeZone.getDefault());
         out.writeOptionalTimeZone(null);
+        out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
         final byte[] bytes = BytesReference.toBytes(out.bytes());
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         assertEquals(in.available(), bytes.length);
@@ -335,6 +340,11 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(DateTimeZone.forID("CET"), in.readTimeZone());
         assertEquals(DateTimeZone.getDefault(), in.readOptionalTimeZone());
         assertNull(in.readOptionalTimeZone());
+        Object dt = in.readGenericValue();
+        assertThat(dt, instanceOf(JodaCompatibleZonedDateTime.class));
+        JodaCompatibleZonedDateTime jdt = (JodaCompatibleZonedDateTime) dt;
+        assertThat(jdt.getZonedDateTime().toInstant().toEpochMilli(), equalTo(123456L));
+        assertThat(jdt.getZonedDateTime().getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
         assertEquals(0, in.available());
         in.close();
         out.close();

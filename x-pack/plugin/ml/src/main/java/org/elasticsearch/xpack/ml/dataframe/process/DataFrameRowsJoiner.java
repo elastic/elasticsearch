@@ -40,9 +40,9 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private final Iterator<DataFrameDataExtractor.Row> dataFrameRowsIterator;
     private LinkedList<RowResults> currentResults;
     private volatile String failure;
+    private volatile boolean isCancelled;
 
-    DataFrameRowsJoiner(String analyticsId, DataFrameDataExtractor dataExtractor,
-                        ResultsPersisterService resultsPersisterService) {
+    DataFrameRowsJoiner(String analyticsId, DataFrameDataExtractor dataExtractor, ResultsPersisterService resultsPersisterService) {
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.dataExtractor = Objects.requireNonNull(dataExtractor);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
@@ -70,6 +70,10 @@ class DataFrameRowsJoiner implements AutoCloseable {
         }
     }
 
+    void cancel() {
+        isCancelled = true;
+    }
+
     private void addResultAndJoinIfEndOfBatch(RowResults rowResults) {
         currentResults.add(rowResults);
         if (currentResults.size() == RESULTS_BATCH_SIZE) {
@@ -87,7 +91,11 @@ class DataFrameRowsJoiner implements AutoCloseable {
         }
         if (bulkRequest.numberOfActions() > 0) {
             resultsPersisterService.bulkIndexWithHeadersWithRetry(
-                dataExtractor.getHeaders(), bulkRequest, analyticsId, () -> true, errorMsg -> {});
+                dataExtractor.getHeaders(),
+                bulkRequest,
+                analyticsId,
+                () -> isCancelled == false,
+                errorMsg -> {});
         }
         currentResults = new LinkedList<>();
     }

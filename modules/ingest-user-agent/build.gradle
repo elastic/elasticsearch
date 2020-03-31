@@ -22,6 +22,12 @@ esplugin {
   classname 'org.elasticsearch.ingest.useragent.IngestUserAgentPlugin'
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
+}
+
 testClusters.integTest {
   extraConfigFile 'ingest-user-agent/test-regexes.yml', file('src/test/test-regexes.yml')
 }

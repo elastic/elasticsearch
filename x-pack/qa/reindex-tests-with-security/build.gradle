@@ -39,10 +39,8 @@ testClusters.integTest {
   setting 'reindex.ssl.truststore.password', 'password'
 
   // Workaround for JDK-8212885
-  rootProject.globalInfo.ready {
-    if (BuildParams.runtimeJavaVersion.isJava12Compatible() == false) {
-      setting 'reindex.ssl.supported_protocols', 'TLSv1.2'
-    }
+  if (BuildParams.runtimeJavaVersion.isJava12Compatible() == false) {
+    setting 'reindex.ssl.supported_protocols', 'TLSv1.2'
   }
 
   extraConfigFile 'roles.yml', file('roles.yml')

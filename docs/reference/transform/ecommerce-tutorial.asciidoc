@@ -258,3 +258,7 @@ TIP: If you do not want to keep the {transform}, you can delete it in
 <<delete-transform,delete {transform} API>>. When
 you delete a {transform}, its destination index and {kib} index
 patterns remain.
+
+Now that you've created a simple {transform} for {kib} sample data, consider
+possible use cases for your own data. For more ideas, see
+<<transform-usage>> and <<transform-examples>>.

@@ -35,7 +35,7 @@ esplugin {
 }
 
 versions << [
-  'hadoop2': '2.8.1'
+  'hadoop2': '2.8.5'
 ]
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
@@ -74,6 +74,12 @@ dependencies {
   }
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
+  }
+}
+
 normalization {
   runtimeClasspath {
     // ignore generated keytab files for the purposes of build avoidance
@@ -108,10 +114,8 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("-Djava.security.krb5.conf=${project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")}");
-      rootProject.globalInfo.ready {
-        if (BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
-          miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
-        }
+      if (BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
+        miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
       }
     }
     // If it's an HA fixture, set a nameservice to use in the JVM options

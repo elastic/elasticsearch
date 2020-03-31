@@ -303,7 +303,8 @@ public class ClusterHealthIT extends ESIntegTestCase {
         // Run a few health requests concurrent to master fail-overs against a data-node to make sure master failover is handled
         // without exceptions
         for (int i = 0; i < 20; ++i) {
-            responseFutures.add(client(node).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute());
+            responseFutures.add(client(node).admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
+                .setWaitForGreenStatus().execute());
             internalCluster().restartNode(internalCluster().getMasterName(), InternalTestCluster.EMPTY_CALLBACK);
         }
         for (ActionFuture<ClusterHealthResponse> responseFuture : responseFutures) {

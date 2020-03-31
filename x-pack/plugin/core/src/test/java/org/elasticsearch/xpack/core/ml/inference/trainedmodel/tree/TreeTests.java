@@ -390,22 +390,22 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                 TreeNode.builder(5).setLeafValue(13.0).setNumberSamples(1L),
                 TreeNode.builder(6).setLeafValue(18.0).setNumberSamples(1L)).build();
 
-        Map<String, Double> featureImportance = tree.featureImportance(zipObjMap(featureNames, Arrays.asList(0.25, 0.25)),
+        Map<String, double[]> featureImportance = tree.featureImportance(zipObjMap(featureNames, Arrays.asList(0.25, 0.25)),
             Collections.emptyMap());
-        assertThat(featureImportance.get("foo"), closeTo(-5.0, eps));
-        assertThat(featureImportance.get("bar"), closeTo(-2.5, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(-5.0, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo(-2.5, eps));
 
         featureImportance = tree.featureImportance(zipObjMap(featureNames, Arrays.asList(0.25, 0.75)), Collections.emptyMap());
-        assertThat(featureImportance.get("foo"), closeTo(-5.0, eps));
-        assertThat(featureImportance.get("bar"), closeTo(2.5, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(-5.0, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo(2.5, eps));
 
         featureImportance = tree.featureImportance(zipObjMap(featureNames, Arrays.asList(0.75, 0.25)), Collections.emptyMap());
-        assertThat(featureImportance.get("foo"), closeTo(5.0, eps));
-        assertThat(featureImportance.get("bar"), closeTo(-2.5, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(5.0, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo(-2.5, eps));
 
         featureImportance = tree.featureImportance(zipObjMap(featureNames, Arrays.asList(0.75, 0.75)), Collections.emptyMap());
-        assertThat(featureImportance.get("foo"), closeTo(5.0, eps));
-        assertThat(featureImportance.get("bar"), closeTo(2.5, eps));
+        assertThat(featureImportance.get("foo")[0], closeTo(5.0, eps));
+        assertThat(featureImportance.get("bar")[0], closeTo(2.5, eps));
     }
 
     public void testMaxFeatureIndex() {

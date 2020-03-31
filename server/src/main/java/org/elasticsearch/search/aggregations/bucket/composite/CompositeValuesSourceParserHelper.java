@@ -116,7 +116,7 @@ public class CompositeValuesSourceParserHelper {
                 builder = TermsValuesSourceBuilder.parse(name, parser);
                 break;
             case DateHistogramValuesSourceBuilder.TYPE:
-                builder = DateHistogramValuesSourceBuilder.parse(name, parser);
+                builder = DateHistogramValuesSourceBuilder.PARSER.parse(parser, name);
                 break;
             case HistogramValuesSourceBuilder.TYPE:
                 builder = HistogramValuesSourceBuilder.parse(name, parser);

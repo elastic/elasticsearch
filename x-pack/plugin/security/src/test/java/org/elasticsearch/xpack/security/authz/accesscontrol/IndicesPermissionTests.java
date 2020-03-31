@@ -9,7 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
@@ -57,7 +57,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 .putAlias(AliasMetaData.builder("_alias"));
         MetaData md = MetaData.builder().put(imbBuilder).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, AliasOrIndex> lookup = md.getAliasAndIndexLookup();
+        SortedMap<String, IndexAbstraction> lookup = md.getIndicesLookup();
 
         // basics:
         Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
@@ -139,7 +139,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 )
                 .putAlias(AliasMetaData.builder("_alias"));
         md = MetaData.builder(md).put(imbBuilder1).build();
-        lookup = md.getAliasAndIndexLookup();
+        lookup = md.getIndicesLookup();
 
         // match all fields with more than one permission
         Set<BytesReference> fooQuery = Collections.singleton(new BytesArray("{foo}"));
@@ -181,7 +181,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 .putAlias(AliasMetaData.builder("_alias"));
         MetaData md = MetaData.builder().put(imbBuilder).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, AliasOrIndex> lookup = md.getAliasAndIndexLookup();
+        SortedMap<String, IndexAbstraction> lookup = md.getIndicesLookup();
 
         Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
         String[] fields = new String[]{"_field"};
@@ -236,7 +236,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 .put(new IndexMetaData.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
-        SortedMap<String, AliasOrIndex> lookup = metaData.getAliasAndIndexLookup();
+        SortedMap<String, IndexAbstraction> lookup = metaData.getIndicesLookup();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesPermission.Group group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(),
@@ -304,7 +304,7 @@ public class IndicesPermissionTests extends ESTestCase {
                         .build(), true)
                 .build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, AliasOrIndex> lookup = metaData.getAliasAndIndexLookup();
+        SortedMap<String, IndexAbstraction> lookup = metaData.getIndicesLookup();
 
         // allow_restricted_indices: false
         IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false, "*");
@@ -334,7 +334,7 @@ public class IndicesPermissionTests extends ESTestCase {
                         .build(), true)
                 .build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, AliasOrIndex> lookup = metaData.getAliasAndIndexLookup();
+        SortedMap<String, IndexAbstraction> lookup = metaData.getIndicesLookup();
 
         // allow_restricted_indices: false
         IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false, "*");

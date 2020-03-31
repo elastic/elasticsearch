@@ -19,6 +19,17 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
+
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -29,22 +40,7 @@ import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
 public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
     public static final String NAME = "moving_avg";
@@ -258,20 +254,19 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     }
 
     @Override
-    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
-            Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
+    protected void validate(ValidationContext context) {
         if (minimize != null && minimize && !model.canBeMinimized()) {
             // If the user asks to minimize, but this model doesn't support
             // it, throw exception
-            throw new IllegalStateException("The [" + model + "] model cannot be minimized for aggregation [" + name + "]");
+            context.addValidationError("The [" + model + "] model cannot be minimized for aggregation [" + name + "]");
         }
         if (bucketsPaths.length != 1) {
-            throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                    + " must contain a single entry for aggregation [" + name + "]");
+            context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
+            return;
         }
         // Validate any model-specific window requirements
         model.validate(window, name);
-        validateSequentiallyOrderedParentAggs(parent, NAME, name);
+        context.validateParentAggSequentiallyOrdered(NAME, name);
     }
 
     @Override

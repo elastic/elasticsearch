@@ -161,8 +161,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             when(queryShardContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
 
             DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
-            IndexSearcher indexSearcher = new ContextIndexSearcher(wrappedDirectoryReader,
-                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+            IndexSearcher indexSearcher = new ContextIndexSearcher(
+                    wrappedDirectoryReader, IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(), true);
 
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
@@ -270,8 +271,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
         DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
-        IndexSearcher indexSearcher = new ContextIndexSearcher(wrappedDirectoryReader,
-            IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+        IndexSearcher indexSearcher = new ContextIndexSearcher(
+                wrappedDirectoryReader, IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(), true);
 
         ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
         Set<Integer> actualDocIds = new HashSet<>();

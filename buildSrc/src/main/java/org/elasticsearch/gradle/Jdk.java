@@ -35,6 +35,7 @@ import java.util.regex.Pattern;
 
 public class Jdk implements Buildable, Iterable<File> {
 
+    private static final List<String> ALLOWED_ARCHITECTURES = Collections.unmodifiableList(Arrays.asList("aarch64", "x64"));
     private static final List<String> ALLOWED_VENDORS = Collections.unmodifiableList(Arrays.asList("adoptopenjdk", "openjdk"));
     private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows", "mac"));
     private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
@@ -46,6 +47,7 @@ public class Jdk implements Buildable, Iterable<File> {
     private final Property<String> vendor;
     private final Property<String> version;
     private final Property<String> platform;
+    private final Property<String> architecture;
     private String baseVersion;
     private String major;
     private String build;
@@ -57,6 +59,7 @@ public class Jdk implements Buildable, Iterable<File> {
         this.vendor = objectFactory.property(String.class);
         this.version = objectFactory.property(String.class);
         this.platform = objectFactory.property(String.class);
+        this.architecture = objectFactory.property(String.class);
     }
 
     public String getName() {
@@ -97,6 +100,19 @@ public class Jdk implements Buildable, Iterable<File> {
             );
         }
         this.platform.set(platform);
+    }
+
+    public String getArchitecture() {
+        return architecture.get();
+    }
+
+    public void setArchitecture(final String architecture) {
+        if (ALLOWED_ARCHITECTURES.contains(architecture) == false) {
+            throw new IllegalArgumentException(
+                "unknown architecture [" + architecture + "] for jdk [" + name + "], must be one of " + ALLOWED_ARCHITECTURES
+            );
+        }
+        this.architecture.set(architecture);
     }
 
     public String getBaseVersion() {
@@ -167,9 +183,13 @@ public class Jdk implements Buildable, Iterable<File> {
         if (vendor.isPresent() == false) {
             throw new IllegalArgumentException("vendor not specified for jdk [" + name + "]");
         }
+        if (architecture.isPresent() == false) {
+            throw new IllegalArgumentException("architecture not specified for jdk [" + name + "]");
+        }
         version.finalizeValue();
         platform.finalizeValue();
         vendor.finalizeValue();
+        architecture.finalizeValue();
     }
 
     @Override

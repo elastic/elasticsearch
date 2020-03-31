@@ -34,6 +34,12 @@ dependencies {
   testCompile 'org.elasticsearch:geolite2-databases:20191119'
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
+}
+
 task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
   from { zipTree(configurations.testCompile.files.find { it.name.contains('geolite2-databases') }) }
   into "${project.buildDir}/ingest-geoip"

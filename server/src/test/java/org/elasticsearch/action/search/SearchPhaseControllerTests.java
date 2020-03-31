@@ -97,7 +97,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
             @Override
             public ReduceContext forPartialReduction() {
                 reductions.add(false);
-                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null);
+                return InternalAggregation.ReduceContext.forPartialReduction(
+                        BigArrays.NON_RECYCLING_INSTANCE, null, () -> PipelineTree.EMPTY);
             }
 
             public ReduceContext forFinalReduction() {

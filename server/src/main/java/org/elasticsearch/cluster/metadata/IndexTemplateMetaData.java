@@ -51,6 +51,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_PARAM;
+
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndexTemplateMetaData.class));
@@ -390,6 +392,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                                             XContentBuilder builder,
                                             ToXContent.Params params,
                                             boolean includeTypeName) throws IOException {
+            MetaData.XContentContext context = params.param(CONTEXT_MODE_PARAM) != null ? MetaData.XContentContext.valueOf(
+                params.param(CONTEXT_MODE_PARAM)) : null;
 
             builder.field("order", indexTemplateMetaData.order());
             if (indexTemplateMetaData.version() != null) {
@@ -401,7 +405,19 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             indexTemplateMetaData.settings().toXContent(builder, params);
             builder.endObject();
 
-            if (params.paramAsBoolean("reduce_mappings", false)) {
+            if (context == MetaData.XContentContext.API) {
+                builder.startObject("mappings");
+                for (ObjectObjectCursor<String, CompressedXContent> cursor1 : indexTemplateMetaData.mappings()) {
+                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(cursor1.value.uncompressed()), false).v2();
+                    if (mapping.size() == 1 && mapping.containsKey(cursor1.key)) {
+                        // the type name is the root value, reduce it
+                        mapping = (Map<String, Object>) mapping.get(cursor1.key);
+                    }
+                    builder.field(cursor1.key);
+                    builder.map(mapping);
+                }
+                builder.endObject();
+            } else if (params.paramAsBoolean("reduce_mappings", false)) {
                 // The parameter include_type_name is only ever used in the REST API, where reduce_mappings is
                 // always set to true. We therefore only check for include_type_name in this branch.
                 if (includeTypeName == false) {

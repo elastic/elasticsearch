@@ -442,6 +442,8 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
             0L,
             0L,
             0L,
+            0L,
+            0L,
             0.0,
             0.0,
             0.0);

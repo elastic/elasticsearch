@@ -101,6 +101,7 @@ final class DefaultSearchContext extends SearchContext {
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
     private final float queryBoost;
+    private final boolean lowLevelCancellation;
     private TimeValue timeout;
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
@@ -121,7 +122,6 @@ final class DefaultSearchContext extends SearchContext {
     private int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     private FieldDoc searchAfter;
     private CollapseContext collapse;
-    private boolean lowLevelCancellation;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
     private SearchShardTask task;
@@ -160,7 +160,7 @@ final class DefaultSearchContext extends SearchContext {
     DefaultSearchContext(SearchContextId id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
                          IndexShard indexShard, BigArrays bigArrays, LongSupplier relativeTimeSupplier, TimeValue timeout,
-                         FetchPhase fetchPhase, Version minNodeVersion) throws IOException {
+                         FetchPhase fetchPhase, boolean lowLevelCancellation, Version minNodeVersion) throws IOException {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -176,7 +176,7 @@ final class DefaultSearchContext extends SearchContext {
         this.indexService = indexService;
         this.clusterService = clusterService;
         this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
-            engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy());
+            engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(), lowLevelCancellation);
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
         this.minNodeVersion = minNodeVersion;
@@ -184,6 +184,7 @@ final class DefaultSearchContext extends SearchContext {
             request::nowInMillis, shardTarget.getClusterAlias());
         queryShardContext.setTypes(request.types());
         queryBoost = request.indexBoost();
+        this.lowLevelCancellation = lowLevelCancellation;
     }
 
     @Override
@@ -583,10 +584,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public boolean lowLevelCancellation() {
         return lowLevelCancellation;
-    }
-
-    public void lowLevelCancellation(boolean lowLevelCancellation) {
-        this.lowLevelCancellation = lowLevelCancellation;
     }
 
     @Override

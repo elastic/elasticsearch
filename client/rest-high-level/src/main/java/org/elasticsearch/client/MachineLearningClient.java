@@ -23,6 +23,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryResponse;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
@@ -1947,6 +1949,48 @@ public final class MachineLearningClient {
             MLRequestConverters::setUpgradeMode,
             options,
             AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Estimate the model memory an analysis config is likely to need given supplied field cardinalities
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-estimate-model-memory.html">Estimate Model Memory</a>
+     *
+     * @param request The {@link EstimateModelMemoryRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link EstimateModelMemoryResponse} response object
+     */
+    public EstimateModelMemoryResponse estimateModelMemory(EstimateModelMemoryRequest request,
+                                                           RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::estimateModelMemory,
+            options,
+            EstimateModelMemoryResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Estimate the model memory an analysis config is likely to need given supplied field cardinalities and notifies listener upon
+     * completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-estimate-model-memory.html">Estimate Model Memory</a>
+     *
+     * @param request The {@link EstimateModelMemoryRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable estimateModelMemoryAsync(EstimateModelMemoryRequest request,
+                                                RequestOptions options,
+                                                ActionListener<EstimateModelMemoryResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::estimateModelMemory,
+            options,
+            EstimateModelMemoryResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

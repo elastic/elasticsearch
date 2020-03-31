@@ -48,7 +48,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -95,6 +95,8 @@ import static java.util.Collections.emptyMap;
  * delegates to {@link TransportShardBulkAction} for shard-level bulk execution
  */
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
 
     private final ThreadPool threadPool;
     private final AutoCreateIndex autoCreateIndex;
@@ -283,18 +285,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             IndexMetaData indexMetaData = metaData.indices().get(originalRequest.index());
             // check the alias for the index request (this is how normal index requests are modeled)
             if (indexMetaData == null && indexRequest.index() != null) {
-                AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
-                if (indexOrAlias != null && indexOrAlias.isAlias()) {
-                    AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
-                    indexMetaData = alias.getWriteIndex();
+                IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(indexRequest.index());
+                if (indexAbstraction != null) {
+                    indexMetaData = indexAbstraction.getWriteIndex();
                 }
             }
             // check the alias for the action request (this is how upserts are modeled)
             if (indexMetaData == null && originalRequest.index() != null) {
-                AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(originalRequest.index());
-                if (indexOrAlias != null && indexOrAlias.isAlias()) {
-                    AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
-                    indexMetaData = alias.getWriteIndex();
+                IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(originalRequest.index());
+                if (indexAbstraction != null) {
+                    indexMetaData = indexAbstraction.getWriteIndex();
                 }
             }
             if (indexMetaData != null) {
@@ -392,7 +392,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * */
     private final class BulkOperation extends ActionRunnable<BulkResponse> {
         private final Task task;
-        private final BulkRequest bulkRequest;
+        private BulkRequest bulkRequest; // set to null once all requests are sent out
         private final AtomicArray<BulkItemResponse> responses;
         private final long startTimeNanos;
         private final ClusterStateObserver observer;
@@ -411,6 +411,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         @Override
         protected void doRun() {
+            assert bulkRequest != null;
             final ClusterState clusterState = observer.setAndGetObservedState();
             if (handleBlockExceptions(clusterState)) {
                 return;
@@ -529,6 +530,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 });
             }
+            bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
         }
 
         private boolean handleBlockExceptions(ClusterState state) {
@@ -638,7 +640,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return relativeTimeProvider.getAsLong();
     }
 
-    void processBulkIndexIngestRequest(Task task, BulkRequest original, ActionListener<BulkResponse> listener) {
+    private void processBulkIndexIngestRequest(Task task, BulkRequest original, ActionListener<BulkResponse> listener) {
         final long ingestStartTimeInNanos = System.nanoTime();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         ingestService.executeBulkRequest(
@@ -647,7 +649,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             bulkRequestModifier::markItemAsFailed,
             (originalThread, exception) -> {
                 if (exception != null) {
-                    logger.error("failed to execute pipeline for a bulk request", exception);
+                    logger.debug("failed to execute pipeline for a bulk request", exception);
                     listener.onFailure(exception);
                 } else {
                     long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
@@ -696,7 +698,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
 
-        private static final Logger LOGGER = LogManager.getLogger(BulkRequestModifier.class);
+        private static final Logger logger = LogManager.getLogger(BulkRequestModifier.class);
 
         final BulkRequest bulkRequest;
         final SparseFixedBitSet failedSlots;
@@ -778,7 +780,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         synchronized void markItemAsFailed(int slot, Exception e) {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
-            LOGGER.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
+            logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
                 indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), e);
 
             // We hit a error during preprocessing a request, so we:

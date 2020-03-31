@@ -24,14 +24,14 @@ import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Objects;
-import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Represents a node role.
  */
-public abstract class DiscoveryNodeRole {
+public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     private final String roleName;
 
@@ -93,6 +93,11 @@ public abstract class DiscoveryNodeRole {
     }
 
     @Override
+    public final int compareTo(final DiscoveryNodeRole o) {
+        return roleName.compareTo(o.roleName);
+    }
+
+    @Override
     public final String toString() {
         return "DiscoveryNodeRole{" +
                 "roleName='" + roleName + '\'' +
@@ -137,11 +142,23 @@ public abstract class DiscoveryNodeRole {
 
     };
 
+    public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r") {
+
+        @Override
+        protected Setting<Boolean> roleSetting() {
+            return Node.NODE_REMOTE_CLUSTER_CLIENT;
+        }
+
+    };
+
     /**
      * The built-in node roles.
      */
-    public static Set<DiscoveryNodeRole> BUILT_IN_ROLES =
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE)));
+    public static SortedSet<DiscoveryNodeRole> BUILT_IN_ROLES = Collections.unmodifiableSortedSet(
+        new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE, REMOTE_CLUSTER_CLIENT_ROLE)));
+
+    static SortedSet<DiscoveryNodeRole> LEGACY_ROLES =
+        Collections.unmodifiableSortedSet(new TreeSet<>(Arrays.asList(DATA_ROLE, INGEST_ROLE, MASTER_ROLE)));
 
     /**
      * Represents an unknown role. This can occur if a newer version adds a role that an older version does not know about, or a newer

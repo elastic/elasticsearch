@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -45,9 +44,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
-public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder> {
     /* recognized field names in JSON */
     static final ParseField FIELD_PRECISION = new ParseField("precision");
     static final ParseField FIELD_SIZE = new ParseField("size");
@@ -64,8 +63,9 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         int parse(XContentParser parser) throws IOException;
     }
 
-    public static ObjectParser<GeoGridAggregationBuilder, Void> createParser(String name, PrecisionParser precisionParser) {
-        ObjectParser<GeoGridAggregationBuilder, Void> parser = new ObjectParser<>(name);
+    public static <T extends GeoGridAggregationBuilder> ObjectParser<T, String> createParser(
+            String name, PrecisionParser precisionParser, Function<String, T> ctor) {
+        ObjectParser<T, String> parser = ObjectParser.fromBuilder(name, ctor);
         ValuesSourceParserHelper.declareGeoFields(parser, false, false);
         parser.declareField((p, builder, context) -> builder.precision(precisionParser.parse(p)), FIELD_PRECISION,
             org.elasticsearch.common.xcontent.ObjectParser.ValueType.INT);
@@ -170,10 +170,14 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
+    public final BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> innerBuild(QueryShardContext queryShardContext,
-                                                                                ValuesSourceConfig<ValuesSource.GeoPoint> config,
-                                                                                AggregatorFactory parent, Builder subFactoriesBuilder)
-                    throws IOException {
+                                        ValuesSourceConfig<ValuesSource.GeoPoint> config,
+                                        AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         int shardSize = this.shardSize;
 
         int requiredSize = this.requiredSize;

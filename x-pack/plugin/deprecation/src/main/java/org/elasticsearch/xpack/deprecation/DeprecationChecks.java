@@ -47,7 +47,9 @@ public class DeprecationChecks {
             NodeDeprecationChecks::checkMissingRealmOrders,
             NodeDeprecationChecks::checkUniqueRealmOrders,
             (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
-            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings)
+            (settings, pluginsAndModules) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
+            NodeDeprecationChecks::checkClusterRemoteConnectSetting,
+            NodeDeprecationChecks::checkNodeLocalStorageSetting
         ));
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =

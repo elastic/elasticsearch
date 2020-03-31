@@ -86,9 +86,13 @@ public class FunctionRegistry {
         return def;
     }
 
+    protected String normalize(String name) {
+        return name.toUpperCase(Locale.ROOT);
+    }
+
     public String resolveAlias(String alias) {
-        String upperCase = alias.toUpperCase(Locale.ROOT);
-        return aliases.getOrDefault(upperCase, upperCase);
+        String normalized = normalize(alias);
+        return aliases.getOrDefault(normalized, normalized);
     }
 
     public boolean functionExists(String functionName) {
@@ -102,7 +106,7 @@ public class FunctionRegistry {
 
     public Collection<FunctionDefinition> listFunctions(String pattern) {
         // It is worth double checking if we need this copy. These are immutable anyway.
-        Pattern p = Strings.hasText(pattern) ? Pattern.compile(pattern.toUpperCase(Locale.ROOT)) : null;
+        Pattern p = Strings.hasText(pattern) ? Pattern.compile(normalize(pattern)) : null;
         return defs.entrySet().stream()
                 .filter(e -> p == null || p.matcher(e.getKey()).matches())
                 .map(e -> new FunctionDefinition(e.getKey(), emptyList(),

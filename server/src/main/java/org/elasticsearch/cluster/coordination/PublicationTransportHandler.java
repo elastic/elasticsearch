@@ -185,6 +185,7 @@ public class PublicationTransportHandler {
             public void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
                                            ActionListener<PublishWithJoinResponse> originalListener) {
                 assert publishRequest.getAcceptedState() == clusterChangedEvent.state() : "state got switched on us";
+                assert transportService.getThreadPool().getThreadContext().isSystemContext();
                 final ActionListener<PublishWithJoinResponse> responseActionListener;
                 if (destination.equals(nodes.getLocalNode())) {
                     // if publishing to self, use original request instead (see currentPublishRequestToSelf for explanation)
@@ -221,6 +222,7 @@ public class PublicationTransportHandler {
             @Override
             public void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommitRequest,
                                         ActionListener<TransportResponse.Empty> responseActionListener) {
+                assert transportService.getThreadPool().getThreadContext().isSystemContext();
                 final String actionName;
                 final TransportRequest transportRequest;
                 if (Coordinator.isZen1Node(destination)) {
@@ -364,8 +366,8 @@ public class PublicationTransportHandler {
 
     public static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
         final BytesStreamOutput bStream = new BytesStreamOutput();
-        bStream.setVersion(nodeVersion);
         try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+            stream.setVersion(nodeVersion);
             stream.writeBoolean(true);
             clusterState.writeTo(stream);
         }
@@ -374,8 +376,8 @@ public class PublicationTransportHandler {
 
     public static BytesReference serializeDiffClusterState(Diff diff, Version nodeVersion) throws IOException {
         final BytesStreamOutput bStream = new BytesStreamOutput();
-        bStream.setVersion(nodeVersion);
         try (StreamOutput stream = CompressorFactory.COMPRESSOR.streamOutput(bStream)) {
+            stream.setVersion(nodeVersion);
             stream.writeBoolean(false);
             diff.writeTo(stream);
         }
@@ -385,12 +387,12 @@ public class PublicationTransportHandler {
     private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
         final Compressor compressor = CompressorFactory.compressor(request.bytes());
         StreamInput in = request.bytes().streamInput();
-        in.setVersion(request.version());
         try {
             if (compressor != null) {
                 in = compressor.streamInput(in);
             }
             in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+            in.setVersion(request.version());
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
                 final ClusterState incomingState;

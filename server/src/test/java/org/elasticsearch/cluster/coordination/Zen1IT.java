@@ -86,6 +86,11 @@ public class Zen1IT extends ESIntegTestCase {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }
 
+    @Override
+    protected void ensureClusterStateConsistency() {
+        // Zen1 does not properly handle the cluster_uuid_committed field
+    }
+
     public void testZen2NodesJoiningZen1Cluster() {
         internalCluster().startNodes(randomIntBetween(1, 3), ZEN1_SETTINGS);
         internalCluster().startNodes(randomIntBetween(1, 3), ZEN2_SETTINGS);

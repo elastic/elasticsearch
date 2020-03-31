@@ -254,12 +254,12 @@ and <<remote-cluster-proxy-settings,proxy mode settings>> are described below.
   The time to wait for remote connections to be established when the node
   starts. The default is `30s`.
 
-`cluster.remote.connect`::
+`node.remote_cluster_client`::
 
   By default, any node in the cluster can act as a cross-cluster client and
-  connect to remote clusters. The `cluster.remote.connect` setting can be set to
-  `false` (defaults to `true`) to prevent certain nodes from connecting to
-  remote clusters. Remote cluster requests must be sent to a node that is
+  connect to remote clusters. The `node.remote_cluster_client` setting can be
+  set to `false` (defaults to `true`) to prevent certain nodes from connecting
+  to remote clusters. Remote cluster requests must be sent to a node that is
   allowed to act as a cross-cluster client.
 
 `cluster.remote.<cluster_alias>.skip_unavailable`::

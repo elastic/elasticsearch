@@ -158,6 +158,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -203,6 +204,8 @@ public class Node implements Closeable {
         Setting.boolSetting("node.master", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_INGEST_SETTING =
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_REMOTE_CLUSTER_CLIENT =
+        Setting.boolSetting("node.remote_cluster_client", RemoteClusterService.ENABLE_REMOTE_CLUSTERS, Property.NodeScope);
 
     /**
     * controls whether the node is allowed to persist things like metadata to disk
@@ -211,7 +214,8 @@ public class Node implements Closeable {
     * and {@link #NODE_MASTER_SETTING} must also be false.
     *
     */
-    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting("node.local_storage", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING =
+        Setting.boolSetting("node.local_storage", true, Property.Deprecated, Property.NodeScope);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
     public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = Setting.prefixKeySetting("node.attr.", (key) ->
         new Setting<>(key, "", (value) -> {
@@ -329,7 +333,7 @@ public class Node implements Closeable {
 
             // create the environment based on the finalized (processed) view of the settings
             // this is just to makes sure that people get the same settings, no matter where they ask them from
-            this.environment = new Environment(settings, initialEnvironment.configFile());
+            this.environment = new Environment(settings, initialEnvironment.configFile(), Node.NODE_LOCAL_STORAGE_SETTING.get(settings));
             Environment.assertEquivalent(initialEnvironment, this.environment);
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
@@ -443,7 +447,7 @@ public class Node implements Closeable {
                 .stream()
                 .collect(Collectors.toMap(
                     plugin -> plugin.getClass().getSimpleName(),
-                    plugin -> plugin.getSystemIndexDescriptors(settings))));
+                    plugin -> plugin.getSystemIndexDescriptors())));
             SystemIndexDescriptor.checkForOverlappingPatterns(systemIndexDescriptorMap);
 
             final List<SystemIndexDescriptor> systemIndexDescriptors = systemIndexDescriptorMap.values().stream()
@@ -479,7 +483,7 @@ public class Node implements Closeable {
 
             ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService);
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, clusterService);
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();

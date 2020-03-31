@@ -143,10 +143,15 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                        ValuesSourceConfig<ValuesSource> config,
-                                                                        AggregatorFactory parent,
-                                                                        Builder subFactoriesBuilder) throws IOException {
+                            ValuesSourceConfig<ValuesSource> config,
+                            AggregatorFactory parent,
+                            Builder subFactoriesBuilder) throws IOException {
         return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, queryShardContext, parent,
                 subFactoriesBuilder, metaData);
     }

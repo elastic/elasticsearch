@@ -37,6 +37,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -73,6 +75,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return Node.NODE_INGEST_SETTING.get(settings);
     }
 
+    public static boolean isRemoteClusterClient(final Settings settings) {
+        return Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings);
+    }
+
     private final String nodeName;
     private final String nodeId;
     private final String ephemeralId;
@@ -81,7 +87,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final TransportAddress address;
     private final Map<String, String> attributes;
     private final Version version;
-    private final Set<DiscoveryNodeRole> roles;
+    private final SortedSet<DiscoveryNodeRole> roles;
 
     /**
      * Creates a new {@link DiscoveryNode}
@@ -188,7 +194,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             return success;
         };
         assert predicate.test(attributes) : attributes;
-        this.roles = Collections.unmodifiableSet(new HashSet<>(roles));
+        this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
     }
 
     /** Creates a DiscoveryNode representing the local node. */
@@ -256,7 +262,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 }
             }
         }
-        this.roles = Collections.unmodifiableSet(new HashSet<>(roles));
+        this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
         this.version = Version.readVersion(in);
     }
 
@@ -282,7 +288,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         } else {
             // an old node will only understand legacy roles since pluggable roles is a new concept
             final List<DiscoveryNodeRole> rolesToWrite =
-                    roles.stream().filter(DiscoveryNodeRole.BUILT_IN_ROLES::contains).collect(Collectors.toList());
+                    roles.stream().filter(DiscoveryNodeRole.LEGACY_ROLES::contains).collect(Collectors.toList());
             out.writeVInt(rolesToWrite.size());
             for (final DiscoveryNodeRole role : rolesToWrite) {
                 if (role == DiscoveryNodeRole.MASTER_ROLE) {
@@ -358,8 +364,20 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Returns a set of all the roles that the node fulfills.
-     * If the node doesn't have any specific role, the set is returned empty, which means that the node is a coordinating only node.
+     * Returns whether or not the node can be a remote cluster client.
+     *
+     * @return true if the node can be a remote cluster client, false otherwise
+     */
+    public boolean isRemoteClusterClient() {
+        return roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+    }
+
+    /**
+     * Returns a set of all the roles that the node has. The roles are returned in sorted order by the role name.
+     * <p>
+     * If a node does not have any specific role, the returned set is empty, which means that the node is a coordinating-only node.
+     *
+     * @return the sorted set of roles
      */
     public Set<DiscoveryNodeRole> getRoles() {
         return roles;

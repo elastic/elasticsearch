@@ -59,9 +59,9 @@ public final class IpRangeAggregationBuilder
     public static final String NAME = "ip_range";
     private static final ParseField MASK_FIELD = new ParseField("mask");
 
-    private static final ObjectParser<IpRangeAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<IpRangeAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, IpRangeAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(IpRangeAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareBytesFields(PARSER, false, false);
 
         PARSER.declareBoolean(IpRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
@@ -69,10 +69,6 @@ public final class IpRangeAggregationBuilder
         PARSER.declareObjectArray((agg, ranges) -> {
             for (Range range : ranges) agg.addRange(range);
         }, (p, c) -> IpRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
-    }
-
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new IpRangeAggregationBuilder(aggregationName), null);
     }
 
     private static Range parseRange(XContentParser parser) throws IOException {
@@ -364,10 +360,14 @@ public final class IpRangeAggregationBuilder
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.Bytes> innerBuild(
-        QueryShardContext queryShardContext, ValuesSourceConfig<ValuesSource.Bytes> config,
-        AggregatorFactory parent, Builder subFactoriesBuilder)
-                    throws IOException {
+                QueryShardContext queryShardContext, ValuesSourceConfig<ValuesSource.Bytes> config,
+                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
         if(this.ranges.size() == 0){
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");

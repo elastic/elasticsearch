@@ -11,7 +11,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -174,6 +176,43 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "the setting [thread_pool.listener.size] is currently set to [" + size + "], remove this setting");
         assertThat(issues, contains(expected));
         assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
+    }
+
+    public void testClusterRemoteConnectSetting() {
+        final boolean value = randomBoolean();
+        final Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), value).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [cluster.remote.connect] is deprecated in favor of setting [node.remote_cluster_client]",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-cluster-remote-connect",
+            String.format(
+                Locale.ROOT,
+                "the setting [%s] is currently set to [%b], instead set [%s] to [%2$b]",
+                RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(),
+                value,
+                Node.NODE_REMOTE_CLUSTER_CLIENT.getKey()
+            ));
+        assertThat(issues, contains(expected));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{RemoteClusterService.ENABLE_REMOTE_CLUSTERS});
+    }
+
+    public void testNodeLocalStorageSetting() {
+        final boolean value = randomBoolean();
+        final Settings settings = Settings.builder().put(Node.NODE_LOCAL_STORAGE_SETTING.getKey(), value).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [node.local_storage] is deprecated and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-node-local-storage",
+            "the setting [node.local_storage] is currently set to [" + value + "], remove this setting"
+        );
+        assertThat(issues, contains(expected));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{Node.NODE_LOCAL_STORAGE_SETTING});
     }
 
     public void testRemovedSettingNotSet() {

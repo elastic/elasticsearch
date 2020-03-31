@@ -11,7 +11,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
@@ -115,6 +117,24 @@ class NodeDeprecationChecks {
             settings,
             setting.get(),
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool");
+    }
+
+    public static DeprecationIssue checkClusterRemoteConnectSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkDeprecatedSetting(
+            settings,
+            pluginsAndModules,
+            RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
+            Node.NODE_REMOTE_CLUSTER_CLIENT,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/breaking-changes-7.7.html#deprecate-cluster-remote-connect"
+        );
+    }
+
+    public static DeprecationIssue checkNodeLocalStorageSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkRemovedSetting(
+            settings,
+            Node.NODE_LOCAL_STORAGE_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-node-local-storage"
+        );
     }
 
     private static DeprecationIssue checkDeprecatedSetting(

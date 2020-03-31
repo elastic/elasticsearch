@@ -22,3 +22,9 @@ esplugin {
   classname 'org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin'
   hasClientJar = true
 }
+
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
+  }
+}

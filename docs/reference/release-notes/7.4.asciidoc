@@ -116,6 +116,11 @@ Any attempt to log a slow search can throw an AIOOBE due to a bug that
 performs concurrent modifications on a shared byte array.
 (issue: {issue}/48358[#48358])
 
+* Indices created in 6.x with <<date,`date`>> and <<date_nanos,`date_nanos`>> fields using formats
+that are incompatible with java.time patterns will cause parsing errors, incorrect date calculations or wrong search results.
+https://github.com/elastic/elasticsearch/pull/52555
+This is fixed in {es} 7.7 and later versions.
+
 [[breaking-7.4.0]]
 [float]
 === Breaking changes

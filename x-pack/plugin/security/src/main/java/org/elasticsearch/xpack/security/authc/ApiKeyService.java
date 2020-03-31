@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -69,6 +70,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
+import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.Closeable;
@@ -101,6 +104,7 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
 public class ApiKeyService {
@@ -348,7 +352,7 @@ public class ApiKeyService {
      * retrieval of role descriptors that are associated with the api key
      */
     public void getRoleForApiKey(Authentication authentication, ActionListener<ApiKeyRoleDescriptors> listener) {
-        if (authentication.getAuthenticationType() != Authentication.AuthenticationType.API_KEY) {
+        if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
 
@@ -580,12 +584,12 @@ public class ApiKeyService {
         return enabled && licenseState.isApiKeyServiceAllowed();
     }
 
-    private void ensureEnabled() {
+    public void ensureEnabled() {
         if (licenseState.isApiKeyServiceAllowed() == false) {
             throw LicenseUtils.newComplianceException("api keys");
         }
         if (enabled == false) {
-            throw new IllegalStateException("api keys are not enabled");
+            throw new FeatureNotEnabledException(Feature.API_KEY_SERVICE, "api keys are not enabled");
         }
     }
 
@@ -624,21 +628,25 @@ public class ApiKeyService {
         }
 
         @Override
-        public void usedDeprecatedName(String usedName, String modernName) {
-            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], expected [{}] instead",
-                usedName, apiKeyId, modernName);
+        public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
+            String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+            deprecationLogger.deprecated("{}Deprecated field [{}] used in api key [{}], expected [{}] instead",
+                prefix, usedName, apiKeyId, modernName);
         }
 
         @Override
-        public void usedDeprecatedField(String usedName, String replacedWith) {
-            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], replaced by [{}]",
-                usedName, apiKeyId, replacedWith);
+        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
+            String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+            deprecationLogger.deprecated("{}Deprecated field [{}] used in api key [{}], replaced by [{}]",
+                prefix, usedName, apiKeyId, replacedWith);
         }
 
         @Override
-        public void usedDeprecatedField(String usedName) {
-            deprecationLogger.deprecated("Deprecated field [{}] used in api key [{}], which has been removed entirely",
-                usedName);
+        public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
+            String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
+            deprecationLogger.deprecated(
+                "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
+                prefix, usedName);
         }
     }
 
@@ -895,7 +903,7 @@ public class ApiKeyService {
      * @return realm name
      */
     public static String getCreatorRealmName(final Authentication authentication) {
-        if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
+        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
             return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_NAME);
         } else {
             return authentication.getSourceRealm().getName();
@@ -910,7 +918,7 @@ public class ApiKeyService {
      * @return realm type
      */
     public static String getCreatorRealmType(final Authentication authentication) {
-        if (authentication.getAuthenticatedBy().getType().equals(API_KEY_REALM_TYPE)) {
+        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
             return (String) authentication.getMetadata().get(API_KEY_CREATOR_REALM_TYPE);
         } else {
             return authentication.getSourceRealm().getType();

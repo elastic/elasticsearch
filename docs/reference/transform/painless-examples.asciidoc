@@ -15,6 +15,10 @@ more about the Painless scripting language in the
 * <<painless-group-by>>
 * <<painless-bucket-script>>
 
+NOTE: While the context of the following examples is how to use them in 
+{transforms}, the Painless scripts in the snippets below can be used in other 
+{es} search aggregations, too.
+
 
 [discrete]
 [[painless-top-hits]]
@@ -27,23 +31,25 @@ scripted metric aggregation which provides a metric output.
 
 [source,js]
 --------------------------------------------------
-"latest_doc": { 
-  "scripted_metric": {
-    "init_script": "state.timestamp_latest = 0L; state.last_doc = ''", <1>
-    "map_script": """ <2>
-      def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli(); 
-      if (current_date > state.timestamp_latest) 
-      {state.timestamp_latest = current_date;
-      state.last_doc = new HashMap(params['_source']);}
-    """,
-    "combine_script": "return state", <3>
-    "reduce_script": """ <4>
-      def last_doc = '';
-      def timestamp_latest = 0L;
-      for (s in states) {if (s.timestamp_latest > (timestamp_latest))
-      {timestamp_latest = s.timestamp_latest; last_doc = s.last_doc;}} 
-      return last_doc
-    """
+"aggregations": {
+  "latest_doc": { 
+    "scripted_metric": {
+      "init_script": "state.timestamp_latest = 0L; state.last_doc = ''", <1>
+      "map_script": """ <2>
+        def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli(); 
+        if (current_date > state.timestamp_latest) 
+        {state.timestamp_latest = current_date;
+        state.last_doc = new HashMap(params['_source']);}
+      """,
+      "combine_script": "return state", <3>
+      "reduce_script": """ <4>
+        def last_doc = '';
+        def timestamp_latest = 0L;
+        for (s in states) {if (s.timestamp_latest > (timestamp_latest))
+        {timestamp_latest = s.timestamp_latest; last_doc = s.last_doc;}} 
+        return last_doc
+      """
+    }
   }
 }
 --------------------------------------------------
@@ -70,23 +76,25 @@ You can retrieve the last value in a similar way:
 
 [source,js]
 --------------------------------------------------
-"latest_value": {
-  "scripted_metric": {
-    "init_script": "state.timestamp_latest = 0L; state.last_value = ''",
-    "map_script": """
-      def current_date = doc['date'].getValue().toInstant().toEpochMilli(); 
-      if (current_date > state.timestamp_latest) 
-      {state.timestamp_latest = current_date;
-      state.last_value = params['_source']['value'];}
-    """,
-    "combine_script": "return state",
-    "reduce_script": """
-      def last_value = '';
-      def timestamp_latest = 0L; 
-      for (s in states) {if (s.timestamp_latest > (timestamp_latest)) 
-      {timestamp_latest = s.timestamp_latest; last_value = s.last_value;}} 
-      return last_value
-    """
+"aggregations": {
+  "latest_value": {
+    "scripted_metric": {
+      "init_script": "state.timestamp_latest = 0L; state.last_value = ''",
+      "map_script": """
+        def current_date = doc['date'].getValue().toInstant().toEpochMilli(); 
+        if (current_date > state.timestamp_latest) 
+        {state.timestamp_latest = current_date;
+        state.last_value = params['_source']['value'];}
+      """,
+      "combine_script": "return state",
+      "reduce_script": """
+        def last_value = '';
+        def timestamp_latest = 0L; 
+        for (s in states) {if (s.timestamp_latest > (timestamp_latest)) 
+        {timestamp_latest = s.timestamp_latest; last_value = s.last_value;}} 
+        return last_value
+      """
+    }
   }
 }
 --------------------------------------------------
@@ -102,26 +110,29 @@ snippet uses an index where `@timestamp` is defined as a `date` type field.
 
 [source,js]
 --------------------------------------------------
-"script_fields": {
-    "hour_of_day": { <1>
-      "script": {
-        "lang": "painless",
-        "source": """
-          ZonedDateTime date =  doc['@timestamp'].value; <2>
-          return date.getHour(); <3>
-        """
+"aggregations": {
+  "script_fields": {
+      "hour_of_day": { <1>
+        "script": {
+          "lang": "painless",
+          "source": """
+            ZonedDateTime date =  doc['@timestamp'].value; <2>
+            return date.getHour(); <3>
+          """
+        }
+      },
+      "month_of_year": { <4>
+        "script": {
+          "lang": "painless",
+          "source": """
+            ZonedDateTime date =  doc['@timestamp'].value; <5>
+            return date.getMonthValue(); <6>
+          """
+        }
       }
     },
-    "month_of_year": { <4>
-      "script": {
-        "lang": "painless",
-        "source": """
-          ZonedDateTime date =  doc['@timestamp'].value; <5>
-          return date.getMonthValue(); <6>
-        """
-      }
-    }
-  }
+  ...
+}
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -335,8 +346,8 @@ date which results in the duration of the session.
 
 You can count the different HTTP response types in a web log data set by using 
 scripted metric aggregation as part of the {transform}. The example below 
-assumes that the HTTP response codes are stored in the `response` field of the 
-documents.
+assumes that the HTTP response codes are stored as keywords in the `response` 
+field of the documents.
 
 [source,js]
 --------------------------------------------------

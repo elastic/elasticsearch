@@ -26,7 +26,7 @@ public class OutlierDetectionStats implements AnalysisStats {
     public static final String TYPE_VALUE = "outlier_detection_stats";
 
     public static final ParseField PARAMETERS = new ParseField("parameters");
-    public static final ParseField TIMING_STATS = new ParseField("timings_stats");
+    public static final ParseField TIMING_STATS = new ParseField("timing_stats");
 
     public static final ConstructingObjectParser<OutlierDetectionStats, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<OutlierDetectionStats, Void> LENIENT_PARSER = createParser(true);

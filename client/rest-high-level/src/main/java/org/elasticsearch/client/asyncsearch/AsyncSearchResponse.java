@@ -41,7 +41,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class AsyncSearchResponse implements ToXContentObject  {
     @Nullable
     private final String id;
-    private final int version;
     @Nullable
     private final SearchResponse searchResponse;
     @Nullable
@@ -55,15 +54,13 @@ public class AsyncSearchResponse implements ToXContentObject  {
     /**
      * Creates an {@link AsyncSearchResponse} with the arguments that are always present in the server response
      */
-    AsyncSearchResponse(int version,
-                               boolean isPartial,
-                               boolean isRunning,
-                               long startTimeMillis,
-                               long expirationTimeMillis,
-                               @Nullable String id,
-                               @Nullable SearchResponse searchResponse,
-                               @Nullable ElasticsearchException error) {
-        this.version = version;
+    AsyncSearchResponse(boolean isPartial,
+                        boolean isRunning,
+                        long startTimeMillis,
+                        long expirationTimeMillis,
+                        @Nullable String id,
+                        @Nullable SearchResponse searchResponse,
+                        @Nullable ElasticsearchException error) {
         this.isPartial = isPartial;
         this.isRunning = isRunning;
         this.startTimeMillis = startTimeMillis;
@@ -79,13 +76,6 @@ public class AsyncSearchResponse implements ToXContentObject  {
     @Nullable
     public String getId() {
         return id;
-    }
-
-    /**
-     * Returns the version of this response.
-     */
-    public int getVersion() {
-        return version;
     }
 
     /**
@@ -145,7 +135,6 @@ public class AsyncSearchResponse implements ToXContentObject  {
         if (id != null) {
             builder.field("id", id);
         }
-        builder.field("version", version);
         builder.field("is_partial", isPartial);
         builder.field("is_running", isRunning);
         builder.field("start_time_in_millis", startTimeMillis);
@@ -165,7 +154,6 @@ public class AsyncSearchResponse implements ToXContentObject  {
     }
 
     public static final ParseField ID_FIELD = new ParseField("id");
-    public static final ParseField VERSION_FIELD = new ParseField("version");
     public static final ParseField IS_PARTIAL_FIELD = new ParseField("is_partial");
     public static final ParseField IS_RUNNING_FIELD = new ParseField("is_running");
     public static final ParseField START_TIME_FIELD = new ParseField("start_time_in_millis");
@@ -176,16 +164,14 @@ public class AsyncSearchResponse implements ToXContentObject  {
     public static final ConstructingObjectParser<AsyncSearchResponse, Void> PARSER = new ConstructingObjectParser<>(
             "submit_async_search_response", true,
             args -> new AsyncSearchResponse(
-                    (int) args[0],
+                    (boolean) args[0],
                     (boolean) args[1],
-                    (boolean) args[2],
+                    (long) args[2],
                     (long) args[3],
-                    (long) args[4],
-                    (String) args[5],
-                    (SearchResponse) args[6],
-                    (ElasticsearchException) args[7]));
+                    (String) args[4],
+                    (SearchResponse) args[5],
+                    (ElasticsearchException) args[6]));
     static {
-        PARSER.declareInt(constructorArg(), VERSION_FIELD);
         PARSER.declareBoolean(constructorArg(), IS_PARTIAL_FIELD);
         PARSER.declareBoolean(constructorArg(), IS_RUNNING_FIELD);
         PARSER.declareLong(constructorArg(), START_TIME_FIELD);
@@ -203,7 +189,7 @@ public class AsyncSearchResponse implements ToXContentObject  {
         return SearchResponse.innerFromXContent(p);
     }
 
-    public static AsyncSearchResponse fromXContent(XContentParser parser) throws IOException {
+    public static AsyncSearchResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 

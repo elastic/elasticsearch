@@ -1098,6 +1098,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Get the registry of named writeables is his stream has one,
+     * {@code null} otherwise.
+     */
+    public NamedWriteableRegistry namedWriteableRegistry() {
+        return null;
+    }
+
+    /**
      * Reads a {@link NamedWriteable} from the current stream, by first reading its name and then looking for
      * the corresponding entry in the registry by name, so that the proper object can be read and returned.
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.

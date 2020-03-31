@@ -36,7 +36,6 @@ public class AsyncSearchResponseTests
 
     @Override
     protected org.elasticsearch.xpack.core.search.action.AsyncSearchResponse createServerTestInstance(XContentType xContentType) {
-        int version = randomIntBetween(0, Integer.MAX_VALUE);
         boolean isPartial = randomBoolean();
         boolean isRunning = randomBoolean();
         long startTimeMillis = randomLongBetween(0, Long.MAX_VALUE);
@@ -48,7 +47,7 @@ public class AsyncSearchResponseTests
                 : new SearchResponse(InternalSearchResponse.empty(), randomAlphaOfLength(10), 1, 1, 0, randomIntBetween(0, 10000),
                         ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY);
         org.elasticsearch.xpack.core.search.action.AsyncSearchResponse testResponse =
-                new org.elasticsearch.xpack.core.search.action.AsyncSearchResponse(id, version, searchResponse, error, isPartial, isRunning,
+                new org.elasticsearch.xpack.core.search.action.AsyncSearchResponse(id, searchResponse, error, isPartial, isRunning,
                         startTimeMillis, expirationTimeMillis);
         return testResponse;
     }
@@ -62,7 +61,6 @@ public class AsyncSearchResponseTests
     protected void assertInstances(org.elasticsearch.xpack.core.search.action.AsyncSearchResponse expected, AsyncSearchResponse parsed) {
         assertNotSame(parsed, expected);
         assertEquals(expected.getId(), parsed.getId());
-        assertEquals(expected.getVersion(), parsed.getVersion());
         assertEquals(expected.isRunning(), parsed.isRunning());
         assertEquals(expected.isPartial(), parsed.isPartial());
         assertEquals(expected.getStartTime(), parsed.getStartTime());

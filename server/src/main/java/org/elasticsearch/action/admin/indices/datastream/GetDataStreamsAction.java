@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -41,8 +42,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Response> {
@@ -154,11 +157,30 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state,
                                        ActionListener<Response> listener) throws Exception {
-            List<DataStream> dataStreams = List.of(
-                new DataStream("my_data_stream1", "@timestamp", List.of("my_data_stream1-000000")),
-                new DataStream("my_data_stream2", "@timestamp", List.of())
-            );
-            listener.onResponse(new Response(dataStreams));
+            listener.onResponse(new Response(getDataStreams(state, request)));
+        }
+
+        static List<DataStream> getDataStreams(ClusterState clusterState, Request request) {
+            Map<String, DataStream> dataStreams = clusterState.metaData().dataStreams();
+
+            // return all data streams if no name was specified
+            if (request.names.length == 0) {
+                return new ArrayList<>(dataStreams.values());
+            }
+
+            final List<DataStream> results = new ArrayList<>();
+            for (String name : request.names) {
+                if (Regex.isSimpleMatchPattern(name)) {
+                    for (Map.Entry<String, DataStream> entry : dataStreams.entrySet()) {
+                        if (Regex.simpleMatch(name, entry.getKey())) {
+                            results.add(entry.getValue());
+                        }
+                    }
+                } else if (dataStreams.containsKey(name)) {
+                    results.add(dataStreams.get(name));
+                }
+            }
+            return results;
         }
 
         @Override

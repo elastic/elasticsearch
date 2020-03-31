@@ -19,17 +19,20 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -37,6 +40,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -72,6 +76,53 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                                 "must be one of [true, false, checksum] but was: blargh"));
     }
 
+    public void testIndexTemplateValidationWithSpecifiedReplicas() throws Exception {
+        PutRequest request = new PutRequest("test", "test_replicas");
+        request.patterns(singletonList("test_shards_wait*"));
+
+        Settings.Builder settingsBuilder = builder()
+        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+        .put(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
+
+        request.settings(settingsBuilder.build());
+
+        List<Throwable> throwables = putTemplateDetail(request);
+
+        assertThat(throwables, is(empty()));
+    }
+
+    public void testIndexTemplateValidationErrorsWithSpecifiedReplicas() throws Exception {
+        PutRequest request = new PutRequest("test", "test_specified_replicas");
+        request.patterns(singletonList("test_shards_wait*"));
+
+        Settings.Builder settingsBuilder = builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+            .put(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "3");
+
+        request.settings(settingsBuilder.build());
+
+        List<Throwable> throwables = putTemplateDetail(request);
+
+        assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
+        assertThat(throwables.get(0).getMessage(), containsString("[3]: cannot be greater than number of shard copies [2]"));
+    }
+
+    public void testIndexTemplateValidationWithDefaultReplicas() throws Exception {
+        PutRequest request = new PutRequest("test", "test_default_replicas");
+        request.patterns(singletonList("test_wait_shards_default_replica*"));
+
+        Settings.Builder settingsBuilder = builder()
+            .put(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
+
+        request.settings(settingsBuilder.build());
+
+        List<Throwable> throwables = putTemplateDetail(request);
+
+        assertThat(throwables.get(0), instanceOf(IllegalArgumentException.class));
+        assertThat(throwables.get(0).getMessage(), containsString("[2]: cannot be greater than number of shard copies [1]"));
+    }
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
         request.patterns(singletonList("_test_shards*"));
@@ -197,21 +248,213 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.get(0).getMessage(), containsString("global templates may not specify the setting index.hidden"));
     }
 
-    public void testAddComponentTemplate() {
+    public void testAddComponentTemplate() throws Exception{
+        MetaDataIndexTemplateService metaDataIndexTemplateService = getMetaDataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
-        ComponentTemplate template = ComponentTemplateTests.randomInstance();
-        state = MetaDataIndexTemplateService.addComponentTemplate(state, false, "foo", template);
+        Template template = new Template(Settings.builder().build(), null, ComponentTemplateTests.randomAliases());
+        ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
+        state = metaDataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
 
         assertNotNull(state.metaData().componentTemplates().get("foo"));
-        assertThat(state.metaData().componentTemplates().get("foo"), equalTo(template));
+        assertThat(state.metaData().componentTemplates().get("foo"), equalTo(componentTemplate));
 
         final ClusterState throwState = ClusterState.builder(state).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> MetaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo", template));
+            () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo", componentTemplate));
         assertThat(e.getMessage(), containsString("component template [foo] already exists"));
 
-        state = MetaDataIndexTemplateService.addComponentTemplate(state, randomBoolean(), "bar", template);
+        state = metaDataIndexTemplateService.addComponentTemplate(state, randomBoolean(), "bar", componentTemplate);
         assertNotNull(state.metaData().componentTemplates().get("bar"));
+
+        template = new Template(Settings.builder().build(), new CompressedXContent("{\"invalid\"}"),
+            ComponentTemplateTests.randomAliases());
+        ComponentTemplate componentTemplate2 = new ComponentTemplate(template, 1L, new HashMap<>());
+        expectThrows(JsonParseException.class,
+            () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate2));
+
+        template = new Template(Settings.builder().build(), new CompressedXContent("{\"invalid\":\"invalid\"}"),
+            ComponentTemplateTests.randomAliases());
+        ComponentTemplate componentTemplate3 = new ComponentTemplate(template, 1L, new HashMap<>());
+        expectThrows(MapperParsingException.class,
+            () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate3));
+
+        template = new Template(Settings.builder().put("invalid", "invalid").build(), new CompressedXContent("{}"),
+            ComponentTemplateTests.randomAliases());
+        ComponentTemplate componentTemplate4 = new ComponentTemplate(template, 1L, new HashMap<>());
+        expectThrows(IllegalArgumentException.class,
+            () -> metaDataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4));
+    }
+
+    public void testAddIndexTemplateV2() {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        state = MetaDataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
+
+        assertNotNull(state.metaData().templatesV2().get("foo"));
+        assertThat(state.metaData().templatesV2().get("foo"), equalTo(template));
+
+        final ClusterState throwState = ClusterState.builder(state).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> MetaDataIndexTemplateService.addIndexTemplateV2(throwState, true, "foo", template));
+        assertThat(e.getMessage(), containsString("index template [foo] already exists"));
+
+        state = MetaDataIndexTemplateService.addIndexTemplateV2(state, randomBoolean(), "bar", template);
+        assertNotNull(state.metaData().templatesV2().get("bar"));
+    }
+
+    public void testRemoveIndexTemplateV2() {
+        IndexTemplateV2 template = IndexTemplateV2Tests.randomInstance();
+        IndexTemplateMissingException e = expectThrows(IndexTemplateMissingException.class,
+            () -> MetaDataIndexTemplateService.innerRemoveIndexTemplateV2(ClusterState.EMPTY_STATE, "foo"));
+        assertThat(e.getMessage(), equalTo("index_template [foo] missing"));
+
+        final ClusterState state = MetaDataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
+        assertNotNull(state.metaData().templatesV2().get("foo"));
+        assertThat(state.metaData().templatesV2().get("foo"), equalTo(template));
+
+        ClusterState updatedState = MetaDataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo");
+        assertNull(updatedState.metaData().templatesV2().get("foo"));
+    }
+
+    /**
+     * Test that if we have a pre-existing v1 template and put a v2 template that would match the same indices, we generate a warning
+     */
+    public void testPuttingV2TemplateGeneratesWarning() {
+        IndexTemplateMetaData v1Template = IndexTemplateMetaData.builder("v1-template")
+            .patterns(Arrays.asList("fo*", "baz"))
+            .build();
+
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metaData(MetaData.builder(MetaData.EMPTY_META_DATA)
+                .put(v1Template)
+                .build())
+            .build();
+
+        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null);
+        state = MetaDataIndexTemplateService.addIndexTemplateV2(state, false, "v2-template", v2Template);
+
+        assertWarnings("index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns " +
+            "from existing older templates [v1-template] with patterns (v1-template => [fo*, baz]); this template [v2-template] will " +
+            "take precedence during new index creation");
+
+        assertNotNull(state.metaData().templatesV2().get("v2-template"));
+        assertThat(state.metaData().templatesV2().get("v2-template"), equalTo(v2Template));
+    }
+
+    /**
+     * Test that if we have a pre-existing v2 template and put a "*" v1 template, we generate a warning
+     */
+    public void testPuttingV1StarTemplateGeneratesWarning() {
+        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null);
+        ClusterState state = MetaDataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "v2-template", v2Template);
+
+        MetaDataIndexTemplateService.PutRequest req = new MetaDataIndexTemplateService.PutRequest("cause", "v1-template");
+        req.patterns(Arrays.asList("*", "baz"));
+        state = MetaDataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetaData.builder("v1-template"));
+
+        assertWarnings("template [v1-template] has index patterns [*, baz] matching patterns from existing " +
+            "index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
+            "be ignored in favor of an index template at index creation time");
+
+        assertNotNull(state.metaData().templates().get("v1-template"));
+        assertThat(state.metaData().templates().get("v1-template").patterns(), containsInAnyOrder("*", "baz"));
+    }
+
+    /**
+     * Test that if we have a pre-existing v2 template and put a v1 template that would match the same indices, we generate a hard error
+     */
+    public void testPuttingV1NonStarTemplateGeneratesError() {
+        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null);
+        ClusterState state = MetaDataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "v2-template", v2Template);
+
+        MetaDataIndexTemplateService.PutRequest req = new MetaDataIndexTemplateService.PutRequest("cause", "v1-template");
+        req.patterns(Arrays.asList("egg*", "baz"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> MetaDataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetaData.builder("v1-template")));
+
+        assertThat(e.getMessage(),
+            equalTo("template [v1-template] has index patterns [egg*, baz] matching patterns from existing index " +
+                "templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), use index templates " +
+                "(/_index_template) instead"));
+
+        assertNull(state.metaData().templates().get("v1-template"));
+    }
+
+    /**
+     * Test that if we have a pre-existing v1 and v2 template, and we update the existing v1
+     * template without changing its index patterns, a warning is generated
+     */
+    public void testUpdatingV1NonStarTemplateWithUnchangedPatternsGeneratesWarning() {
+        IndexTemplateMetaData v1Template = IndexTemplateMetaData.builder("v1-template")
+            .patterns(Arrays.asList("fo*", "baz"))
+            .build();
+
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metaData(MetaData.builder(MetaData.EMPTY_META_DATA)
+                .put(v1Template)
+                .build())
+            .build();
+
+        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null);
+        state = MetaDataIndexTemplateService.addIndexTemplateV2(state, false, "v2-template", v2Template);
+
+        assertWarnings("index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns " +
+            "from existing older templates [v1-template] with patterns (v1-template => [fo*, baz]); this template [v2-template] will " +
+            "take precedence during new index creation");
+
+        assertNotNull(state.metaData().templatesV2().get("v2-template"));
+        assertThat(state.metaData().templatesV2().get("v2-template"), equalTo(v2Template));
+
+        // Now try to update the existing v1-template
+
+        MetaDataIndexTemplateService.PutRequest req = new MetaDataIndexTemplateService.PutRequest("cause", "v1-template");
+        req.patterns(Arrays.asList("fo*", "baz"));
+        state = MetaDataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetaData.builder("v1-template"));
+
+        assertWarnings("template [v1-template] has index patterns [fo*, baz] matching patterns from existing " +
+            "index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
+            "be ignored in favor of an index template at index creation time");
+
+        assertNotNull(state.metaData().templates().get("v1-template"));
+        assertThat(state.metaData().templates().get("v1-template").patterns(), containsInAnyOrder("fo*", "baz"));
+    }
+
+    /**
+     * Test that if we have a pre-existing v1 and v2 template, and we update the existing v1
+     * template *AND* change the index patterns that an error is generated
+     */
+    public void testUpdatingV1NonStarWithChangedPatternsTemplateGeneratesError() {
+        IndexTemplateMetaData v1Template = IndexTemplateMetaData.builder("v1-template")
+            .patterns(Arrays.asList("fo*", "baz"))
+            .build();
+
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metaData(MetaData.builder(MetaData.EMPTY_META_DATA)
+                .put(v1Template)
+                .build())
+            .build();
+
+        IndexTemplateV2 v2Template = new IndexTemplateV2(Arrays.asList("foo-bar-*", "eggplant"), null, null, null, null, null);
+        state = MetaDataIndexTemplateService.addIndexTemplateV2(state, false, "v2-template", v2Template);
+
+        assertWarnings("index template [v2-template] has index patterns [foo-bar-*, eggplant] matching patterns " +
+            "from existing older templates [v1-template] with patterns (v1-template => [fo*, baz]); this template [v2-template] will " +
+            "take precedence during new index creation");
+
+        assertNotNull(state.metaData().templatesV2().get("v2-template"));
+        assertThat(state.metaData().templatesV2().get("v2-template"), equalTo(v2Template));
+
+        // Now try to update the existing v1-template
+
+        MetaDataIndexTemplateService.PutRequest req = new MetaDataIndexTemplateService.PutRequest("cause", "v1-template");
+        req.patterns(Arrays.asList("egg*", "baz"));
+        final ClusterState finalState = state;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> MetaDataIndexTemplateService.innerPutTemplate(finalState, req, IndexTemplateMetaData.builder("v1-template")));
+
+        assertThat(e.getMessage(), equalTo("template [v1-template] has index patterns [egg*, baz] matching patterns " +
+            "from existing index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), use index " +
+            "templates (/_index_template) instead"));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
@@ -247,23 +490,7 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     private List<Throwable> putTemplateDetail(PutRequest request) throws Exception {
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
-                Settings.EMPTY,
-                clusterService,
-                indicesService,
-                null,
-                null,
-                new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                null,
-                xContentRegistry(),
-                Collections.emptyList(),
-                true);
-        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
-                clusterService, createIndexService, new AliasValidator(), indicesService,
-                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
+        MetaDataIndexTemplateService service = getMetaDataIndexTemplateService();
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -281,5 +508,25 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         });
         latch.await();
         return throwables;
+    }
+
+    private MetaDataIndexTemplateService getMetaDataIndexTemplateService() {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                null,
+                new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                null,
+                xContentRegistry(),
+                Collections.emptyList(),
+                true);
+        return new MetaDataIndexTemplateService(
+                clusterService, createIndexService, new AliasValidator(), indicesService,
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
     }
 }

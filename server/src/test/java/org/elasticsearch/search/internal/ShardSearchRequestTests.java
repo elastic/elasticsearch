@@ -59,25 +59,15 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         ShardSearchRequest shardSearchTransportRequest = createShardSearchRequest();
         ShardSearchRequest deserializedRequest =
             copyWriteable(shardSearchTransportRequest, namedWriteableRegistry, ShardSearchRequest::new);
-        assertEquals(deserializedRequest.scroll(), shardSearchTransportRequest.scroll());
-        assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
-        assertArrayEquals(deserializedRequest.indices(), shardSearchTransportRequest.indices());
-        assertEquals(deserializedRequest.indicesOptions(), shardSearchTransportRequest.indicesOptions());
-        assertEquals(deserializedRequest.nowInMillis(), shardSearchTransportRequest.nowInMillis());
-        assertEquals(deserializedRequest.source(), shardSearchTransportRequest.source());
-        assertEquals(deserializedRequest.searchType(), shardSearchTransportRequest.searchType());
-        assertEquals(deserializedRequest.shardId(), shardSearchTransportRequest.shardId());
-        assertEquals(deserializedRequest.numberOfShards(), shardSearchTransportRequest.numberOfShards());
-        assertArrayEquals(deserializedRequest.indexRoutings(), shardSearchTransportRequest.indexRoutings());
-        assertEquals(deserializedRequest.preference(), shardSearchTransportRequest.preference());
-        assertEquals(deserializedRequest.cacheKey(), shardSearchTransportRequest.cacheKey());
-        assertNotSame(deserializedRequest, shardSearchTransportRequest);
-        assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
-        assertEquals(deserializedRequest.indexBoost(), shardSearchTransportRequest.indexBoost(), 0.0f);
-        assertEquals(deserializedRequest.getClusterAlias(), shardSearchTransportRequest.getClusterAlias());
-        assertEquals(shardSearchTransportRequest.allowPartialSearchResults(), deserializedRequest.allowPartialSearchResults());
-        assertEquals(deserializedRequest.canReturnNullResponseIfMatchNoDocs(),
-            shardSearchTransportRequest.canReturnNullResponseIfMatchNoDocs());
+        assertEquals(shardSearchTransportRequest, deserializedRequest);
+    }
+
+    public void testClone() throws Exception {
+        for (int i = 0; i < 10; i++) {
+            ShardSearchRequest shardSearchTransportRequest = createShardSearchRequest();
+            ShardSearchRequest clone = new ShardSearchRequest(shardSearchTransportRequest);
+            assertEquals(shardSearchTransportRequest, clone);
+        }
     }
 
     private ShardSearchRequest createShardSearchRequest() throws IOException {
@@ -145,6 +135,28 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         indexMetaData = add(indexMetaData, "dogs", filter(termQuery("animal", "dog")));
         IndexMetaData finalIndexMetadata = indexMetaData;
         expectThrows(InvalidAliasNameException.class, () -> aliasFilter(finalIndexMetadata, "unknown"));
+    }
+
+    private static void assertEquals(ShardSearchRequest orig, ShardSearchRequest copy) throws IOException {
+        assertEquals(orig.scroll(), copy.scroll());
+        assertEquals(orig.getAliasFilter(), copy.getAliasFilter());
+        assertArrayEquals(orig.indices(), copy.indices());
+        assertEquals(orig.indicesOptions(), copy.indicesOptions());
+        assertEquals(orig.nowInMillis(), copy.nowInMillis());
+        assertEquals(orig.source(), copy.source());
+        assertEquals(orig.searchType(), copy.searchType());
+        assertEquals(orig.shardId(), copy.shardId());
+        assertEquals(orig.numberOfShards(), copy.numberOfShards());
+        assertArrayEquals(orig.indexRoutings(), copy.indexRoutings());
+        assertEquals(orig.preference(), copy.preference());
+        assertEquals(orig.cacheKey(), copy.cacheKey());
+        assertNotSame(orig, copy);
+        assertEquals(orig.getAliasFilter(), copy.getAliasFilter());
+        assertEquals(orig.indexBoost(), copy.indexBoost(), 0.0f);
+        assertEquals(orig.getClusterAlias(), copy.getClusterAlias());
+        assertEquals(orig.allowPartialSearchResults(), copy.allowPartialSearchResults());
+        assertEquals(orig.canReturnNullResponseIfMatchNoDocs(),
+            orig.canReturnNullResponseIfMatchNoDocs());
     }
 
     public static CompressedXContent filter(QueryBuilder filterBuilder) throws IOException {

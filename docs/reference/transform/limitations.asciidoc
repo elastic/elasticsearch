@@ -206,3 +206,10 @@ this entity will not be updated.
 If using a `sync.time.field` that represents the data ingest time and using a 
 zero second or very small `sync.time.delay`, then it is more likely that this 
 issue will occur.
+
+[[transform-date-nanos]]
+==== Support for date nanoseconds data type
+
+If your data uses the <<date_nanos,date nanosecond data type>>, aggregations
+are nonetheless on millisecond resolution. This limitation also affects the
+aggregations in your {transforms}.

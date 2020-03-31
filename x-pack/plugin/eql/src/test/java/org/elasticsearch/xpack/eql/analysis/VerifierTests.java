@@ -113,20 +113,20 @@ public class VerifierTests extends ESTestCase {
 
     // Some functions fail with "Unsupported" message at the parse stage
     public void testArrayFunctionsUnsupported() {
-        assertEquals("1:16: Unsupported function [arrayContains]",
-                errorParsing("registry where arrayContains(bytes_written_string_list, 'En')"));
-        assertEquals("1:16: Unsupported function [arraySearch]",
-                errorParsing("registry where arraySearch(bytes_written_string_list, a, a == 'en-us')"));
-        assertEquals("1:16: Unsupported function [arrayCount]",
-                errorParsing("registry where arrayCount(bytes_written_string_list, s, s == '*-us') == 1"));
+        assertEquals("1:16: Unknown function [arrayContains]",
+                error("registry where arrayContains(bytes_written_string_list, 'En')"));
+        assertEquals("1:16: Unknown function [arraySearch]",
+            error("registry where arraySearch(bytes_written_string_list, bytes_written_string, true)"));
+        assertEquals("1:16: Unknown function [arrayCount]",
+            error("registry where arrayCount(bytes_written_string_list, bytes_written_string, true) == 1"));
     }
 
     // Some functions fail with "Unknown" message at the parse stage
     public void testFunctionParsingUnknown() {
         assertEquals("1:15: Unknown function [matchLite]",
-                errorParsing("process where matchLite(?'.*?net1\\s+localgroup\\s+.*?', command_line)"));
+                error("process where matchLite(?'.*?net1\\s+localgroup\\s+.*?', command_line)"));
         assertEquals("1:15: Unknown function [safe]",
-                errorParsing("network where safe(divide(process_name, process_name))"));
+                error("network where safe(process_name)"));
     }
 
     // Test the known EQL functions that are not supported
@@ -296,6 +296,12 @@ public class VerifierTests extends ESTestCase {
                 error(idxr, "foo where date_range_field == ''"));
         assertEquals("1:11: Cannot use field [ip_range_field] with unsupported type [ip_range]",
                 error(idxr, "foo where ip_range_field == ''"));
+    }
+
+    public void testMixedSet() {
+        final IndexResolution idxr = loadIndexResolution("mapping-numeric.json");
+        assertEquals("1:11: 2nd argument of [long_field in (1, 'string')] must be [long], found value ['string'] type [keyword]",
+            error(idxr, "foo where long_field in (1, 'string')"));
     }
 
     public void testObject() {

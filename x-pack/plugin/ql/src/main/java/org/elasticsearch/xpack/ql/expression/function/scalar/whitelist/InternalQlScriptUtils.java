@@ -10,6 +10,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexProcessor.RegexOperation;
@@ -113,5 +114,12 @@ public class InternalQlScriptUtils {
     public static Boolean regex(String value, String pattern) {
         // TODO: this needs to be improved to avoid creating the pattern on every call
         return RegexOperation.match(value, pattern);
+    }
+
+    //
+    // Math
+    //
+    public static Number neg(Number value) {
+        return UnaryArithmeticOperation.NEGATE.apply(value);
     }
 }

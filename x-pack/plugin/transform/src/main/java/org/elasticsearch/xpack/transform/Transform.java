@@ -42,7 +42,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -148,7 +147,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
      * These attributes should never be set directly, use the node setting counter parts instead.
      */
     public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
-    public static final String TRANSFORM_REMOTE_ENABLED_NODE_ATTR = "transform.remote_connect";
 
     /**
      * Setting whether transform (the coordinator task) can run on this node and REST API's are available,
@@ -355,9 +353,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public Settings additionalSettings() {
         String transformEnabledNodeAttribute = "node.attr." + TRANSFORM_ENABLED_NODE_ATTR;
-        String transformRemoteEnabledNodeAttribute = "node.attr." + TRANSFORM_REMOTE_ENABLED_NODE_ATTR;
 
-        if (settings.get(transformEnabledNodeAttribute) != null || settings.get(transformRemoteEnabledNodeAttribute) != null) {
+        if (settings.get(transformEnabledNodeAttribute) != null) {
             throw new IllegalArgumentException(
                 "Directly setting transform node attributes is not permitted, please use the documented node settings instead"
             );
@@ -370,7 +367,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Settings.Builder additionalSettings = Settings.builder();
 
         additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED_NODE.get(settings));
-        additionalSettings.put(transformRemoteEnabledNodeAttribute, RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings));
 
         return additionalSettings.build();
     }
@@ -393,7 +389,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return Collections.singletonList(
             new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
         );

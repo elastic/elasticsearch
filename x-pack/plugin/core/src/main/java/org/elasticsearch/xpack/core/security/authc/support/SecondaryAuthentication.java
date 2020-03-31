@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -53,6 +54,10 @@ public class SecondaryAuthentication {
 
     public Authentication getAuthentication() {
         return authentication;
+    }
+
+    public User getUser() {
+        return authentication.getUser();
     }
 
     public <T> T execute(Function<ThreadContext.StoredContext, T> body) {

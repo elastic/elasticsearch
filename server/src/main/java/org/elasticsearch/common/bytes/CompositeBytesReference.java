@@ -71,6 +71,34 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     }
 
     @Override
+    public int indexOf(byte marker, int from) {
+        final int remainingBytes = Math.max(length - from, 0);
+        Objects.checkFromIndexSize(from, remainingBytes, length);
+
+        int result = -1;
+        if (length == 0) {
+            return result;
+        }
+
+        final int firstReferenceIndex = getOffsetIndex(from);
+        for (int i = firstReferenceIndex; i < references.length; ++i) {
+            final BytesReference reference = references[i];
+            final int internalFrom;
+            if (i == firstReferenceIndex) {
+                internalFrom = from - offsets[firstReferenceIndex];
+            } else {
+                internalFrom = 0;
+            }
+            result = reference.indexOf(marker, internalFrom);
+            if (result != -1) {
+                result += offsets[i];
+                break;
+            }
+        }
+        return result;
+    }
+
+    @Override
     public int length() {
         return length;
     }

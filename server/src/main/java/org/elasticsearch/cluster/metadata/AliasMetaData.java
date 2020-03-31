@@ -387,6 +387,8 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements To
                         builder.indexRouting(parser.text());
                     } else if ("search_routing".equals(currentFieldName) || "searchRouting".equals(currentFieldName)) {
                         builder.searchRouting(parser.text());
+                    } else if ("filter".equals(currentFieldName)) {
+                        builder.filter(new CompressedXContent(parser.binaryValue()));
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     parser.skipChildren();

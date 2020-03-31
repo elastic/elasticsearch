@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -93,6 +94,36 @@ public abstract class StringFieldType extends TermBasedFieldType {
         return query;
     }
 
+    public static final String normalizeWildcardPattern(String fieldname, String value, Analyzer normalizer)  {
+        if (normalizer == null) {
+            return value;
+        }
+        // we want to normalize everything except wildcard characters, e.g. F?o Ba* to f?o ba*, even if e.g there
+        // is a char_filter that would otherwise remove them
+        Matcher wildcardMatcher = WILDCARD_PATTERN.matcher(value);
+        BytesRefBuilder sb = new BytesRefBuilder();
+        int last = 0;
+
+        while (wildcardMatcher.find()) {
+            if (wildcardMatcher.start() > 0) {
+                String chunk = value.substring(last, wildcardMatcher.start());
+
+                BytesRef normalized = normalizer.normalize(fieldname, chunk);
+                sb.append(normalized);
+            }
+            // append the matched group - without normalizing
+            sb.append(new BytesRef(wildcardMatcher.group()));
+
+            last = wildcardMatcher.end();
+        }
+        if (last < value.length()) {
+            String chunk = value.substring(last);
+            BytesRef normalized = normalizer.normalize(fieldname, chunk);
+            sb.append(normalized);
+        }
+        return sb.toBytesRef().utf8ToString();
+    }    
+    
     @Override
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         failIfNotIndexed();
@@ -103,30 +134,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
         Term term;
         if (searchAnalyzer() != null) {
-            // we want to normalize everything except wildcard characters, e.g. F?o Ba* to f?o ba*, even if e.g there
-            // is a char_filter that would otherwise remove them
-            Matcher wildcardMatcher = WILDCARD_PATTERN.matcher(value);
-            BytesRefBuilder sb = new BytesRefBuilder();
-            int last = 0;
-
-            while (wildcardMatcher.find()) {
-                if (wildcardMatcher.start() > 0) {
-                    String chunk = value.substring(last, wildcardMatcher.start());
-
-                    BytesRef normalized = searchAnalyzer().normalize(name(), chunk);
-                    sb.append(normalized);
-                }
-                // append the matched group - without normalizing
-                sb.append(new BytesRef(wildcardMatcher.group()));
-
-                last = wildcardMatcher.end();
-            }
-            if (last < value.length()) {
-                String chunk = value.substring(last);
-                BytesRef normalized = searchAnalyzer().normalize(name(), chunk);
-                sb.append(normalized);
-            }
-            term = new Term(name(), sb.toBytesRef());
+            value = normalizeWildcardPattern(name(), value, searchAnalyzer());
+            term = new Term(name(), value);
         } else {
             term = new Term(name(), indexedValueForSearch(value));
         }

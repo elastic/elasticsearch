@@ -725,7 +725,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 threadContext2.writeTo(output);
                 StreamInput input = output.bytes().streamInput();
                 threadContext2 = new ThreadContext(Settings.EMPTY);
-                threadContext2.readFrom(input);
+                threadContext2.readHeaders(input);
                 header = threadContext2.getHeader(AuthenticationField.AUTHENTICATION_KEY);
             }
 

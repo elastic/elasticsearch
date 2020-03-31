@@ -200,15 +200,9 @@ public class Node implements Closeable {
         Setting.boolSetting("node.master", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_INGEST_SETTING =
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_REMOTE_CLUSTER_CLIENT =
+        Setting.boolSetting("node.remote_cluster_client", true, Property.NodeScope);
 
-    /**
-    * controls whether the node is allowed to persist things like metadata to disk
-    * Note that this does not control whether the node stores actual indices (see
-    * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
-    * and {@link #NODE_MASTER_SETTING} must also be false.
-    *
-    */
-    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting("node.local_storage", true, Property.NodeScope);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
     public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = Setting.prefixKeySetting("node.attr.", (key) ->
         new Setting<>(key, "", (value) -> {
@@ -440,7 +434,7 @@ public class Node implements Closeable {
                 .stream()
                 .collect(Collectors.toUnmodifiableMap(
                     plugin -> plugin.getClass().getSimpleName(),
-                    plugin -> plugin.getSystemIndexDescriptors(settings)));
+                    plugin -> plugin.getSystemIndexDescriptors()));
             SystemIndexDescriptor.checkForOverlappingPatterns(systemIndexDescriptorMap);
 
             final List<SystemIndexDescriptor> systemIndexDescriptors = systemIndexDescriptorMap.values().stream()
@@ -451,7 +445,8 @@ public class Node implements Closeable {
                 new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),
                     clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                     threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptService,
-                    clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories);
+                    clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories,
+                    searchModule.getValuesSourceRegistry());
 
             final AliasValidator aliasValidator = new AliasValidator();
 
@@ -476,7 +471,7 @@ public class Node implements Closeable {
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService);
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, clusterService);
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();

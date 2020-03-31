@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -55,7 +56,6 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -83,6 +83,7 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
+import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
@@ -512,7 +513,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final DiscoveryNodes nodes = clusterState.nodes();
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(searchRequest.getLocalClusterAlias(),
             nodes::get, remoteConnections, searchTransportService::getConnection);
-        boolean preFilterSearchShards = shouldPreFilterSearchShards(searchRequest, shardIterators);
+        boolean preFilterSearchShards = shouldPreFilterSearchShards(clusterState, searchRequest, indices, shardIterators.size());
         searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState,
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, routingMap, listener, preFilterSearchShards, clusters).start();
     }
@@ -539,12 +540,31 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         };
     }
 
-    private static boolean shouldPreFilterSearchShards(SearchRequest searchRequest,
-                                                       GroupShardsIterator<SearchShardIterator> shardIterators) {
+    static boolean shouldPreFilterSearchShards(ClusterState clusterState,
+                                               SearchRequest searchRequest,
+                                               Index[] indices,
+                                               int numShards) {
         SearchSourceBuilder source = searchRequest.source();
+        Integer preFilterShardSize = searchRequest.getPreFilterShardSize();
+        if (preFilterShardSize == null
+                && (hasReadOnlyIndices(indices, clusterState) || hasPrimaryFieldSort(source))) {
+            preFilterShardSize = 1;
+        } else if (preFilterShardSize == null) {
+            preFilterShardSize = SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
+        }
         return searchRequest.searchType() == QUERY_THEN_FETCH // we can't do this for DFS it needs to fan out to all shards all the time
-                    && (SearchService.canRewriteToMatchNone(source) || FieldSortBuilder.hasPrimaryFieldSort(source))
-                    && searchRequest.getPreFilterShardSize() < shardIterators.size();
+                    && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source))
+                    && preFilterShardSize < numShards;
+    }
+
+    private static boolean hasReadOnlyIndices(Index[] indices, ClusterState clusterState) {
+        for (Index index : indices) {
+            ClusterBlockException writeBlock = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, index.getName());
+            if (writeBlock != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,

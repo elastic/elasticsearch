@@ -18,9 +18,20 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Request;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<Request> {
 
@@ -32,5 +43,30 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
     @Override
     protected Request createTestInstance() {
         return new Request(generateRandomStringArray(8, 8, false));
+    }
+
+    public void testValidateRequest() {
+        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(new String[]{});
+        ActionRequestValidationException e = req.validate();
+        assertNull(e);
+    }
+
+    public void testGetDataStreams() {
+        final String dataStreamName = "my-data-stream";
+        DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
+        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(new String[]{dataStreamName});
+        List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        assertThat(dataStreams.size(), equalTo(1));
+        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamName));
+    }
+
+    public void testGetNonexistentDataStream() {
+        final String dataStreamName = "my-data-stream";
+        ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
+        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(new String[]{dataStreamName});
+        List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        assertThat(dataStreams.size(), equalTo(0));
     }
 }

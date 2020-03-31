@@ -24,13 +24,13 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsPersister;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.MultiField;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
-import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -66,7 +66,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     private StatsHolder statsHolder = new StatsHolder();
     private TrainedModelProvider trainedModelProvider;
     private DataFrameAnalyticsAuditor auditor;
-    private ResultsPersisterService resultsPersisterService;
+    private StatsPersister statsPersister;
     private DataFrameAnalyticsConfig analyticsConfig;
 
     @Before
@@ -76,7 +76,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         dataFrameRowsJoiner = mock(DataFrameRowsJoiner.class);
         trainedModelProvider = mock(TrainedModelProvider.class);
         auditor = mock(DataFrameAnalyticsAuditor.class);
-        resultsPersisterService = mock(ResultsPersisterService.class);
+        statsPersister = mock(StatsPersister.class);
         analyticsConfig = new DataFrameAnalyticsConfig.Builder()
             .setId(JOB_ID)
             .setDescription(JOB_DESCRIPTION)
@@ -251,7 +251,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
             statsHolder,
             trainedModelProvider,
             auditor,
-            resultsPersisterService,
+            statsPersister,
             fieldNames);
     }
 }

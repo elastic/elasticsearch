@@ -18,29 +18,43 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
 public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(DeleteDataStreamAction.class);
 
     public static final DeleteDataStreamAction INSTANCE = new DeleteDataStreamAction();
     public static final String NAME = "indices:admin/data_stream/delete";
@@ -59,7 +73,11 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (Strings.hasText(name) == false) {
+                validationException = ValidateActions.addValidationError("name is missing", validationException);
+            }
+            return validationException;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -108,7 +126,51 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state,
                                        ActionListener<AcknowledgedResponse> listener) throws Exception {
-            listener.onResponse(new AcknowledgedResponse(true));
+            clusterService.submitStateUpdateTask("remove-data-stream [" + request.name + "]", new ClusterStateUpdateTask(Priority.HIGH) {
+
+                @Override
+                public TimeValue timeout() {
+                    return request.masterNodeTimeout();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return removeDataStream(currentState, request);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new AcknowledgedResponse(true));
+                }
+            });
+        }
+
+        static ClusterState removeDataStream(ClusterState currentState, Request request) {
+            Set<String> dataStreams = new HashSet<>();
+            for (String dataStreamName : currentState.metaData().dataStreams().keySet()) {
+                if (Regex.simpleMatch(request.name, dataStreamName)) {
+                    dataStreams.add(dataStreamName);
+                }
+            }
+            if (dataStreams.isEmpty()) {
+                // if a match-all pattern was specified and no data streams were found because none exist, do not
+                // fail with data stream missing exception
+                if (Regex.isMatchAllPattern(request.name)) {
+                    return currentState;
+                }
+                throw new ResourceNotFoundException("data_streams matching [" + request.name + "] not found");
+            }
+            MetaData.Builder metaData = MetaData.builder(currentState.metaData());
+            for (String dataStreamName : dataStreams) {
+                logger.info("removing data stream [{}]", dataStreamName);
+                metaData.removeDataStream(dataStreamName);
+            }
+            return ClusterState.builder(currentState).metaData(metaData).build();
         }
 
         @Override

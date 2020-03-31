@@ -16,6 +16,7 @@ your data.
 * <<transform-api-quickref>>
 * <<ecommerce-transforms>>
 * <<transform-examples>>
+* <<transform-painless-examples>>
 * <<transform-troubleshooting>>
 * <<transform-limitations>>
 
@@ -26,5 +27,6 @@ include::checkpoints.asciidoc[]
 include::api-quickref.asciidoc[]
 include::ecommerce-tutorial.asciidoc[]
 include::examples.asciidoc[]
+include::painless-examples.asciidoc[]
 include::troubleshooting.asciidoc[]
 include::limitations.asciidoc[]

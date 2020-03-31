@@ -85,7 +85,7 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
         return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta);
     }
 
-    private static Map<String, AliasMetaData> randomAliases() {
+    public static Map<String, AliasMetaData> randomAliases() {
         String aliasName = randomAlphaOfLength(5);
         AliasMetaData aliasMeta = AliasMetaData.builder(aliasName)
             .filter(Collections.singletonMap(randomAlphaOfLength(2), randomAlphaOfLength(2)))

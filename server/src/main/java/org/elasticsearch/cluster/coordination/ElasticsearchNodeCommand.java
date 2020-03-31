@@ -24,31 +24,36 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.indices.IndicesModule;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
@@ -65,10 +70,34 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     protected static final String CS_MISSING_MSG =
         "cluster state is empty, cluster has never been bootstrapped?";
 
-    protected static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(
-        Stream.of(ClusterModule.getNamedXWriteables().stream(), IndicesModule.getNamedXContents().stream())
-            .flatMap(Function.identity())
-            .collect(Collectors.toList()));
+    // fake the registry here, as command-line tools are not loading plugins, and ensure that it preserves the parsed XContent
+    public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList()) {
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
+            // Currently, two unknown top-level objects are present
+            if (MetaData.Custom.class.isAssignableFrom(categoryClass)) {
+                return (T) new UnknownMetaDataCustom(name, parser.mapOrdered());
+            }
+            if (Condition.class.isAssignableFrom(categoryClass)) {
+                // The parsing for conditions is a bit weird as these represent JSON primitives (strings or numbers)
+                // TODO: Make Condition non-pluggable
+                assert parser.currentToken() == XContentParser.Token.FIELD_NAME : parser.currentToken();
+                if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+                    throw new UnsupportedOperationException("Unexpected token for Condition: " + parser.currentToken());
+                }
+                parser.nextToken();
+                assert parser.currentToken().isValue() : parser.currentToken();
+                if (parser.currentToken().isValue() == false) {
+                    throw new UnsupportedOperationException("Unexpected token for Condition: " + parser.currentToken());
+                }
+                return (T) new UnknownCondition(name, parser.objectText());
+            }
+            assert false : "Unexpected category class " + categoryClass + " for name " + name;
+            throw new UnsupportedOperationException("Unexpected category class " + categoryClass + " for name " + name);
+        }
+    };
 
     public ElasticsearchNodeCommand(String description) {
         super(description);
@@ -82,7 +111,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
         String nodeId = nodeMetaData.nodeId();
         return new PersistedClusterStateService(dataPaths, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L, true);
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
     }
 
     public static ClusterState clusterState(Environment environment, PersistedClusterStateService.OnDiskState onDiskState) {
@@ -167,5 +196,79 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     //package-private for testing
     OptionParser getParser() {
         return parser;
+    }
+
+    public static class UnknownMetaDataCustom implements MetaData.Custom {
+
+        private final String name;
+        private final Map<String, Object> contents;
+
+        public UnknownMetaDataCustom(String name, Map<String, Object> contents) {
+            this.name = name;
+            this.contents = contents;
+        }
+
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.API, MetaData.XContentContext.GATEWAY);
+        }
+
+        @Override
+        public Diff<MetaData.Custom> diff(MetaData.Custom previousState) {
+            assert false;
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getWriteableName() {
+            return name;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            assert false;
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            assert false;
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.mapContents(contents);
+        }
+    }
+
+    public static class UnknownCondition extends Condition<Object> {
+
+        public UnknownCondition(String name, Object value) {
+            super(name);
+            this.value = value;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return name;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            assert false;
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field(name, value);
+        }
+
+        @Override
+        public Result evaluate(Stats stats) {
+            assert false;
+            throw new UnsupportedOperationException();
+        }
     }
 }

@@ -103,6 +103,9 @@
       "missing_all_fields_count": {
         "type": "long"
       },
+      "skipped_docs_count": {
+        "type": "long"
+      },
       "timestamp" : {
         "type" : "date"
       },
@@ -115,6 +118,12 @@
             "type": "long"
           }
         }
+      },
+      "test_docs_count": {
+        "type": "long"
+      },
+      "training_docs_count": {
+        "type": "long"
       },
       "type" : {
         "type" : "keyword"

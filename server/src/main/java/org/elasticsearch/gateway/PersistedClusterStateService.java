@@ -136,7 +136,6 @@ public class PersistedClusterStateService {
     private final String nodeId;
     private final NamedXContentRegistry namedXContentRegistry;
     private final BigArrays bigArrays;
-    private final boolean preserveUnknownCustoms;
     private final LongSupplier relativeTimeMillisSupplier;
 
     private volatile TimeValue slowWriteLoggingThreshold;
@@ -144,18 +143,16 @@ public class PersistedClusterStateService {
     public PersistedClusterStateService(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
                                         ClusterSettings clusterSettings, LongSupplier relativeTimeMillisSupplier) {
         this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), namedXContentRegistry, bigArrays, clusterSettings,
-            relativeTimeMillisSupplier, false);
+            relativeTimeMillisSupplier);
     }
 
     public PersistedClusterStateService(Path[] dataPaths, String nodeId, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
-                                        ClusterSettings clusterSettings, LongSupplier relativeTimeMillisSupplier,
-                                        boolean preserveUnknownCustoms) {
+                                        ClusterSettings clusterSettings, LongSupplier relativeTimeMillisSupplier) {
         this.dataPaths = dataPaths;
         this.nodeId = nodeId;
         this.namedXContentRegistry = namedXContentRegistry;
         this.bigArrays = bigArrays;
         this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
-        this.preserveUnknownCustoms = preserveUnknownCustoms;
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
     }
@@ -383,8 +380,7 @@ public class PersistedClusterStateService {
         consumeFromType(searcher, GLOBAL_TYPE_NAME, bytes ->
         {
             final MetaData metaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.SMILE)
-                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length),
-                preserveUnknownCustoms);
+                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found global metadata with last-accepted term [{}]", metaData.coordinationMetaData().term());
             if (builderReference.get() != null) {
                 throw new IllegalStateException("duplicate global metadata found in [" + dataPath + "]");

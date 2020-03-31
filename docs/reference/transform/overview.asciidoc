@@ -28,20 +28,18 @@ The second step is deciding how you want to aggregate the grouped data. When
 using aggregations, you practically ask questions about the index. There are 
 different types of aggregations, each with its own purpose and output. To learn 
 more about the supported aggregations and group-by fields, see 
-{ref}/transform-resource.html[{transform-cap} resources].
+<<put-transform>>.
 
 As an optional step, you can also add a query to further limit the scope of the
 aggregation.
 
 The {transform} performs a composite aggregation that paginates through all the 
 data defined by the source index query. The output of the aggregation is stored 
-in a destination index. Each time the {transform} queries the source index, it 
+in a _destination index_. Each time the {transform} queries the source index, it 
 creates a _checkpoint_. You can decide whether you want the {transform} to run 
-once (batch {transform}) or continuously ({ctransform}). A batch {transform} is a 
-single operation that has a single checkpoint. {ctransforms-cap} continually 
-increment and process checkpoints as new source data is ingested.
-
-.Example
+once or continuously. A _batch {transform}_ is a single operation that has a
+single checkpoint. _{ctransforms-cap}_ continually increment and process
+checkpoints as new source data is ingested.
 
 Imagine that you run a webshop that sells clothes. Every order creates a 
 document that contains a unique order ID, the name and the category of the 
@@ -72,7 +70,7 @@ indices then index the results into the destination index. Therefore, a
 aggregation that it performs and the indexing process.
 
 For better performance, make sure that your search aggregations and queries are 
-optimized, so they don't process unnecessary data.
+optimized and that your {transform} is processing only necessary data.
 
 NOTE: When you use <<search-aggregations-bucket-datehistogram-aggregation>>, the 
 queries are not considered optimal as they run through a significant amount of 

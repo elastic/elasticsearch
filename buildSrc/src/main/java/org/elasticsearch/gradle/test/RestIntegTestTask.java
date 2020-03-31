@@ -22,13 +22,12 @@ package org.elasticsearch.gradle.test;
 import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-
-import java.util.function.Supplier;
 
 public class RestIntegTestTask extends DefaultTask {
 
@@ -40,11 +39,11 @@ public class RestIntegTestTask extends DefaultTask {
     public RestIntegTestTask() {
         Project project = getProject();
         String name = getName();
-        super.dependsOn(project);
         runner = project.getTasks().create(name + "Runner", RestTestRunnerTask.class);
+        super.dependsOn(runner);
         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
             .getExtensions()
-            .getByName("testClusters");
+            .getByName(TestClustersPlugin.EXTENSION_NAME);
         ElasticsearchCluster cluster = testClusters.create(name);
         runner.useCluster(cluster);
         runner.include("**/*IT.class");
@@ -58,15 +57,9 @@ public class RestIntegTestTask extends DefaultTask {
             SystemPropertyCommandLineArgumentProvider runnerNonInputProperties = (SystemPropertyCommandLineArgumentProvider) runner
                 .getExtensions()
                 .getByName("nonInputProperties");
-            runnerNonInputProperties.systemProperty(
-                TESTS_REST_CLUSTER,
-                (Supplier<String>) () -> String.join(",", cluster.getAllHttpSocketURI())
-            );
-            runnerNonInputProperties.systemProperty(
-                TESTS_CLUSTER,
-                (Supplier<String>) () -> String.join(",", cluster.getAllTransportPortURI())
-            );
-            runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, (Supplier<String>) cluster::getName);
+            runnerNonInputProperties.systemProperty(TESTS_REST_CLUSTER, () -> String.join(",", cluster.getAllHttpSocketURI()));
+            runnerNonInputProperties.systemProperty(TESTS_CLUSTER, () -> String.join(",", cluster.getAllTransportPortURI()));
+            runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, cluster::getName);
         } else {
             if (System.getProperty(TESTS_CLUSTER) == null || System.getProperty(TESTS_CLUSTER_NAME) == null) {
                 throw new IllegalArgumentException(
@@ -80,11 +73,7 @@ public class RestIntegTestTask extends DefaultTask {
         }
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
-        project.getGradle().projectsEvaluated(x -> {
-            if (isEnabled() == false) {
-                runner.setEnabled(false);
-            }
-        });
+        project.getGradle().projectsEvaluated(x -> runner.onlyIf(t -> this.getEnabled()));
     }
 
     @Override

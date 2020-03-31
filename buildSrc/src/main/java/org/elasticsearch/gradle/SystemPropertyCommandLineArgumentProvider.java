@@ -11,6 +11,10 @@ import java.util.stream.Collectors;
 public class SystemPropertyCommandLineArgumentProvider implements CommandLineArgumentProvider {
     private final Map<String, Object> systemProperties = new LinkedHashMap<>();
 
+    public void systemProperty(String key, Supplier<String> value) {
+        systemProperties.put(key, value);
+    }
+
     public void systemProperty(String key, Object value) {
         systemProperties.put(key, value);
     }

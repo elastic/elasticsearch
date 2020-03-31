@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import java.sql.ResultSet;
 
-final class DatabaseMetadataProxy extends DebuggingInvoker {
+final class DatabaseMetaDataProxy extends DebuggingInvoker {
 
-    DatabaseMetadataProxy(DebugLog log, Object result, Object parent) {
+    DatabaseMetaDataProxy(DebugLog log, Object result, Object parent) {
         super(log, result, parent);
     }
 

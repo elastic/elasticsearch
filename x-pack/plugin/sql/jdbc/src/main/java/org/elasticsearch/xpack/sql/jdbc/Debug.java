@@ -71,7 +71,7 @@ final class Debug {
         return createProxy(Connection.class, new ConnectionProxy(logger(info, managedPrinter), connection));
     }
 
-    static DatabaseMetaData proxy(DatabaseMetadataProxy handler) {
+    static DatabaseMetaData proxy(DatabaseMetaDataProxy handler) {
         return createProxy(DatabaseMetaData.class, handler);
     }
 

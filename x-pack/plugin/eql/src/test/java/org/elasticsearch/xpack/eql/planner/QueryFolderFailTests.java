@@ -32,4 +32,12 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("Found 1 problem\nline 1:15: [length(plain_text)] cannot operate on field of data type [text]: No keyword/multi-field "
                 + "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
+
+    public void testStartsWithFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> plan("process where startsWith(plain_text, \"foo\") == true"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [startsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
+                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
 }

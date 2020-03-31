@@ -169,7 +169,7 @@ public abstract class MetadataStateFormat<T> {
     private static void performStateDirectoriesFsync(List<Tuple<Path, Directory>> stateDirectories) throws WriteStateException {
         for (int i = 0; i < stateDirectories.size(); i++) {
             try {
-                stateDirectories.get(i).v2().syncMetadata();
+                stateDirectories.get(i).v2().syncMetaData();
             } catch (IOException e) {
                 throw new WriteStateException(true, "meta data directory fsync has failed " + stateDirectories.get(i).v1(), e);
             }

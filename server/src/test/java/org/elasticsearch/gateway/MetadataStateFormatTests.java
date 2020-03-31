@@ -360,7 +360,7 @@ public class MetadataStateFormatTests extends ESTestCase {
         static final String FAIL_WRITE_TO_OUTPUT_FILE = "writeBytes";
         static final String FAIL_FSYNC_TMP_FILE = "sync";
         static final String FAIL_RENAME_TMP_FILE = "rename";
-        static final String FAIL_FSYNC_STATE_DIRECTORY = "syncMetadata";
+        static final String FAIL_FSYNC_STATE_DIRECTORY = "syncMetaData";
         static final String FAIL_DELETE_TMP_FILE = "deleteFile";
         static final String FAIL_OPEN_STATE_FILE_WHEN_COPYING = "openInput";
 

@@ -372,8 +372,8 @@ public class SourceOnlySnapshot {
         }
 
         @Override
-        public void syncMetadata() throws IOException {
-            wrapped.syncMetadata();
+        public void syncMetaData() throws IOException {
+            wrapped.syncMetaData();
         }
 
         @Override

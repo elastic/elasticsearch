@@ -318,7 +318,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 final String remove = tempFileMap.remove(tempFile);
                 assert remove != null;
             }
-            directory.syncMetadata();
+            directory.syncMetaData();
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -625,7 +625,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // ignore, we don't really care, will get deleted later on
                 }
             }
-            directory.syncMetadata();
+            directory.syncMetaData();
             final Store.MetadataSnapshot metadataOrEmpty = getMetadata(null);
             verifyAfterCleanup(sourceMetadata, metadataOrEmpty);
         } finally {

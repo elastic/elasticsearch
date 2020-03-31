@@ -236,7 +236,6 @@ nodes `nodeId1` and `nodeId2`.
 (Optional, boolean) If `true`, the request blocks until the cancellation of the
 task and its child tasks is completed. Otherwise, the request can return soon
 after the cancellation is started. Defaults to `false`.
-end::wait_for_completion[]
 
 [source,console]
 --------------------------------------------------

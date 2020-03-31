@@ -28,6 +28,7 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -36,6 +37,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
@@ -46,6 +48,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -137,6 +140,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * A client for the running Elasticsearch cluster
      */
     private static RestClient client;
+    private static RestHighLevelClient restHighLevelClient;
     /**
      * A client for the running Elasticsearch cluster configured to take test administrative actions like remove all indexes after the test
      * completes
@@ -167,6 +171,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             clusterHosts = unmodifiableList(hosts);
             logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            restHighLevelClient = new RestHighLevelClient(
+                createRestClientBuilder(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()])));
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
             hasXPack = false;
@@ -299,10 +305,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     @AfterClass
     public static void closeClients() throws IOException {
         try {
-            IOUtils.close(client, adminClient);
+            IOUtils.close(client, adminClient, restHighLevelClient);
         } finally {
             clusterHosts = null;
             client = null;
+            restHighLevelClient = null;
             adminClient = null;
             hasXPack = null;
             nodeVersions = null;
@@ -314,6 +321,13 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected static RestClient client() {
         return client;
+    }
+
+    /**
+     * Get the RestHighLevelClient used for ordinary api calls while writing a test
+     */
+    protected static RestHighLevelClient restHighLevelClient() {
+        return restHighLevelClient;
     }
 
     /**
@@ -873,10 +887,14 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        return createRestClientBuilder(settings, hosts).build();
+    }
+
+    protected RestClientBuilder createRestClientBuilder(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
         builder.setStrictDeprecationMode(true);
-        return builder.build();
+        return builder;
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
@@ -936,6 +954,14 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    protected static void assertOK(DocWriteResponse response) {
+        assertThat(response.status().getStatus(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    protected static void assertOK(StatusToXContentObject response) {
+        assertThat(response.status().getStatus(), anyOf(equalTo(200), equalTo(201)));
     }
 
     /**

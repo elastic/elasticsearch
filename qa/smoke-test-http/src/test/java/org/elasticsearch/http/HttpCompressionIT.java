@@ -19,9 +19,16 @@
 package org.elasticsearch.http;
 
 import org.apache.http.HttpHeaders;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -57,6 +64,31 @@ public class HttpCompressionIT extends ESRestTestCase {
         response = client().performRequest(request);
         assertEquals(201, response.getStatusLine().getStatusCode());
         assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
+    }
+
+    public void testCompressesResponseIfRequestedWhileUsingRestHighLevelClient() throws IOException {
+        String documentId = "1";
+        String indexName = "company";
+
+        IndexRequest indexRequest = new IndexRequest(indexName)
+            .source(SAMPLE_DOCUMENT, XContentType.JSON)
+            .id(documentId);
+        IndexResponse indexResponse = restHighLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+        assertOK(indexResponse);
+
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+            .query(new MatchQueryBuilder("_id", documentId));
+
+        SearchRequest searchRequest = new SearchRequest()
+            .indices(indexName)
+            .source(sourceBuilder);
+
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING)
+            .build();
+
+        SearchResponse searchResponse = restHighLevelClient().search(searchRequest, requestOptions);
+        assertOK(searchResponse);
     }
 
 }

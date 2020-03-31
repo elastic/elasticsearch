@@ -21,8 +21,8 @@ package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
 
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
@@ -144,6 +144,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -349,13 +350,13 @@ public class RestHighLevelClientTests extends ESTestCase {
             };
 
             HttpEntity jsonEntity = new NByteArrayEntity(compress("{\"field\":\"value\"}"), ContentType.APPLICATION_JSON);
-            assertEquals("value", restHighLevelClient.parseResponse(createCompressedResponse(jsonEntity), entityParser));
+            assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(jsonEntity), entityParser));
             HttpEntity yamlEntity = new NByteArrayEntity(compress("---\nfield: value\n"), ContentType.create("application/yaml"));
-            assertEquals("value", restHighLevelClient.parseResponse(createCompressedResponse(yamlEntity), entityParser));
+            assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(yamlEntity), entityParser));
             HttpEntity smileEntity = createCompressedBinaryEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
-            assertEquals("value", restHighLevelClient.parseResponse(createCompressedResponse(smileEntity), entityParser));
+            assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(smileEntity), entityParser));
             HttpEntity cborEntity = createCompressedBinaryEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
-            assertEquals("value", restHighLevelClient.parseResponse(createCompressedResponse(cborEntity), entityParser));
+            assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(cborEntity), entityParser));
         }
     }
 
@@ -373,11 +374,14 @@ public class RestHighLevelClientTests extends ESTestCase {
         return bos.toByteArray();
     }
 
-    private static Response createCompressedResponse(HttpEntity httpEntity) {
-        Response response = mock(Response.class);
-        when(response.getEntity()).thenReturn(httpEntity);
-        when(response.getHeader(HttpHeaders.CONTENT_ENCODING)).thenReturn("gzip");
-        return response;
+    private static HttpEntity enrichHeaderContentEncodingWithGzip(HttpEntity httpEntity) {
+        HttpEntity spiedHttpEntity = spy(httpEntity);
+        Header mockedHeader = mock(Header.class);
+
+        when(spiedHttpEntity.getContentEncoding()).thenReturn(mockedHeader);
+        when(mockedHeader.getValue()).thenReturn("gzip");
+
+        return spiedHttpEntity;
     }
 
     private static HttpEntity createBinaryEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {

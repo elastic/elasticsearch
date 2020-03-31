@@ -19,6 +19,7 @@
 
 dependencies {
   compile project(":client:rest")
+  compile project(":client:rest-high-level")
   compile project(":client:sniffer")
   compile project(':libs:elasticsearch-nio')
   compile project(":server")

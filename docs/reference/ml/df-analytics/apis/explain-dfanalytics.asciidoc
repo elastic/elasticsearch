@@ -62,9 +62,8 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 [[ml-explain-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
-`data_frame_analytics_config`::
-  (Optional, object) Intended configuration of {dfanalytics-job}. Note that `id` 
-  and `dest` don't need to be provided in the context of this API.
+A {dataframe-analytics-config} as described in <<put-dfanalytics>>.
+Note that `id` and `dest` don't need to be provided in the context of this API.
 
 
 [[ml-explain-dfanalytics-results]]
@@ -88,14 +87,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=memory-estimation]
 --------------------------------------------------
 POST _ml/data_frame/analytics/_explain
 {
-  "data_frame_analytics_config": {
-    "source": {
-      "index": "houses_sold_last_10_yrs"
-    },
-    "analysis": {
-      "regression": {
-        "dependent_variable": "price"
-      }
+  "source": {
+    "index": "houses_sold_last_10_yrs"
+  },
+  "analysis": {
+    "regression": {
+      "dependent_variable": "price"
     }
   }
 }

@@ -35,20 +35,22 @@ import java.util.function.Predicate;
 public class InboundAggregator implements Releasable {
 
     private final CircuitBreaker circuitBreaker;
-    private final Predicate<String> canBreak;
+    private final Predicate<String> requestCanTripBreaker;
 
     private ReleasableBytesReference firstContent;
     private ArrayList<ReleasableBytesReference> contentAggregation;
     private Header currentHeader;
+    private Exception aggregationException;
+    private boolean canTripBreaker = true;
     private boolean isClosed = false;
 
     public InboundAggregator() {
-        this(new NoopCircuitBreaker("replace"));
+        this(new NoopCircuitBreaker("replace"), s -> true);
     }
 
-    public InboundAggregator(CircuitBreaker circuitBreaker) {
+    public InboundAggregator(CircuitBreaker circuitBreaker, Predicate<String> requestCanTripBreaker) {
         this.circuitBreaker = circuitBreaker;
-        this.canBreak = (s) -> true;
+        this.requestCanTripBreaker = requestCanTripBreaker;
     }
 
     public void headerReceived(Header header) {
@@ -56,20 +58,27 @@ public class InboundAggregator implements Releasable {
         assert isAggregating() == false;
         assert firstContent == null && contentAggregation == null;
         currentHeader = header;
+        if (currentHeader.isRequest() && currentHeader.needsToReadVariableHeader() == false) {
+            initializeRequestState();
+        }
     }
 
     public void aggregate(ReleasableBytesReference content) {
         ensureOpen();
         assert isAggregating();
-        if (isFirstContent()) {
-            firstContent = content.retain();
+        if (isShortCircuited()) {
+            content.close();
         } else {
-            if (contentAggregation == null) {
-                contentAggregation = new ArrayList<>(4);
-                contentAggregation.add(firstContent);
-                firstContent = null;
+            if (isFirstContent()) {
+                firstContent = content.retain();
+            } else {
+                if (contentAggregation == null) {
+                    contentAggregation = new ArrayList<>(4);
+                    contentAggregation.add(firstContent);
+                    firstContent = null;
+                }
+                contentAggregation.add(content.retain());
             }
-            contentAggregation.add(content.retain());
         }
     }
 
@@ -94,16 +103,27 @@ public class InboundAggregator implements Releasable {
             releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
         }
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent);
-        resetCurrentAggregation();
         boolean success = false;
         try {
             if (aggregated.getHeader().needsToReadVariableHeader()) {
                 aggregated.getHeader().finishParsingHeader(aggregated.openOrGetStreamInput());
+                if (aggregated.getHeader().isRequest()) {
+                    initializeRequestState();
+                }
             }
-            checkBreaker(aggregated);
-            success = true;
-            return aggregated;
+            if (isShortCircuited() == false) {
+                checkBreaker(aggregated.getHeader(), aggregated.getContentLength());
+            }
+            if (isShortCircuited()) {
+                aggregated.close();
+                success = true;
+                return new InboundMessage(aggregated.getHeader(), aggregationException);
+            } else {
+                success = true;
+                return aggregated;
+            }
         } finally {
+            resetCurrentAggregation();
             if (success == false) {
                 aggregated.close();
             }
@@ -112,6 +132,14 @@ public class InboundAggregator implements Releasable {
 
     public boolean isAggregating() {
         return currentHeader != null;
+    }
+
+    private void shortCircuit(Exception exception) {
+        this.aggregationException = exception;
+    }
+
+    private boolean isShortCircuited() {
+        return aggregationException != null;
     }
 
     private boolean isFirstContent() {
@@ -125,18 +153,24 @@ public class InboundAggregator implements Releasable {
     }
 
     private void closeCurrentAggregation() {
+        releaseContent();
+        resetCurrentAggregation();
+    }
+
+    private void releaseContent() {
         if (contentAggregation == null) {
             Releasables.close(firstContent);
         } else {
             Releasables.close(contentAggregation);
         }
-        resetCurrentAggregation();
     }
 
     private void resetCurrentAggregation() {
         firstContent = null;
         contentAggregation = null;
         currentHeader = null;
+        aggregationException = null;
+        canTripBreaker = true;
     }
 
     private void ensureOpen() {
@@ -145,14 +179,30 @@ public class InboundAggregator implements Releasable {
         }
     }
 
-    private void checkBreaker(InboundMessage message) {
-        final int contentLength = message.getContentLength();
-        boolean canTripBreaker = true;
+    private void initializeRequestState() {
+        assert currentHeader.needsToReadVariableHeader() == false;
+        assert currentHeader.isRequest();
+
+        final String actionName = currentHeader.getActionName();
+        try {
+            canTripBreaker = requestCanTripBreaker.test(actionName);
+        } catch (ActionNotFoundTransportException e) {
+            shortCircuit(new ActionNotFoundTransportException(actionName));
+        }
+    }
+
+    private void checkBreaker(final Header header, final int contentLength) {
+        if (header.isRequest() == false) {
+            return;
+        }
+        assert header.needsToReadVariableHeader() == false;
+
+        boolean canTripBreaker = this.canTripBreaker;
         if (canTripBreaker) {
             try {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(contentLength, "<transport_request>");
             } catch (CircuitBreakingException e) {
-
+                shortCircuit(e);
             }
         } else {
             circuitBreaker.addWithoutBreaking(contentLength);

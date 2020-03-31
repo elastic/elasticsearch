@@ -31,18 +31,28 @@ public class InboundMessage implements Releasable {
 
     private final Header header;
     private final ReleasableBytesReference content;
+    private final Exception exception;
     private final boolean isPing;
     private StreamInput streamInput;
 
     public InboundMessage(Header header, ReleasableBytesReference content) {
         this.header = header;
         this.content = content;
+        this.exception = null;
+        this.isPing = false;
+    }
+
+    public InboundMessage(Header header, Exception exception) {
+        this.header = header;
+        this.content = null;
+        this.exception = exception;
         this.isPing = false;
     }
 
     public InboundMessage(Header header, boolean isPing) {
         this.header = header;
         this.content = null;
+        this.exception = null;
         this.isPing = isPing;
     }
 
@@ -58,8 +68,16 @@ public class InboundMessage implements Releasable {
         }
     }
 
+    public Exception getException() {
+        return exception;
+    }
+
     public boolean isPing() {
         return isPing;
+    }
+
+    public boolean isShortCircuit() {
+        return exception != null;
     }
 
     public StreamInput openOrGetStreamInput() throws IOException {

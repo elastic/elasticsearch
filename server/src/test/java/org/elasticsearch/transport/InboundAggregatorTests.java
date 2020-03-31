@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -32,6 +33,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -45,7 +48,8 @@ public class InboundAggregatorTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        aggregator = new InboundAggregator();
+        Predicate<String> requestCanTripBreaker = (s) -> true;
+        aggregator = new InboundAggregator(new NoopCircuitBreaker("test"), requestCanTripBreaker);
     }
 
     public void testInboundAggregation() throws IOException {

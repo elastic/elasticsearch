@@ -26,22 +26,34 @@ import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -65,7 +77,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(MockInternalClusterInfoService.TestPlugin.class);
+        return Arrays.asList(MockInternalClusterInfoService.TestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -275,6 +287,151 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // ensure that relocations finished without moving any more shards
         ensureGreen("test");
         assertThat("node2 has 1 shard", getShardCountByNodeId().get(nodeIds.get(2)), equalTo(1));
+    }
+
+    public void testCancelExistingRecoveriesOnDiskPassingHighWatermark() throws Exception {
+        // start two data node
+        String masterNode = internalCluster().startMasterOnlyNode(Settings.builder()
+                                  .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
+        String node0Name = internalCluster().startDataOnlyNode(Settings.builder()
+                                  .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
+        String node1Name = internalCluster().startDataOnlyNode(Settings.builder()
+                                  .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()).build());
+        final List<String> nodeIds = StreamSupport.stream(client().admin().cluster().prepareState().get().getState()
+                                  .getRoutingNodes().spliterator(), false).map(RoutingNode::nodeId).collect(Collectors.toList());
+        String node1Id = nodeIds.get(1);
+
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
+        clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(10));
+        clusterInfoService.onMaster();
+
+        // prevent any effects from in-flight recoveries, since we are only simulating a 100-byte disk
+        clusterInfoService.shardSizeFunction = shardRouting -> 0L;
+
+        // start with all nodes below the watermark
+        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100));
+
+        final boolean watermarkBytes = randomBoolean(); // we have to consistently use bytes or percentage for the disk watermark settings
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
+                             .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
+                             .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
+                             .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), watermarkBytes ? "0b" : "100%")
+                             .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1s")));
+        /*
+         * firstly test INDEX_CREATED scenario
+         */
+        // Create an index with 2 shards with 1 replica, but only allow allocation on node0, so all replicas are left unassigned
+        final String index = "test";
+        assertAcked(prepareCreate(index).setSettings(Settings.builder()
+                                                         .put("number_of_shards", between(1, 5))
+                                                         .put("number_of_replicas", 1)
+                                                         .put("index.routing.allocation.include._name", node0Name)));
+        ensureYellowAndNoInitializingShards(index);
+        // index some docs
+        final int docCount = 100; for (int i = 0; i < docCount; i++) {
+            index(index, "_doc", JsonXContent.contentBuilder().startObject().endObject());
+        }
+        // block shard recoveries until disk usage above high watermark
+        final CountDownLatch diskUsageAboveHighAfterIndexCreated = new CountDownLatch(1);
+        MockTransportService node0TransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, node0Name);
+        MockTransportService node1TransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, node1Name);
+        node1TransportService.addSendBehavior(node0TransportService, new StubbableTransport.SendRequestBehavior() {
+            @Override
+            public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+                TransportRequestOptions options) throws IOException {
+                if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action)) {
+                    try {
+                        logger.info("wait");
+                        diskUsageAboveHighAfterIndexCreated.await();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            }
+        });
+
+        // update routing allocation to include all nodes, so node1 should have allocated new replica
+        assertAcked(client().admin().indices().prepareUpdateSettings()
+                        .setSettings(Settings.builder().putNull("index.routing.allocation.include._name")).get());
+
+        client().admin().cluster().prepareReroute().get();
+        assertBusy(() -> {
+            int node1InitializingShards = client().admin().cluster().prepareState().get().getState().getRoutingNodes().node(node1Id)
+                                              .numberOfShardsWithState(ShardRoutingState.INITIALIZING);
+            assertThat("node1 has more than one initializing replica shards", node1InitializingShards, greaterThanOrEqualTo(1));
+        }, 30, TimeUnit.SECONDS);
+
+        logger.info("--> disk usage now above high watermark [{}]", node1Id);
+        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100,
+            discoveryNode.getId().equals(node1Id) ? between(0, 9) : between(10, 100));
+        clusterInfoService.refresh();
+
+        diskUsageAboveHighAfterIndexCreated.countDown();
+
+        logger.info("--> waiting for shards to cancel recovery on node [{}]", node1Id);
+        assertBusy(() -> {
+            int node1InitializingShards = client().admin().cluster().prepareState().get().getState().getRoutingNodes().node(node1Id)
+                                              .numberOfShardsWithState(ShardRoutingState.INITIALIZING);
+            assertThat("node1 has 0 initializing replica shards", node1InitializingShards, equalTo(0));
+        });
+        // move all nodes below watermark again
+        logger.info("--> backup disk function");
+        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100));
+        ensureGreen(index);
+
+        /*
+         * secondly test node restart scenario
+         */
+        // block shard recoveries until disk usage above high watermark
+        CountDownLatch diskUsageAboveHighAfterNodeRestart = new CountDownLatch(1);
+        node1TransportService.addSendBehavior(node0TransportService, new StubbableTransport.SendRequestBehavior() {
+            @Override
+            public void sendRequest(
+                Transport.Connection connection, long requestId, String action, TransportRequest request,
+                TransportRequestOptions options) throws IOException {
+                if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action)) {
+                    try {
+                        diskUsageAboveHighAfterNodeRestart.await();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            }
+        });
+
+        // restart node
+        internalCluster().restartNode(node1Name, InternalTestCluster.EMPTY_CALLBACK);
+        // ensure node stopped
+        ensureYellow(index);
+        // ensure node1 has initializing shards;
+        assertBusy(() -> {
+            int node1InitializingShards = client().admin().cluster().prepareState().get().getState().getRoutingNodes().node(node1Id)
+                                              .numberOfShardsWithState(ShardRoutingState.INITIALIZING);
+            assertThat("node1 has more than one initializing replica shards", node1InitializingShards, greaterThanOrEqualTo(1));
+        });
+
+        logger.info("--> disk usage now above high watermark [{}]", node1Id);
+        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath,
+            100, discoveryNode.getId().equals(node1Id) ? between(0, 9) : between(10, 100));
+
+        clusterInfoService.refresh();
+        diskUsageAboveHighAfterNodeRestart.countDown();
+
+        logger.info("--> waiting for shards to cancel recovery on node [{}]", node1Id);
+        assertBusy(() -> {
+            int node1InitializingShards = client().admin().cluster().prepareState().get().getState().getRoutingNodes().node(node1Id)
+                                              .numberOfShardsWithState(ShardRoutingState.INITIALIZING);
+            assertThat("node1 has 0 initializing replica shards", node1InitializingShards, equalTo(0));
+        });
+
+        // move all nodes below watermark again
+        logger.info("--> backup disk function");
+        clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100, between(10, 100));
+        ensureGreen(index);
     }
 
     public void testDoesNotExceedLowWatermarkWhenRebalancing() throws Exception {

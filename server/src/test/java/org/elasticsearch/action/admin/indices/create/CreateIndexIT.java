@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -138,6 +139,43 @@ public class CreateIndexIT extends ESIntegTestCase {
         MappingMetaData mappings = response.mappings().get("test");
         assertNotNull(mappings);
         assertTrue(mappings.sourceAsMap().isEmpty());
+    }
+
+    public void testInvalidMappingsWithDuplicateDefinitionOfFieldsOnSameLevel() {
+        expectThrows(ElasticsearchParseException.class, () ->
+            prepareCreate("test")
+                .setMapping(XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("properties")
+                            .startObject("flattened.field")
+                                .field("type", "keyword")
+                            .endObject()
+                            .startObject("flattened.field")
+                                .field("type", "keyword")
+                            .endObject()
+                        .endObject()
+                    .endObject()));
+    }
+
+    // TODO this needs to be converted to expecting ElasticsearchParseException.class exception as well after deprecation for
+    // https://github.com/elastic/elasticsearch/issues/37437 is put in
+    public void testValidMappingsWithDuplicateDefinitionOfFieldsOnDifferentLevel() throws Exception {
+        prepareCreate("test")
+            .setMapping(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("properties")
+                        .startObject("nested")
+                            .startObject("properties")
+                                .startObject("field")
+                                    .field("type", "keyword")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                        .startObject("nested.field")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject());
     }
 
     public void testInvalidShardCountSettings() throws Exception {

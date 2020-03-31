@@ -70,9 +70,4 @@ public class PSubArrayLength extends AStoreable {
     boolean isDefOptimized() {
         return false;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix);
-    }
 }

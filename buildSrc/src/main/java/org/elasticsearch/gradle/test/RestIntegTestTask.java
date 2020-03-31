@@ -41,6 +41,7 @@ public class RestIntegTestTask extends DefaultTask {
         String name = getName();
         runner = project.getTasks().create(name + "Runner", RestTestRunnerTask.class);
         super.dependsOn(runner);
+        @SuppressWarnings("unchecked")
         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
             .getExtensions()
             .getByName(TestClustersPlugin.EXTENSION_NAME);
@@ -66,10 +67,6 @@ public class RestIntegTestTask extends DefaultTask {
                     String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
                 );
             }
-            // an external cluster was specified and all responsibility for cluster configuration is taken by the user
-            runner.systemProperty(TESTS_REST_CLUSTER, System.getProperty(TESTS_REST_CLUSTER));
-            runner.systemProperty(TESTS_CLUSTER, System.getProperty(TESTS_CLUSTER));
-            runner.systemProperty(TESTS_CLUSTER_NAME, System.getProperty(TESTS_CLUSTER_NAME));
         }
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured

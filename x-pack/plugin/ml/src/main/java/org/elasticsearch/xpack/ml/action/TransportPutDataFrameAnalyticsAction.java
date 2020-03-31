@@ -139,7 +139,7 @@ public class TransportPutDataFrameAnalyticsAction
                 .setVersion(Version.CURRENT)
                 .build();
 
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isSecurityEnabled()) {
             final String username = securityContext.getUser().principal();
             RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(preparedForPutConfig.getSource().getIndex())

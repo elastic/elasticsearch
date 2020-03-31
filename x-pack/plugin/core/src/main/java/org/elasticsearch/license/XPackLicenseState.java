@@ -404,7 +404,7 @@ public class XPackLicenseState {
     /**
      * @return true if authentication and authorization should be enabled.
      */
-    public boolean isAuthAllowed() {
+    public boolean isSecurityAllowed() {
         return isAllowedBySecurityAndLicense(OperationMode.BASIC, false);
     }
 

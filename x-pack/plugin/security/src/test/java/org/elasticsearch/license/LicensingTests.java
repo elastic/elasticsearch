@@ -245,7 +245,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         // wait for things to stabilize!
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                if (licenseState.isAuthAllowed() == false) {
+                if (licenseState.isSecurityAllowed() == false) {
                     enableLicensing(OperationMode.BASIC);
                     break;
                 }

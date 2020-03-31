@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAutoscailngDeciders;
+import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAutoscalingDeciders;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -31,7 +31,7 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
 
     public void testUpdatePolicy() {
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
-        final AutoscalingPolicy updatedPolicy = new AutoscalingPolicy(policy.name(), mutateAutoscailngDeciders(policy.deciders()));
+        final AutoscalingPolicy updatedPolicy = new AutoscalingPolicy(policy.name(), mutateAutoscalingDeciders(policy.deciders()));
         putAutoscalingPolicy(updatedPolicy);
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);

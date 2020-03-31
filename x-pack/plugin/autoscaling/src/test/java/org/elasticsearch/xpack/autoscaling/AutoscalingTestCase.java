@@ -78,14 +78,14 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         final List<AutoscalingDecider> deciders;
         if (randomBoolean()) {
             // if the policy name did not change, or randomly, use a mutated set of deciders
-            deciders = mutateAutoscailngDeciders(instance.deciders());
+            deciders = mutateAutoscalingDeciders(instance.deciders());
         } else {
             deciders = instance.deciders();
         }
         return new AutoscalingPolicy(randomAlphaOfLength(8), deciders);
     }
 
-    public static List<AutoscalingDecider> mutateAutoscailngDeciders(final List<AutoscalingDecider> deciders) {
+    public static List<AutoscalingDecider> mutateAutoscalingDeciders(final List<AutoscalingDecider> deciders) {
         if (deciders.size() == 0) {
             return randomAutoscalingDeciders();
         } else {

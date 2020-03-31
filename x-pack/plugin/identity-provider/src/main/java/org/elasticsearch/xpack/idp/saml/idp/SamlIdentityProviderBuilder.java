@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
+import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
 import org.opensaml.saml.saml2.metadata.ContactPersonTypeEnumeration;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
@@ -80,6 +81,7 @@ public class SamlIdentityProviderBuilder {
     public static final Setting<String> IDP_CONTACT_EMAIL = Setting.simpleString("xpack.idp.contact.email", Setting.Property.NodeScope);
 
     private final SamlServiceProviderResolver serviceProviderResolver;
+    private final WildcardServiceProviderResolver wildcardServiceResolver;
 
     private String entityId;
     private Map<String, URL> ssoEndpoints;
@@ -91,8 +93,9 @@ public class SamlIdentityProviderBuilder {
     private SamlIdentityProvider.OrganizationInfo organization;
     private ServiceProviderDefaults serviceProviderDefaults;
 
-    SamlIdentityProviderBuilder(SamlServiceProviderResolver serviceProviderResolver) {
+    SamlIdentityProviderBuilder(SamlServiceProviderResolver serviceProviderResolver, WildcardServiceProviderResolver wildcardResolver) {
         this.serviceProviderResolver = serviceProviderResolver;
+        this.wildcardServiceResolver = wildcardResolver;
         this.ssoEndpoints = new HashMap<>();
         this.sloEndpoints = new HashMap<>();
     }
@@ -142,7 +145,8 @@ public class SamlIdentityProviderBuilder {
             signingCredential, metadataSigningCredential,
             technicalContact, organization,
             serviceProviderDefaults,
-            serviceProviderResolver);
+            serviceProviderResolver,
+            wildcardServiceResolver);
     }
 
     public SamlIdentityProviderBuilder fromSettings(Environment env) {

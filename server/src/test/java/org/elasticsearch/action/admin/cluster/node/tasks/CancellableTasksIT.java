@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -66,6 +68,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -151,7 +154,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         });
     }
 
-    public void testFailToCancelBeingCancelledTask() throws Exception {
+    public void testCancelTaskMultipleTimes() throws Exception {
         Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
         List<ChildRequest> childRequests = setupChildRequests(nodes);
         ActionFuture<MainResponse> mainTaskFuture = client().execute(TransportMainAction.ACTION, new MainRequest(childRequests));
@@ -159,20 +162,26 @@ public class CancellableTasksIT extends ESIntegTestCase {
             arrivedLatches.get(r).await();
         }
         TaskId taskId = getMainTaskId();
-        ActionFuture<CancelTasksResponse> firstCancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).execute();
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
+            .setWaitForChildTasks(true).execute();
         ensureChildTasksCancelledOrBanned(taskId);
-        CancelTasksResponse secondCancelResponse = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).get();
-        assertThat(secondCancelResponse.getTaskFailures(), hasSize(1));
-        assertThat(secondCancelResponse.getTaskFailures().get(0).getCause(), instanceOf(TaskCancelledException.class));
-        assertThat(secondCancelResponse.getTaskFailures().get(0).getCause().getMessage(), equalTo("Task is being cancelled already"));
-
-        assertFalse(mainTaskFuture.isDone());
-        assertFalse(firstCancelFuture.isDone());
+        if (randomBoolean()) {
+            CancelTasksResponse resp = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).setWaitForChildTasks(false).get();
+            assertThat(resp.getTaskFailures(), empty());
+            assertThat(resp.getNodeFailures(), empty());
+        }
+        assertFalse(cancelFuture.isDone());
         for (ChildRequest r : childRequests) {
             beforeExecuteLatches.get(r).countDown();
         }
-        firstCancelFuture.actionGet();
+        assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
+        assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
         mainTaskFuture.actionGet();
+        CancelTasksResponse cancelError = client().admin().cluster().prepareCancelTasks()
+            .setTaskId(taskId).setWaitForChildTasks(randomBoolean()).get();
+        assertThat(cancelError.getNodeFailures(), hasSize(1));
+        final Throwable notFound = ExceptionsHelper.unwrap(cancelError.getNodeFailures().get(0), ResourceNotFoundException.class);
+        assertThat(notFound.getMessage(), equalTo("task [" + taskId + "] is not found"));
     }
 
     public void testDoNotWaitForChildTasks() throws Exception {

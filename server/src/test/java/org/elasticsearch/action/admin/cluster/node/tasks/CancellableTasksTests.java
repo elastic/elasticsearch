@@ -39,17 +39,22 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Phaser;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -451,6 +456,37 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 new ListTasksRequest().setActions(CancelTasksAction.NAME + "*"));
             assertEquals(0, listTasksResponse.getTasks().size());
         });
+    }
+
+    public void testCancelConcurrently() throws Exception {
+        setupTestNodes(Settings.EMPTY);
+        final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
+        int numTasks = randomIntBetween(1, 10);
+        List<CancellableTask> tasks = new ArrayList<>(numTasks);
+        for (int i = 0; i < numTasks; i++) {
+            tasks.add((CancellableTask) taskManager.register("type-" + i, "action-" + i, new CancellableNodeRequest()));
+        }
+        Thread[] threads = new Thread[randomIntBetween(1, 8)];
+        AtomicIntegerArray notified = new AtomicIntegerArray(threads.length);
+        Phaser phaser = new Phaser(threads.length + 1);
+        final CancellableTask cancellingTask = randomFrom(tasks);
+        for (int i = 0; i < threads.length; i++) {
+            int idx = i;
+            threads[i] = new Thread(() -> {
+                phaser.arriveAndAwaitAdvance();
+                taskManager.cancel(cancellingTask, "test", () -> assertTrue(notified.compareAndSet(idx, 0, 1)));
+            });
+            threads[i].start();
+        }
+        phaser.arriveAndAwaitAdvance();
+        taskManager.unregister(cancellingTask);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i].join();
+            assertThat(notified.get(i), equalTo(1));
+        }
+        AtomicBoolean called = new AtomicBoolean();
+        taskManager.cancel(cancellingTask, "test", () -> assertTrue(called.compareAndSet(false, true)));
+        assertTrue(called.get());
     }
 
     private static void debugDelay(String name) {

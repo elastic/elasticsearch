@@ -89,7 +89,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                     // The task exists, but doesn't support cancellation
                     throw new IllegalArgumentException("task [" + request.getTaskId() + "] doesn't support cancellation");
                 } else {
-                    throw new ResourceNotFoundException("task [{}] doesn't support cancellation", request.getTaskId());
+                    throw new ResourceNotFoundException("task [{}] is not found", request.getTaskId());
                 }
             }
         } else {
@@ -109,10 +109,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(completedListener, r -> null), 3);
             Collection<DiscoveryNode> childrenNodes =
                 taskManager.startBanOnChildrenNodes(cancellableTask.getId(), () -> groupedListener.onResponse(null));
-            boolean cancelled = taskManager.cancel(cancellableTask, request.getReason(), () -> groupedListener.onResponse(null));
-            if (cancelled == false) {
-                throw new IllegalStateException("task with id " + cancellableTask.getId() + " is already cancelled");
-            }
+            taskManager.cancel(cancellableTask, request.getReason(), () -> groupedListener.onResponse(null));
+
             StepListener<Void> banOnNodesListener = new StepListener<>();
             setBanOnNodes(request.getReason(), cancellableTask, childrenNodes, banOnNodesListener);
             banOnNodesListener.whenComplete(groupedListener::onResponse, groupedListener::onFailure);
@@ -129,11 +127,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             }
         } else {
             logger.trace("task {} doesn't have any children that should be cancelled", cancellableTask.getId());
-            final boolean cancelled = taskManager.cancel(cancellableTask, request.getReason(),
-                () -> listener.onResponse(cancellableTask.taskInfo(nodeId, false)));
-            if (cancelled == false) {
-                throw new IllegalStateException("task with id " + cancellableTask.getId() + " is already cancelled");
-            }
+            taskManager.cancel(cancellableTask, request.getReason(), () -> listener.onResponse(cancellableTask.taskInfo(nodeId, false)));
         }
     }
 

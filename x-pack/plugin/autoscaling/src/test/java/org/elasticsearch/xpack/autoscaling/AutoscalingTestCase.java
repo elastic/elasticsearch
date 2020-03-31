@@ -82,7 +82,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         } else {
             deciders = instance.deciders();
         }
-        return new AutoscalingPolicy(randomAlphaOfLength(8), deciders);
+        return new AutoscalingPolicy(randomValueOtherThan(instance.name(), () -> randomAlphaOfLength(8)), deciders);
     }
 
     public static List<AutoscalingDecider> mutateAutoscalingDeciders(final List<AutoscalingDecider> deciders) {

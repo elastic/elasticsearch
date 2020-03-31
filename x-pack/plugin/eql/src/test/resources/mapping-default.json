@@ -84,6 +84,9 @@
         },
         "plain_text" : {
             "type" : "text"
+        },
+        "constant_keyword" : {
+            "type" : "constant_keyword"
         }
     }
 }

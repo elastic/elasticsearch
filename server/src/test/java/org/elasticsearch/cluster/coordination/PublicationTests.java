@@ -176,7 +176,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testSimpleClusterStatePublishing() throws InterruptedException {
-        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -252,7 +252,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testClusterStatePublishingWithFaultyNodeBeforeCommit() throws InterruptedException {
-        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -295,7 +295,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testClusterStatePublishingWithFaultyNodeAfterCommit() throws InterruptedException {
-        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -348,7 +348,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testClusterStatePublishingFailsOrTimesOutBeforeCommit() throws InterruptedException {
-        VotingConfiguration config = new VotingConfiguration(Sets.newHashSet(n1.getId(), n2.getId()));
+        VotingConfiguration config = VotingConfiguration.of(n1, n2);
         initializeCluster(config);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());
@@ -387,7 +387,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testPublishingToMastersFirst() {
-        VotingConfiguration singleNodeConfig = new VotingConfiguration(Sets.newHashSet(n1.getId()));
+        VotingConfiguration singleNodeConfig = VotingConfiguration.of(n1);
         initializeCluster(singleNodeConfig);
 
         DiscoveryNodes.Builder discoNodesBuilder = DiscoveryNodes.builder();
@@ -403,8 +403,7 @@ public class PublicationTests extends ESTestCase {
     }
 
     public void testClusterStatePublishingTimesOutAfterCommit() throws InterruptedException {
-        VotingConfiguration config = new VotingConfiguration(randomBoolean() ?
-            Sets.newHashSet(n1.getId(), n2.getId()) : Sets.newHashSet(n1.getId(), n2.getId(), n3.getId()));
+        VotingConfiguration config = randomBoolean() ? VotingConfiguration.of(n1, n2): VotingConfiguration.of(n1, n2, n3);
         initializeCluster(config);
 
         AssertingAckListener ackListener = new AssertingAckListener(nodes.size());

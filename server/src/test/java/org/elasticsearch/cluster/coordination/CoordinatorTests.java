@@ -48,7 +48,6 @@ import org.elasticsearch.test.MockLogAppender;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -775,8 +774,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             assertThat(exceptionMessage, containsString(coordinator.getLocalNode().toString()));
 
             // This is VERY BAD: setting a _different_ initial configuration. Yet it works if the first attempt will never be a quorum.
-            assertTrue(coordinator.setInitialConfiguration(
-                new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId()))));
+            assertTrue(coordinator.setInitialConfiguration(VotingConfiguration.of(coordinator.getLocalNode())));
             cluster.stabilise();
         }
     }

@@ -189,10 +189,10 @@ public class InboundPipelineTests extends ESTestCase {
 
             OutboundMessage message;
             if (isRequest) {
-                message = new OutboundMessage.Request(threadContext, new TestRequest(value),
+                message = new OutboundMessage.Request(threadContext, new String[0], new TestRequest(value),
                     version, actionName, requestId, false, false);
             } else {
-                message = new OutboundMessage.Response(threadContext, new TestResponse(value),
+                message = new OutboundMessage.Response(threadContext, Collections.emptySet(), new TestResponse(value),
                     version, requestId, false, false);
             }
 

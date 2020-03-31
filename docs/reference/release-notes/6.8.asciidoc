@@ -1,3 +1,40 @@
+[[release-notes-6.8.8]]
+== {es} version 6.8.8
+
+[[bug-6.8.8]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Explicitly require that delegate API keys have no privileges {pull}53647[#53647]
+
+Distributed::
+* Avoid loading retention leases while writing them {pull}42620[#42620] (issue: {issue}41430[#41430])
+
+Infra/Core::
+* Avoid self-suppression on grouped action listener {pull}53262[#53262] (issue: {issue}53174[#53174])
+
+Network::
+* Invoke response handler on failure to send {pull}53631[#53631]
+
+SQL::
+* Fix column size for IP data type {pull}53056[#53056] (issue: {issue}52762[#52762])
+
+Search::
+* Fix concurrent requests race over scroll context limit {pull}53449[#53449]
+* Fix potential NPE in FuzzyTermsEnum {pull}53231[#53231] (issue: {issue}52894[#52894])
+
+[[upgrade-6.8.8]]
+[float]
+=== Upgrades
+
+Features/Ingest::
+* Ingest Attachment: Upgrade tika to v1.22 {pull}53418[#53418]
+
+Infra/Core::
+* Upgrade the bundled JDK to JDK 14 {pull}53748[#53748] (issue: {issue}53575[#53575])
+* Update jackson-databind to 2.8.11.6 {pull}53522[#53522] (issue: {issue}45225[#45225])
+
 [[release-notes-6.8.7]]
 == {es} version 6.8.7
 

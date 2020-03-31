@@ -385,7 +385,6 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         }
 
         public static VotingConfiguration of(DiscoveryNode... nodes) {
-            // this could be used in many more places - TODO use this where appropriate
             return new VotingConfiguration(Arrays.stream(nodes).map(DiscoveryNode::getId).collect(Collectors.toSet()));
         }
     }

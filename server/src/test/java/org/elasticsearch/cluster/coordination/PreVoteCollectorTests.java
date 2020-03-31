@@ -135,8 +135,7 @@ public class PreVoteCollectorTests extends ESTestCase {
     }
 
     private ClusterState makeClusterState(DiscoveryNode[] votingNodes) {
-        final VotingConfiguration votingConfiguration
-            = new VotingConfiguration(Arrays.stream(votingNodes).map(DiscoveryNode::getId).collect(Collectors.toSet()));
+        final VotingConfiguration votingConfiguration = VotingConfiguration.of(votingNodes);
         return CoordinationStateTests.clusterState(lastAcceptedTerm, lastAcceptedVersion, localNode,
             votingConfiguration, votingConfiguration, 0);
     }

@@ -35,8 +35,9 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
     public static final String NAME = "autoscaling";
 
-    public static final ParseField POLICIES_FIELD = new ParseField("policies");
     public static final AutoscalingMetadata EMPTY = new AutoscalingMetadata(Collections.emptySortedMap());
+
+    private static final ParseField POLICIES_FIELD = new ParseField("policies");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<AutoscalingMetadata, Void> PARSER = new ConstructingObjectParser<>(

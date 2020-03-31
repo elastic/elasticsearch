@@ -405,15 +405,15 @@ public class XPackLicenseState {
      * @return true if authentication and authorization should be enabled.
      */
     public boolean isAuthAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.BASIC, false, true);
+        return isAllowedBySecurityAndLicense(OperationMode.BASIC, false);
     }
 
     public boolean isIpFilteringAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false, true);
+        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false);
     }
 
     public boolean isAuditingAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false, true);
+        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false);
     }
 
     public boolean isStatsAndHealthAllowed() {
@@ -434,33 +434,33 @@ public class XPackLicenseState {
      * @return {@code true} to enable DLS and FLS. Otherwise {@code false}.
      */
     public boolean isDocumentAndFieldLevelSecurityAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, false, true);
+        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, false);
     }
 
     public boolean areAllRealmsAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, false, true);
+        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, false);
     }
 
     public boolean areStandardRealmsAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false, true);
+        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false);
     }
 
     public boolean isCustomRoleProvidersAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, true, true);
+        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, true);
     }
 
     /**
      * Whether the Elasticsearch {@code TokenService} is allowed
      */
     public boolean isTokenServiceAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false, true);
+        return isAllowedBySecurityAndLicense(OperationMode.GOLD, false);
     }
 
     /**
      * Whether the Elasticsearch {@code ApiKeyService} is allowed
      */
     public boolean isApiKeyServiceAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.MISSING, false, true);
+        return isAllowedBySecurityAndLicense(OperationMode.MISSING, false);
     }
 
     /**
@@ -468,7 +468,7 @@ public class XPackLicenseState {
      * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
      */
     public boolean isAuthorizationRealmAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, true, true);
+        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, true);
     }
 
     /**
@@ -476,7 +476,7 @@ public class XPackLicenseState {
      * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
      */
     public boolean isAuthorizationEngineAllowed() {
-        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, true, true);
+        return isAllowedBySecurityAndLicense(OperationMode.PLATINUM, true);
     }
 
     public boolean isWatcherAllowed() {
@@ -507,7 +507,7 @@ public class XPackLicenseState {
      * @return {@code true} if the user is allowed to modify the retention. Otherwise {@code false}.
      */
     public boolean isUpdateRetentionAllowed() {
-        return isAllowedByLicense(OperationMode.STANDARD, false, true);
+        return isAllowedByLicense(OperationMode.STANDARD, false);
     }
 
     public boolean isGraphAllowed() {
@@ -519,7 +519,7 @@ public class XPackLicenseState {
     }
 
     public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
-        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
+        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
     public boolean isTransformAllowed() {
@@ -532,7 +532,7 @@ public class XPackLicenseState {
     }
 
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {
-        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
+        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
     public boolean isRollupAllowed() {
@@ -667,12 +667,12 @@ public class XPackLicenseState {
     }
 
     public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {
-        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM, true);
+        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
     public static boolean isAllowedByOperationMode(
-        final OperationMode operationMode, final OperationMode minimumMode, final boolean allowTrial) {
-        if (allowTrial && OperationMode.TRIAL == operationMode) {
+        final OperationMode operationMode, final OperationMode minimumMode) {
+        if (OperationMode.TRIAL == operationMode) {
             return true;
         }
         return operationMode.compareTo(minimumMode) >= 0;
@@ -691,16 +691,15 @@ public class XPackLicenseState {
 
     /**
      * Test whether a feature is allowed by the status of license and security configuration.
-     * Note the difference to {@link #isAllowedByLicense(OperationMode, boolean, boolean)}
+     * Note the difference to {@link #isAllowedByLicense(OperationMode, boolean)}
      * is this method requires security to be enabled.
      *
      * @param minimumMode  The minimum license to meet or exceed
      * @param needActive   Whether current license needs to be active.
-     * @param allowTrial   Whether the feature is allowed for trial license
      *
      * @return true if feature is allowed, otherwise false
      */
-    private boolean isAllowedBySecurityAndLicense(OperationMode minimumMode, boolean needActive, boolean allowTrial) {
+    private boolean isAllowedBySecurityAndLicense(OperationMode minimumMode, boolean needActive) {
         return checkAgainstStatus(status -> {
             if (false == isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled)) {
                 return false;
@@ -709,7 +708,7 @@ public class XPackLicenseState {
             if (needActive && false == status.active) {
                 return false;
             }
-            return isAllowedByOperationMode(status.mode, minimumMode, allowTrial);
+            return isAllowedByOperationMode(status.mode, minimumMode);
         });
     }
 
@@ -720,27 +719,26 @@ public class XPackLicenseState {
      *
      * @param minimumMode  The minimum license to meet or exceed
      * @param needActive   Whether current license needs to be active
-     * @param allowTrial   Whether the feature is allowed for trial license
      *
      * @return true if feature is allowed, otherwise false
      */
-    public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive, boolean allowTrial) {
+    public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
         return checkAgainstStatus(status -> {
             if (needActive && false == status.active) {
                 return false;
             }
-            return isAllowedByOperationMode(status.mode, minimumMode, allowTrial);
+            return isAllowedByOperationMode(status.mode, minimumMode);
         });
     }
 
     /**
      * A convenient method to test whether a feature is by license status.
-     * @see #isAllowedByLicense(OperationMode, boolean, boolean)
+     * @see #isAllowedByLicense(OperationMode, boolean)
      *
      * @param minimumMode  The minimum license to meet or exceed
      */
     public boolean isAllowedByLicense(OperationMode minimumMode) {
-        return isAllowedByLicense(minimumMode, true, true);
+        return isAllowedByLicense(minimumMode, true);
     }
 
 }

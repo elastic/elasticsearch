@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
@@ -52,8 +51,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, SignificantTermsAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, SignificantTermsAggregationBuilder> {
     public static final String NAME = "significant_terms";
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
@@ -283,10 +281,15 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                        ValuesSourceConfig<ValuesSource> config,
-                                                                        AggregatorFactory parent,
-                                                                        Builder subFactoriesBuilder) throws IOException {
+                                                                    ValuesSourceConfig<ValuesSource> config,
+                                                                    AggregatorFactory parent,
+                                                                    Builder subFactoriesBuilder) throws IOException {
         SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(queryShardContext);
         return new SignificantTermsAggregatorFactory(name, config, includeExclude, executionHint, filterBuilder,
                 bucketCountThresholds, executionHeuristic, queryShardContext, parent, subFactoriesBuilder, metaData);

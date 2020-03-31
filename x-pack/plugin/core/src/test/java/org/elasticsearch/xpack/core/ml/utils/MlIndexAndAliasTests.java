@@ -26,8 +26,11 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,6 +40,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.stubbing.Answer;
 
+import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -46,6 +50,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias.HIDDEN_INTRODUCED_VERSION;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -251,6 +256,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT)
             .metaData(MetaData.builder()
                 .indices(ImmutableOpenMap.<String, IndexMetaData>builder().putAll(indices).build()).build())
+            .nodes(DiscoveryNodes.builder()
+                .add(new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), HIDDEN_INTRODUCED_VERSION)))
             .build();
     }
 

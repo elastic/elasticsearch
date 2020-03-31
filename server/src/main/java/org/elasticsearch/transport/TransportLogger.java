@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -39,7 +40,18 @@ public final class TransportLogger {
                 String logMessage = format(channel, message, "READ");
                 logger.trace(logMessage);
             } catch (IOException e) {
-                logger.trace("an exception occurred formatting a READ trace message", e);
+                logger.warn("an exception occurred formatting a READ trace message", e);
+            }
+        }
+    }
+
+    static void logInboundMessage(TcpChannel channel, InboundMessage message) {
+        if (logger.isTraceEnabled()) {
+            try {
+                String logMessage = format(channel, message, "READ");
+                logger.trace(logMessage);
+            } catch (IOException e) {
+                logger.warn("an exception occurred formatting a READ trace message", e);
             }
         }
     }
@@ -55,7 +67,7 @@ public final class TransportLogger {
                 String logMessage = format(channel, withoutHeader, "WRITE");
                 logger.trace(logMessage);
             } catch (IOException e) {
-                logger.trace("an exception occurred formatting a WRITE trace message", e);
+                logger.warn("an exception occurred formatting a WRITE trace message", e);
             }
         }
     }
@@ -75,7 +87,8 @@ public final class TransportLogger {
                 final byte status = streamInput.readByte();
                 final boolean isRequest = TransportStatus.isRequest(status);
                 final String type = isRequest ? "request" : "response";
-                Version version = Version.fromId(streamInput.readInt());
+                final Version version = Version.fromId(streamInput.readInt());
+                streamInput.setVersion(version);
                 sb.append(" [length: ").append(messageLengthWithHeader);
                 sb.append(", request id: ").append(requestId);
                 sb.append(", type: ").append(type);
@@ -84,7 +97,8 @@ public final class TransportLogger {
                 if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
                     sb.append(", header size: ").append(streamInput.readInt()).append('B');
                 } else {
-                    streamInput = InboundMessage.Reader.decompressingStream(status, version, streamInput);
+                    streamInput = decompressingStream(status, streamInput);
+                    InboundHandler.assertRemoteVersion(streamInput, version);
                 }
 
                 // read and discard headers
@@ -109,5 +123,57 @@ public final class TransportLogger {
             }
         }
         return sb.toString();
+    }
+
+    private static String format(TcpChannel channel, InboundMessage message, String event) throws IOException {
+        final StringBuilder sb = new StringBuilder();
+        sb.append(channel);
+
+        if (message.isPing()) {
+            sb.append(" [ping]").append(' ').append(event).append(": ").append(6).append('B');
+        } else {
+            boolean success = false;
+            Header header = message.getHeader();
+            int networkMessageSize = header.getNetworkMessageSize();
+            int messageLengthWithHeader = HEADER_SIZE + networkMessageSize;
+            StreamInput streamInput = message.openOrGetStreamInput();
+            try {
+                final long requestId = header.getRequestId();
+                final boolean isRequest = header.isRequest();
+                final String type = isRequest ? "request" : "response";
+                final String version = header.getVersion().toString();
+                sb.append(" [length: ").append(messageLengthWithHeader);
+                sb.append(", request id: ").append(requestId);
+                sb.append(", type: ").append(type);
+                sb.append(", version: ").append(version);
+
+                // TODO: Maybe Fix for BWC
+                if (header.needsToReadVariableHeader() == false && isRequest) {
+                    sb.append(", action: ").append(header.getActionName());
+                }
+                sb.append(']');
+                sb.append(' ').append(event).append(": ").append(messageLengthWithHeader).append('B');
+                success = true;
+            } finally {
+                if (success) {
+                    IOUtils.close(streamInput);
+                } else {
+                    IOUtils.closeWhileHandlingException(streamInput);
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    private static StreamInput decompressingStream(byte status, StreamInput streamInput) throws IOException {
+        if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
+            try {
+                return CompressorFactory.COMPRESSOR.streamInput(streamInput);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("stream marked as compressed, but is missing deflate header");
+            }
+        } else {
+            return streamInput;
+        }
     }
 }

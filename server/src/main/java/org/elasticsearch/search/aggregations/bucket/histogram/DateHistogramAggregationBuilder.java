@@ -43,7 +43,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -69,8 +68,7 @@ import static java.util.Collections.unmodifiableMap;
  * A builder for histograms on date fields.
  */
 public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, DateHistogramAggregationBuilder>
-        implements MultiBucketAggregationBuilder, DateIntervalConsumer {
-
+        implements DateIntervalConsumer {
     public static final String NAME = "date_histogram";
 
     public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS;
@@ -377,6 +375,11 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
 
         dateHistogramInterval.toXContent(builder, params);
@@ -469,7 +472,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
         ZoneOffsetTransition prevOffsetTransition = tz.getRules().previousTransition(instant);
         final long prevTransition;
-        if (prevOffsetTransition  != null) {
+        if (prevOffsetTransition != null) {
             prevTransition = prevOffsetTransition.getInstant().toEpochMilli();
         } else {
             prevTransition = instant.toEpochMilli();
@@ -479,7 +482,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         if (nextOffsetTransition != null) {
             nextTransition = nextOffsetTransition.getInstant().toEpochMilli();
         } else {
-            nextTransition = instant.toEpochMilli();
+            nextTransition = Long.MAX_VALUE; // fixed time-zone after prevTransition
         }
 
         // We need all not only values but also rounded values to be within

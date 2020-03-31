@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.utils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -37,6 +38,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public final class MlIndexAndAlias {
 
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
+
+    static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
 
     // Visible for testing
     static final Comparator<String> INDEX_NAME_COMPARATOR = new Comparator<String>() {
@@ -76,6 +79,8 @@ public final class MlIndexAndAlias {
                                                       String alias,
                                                       ActionListener<Boolean> listener) {
 
+        boolean isHiddenAttributeAvailable = clusterState.nodes().getMinNodeVersion().onOrAfter(HIDDEN_INTRODUCED_VERSION);
+
         String legacyIndexWithoutSuffix = indexPatternPrefix;
         String indexPattern = indexPatternPrefix + "*";
         // The initial index name must be suitable for rollover functionality.
@@ -83,12 +88,12 @@ public final class MlIndexAndAlias {
         String[] concreteIndexNames =
             resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexPattern);
         Optional<IndexMetaData> indexPointedByCurrentWriteAlias = clusterState.getMetaData().hasAlias(alias)
-            ? clusterState.getMetaData().getAliasAndIndexLookup().get(alias).getIndices().stream().findFirst()
+            ? clusterState.getMetaData().getIndicesLookup().get(alias).getIndices().stream().findFirst()
             : Optional.empty();
 
         if (concreteIndexNames.length == 0) {
             if (indexPointedByCurrentWriteAlias.isPresent() == false) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, listener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, isHiddenAttributeAvailable, listener);
                 return;
             }
             logger.error(
@@ -96,7 +101,7 @@ public final class MlIndexAndAlias {
                 indexPattern, alias, indexPointedByCurrentWriteAlias.get());
         } else if (concreteIndexNames.length == 1 && concreteIndexNames[0].equals(legacyIndexWithoutSuffix)) {
             if (indexPointedByCurrentWriteAlias.isPresent() == false) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, listener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, isHiddenAttributeAvailable, listener);
                 return;
             }
             if (indexPointedByCurrentWriteAlias.get().getIndex().getName().equals(legacyIndexWithoutSuffix)) {
@@ -105,8 +110,10 @@ public final class MlIndexAndAlias {
                     firstConcreteIndex,
                     alias,
                     false,
+                    isHiddenAttributeAvailable,
                     ActionListener.wrap(
-                        unused -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, listener),
+                        unused -> updateWriteAlias(
+                            client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, isHiddenAttributeAvailable, listener),
                         listener::onFailure)
                 );
                 return;
@@ -118,7 +125,7 @@ public final class MlIndexAndAlias {
             if (indexPointedByCurrentWriteAlias.isPresent() == false) {
                 assert concreteIndexNames.length > 0;
                 String latestConcreteIndexName = Arrays.stream(concreteIndexNames).max(INDEX_NAME_COMPARATOR).get();
-                updateWriteAlias(client, alias, null, latestConcreteIndexName, listener);
+                updateWriteAlias(client, alias, null, latestConcreteIndexName, isHiddenAttributeAvailable, listener);
                 return;
             }
         }
@@ -130,12 +137,17 @@ public final class MlIndexAndAlias {
                                                  String index,
                                                  String alias,
                                                  boolean addAlias,
+                                                 boolean isHiddenAttributeAvailable,
                                                  ActionListener<Boolean> listener) {
         CreateIndexRequestBuilder requestBuilder = client.admin()
             .indices()
             .prepareCreate(index);
         if (addAlias) {
-            requestBuilder.addAlias(new Alias(alias).isHidden(true));
+            Alias newAlias = new Alias(alias);
+            if (isHiddenAttributeAvailable) {
+                newAlias.isHidden(true);
+            }
+            requestBuilder.addAlias(newAlias);
         }
         CreateIndexRequest request = requestBuilder.request();
 
@@ -149,7 +161,7 @@ public final class MlIndexAndAlias {
                     // Adding an alias that already exists is idempotent. So, no need to double check if the alias exists
                     // as well.
                     if (ExceptionsHelper.unwrapCause(createIndexFailure) instanceof ResourceAlreadyExistsException) {
-                        updateWriteAlias(client, alias, null, index, listener);
+                        updateWriteAlias(client, alias, null, index, isHiddenAttributeAvailable, listener);
                     } else {
                         listener.onFailure(createIndexFailure);
                     }
@@ -161,11 +173,13 @@ public final class MlIndexAndAlias {
                                          String alias,
                                          @Nullable String currentIndex,
                                          String newIndex,
+                                         boolean isHiddenAttributeAvailable,
                                          ActionListener<Boolean> listener) {
-        IndicesAliasesRequestBuilder requestBuilder = client.admin()
-            .indices()
-            .prepareAliases()
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias).isHidden(true));
+        IndicesAliasesRequest.AliasActions addNewAliasAction = IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias);
+        if (isHiddenAttributeAvailable) {
+            addNewAliasAction.isHidden(true);
+        }
+        IndicesAliasesRequestBuilder requestBuilder = client.admin().indices().prepareAliases().addAliasAction(addNewAliasAction);
         if (currentIndex != null) {
             requestBuilder.removeAlias(currentIndex, alias);
         }

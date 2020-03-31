@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -29,6 +30,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -123,6 +125,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private JobResultsProvider jobResultsProvider;
     private JobResultsPersister jobResultsPersister;
     private JobDataCountsPersister jobDataCountsPersister;
+    private AnnotationPersister annotationPersister;
     private AutodetectCommunicator autodetectCommunicator;
     private AutodetectProcessFactory autodetectFactory;
     private NormalizerFactory normalizerFactory;
@@ -153,6 +156,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobResultsPersister = mock(JobResultsPersister.class);
         when(jobResultsPersister.bulkPersisterBuilder(any(), any())).thenReturn(mock(JobResultsPersister.Builder.class));
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
+        annotationPersister = mock(AnnotationPersister.class);
         autodetectCommunicator = mock(AutodetectCommunicator.class);
         autodetectFactory = mock(AutodetectProcessFactory.class);
         normalizerFactory = mock(NormalizerFactory.class);
@@ -178,9 +182,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                         .build())
                 .build())
             .build();
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(nodes.getMinNodeVersion()).thenReturn(JobResultsProvider.HIDDEN_INTRODUCED_VERSION);
         clusterState = mock(ClusterState.class);
         when(clusterState.getMetaData()).thenReturn(metaData);
         when(clusterState.metaData()).thenReturn(metaData);
+        when(clusterState.nodes()).thenReturn(nodes);
         nativeStorageProvider = mock(NativeStorageProvider.class);
 
         doAnswer(invocationOnMock -> {
@@ -706,7 +713,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private AutodetectProcessManager createManager(Settings settings) {
         return new AutodetectProcessManager(environment, settings,
             client, threadPool, new NamedXContentRegistry(Collections.emptyList()), auditor, clusterService, jobManager, jobResultsProvider,
-            jobResultsPersister, jobDataCountsPersister, autodetectFactory, normalizerFactory, nativeStorageProvider,
+            jobResultsPersister, jobDataCountsPersister, annotationPersister, autodetectFactory, normalizerFactory, nativeStorageProvider,
             new IndexNameExpressionResolver());
     }
     private AutodetectProcessManager createSpyManagerAndCallProcessData(String jobId) {

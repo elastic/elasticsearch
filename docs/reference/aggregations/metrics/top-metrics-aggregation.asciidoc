@@ -65,8 +65,8 @@ request. So,
 
 ==== `metrics`
 
-`metrics` selects the fields to of the "top" document to return. You can return
-a request a single metric with something like `"metric": {"field": "m"}` or multiple
+`metrics` selects the fields of the "top" document to return. You can request
+a single metric with something like `"metric": {"field": "m"}` or multiple
 metrics by requesting a list of metrics like `"metric": [{"field": "m"}, {"field": "i"}`.
 Here is a more complete example:
 

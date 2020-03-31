@@ -576,6 +576,11 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
     protected TopHitsAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subfactoriesBuilder)
             throws IOException {
         long innerResultWindow = from() + size();

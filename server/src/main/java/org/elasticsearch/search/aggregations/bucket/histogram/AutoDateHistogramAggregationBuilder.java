@@ -113,20 +113,6 @@ public class AutoDateHistogramAggregationBuilder
 
     private String minimumIntervalExpression;
 
-    public String getMinimumIntervalExpression() {
-        return minimumIntervalExpression;
-    }
-
-    public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
-        if (minimumIntervalExpression != null && !ALLOWED_INTERVALS.containsValue(minimumIntervalExpression)) {
-            throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
-                " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]");
-        }
-        this.minimumIntervalExpression = minimumIntervalExpression;
-        return this;
-    }
-
-
     /** Create a new builder with the given name. */
     public AutoDateHistogramAggregationBuilder(String name) {
         super(name, CoreValuesSourceType.NUMERIC, ValueType.DATE);
@@ -138,6 +124,14 @@ public class AutoDateHistogramAggregationBuilder
         numBuckets = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             minimumIntervalExpression = in.readOptionalString();
+        }
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeVInt(numBuckets);
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            out.writeOptionalString(minimumIntervalExpression);
         }
     }
 
@@ -154,16 +148,21 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(numBuckets);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeOptionalString(minimumIntervalExpression);
-        }
-    }
-
-    @Override
     public String getType() {
         return NAME;
+    }
+
+    public String getMinimumIntervalExpression() {
+        return minimumIntervalExpression;
+    }
+
+    public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
+        if (minimumIntervalExpression != null && !ALLOWED_INTERVALS.containsValue(minimumIntervalExpression)) {
+            throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
+                " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]");
+        }
+        this.minimumIntervalExpression = minimumIntervalExpression;
+        return this;
     }
 
     public AutoDateHistogramAggregationBuilder setNumBuckets(int numBuckets) {
@@ -179,8 +178,13 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
-                                                                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         RoundingInfo[] roundings = buildRoundings(timeZone(), getMinimumIntervalExpression());
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
             .map(rounding -> rounding.innerIntervals)
@@ -257,7 +261,17 @@ public class AutoDateHistogramAggregationBuilder
             roughEstimateDurationMillis = in.readVLong();
             innerIntervals = in.readIntArray();
             unitAbbreviation = in.readString();
-            dateTimeUnit = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                dateTimeUnit = in.readString();
+            } else {
+                /*
+                 * This *should* be safe because we only deserialize RoundingInfo
+                 * when reading result and results don't actually use this at all.
+                 * We just set it to something non-null to line up with the normal
+                 * ctor. "seconds" is the smallest unit anyway.
+                 */
+                dateTimeUnit =  "second";
+            }
         }
 
         @Override
@@ -266,7 +280,9 @@ public class AutoDateHistogramAggregationBuilder
             out.writeVLong(roughEstimateDurationMillis);
             out.writeIntArray(innerIntervals);
             out.writeString(unitAbbreviation);
-            out.writeString(dateTimeUnit);
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeString(dateTimeUnit);
+            }
         }
 
         public int getMaximumInnerInterval() {

@@ -24,10 +24,11 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.FuncRefNode;
+import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.ir.ReturnNode;
+import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -84,11 +85,27 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
             ref = null;
             output.actual = String.class;
             defPointer = "Sthis." + name + ",0";
+
+            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
+
+            defInterfaceReferenceNode.setLocation(location);
+            defInterfaceReferenceNode.setExpressionType(output.actual);
+            defInterfaceReferenceNode.setDefReferenceEncoding(defPointer);
+
+            output.expressionNode = defInterfaceReferenceNode;
         } else {
             defPointer = null;
             ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
                     location, input.expected, "this", name, 0);
             output.actual = input.expected;
+
+            TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
+
+            typedInterfaceReferenceNode.setLocation(location);
+            typedInterfaceReferenceNode.setExpressionType(output.actual);
+            typedInterfaceReferenceNode.setReference(ref);
+
+            output.expressionNode = typedInterfaceReferenceNode;
         }
 
         VariableNode variableNode = new VariableNode();
@@ -124,14 +141,6 @@ public class ENewArrayFunctionRef extends AExpression implements ILambda {
         functionNode.setBlockNode(blockNode);
 
         classNode.addFunctionNode(functionNode);
-
-        FuncRefNode funcRefNode = new FuncRefNode();
-
-        funcRefNode.setLocation(location);
-        funcRefNode.setExpressionType(output.actual);
-        funcRefNode.setFuncRef(ref);
-
-        output.expressionNode = funcRefNode;
 
         return output;
     }

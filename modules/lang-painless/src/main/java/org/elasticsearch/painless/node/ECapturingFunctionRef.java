@@ -23,8 +23,10 @@ import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Scope.Variable;
-import org.elasticsearch.painless.ir.CapturingFuncRefNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
+import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
+import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -77,26 +79,40 @@ public class ECapturingFunctionRef extends AExpression implements ILambda {
                 defPointer = "S" + captured.getCanonicalTypeName() + "." + call + ",1";
             }
             output.actual = String.class;
+
+            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
+
+            defInterfaceReferenceNode.setLocation(location);
+            defInterfaceReferenceNode.setExpressionType(output.actual);
+            defInterfaceReferenceNode.addCapture(captured.getName());
+            defInterfaceReferenceNode.setDefReferenceEncoding(defPointer);
+
+            output.expressionNode = defInterfaceReferenceNode;
         } else {
             defPointer = null;
+            output.actual = input.expected;
             // static case
             if (captured.getType() != def.class) {
                 ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location,
                         input.expected, captured.getCanonicalTypeName(), call, 1);
+
+                TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
+                typedInterfaceReferenceNode.setLocation(location);
+                typedInterfaceReferenceNode.setExpressionType(output.actual);
+                typedInterfaceReferenceNode.addCapture(captured.getName());
+                typedInterfaceReferenceNode.setReference(ref);
+
+                output.expressionNode = typedInterfaceReferenceNode;
+            } else {
+                TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode();
+                typedCaptureReferenceNode.setLocation(location);
+                typedCaptureReferenceNode.setExpressionType(output.actual);
+                typedCaptureReferenceNode.addCapture(captured.getName());
+                typedCaptureReferenceNode.setMethodName(call);
+
+                output.expressionNode = typedCaptureReferenceNode;
             }
-            output.actual = input.expected;
         }
-
-        CapturingFuncRefNode capturingFuncRefNode = new CapturingFuncRefNode();
-
-        capturingFuncRefNode.setLocation(location);
-        capturingFuncRefNode.setExpressionType(output.actual);
-        capturingFuncRefNode.setCapturedName(captured.getName());
-        capturingFuncRefNode.setName(call);
-        capturingFuncRefNode.setPointer(defPointer);
-        capturingFuncRefNode.setFuncRef(ref);
-
-        output.expressionNode = capturingFuncRefNode;
 
         return output;
     }

@@ -23,7 +23,8 @@ import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.FuncRefNode;
+import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
+import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Collections;
@@ -68,20 +69,27 @@ public class EFunctionRef extends AExpression implements ILambda {
             ref = null;
             output.actual = String.class;
             defPointer = "S" + type + "." + call + ",0";
+
+            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
+
+            defInterfaceReferenceNode.setLocation(location);
+            defInterfaceReferenceNode.setExpressionType(output.actual);
+            defInterfaceReferenceNode.setDefReferenceEncoding(defPointer);
+
+            output.expressionNode = defInterfaceReferenceNode;
         } else {
             defPointer = null;
             ref = FunctionRef.create(
                     scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location, input.expected, type, call, 0);
             output.actual = input.expected;
+
+            TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
+            typedInterfaceReferenceNode.setLocation(location);
+            typedInterfaceReferenceNode.setExpressionType(output.actual);
+            typedInterfaceReferenceNode.setReference(ref);
+
+            output.expressionNode = typedInterfaceReferenceNode;
         }
-
-        FuncRefNode funcRefNode = new FuncRefNode();
-
-        funcRefNode.setLocation(location);
-        funcRefNode.setExpressionType(output.actual);
-        funcRefNode.setFuncRef(ref);
-
-        output.expressionNode = funcRefNode;
 
         return output;
     }

@@ -1864,7 +1864,7 @@ public class RestHighLevelClient implements Closeable {
                     responseException.getMessage(), restStatus, responseException);
         } else {
             try {
-                elasticsearchException = parseEntity(response.getEntity(), BytesRestResponse::errorFromXContent);
+                elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
                 elasticsearchException.addSuppressed(responseException);
             } catch (Exception e) {
                 elasticsearchException = new ElasticsearchStatusException("Unable to parse response body", restStatus, responseException);

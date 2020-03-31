@@ -14,5 +14,8 @@ Aggregations::
 Mapping::
 * Dynamic mappings in indices created on 8.0 and later have stricter validation at mapping update time.
   (e.g. incorrect analyzer settings or unknown field types). {pull}51233[#51233]
+* A "lowercase" normalizer now ships pre-defined in core for use in index mappings. Custom normalizers of the same name can still
+  be declared in index settings and used but it is cleaner to use the core one or use a name other than "lowercase"
+  if a custom normalizer is required. {pull}53882[#53882]
 
 coming[8.0.0]

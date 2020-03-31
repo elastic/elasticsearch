@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.MockLowerCaseFilter;
 import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -51,7 +52,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
@@ -60,12 +60,14 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     /**
-     * Creates a copy of the lowercase token filter which we use for testing merge errors.
+     * Creates a copy of the lowercase token filter which we use for testing merge errors
+     * and makes a reverse filter available for use in testNameClashNormalizer test
      */
     public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
         @Override
         public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
-            return singletonList(PreConfiguredTokenFilter.singleton("mock_other_lowercase", true, MockLowerCaseFilter::new));
+            return Arrays.asList(PreConfiguredTokenFilter.singleton("mock_other_lowercase", true, MockLowerCaseFilter::new), 
+                        PreConfiguredTokenFilter.singleton("mock_reverse", true, ReverseStringFilter::new));
         }
 
         @Override
@@ -389,6 +391,54 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
+    
+    // Test that a name clash with a custom normalizer will favour the index's normalizer rather than the out-of-the-box 
+    // one of the same name. (However this "feature" will be removed with https://github.com/elastic/elasticsearch/issues/22263 ) 
+    public void testNameClashNormalizer() throws IOException {
+        IndexService overriddenindexService = createIndex("nameclashtest", Settings.builder()
+                // Deliberately bad choice of normalizer name for the job it does.
+                .put("index.analysis.normalizer.lowercase.type", "custom")
+                .putList("index.analysis.normalizer.lowercase.filter", "mock_reverse").build());
+        
+        DocumentMapperParser overriddenParser = overriddenindexService.mapperService().documentMapperParser();    
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "keyword").field("normalizer", "lowercase").endObject().endObject()
+                .endObject().endObject());
+
+        DocumentMapper mapper = overriddenParser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(new SourceToParse("nameclashtest", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "AbC")
+                        .endObject()),
+                XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+
+        // Despite now having an out-of-the-box global normalizer called "lowercase" this test should have 
+        // picked the index-local normalizer definition which actually reverses strings
+        assertEquals(new BytesRef("CbA"), fields[0].binaryValue());
+        IndexableFieldType fieldType = fields[0].fieldType();
+        assertThat(fieldType.omitNorms(), equalTo(true));
+        assertFalse(fieldType.tokenized());
+        assertFalse(fieldType.stored());
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+
+        assertEquals(new BytesRef("CbA"), fields[1].binaryValue());
+        fieldType = fields[1].fieldType();
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
+        assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+    }    
 
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()

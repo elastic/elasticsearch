@@ -15,7 +15,7 @@ experimental::[]
 [[eql-fn-startswith]]
 === `startsWith`
 
-Returns `true` if a specified source string begins with a provided substring.
+Returns `true` if a source string begins with a provided substring.
 
 [%collapsible]
 ====

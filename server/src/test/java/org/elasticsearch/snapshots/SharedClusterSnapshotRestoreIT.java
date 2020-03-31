@@ -50,9 +50,9 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -112,8 +112,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
@@ -276,7 +276,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
 
         assertNull(client.admin().indices().prepareGetSettings("test-idx-1").get().getSetting("test-idx-1",
-            MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()));
+            MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()));
 
         for (ShardStats shardStats: client().admin().indices().prepareStats(indicesToSnapshot).clear().get().getShards()) {
             String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
@@ -298,11 +298,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertHitCount(client.prepareSearch("test-idx-1").setSize(0).get(), 100L);
         }
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
-        assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
+        assertThat(clusterState.getMetadata().hasIndex("test-idx-1"), equalTo(true));
+        assertThat(clusterState.getMetadata().hasIndex("test-idx-2"), equalTo(false));
 
         assertNull(client.admin().indices().prepareGetSettings("test-idx-1").get().getSetting("test-idx-1",
-            MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()));
+            MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()));
 
         for (ShardStats shardStats: client().admin().indices().prepareStats(indicesToSnapshot).clear().get().getShards()) {
             String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
@@ -365,9 +365,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test");
         String originalIndexUUID = client().admin().indices().prepareGetSettings("test").get()
-            .getSetting("test", IndexMetaData.SETTING_INDEX_UUID);
+            .getSetting("test", IndexMetadata.SETTING_INDEX_UUID);
         assertTrue(originalIndexUUID, originalIndexUUID != null);
-        assertFalse(originalIndexUUID, originalIndexUUID.equals(IndexMetaData.INDEX_UUID_NA_VALUE));
+        assertFalse(originalIndexUUID, originalIndexUUID.equals(IndexMetadata.INDEX_UUID_NA_VALUE));
         ensureGreen();
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true).setIndices("test").get();
@@ -381,9 +381,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .put(SETTING_NUMBER_OF_SHARDS, numShards.numPrimaries)));
         ensureGreen();
         String newIndexUUID = client().admin().indices().prepareGetSettings("test").get()
-            .getSetting("test", IndexMetaData.SETTING_INDEX_UUID);
+            .getSetting("test", IndexMetadata.SETTING_INDEX_UUID);
         assertTrue(newIndexUUID, newIndexUUID != null);
-        assertFalse(newIndexUUID, newIndexUUID.equals(IndexMetaData.INDEX_UUID_NA_VALUE));
+        assertFalse(newIndexUUID, newIndexUUID.equals(IndexMetadata.INDEX_UUID_NA_VALUE));
         assertFalse(newIndexUUID, newIndexUUID.equals(originalIndexUUID));
         logger.info("--> close index");
         client.admin().indices().prepareClose("test").get();
@@ -395,7 +395,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         ensureGreen();
         String newAfterRestoreIndexUUID = client().admin().indices().prepareGetSettings("test").get()
-            .getSetting("test", IndexMetaData.SETTING_INDEX_UUID);
+            .getSetting("test", IndexMetadata.SETTING_INDEX_UUID);
         assertTrue("UUID has changed after restore: " + newIndexUUID + " vs. " + newAfterRestoreIndexUUID,
             newIndexUUID.equals(newAfterRestoreIndexUUID));
 
@@ -405,7 +405,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         String copyRestoreUUID = client().admin().indices().prepareGetSettings("test-copy").get()
-            .getSetting("test-copy", IndexMetaData.SETTING_INDEX_UUID);
+            .getSetting("test-copy", IndexMetadata.SETTING_INDEX_UUID);
         assertFalse("UUID has been reused on restore: " + copyRestoreUUID + " vs. " + originalIndexUUID,
             copyRestoreUUID.equals(originalIndexUUID));
     }
@@ -449,7 +449,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         logger.info("--> assert that old mapping is restored");
-        MappingMetaData mappings = client().admin().cluster().prepareState().get().getState().getMetaData()
+        MappingMetadata mappings = client().admin().cluster().prepareState().get().getState().getMetadata()
             .getIndices().get("test-idx").mapping();
         assertThat(mappings.sourceAsMap().toString(), containsString("baz"));
         assertThat(mappings.sourceAsMap().toString(), not(containsString("foo")));
@@ -1036,7 +1036,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final int maxRetries = randomIntBetween(1, 10);
 
         Settings createIndexSettings = Settings.builder().put(SETTING_ALLOCATION_MAX_RETRY.getKey(), maxRetries)
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).build();
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).build();
 
         Settings repositorySettings = Settings.builder()
                                                 .put("random", randomAlphaOfLength(10))
@@ -1253,7 +1253,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("location", randomRepoPath())));
 
         logger.info("-->  creating index that cannot be allocated");
-        prepareCreate("test-idx", 2, Settings.builder().put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag", "nowhere")
+        prepareCreate("test-idx", 2, Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "tag", "nowhere")
             .put("index.number_of_shards", 3)).setWaitForActiveShards(ActiveShardCount.NONE).get();
 
         logger.info("--> snapshot");
@@ -1682,7 +1682,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  closing index test-idx-closed");
         assertAcked(client.admin().indices().prepareClose("test-idx-closed"));
         ClusterStateResponse stateResponse = client.admin().cluster().prepareState().get();
-        assertThat(stateResponse.getState().metaData().index("test-idx-closed").getState(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().metadata().index("test-idx-closed").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), notNullValue());
 
         logger.info("--> snapshot");
@@ -2264,7 +2264,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         // only one shard
         final Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build();
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
         assertAcked(prepareCreate("test").setSettings(indexSettings));
         ensureGreen();
         logger.info("-->  indexing");
@@ -2397,7 +2397,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> try restoring while changing the number of replicas to a negative number - should fail");
         Settings newIncorrectReplicasIndexSettings = Settings.builder()
             .put(newIndexSettings)
-            .put(SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
+            .put(SETTING_NUMBER_OF_REPLICAS.substring(IndexMetadata.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
             .build();
         assertRequestBuilderThrows(client.admin().cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
@@ -2464,7 +2464,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         try {
             List<String> initialBlockSettings = randomSubsetOf(randomInt(3),
-                    IndexMetaData.SETTING_BLOCKS_WRITE, IndexMetaData.SETTING_BLOCKS_METADATA, IndexMetaData.SETTING_READ_ONLY);
+                    IndexMetadata.SETTING_BLOCKS_WRITE, IndexMetadata.SETTING_BLOCKS_METADATA, IndexMetadata.SETTING_READ_ONLY);
             Settings.Builder initialSettingsBuilder = Settings.builder();
             for (String blockSetting : initialBlockSettings) {
                 initialSettingsBuilder.put(blockSetting, true);
@@ -2485,16 +2485,16 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
             logger.info("--> remove blocks and delete index");
-            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_METADATA);
-            disableIndexBlock("test-idx", IndexMetaData.SETTING_READ_ONLY);
-            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_WRITE);
-            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_READ);
+            disableIndexBlock("test-idx", IndexMetadata.SETTING_BLOCKS_METADATA);
+            disableIndexBlock("test-idx", IndexMetadata.SETTING_READ_ONLY);
+            disableIndexBlock("test-idx", IndexMetadata.SETTING_BLOCKS_WRITE);
+            disableIndexBlock("test-idx", IndexMetadata.SETTING_BLOCKS_READ);
             cluster().wipeIndices("test-idx");
 
             logger.info("--> restore index with additional block changes");
             List<String> changeBlockSettings = randomSubsetOf(randomInt(4),
-                    IndexMetaData.SETTING_BLOCKS_METADATA, IndexMetaData.SETTING_BLOCKS_WRITE,
-                    IndexMetaData.SETTING_READ_ONLY, IndexMetaData.SETTING_BLOCKS_READ);
+                    IndexMetadata.SETTING_BLOCKS_METADATA, IndexMetadata.SETTING_BLOCKS_WRITE,
+                    IndexMetadata.SETTING_READ_ONLY, IndexMetadata.SETTING_BLOCKS_READ);
             Settings.Builder changedSettingsBuilder = Settings.builder();
             for (String blockSetting : changeBlockSettings) {
                 changedSettingsBuilder.put(blockSetting, randomBoolean());
@@ -2517,20 +2517,20 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             logger.info("--> merged block settings {}", mergedSettings);
 
             logger.info("--> checking consistency between settings and blocks");
-            assertThat(mergedSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_METADATA, false),
-                    is(blocks.hasIndexBlock("test-idx", IndexMetaData.INDEX_METADATA_BLOCK)));
-            assertThat(mergedSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_READ, false),
-                    is(blocks.hasIndexBlock("test-idx", IndexMetaData.INDEX_READ_BLOCK)));
-            assertThat(mergedSettings.getAsBoolean(IndexMetaData.SETTING_BLOCKS_WRITE, false),
-                    is(blocks.hasIndexBlock("test-idx", IndexMetaData.INDEX_WRITE_BLOCK)));
-            assertThat(mergedSettings.getAsBoolean(IndexMetaData.SETTING_READ_ONLY, false),
-                    is(blocks.hasIndexBlock("test-idx", IndexMetaData.INDEX_READ_ONLY_BLOCK)));
+            assertThat(mergedSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_METADATA, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_METADATA_BLOCK)));
+            assertThat(mergedSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_READ_BLOCK)));
+            assertThat(mergedSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_WRITE, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_WRITE_BLOCK)));
+            assertThat(mergedSettings.getAsBoolean(IndexMetadata.SETTING_READ_ONLY, false),
+                    is(blocks.hasIndexBlock("test-idx", IndexMetadata.INDEX_READ_ONLY_BLOCK)));
         } finally {
             logger.info("--> cleaning up blocks");
-            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_METADATA);
-            disableIndexBlock("test-idx", IndexMetaData.SETTING_READ_ONLY);
-            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_WRITE);
-            disableIndexBlock("test-idx", IndexMetaData.SETTING_BLOCKS_READ);
+            disableIndexBlock("test-idx", IndexMetadata.SETTING_BLOCKS_METADATA);
+            disableIndexBlock("test-idx", IndexMetadata.SETTING_READ_ONLY);
+            disableIndexBlock("test-idx", IndexMetadata.SETTING_BLOCKS_WRITE);
+            disableIndexBlock("test-idx", IndexMetadata.SETTING_BLOCKS_READ);
         }
     }
 
@@ -3731,11 +3731,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
         }
 
-        final IndexMetaData indexMetaData = client().admin().cluster().prepareState().clear().setIndices(indexName)
-            .setMetaData(true).get().getState().metaData().index(indexName);
+        final IndexMetadata indexMetadata = client().admin().cluster().prepareState().clear().setIndices(indexName)
+            .setMetadata(true).get().getState().metadata().index(indexName);
         final int numPrimaries = getNumShards(indexName).numPrimaries;
         final Map<Integer, Long> primaryTerms = IntStream.range(0, numPrimaries)
-            .boxed().collect(Collectors.toMap(shardId -> shardId, indexMetaData::primaryTerm));
+            .boxed().collect(Collectors.toMap(shardId -> shardId, indexMetadata::primaryTerm));
 
         assertAcked(client().admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(randomRepoSettings()));
         final CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -3750,10 +3750,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(numPrimaries));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        final IndexMetaData restoredIndexMetaData = client().admin().cluster().prepareState().clear().setIndices(indexName)
-            .setMetaData(true).get().getState().metaData().index(indexName);
+        final IndexMetadata restoredIndexMetadata = client().admin().cluster().prepareState().clear().setIndices(indexName)
+            .setMetadata(true).get().getState().metadata().index(indexName);
         for (int shardId = 0; shardId < numPrimaries; shardId++) {
-            assertThat(restoredIndexMetaData.primaryTerm(shardId), greaterThan(primaryTerms.get(shardId)));
+            assertThat(restoredIndexMetadata.primaryTerm(shardId), greaterThan(primaryTerms.get(shardId)));
         }
     }
 

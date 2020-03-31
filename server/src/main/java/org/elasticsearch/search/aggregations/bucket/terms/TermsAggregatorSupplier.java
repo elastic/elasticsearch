@@ -47,5 +47,5 @@ interface TermsAggregatorSupplier extends AggregatorSupplier {
                      Aggregator.SubAggCollectionMode subAggCollectMode,
                      boolean showTermDocCountError,
                      List<PipelineAggregator> pipelineAggregators,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

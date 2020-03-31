@@ -57,9 +57,9 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter,
             SearchContext context, Aggregator parent, double sigma, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData)
+            Map<String, Object> metadata)
             throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         this.format = formatter;
         this.sigma = sigma;
@@ -205,13 +205,13 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         }
         return new InternalExtendedStats(name, counts.get(bucket), sums.get(bucket),
                 mins.get(bucket), maxes.get(bucket), sumOfSqrs.get(bucket), sigma, format,
-                pipelineAggregators(), metaData());
+                pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d,
-            sigma, format, pipelineAggregators(), metaData());
+            sigma, format, pipelineAggregators(), metadata());
     }
 
     @Override

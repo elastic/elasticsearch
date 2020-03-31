@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  */
 public class Autoscaling extends Plugin implements ActionPlugin {
 
-    private static final boolean AUTOSCALING_FEATURE_FLAG_REGISTERED;
+    private static final Boolean AUTOSCALING_FEATURE_FLAG_REGISTERED;
 
     static {
         final String property = System.getProperty("es.autoscaling_feature_flag_registered");
@@ -41,8 +41,10 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         }
         if ("true".equals(property)) {
             AUTOSCALING_FEATURE_FLAG_REGISTERED = true;
-        } else if ("false".equals(property) || property == null) {
+        } else if ("false".equals(property)) {
             AUTOSCALING_FEATURE_FLAG_REGISTERED = false;
+        } else if (property == null) {
+            AUTOSCALING_FEATURE_FLAG_REGISTERED = null;
         } else {
             throw new IllegalArgumentException(
                 "expected es.autoscaling_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
@@ -69,7 +71,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        if (isSnapshot() || AUTOSCALING_FEATURE_FLAG_REGISTERED) {
+        if (isSnapshot() || (AUTOSCALING_FEATURE_FLAG_REGISTERED != null && AUTOSCALING_FEATURE_FLAG_REGISTERED)) {
             return List.of(AUTOSCALING_ENABLED_SETTING);
         } else {
             return List.of();

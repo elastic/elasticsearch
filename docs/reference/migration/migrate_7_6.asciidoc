@@ -45,6 +45,7 @@ To create derived keys with no privileges, specify an empty object in the
 }
 ...
 ----
+// NOTCONSOLE
 
 //end::notable-breaking-changes[]
 

@@ -80,7 +80,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final CacheService cacheService;
     private final boolean useCache;
     private final Set<String> excludedFileTypes;
-    private final long uncachedChunkSize; // if <0 use BlobContainer#readBlobPreferredLength
+    private final long uncachedChunkSize; // if negative use BlobContainer#readBlobPreferredLength, see #getUncachedChunkSize()
     private final Path cacheDir;
     private final AtomicBoolean closed;
 

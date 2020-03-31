@@ -30,6 +30,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -191,10 +192,16 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         }
 
         public Entry(StreamInput in) throws IOException {
-            final Snapshot snapshot = new Snapshot(in);
-            this.snapshotIds = Collections.singletonList(snapshot.getSnapshotId());
-            this.repo = snapshot.getRepository();
-            this.pattern = snapshot.getSnapshotId().getName();
+            if (in.getVersion().onOrAfter(SnapshotsService.TWO_STEP_DELETE_VERSION)) {
+                this.repo = in.readString();
+                this.pattern = in.readString();
+                this. snapshotIds = in.readList(SnapshotId::new);
+            } else {
+                final Snapshot snapshot = new Snapshot(in);
+                this.snapshotIds = Collections.singletonList(snapshot.getSnapshotId());
+                this.repo = snapshot.getRepository();
+                this.pattern = snapshot.getSnapshotId().getName();
+            }
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
         }
@@ -246,7 +253,13 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            new Snapshot(repo, snapshotIds.get(0)).writeTo(out);
+            if (out.getVersion().onOrAfter(SnapshotsService.TWO_STEP_DELETE_VERSION)) {
+                out.writeString(repo);
+                out.writeString(pattern);
+                out.writeList(snapshotIds);
+            } else {
+                new Snapshot(repo, snapshotIds.get(0)).writeTo(out);
+            }
             out.writeVLong(startTime);
             out.writeLong(repositoryStateId);
         }

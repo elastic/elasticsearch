@@ -444,32 +444,46 @@ end::data-description[]
 tag::data-frame-analytics[]
 An array of {dfanalytics-job} resources, which are sorted by the `id` value in 
 ascending order.
-
++
+.Properties of {dfanalytics-job} resources
+[%collapsible%open]
+====
 `analysis`:::
 (object) The type of analysis that is performed on the `source`.
 
+//Begin analyzed_fields
 `analyzed_fields`:::
 (object) Contains `includes` and/or `excludes` patterns that select which fields 
 are included in the analysis.
-
-`analyzed_fields`.`excludes`:::
++
+.Properties of `analyzed_fields`
+[%collapsible%open]
+=====
+`excludes`:::
 (Optional, array) An array of strings that defines the fields that are excluded 
 from the analysis.
     
-`analyzed_fields`.`includes`:::
+`includes`:::
 (Optional, array) An array of strings that defines the fields that are included 
 in the analysis.
-
+=====
+//End analyzed_fields
+//Begin dest
 `dest`:::
 (string) The destination configuration of the analysis.
-
-`dest`.`index`:::
++
+.Properties of `dest`
+[%collapsible%open]
+=====
+`index`:::
 (string) The _destination index_ that stores the results of the 
 {dfanalytics-job}.
 
-`dest`.`results_field`:::
+`results_field`:::
 (string) The name of the field that stores the results of the analysis. Defaults 
 to `ml`.
+=====
+//End dest
 
 `id`:::
 (string) The unique identifier of the {dfanalytics-job}.
@@ -480,29 +494,40 @@ to `ml`.
 `source`:::
 (object) The configuration of how the analysis data is sourced. It has an 
 `index` parameter and optionally a `query` and a `_source`.
-  
-`source`.`index`:::
++
+.Properties of `source`
+[%collapsible%open]
+=====
+`index`:::
 (array) Index or indices on which to perform the analysis. It can be a single 
 index or index pattern as well as an array of indices or patterns.
     
-`source`.`query`:::
+`query`:::
 (object) The query that has been specified for the {dfanalytics-job}. The {es} 
 query domain-specific language (<<query-dsl,DSL>>). This value corresponds to 
 the query object in an {es} search POST body. By default, this property has the 
 following value: `{"match_all": {}}`.
 
-`source`.`_source`:::
+`_source`:::
 (object) Contains the specified `includes` and/or `excludes` patterns that 
 select which fields are present in the destination. Fields that are excluded 
 cannot be included in the analysis.
-
-`source`.`_source`.`excludes`:::
++
+.Properties of `_source`
+[%collapsible%open]
+======
+`excludes`:::
 (array) An array of strings that defines the fields that are excluded from the 
 destination.
         
-`source`.`_source`.`includes`:::
+`includes`:::
 (array) An array of strings that defines the fields that are included in the 
 destination.
+======
+//End of _source
+=====
+//End source
+====
 end::data-frame-analytics[]
 
 tag::data-frame-analytics-stats[]
@@ -971,16 +996,20 @@ A description of the job.
 end::description-dfa[]
 
 tag::dest[]
-The destination configuration, consisting of `index` and 
-optionally `results_field` (`ml` by default).
-
-  `index`:::
-    (Required, string) Defines the _destination index_ to store the results of 
-    the {dfanalytics-job}.
+The destination configuration, consisting of `index` and optionally
+`results_field` (`ml` by default).
++
+.Properties of `dest`
+[%collapsible%open]
+====
+`index`:::
+(Required, string) Defines the _destination index_ to store the results of the
+{dfanalytics-job}.
   
-  `results_field`:::
-    (Optional, string) Defines the name of the field in which to store the 
-    results of the analysis. Default to `ml`.
+`results_field`:::
+(Optional, string) Defines the name of the field in which to store the results
+of the analysis. Defaults to `ml`.
+====
 end::dest[]
 
 tag::detector-description[]
@@ -1046,14 +1075,11 @@ end::feature-influence-threshold[]
 
 tag::field-selection[]
 An array of objects that explain selection for each field, sorted by 
-the field names. Each object in the array has the following properties:
-
-`name`:::
-(string) The field name.
-
-`mapping_types`:::
-(string) The mapping types of the field.
-
+the field names.
++
+.Properties of `field_selection` objects
+[%collapsible%open]
+====
 `is_included`:::
 (boolean) Whether the field is selected to be included in the analysis.
 
@@ -1064,8 +1090,15 @@ the field names. Each object in the array has the following properties:
 (string) The feature type of this field for the analysis. May be `categorical` 
 or `numerical`.
 
+`mapping_types`:::
+(string) The mapping types of the field.
+
+`name`:::
+(string) The field name.
+
 `reason`:::
 (string) The reason a field is not selected to be included in the analysis.
+====
 end::field-selection[]
 
 tag::filter[]
@@ -1293,18 +1326,21 @@ allowed to contain. The maximum value is 2000.
 end::max-trees[]
 
 tag::memory-estimation[]
-An object containing the memory estimates. The object has the 
-following properties:
-
-`expected_memory_without_disk`:::
-(string) Estimated memory usage under the assumption that the whole 
-{dfanalytics} should happen in memory (i.e. without overflowing to disk).
-
+An object containing the memory estimates.
++
+.Properties of `memory_estimation`
+[%collapsible%open]
+====
 `expected_memory_with_disk`:::
 (string) Estimated memory usage under the assumption that overflowing to disk is 
 allowed during {dfanalytics}. `expected_memory_with_disk` is usually smaller 
 than `expected_memory_without_disk` as using disk allows to limit the main 
 memory needed to perform {dfanalytics}.
+
+`expected_memory_without_disk`:::
+(string) Estimated memory usage under the assumption that the whole 
+{dfanalytics} should happen in memory (i.e. without overflowing to disk).
+====
 end::memory-estimation[]
 
 tag::method[]
@@ -1649,38 +1685,44 @@ Identifier for the model snapshot.
 end::snapshot-id[]
 
 tag::source-put-dfa[]
-The configuration of how to source the analysis data. It requires an 
-`index`. Optionally, `query` and `_source` may be specified.
-
-`index`:::
-  (Required, string or array) Index or indices on which to perform the 
-  analysis. It can be a single index or index pattern as well as an array of 
-  indices or patterns.
+The configuration of how to source the analysis data. It requires an `index`.
+Optionally, `query` and `_source` may be specified.
 +
---
+.Properties of `source`
+[%collapsible%open]
+====
+`index`:::
+(Required, string or array) Index or indices on which to perform the analysis.
+It can be a single index or index pattern as well as an array of indices or
+patterns.
++
 WARNING: If your source indices contain documents with the same IDs, only the 
 document that is indexed last appears in the destination index.
---
-  
+
 `query`:::
-  (Optional, object) The {es} query domain-specific language 
-  (<<query-dsl,DSL>>). This value corresponds to the query object in an {es} 
-  search POST body. All the options that are supported by {es} can be used, 
-  as this object is passed verbatim to {es}. By default, this property has 
-  the following value: `{"match_all": {}}`.
+(Optional, object) The {es} query domain-specific language (<<query-dsl,DSL>>).
+This value corresponds to the query object in an {es} search POST body. All the
+options that are supported by {es} can be used, as this object is passed
+verbatim to {es}. By default, this property has the following value:
+`{"match_all": {}}`.
 
 `_source`:::
-  (Optional, object) Specify `includes` and/or `excludes` patterns to select
-  which fields will be present in the destination. Fields that are excluded
-  cannot be included in the analysis.
-      
-    `includes`::::
-      (array) An array of strings that defines the fields that will be 
-      included in the destination.
+(Optional, object) Specify `includes` and/or `excludes` patterns to select which
+fields will be present in the destination. Fields that are excluded cannot be
+included in the analysis.
++
+.Properties of `_source`
+[%collapsible%open]
+=====
+`includes`::::
+(array) An array of strings that defines the fields that will be included in the
+destination.
         
-    `excludes`::::
-      (array) An array of strings that defines the fields that will be 
-      excluded from the destination.
+`excludes`::::
+(array) An array of strings that defines the fields that will be excluded from
+the destination.
+=====
+====
 end::source-put-dfa[]
 
 tag::sparse-bucket-count[]
@@ -1812,32 +1854,27 @@ end::total-partition-field-count[]
 tag::trained-model-configs[]
 An array of trained model resources, which are sorted by the `model_id` value in 
 ascending order.
-
-`model_id`:::
-(string)
-Idetifier for the trained model.
-
++
+.Properties of trained model resources
+[%collapsible%open]
+====
 `created_by`:::
 (string)
 Information on the creator of the trained model.
-
-`version`:::
-(string)
-The {es} version number in which the trained model was created.
 
 `create_time`:::
 (<<time-units,time units>>)
 The time when the trained model was created.
 
-`tags`:::
-(string)
-A comma delimited string of tags. A {infer} model can have many tags, or none.
-
-`metadata`:::
+`default_field_map` :::
 (object)
-An object containing metadata about the trained model. For example, models 
-created by {dfanalytics} contain an `analysis_config` and an `input`
-object.
+A string to string object that contains the default field map to use
+when inferring against the model. For example, data frame analytics
+may train the model on a specific multi-field `foo.keyword`.
+The analytics job would then supply a default field map entry for
+`"foo" : "foo.keyword"`.
++
+Any field map described in the inference configuration takes precedence.
 
 `estimated_heap_memory_usage_bytes`:::
 (integer)
@@ -1851,16 +1888,23 @@ The estimated number of operations to use the trained model.
 (string)
 The license level of the trained model.
 
-`default_field_map` :::
+`metadata`:::
 (object)
-A string to string object that contains the default field map to use
-when inferring against the model. For example, data frame analytics
-may train the model on a specific multi-field `foo.keyword`.
-The analytics job would then supply a default field map entry for
-`"foo" : "foo.keyword"`.
+An object containing metadata about the trained model. For example, models 
+created by {dfanalytics} contain `analysis_config` and `input` objects.
 
-Any field map described in the inference configuration takes precedence.
+`model_id`:::
+(string)
+Idetifier for the trained model.
 
+`tags`:::
+(string)
+A comma delimited string of tags. A {infer} model can have many tags, or none.
+
+`version`:::
+(string)
+The {es} version number in which the trained model was created.
+====
 end::trained-model-configs[]
 
 tag::training-percent[]

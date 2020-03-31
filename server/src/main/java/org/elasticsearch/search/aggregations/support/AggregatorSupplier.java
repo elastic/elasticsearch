@@ -18,5 +18,24 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+/**
+ * {@link AggregatorSupplier} serves as a marker for what the {@link ValuesSourceRegistry} holds to construct aggregator instances.
+ * The aggregators for each aggregation should all share a signature, and that signature should be used to create an AggregatorSupplier for
+ * that aggregation.  Alternatively, if an existing supplier has a matching signature, please re-use that.
+ *
+ * In many cases, this can be a simple wrapper over the aggregator constructor.  If that is sufficient, please consider the "typecast
+ * lambda" syntax:
+ *
+ * {@code
+ * (GeoCentroidAggregatorSupplier) (name, context, parent, valuesSource, pipelineAggregators, metaData) ->
+ *                 new GeoCentroidAggregator(name, context, parent, (ValuesSource.GeoPoint) valuesSource, pipelineAggregators, metaData));
+ * }
+ *
+ * The suppliers are responsible for any casting of {@link ValuesSource} that needs to happen.  They must accept a base {@link ValuesSource}
+ * instance.  The suppliers may perform additional logic to configure the aggregator as needed, such as in
+ * {@link org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory} deciding the execution mode.
+ *
+ * There is ongoing work to  normalize aggregator constructor signatures, and thus reduce the number of AggregatorSupplier interfaces.
+ */
 public interface AggregatorSupplier {
 }

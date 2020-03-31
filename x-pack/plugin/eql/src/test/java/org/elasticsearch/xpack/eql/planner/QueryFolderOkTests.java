@@ -95,7 +95,7 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
         PhysicalPlan p = plan(query);
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertEquals(25, eqe.output().size());
+        assertEquals(27, eqe.output().size());
         assertEquals(KEYWORD, eqe.output().get(0).dataType());
 
         final String query = eqe.queryContainer().toString().replaceAll("\\s+", "");

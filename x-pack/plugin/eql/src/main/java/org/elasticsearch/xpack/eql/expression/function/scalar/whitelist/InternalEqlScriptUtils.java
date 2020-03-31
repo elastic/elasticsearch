@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist;
 
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 
@@ -17,6 +18,10 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQ
 public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     InternalEqlScriptUtils() {}
+
+    public static Integer length(String s) {
+        return (Integer) LengthFunctionProcessor.doProcess(s);
+    }
 
     public static String substring(String s, Number start, Number end) {
         return (String) SubstringFunctionProcessor.doProcess(s, start, end);

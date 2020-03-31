@@ -939,7 +939,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
         final String dataStreamName = "my-data-stream";
-        final String conflictingIndex = dataStreamName + "-00001";
+        final String conflictingIndex = dataStreamName + "-000001";
         Metadata.Builder b = Metadata.builder()
             .put(IndexMetadata.builder(conflictingIndex)
                 .settings(settings(Version.CURRENT))

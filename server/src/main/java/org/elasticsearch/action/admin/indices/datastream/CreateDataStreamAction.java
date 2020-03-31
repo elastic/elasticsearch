@@ -177,11 +177,12 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
             MetadataCreateIndexService.validateIndexOrAliasName(request.name,
                 (s1, s2) -> new IllegalArgumentException("data_stream [" + s1 + "] " + s2));
 
-            String firstBackingIndexName = request.name + "-000000";
+            String firstBackingIndexName = request.name + "-000001";
             CreateIndexClusterStateUpdateRequest createIndexRequest =
                 new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName);
             currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
             IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
+            assert firstBackingIndex != null;
 
             Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(
                 new DataStream(request.name, request.timestampFieldName, List.of(firstBackingIndex.getIndex())));

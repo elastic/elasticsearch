@@ -252,42 +252,4 @@ public interface IndexAbstraction {
             return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
         }
     }
-
-    class DataStream implements IndexAbstraction {
-
-        private final org.elasticsearch.cluster.metadata.DataStream dataStream;
-        private final List<IndexMetaData> dataStreamIndices;
-        private final IndexMetaData writeIndex;
-
-        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream, List<IndexMetaData> dataStreamIndices,
-                          IndexMetaData writeIndex) {
-            this.dataStream = dataStream;
-            this.dataStreamIndices = dataStreamIndices;
-            this.writeIndex = writeIndex;
-        }
-
-        @Override
-        public String getName() {
-            return dataStream.getName();
-        }
-
-        @Override
-        public Type getType() {
-            return Type.DATA_STREAM;
-        }
-
-        @Override
-        public List<IndexMetaData> getIndices() {
-            return dataStreamIndices;
-        }
-
-        public IndexMetaData getWriteIndex() {
-            return writeIndex;
-        }
-
-        @Override
-        public boolean isHidden() {
-            return false;
-        }
-    }
 }

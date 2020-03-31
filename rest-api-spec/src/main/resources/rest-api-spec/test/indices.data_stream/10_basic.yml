@@ -40,7 +40,7 @@
         index: simple-data-stream1
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._index: simple-data-stream1-000000 }
+  - match: { hits.hits.0._index: simple-data-stream1-000001 }
   - match: { hits.hits.0._source.foo: 'bar' }
 
   - do:

@@ -28,22 +28,6 @@
   - length: { 1.indices: 1 }
 
   - do:
-      index:
-        index:  simple-data-stream1
-        body:   { foo: bar }
-
-  - do:
-      indices.refresh: {}
-
-  - do:
-      search:
-        index: simple-data-stream1
-        body: { query: { match_all: {} } }
-  - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._index: simple-data-stream1-000001 }
-  - match: { hits.hits.0._source.foo: 'bar' }
-
-  - do:
       indices.delete_data_stream:
         name: simple-data-stream1
   - is_true: acknowledged

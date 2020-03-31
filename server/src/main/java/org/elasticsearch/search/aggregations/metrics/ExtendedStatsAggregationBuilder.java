@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -48,6 +49,9 @@ public class ExtendedStatsAggregationBuilder
         PARSER.declareDouble(ExtendedStatsAggregationBuilder::sigma, ExtendedStatsAggregator.SIGMA_FIELD);
     }
 
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        ExtendedStatsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    }
     private double sigma = 2.0;
 
     public ExtendedStatsAggregationBuilder(String name) {

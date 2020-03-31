@@ -339,6 +339,15 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      */
     protected abstract ValuesSourceType defaultValueSourceType();
 
+    /**
+     * Aggregations should override this if they need non-standard logic for resolving where to get values from.  For example, join
+     * aggregations (like Parent and Child) ask the user to specify one side of the join and then look up the other field to read values
+     * from.
+     *
+     * The default implementation just uses the field and/or script the user provided.
+     *
+     * @return A {@link ValuesSourceConfig} configured based on the parsed field and/or script.
+     */
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         return ValuesSourceConfig.resolve(queryShardContext,
                 this.userValueTypeHint, field, script, missing, timeZone, format, this.defaultValueSourceType(), this.getType());

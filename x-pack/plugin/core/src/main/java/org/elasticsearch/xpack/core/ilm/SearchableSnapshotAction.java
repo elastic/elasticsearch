@@ -75,7 +75,6 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey generateSnapshotNameKey = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
         StepKey cleanSnapshotKey = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
         StepKey createSnapshotKey = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
-        StepKey waitForSnapshotInProgressKey = new StepKey(phase, NAME, WaitForSnapshotInProgressStep.NAME);
         StepKey verifySnapshotStatusBranchingKey = new StepKey(phase, NAME, OnAsyncWaitBranchingStep.NAME);
         StepKey mountSnapshotKey = new StepKey(phase, NAME, MountSnapshotStep.NAME);
         StepKey waitForGreenRestoredIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
@@ -88,9 +87,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(generateSnapshotNameKey, cleanSnapshotKey,
             snapshotRepository);
         CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
-        CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, waitForSnapshotInProgressKey, client);
-        WaitForSnapshotInProgressStep waitForSnapshotInProgressStep = new WaitForSnapshotInProgressStep(waitForSnapshotInProgressKey,
-            verifySnapshotStatusBranchingKey);
+        CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, verifySnapshotStatusBranchingKey, client);
         OnAsyncWaitBranchingStep onAsyncWaitBranchingStep = new OnAsyncWaitBranchingStep(verifySnapshotStatusBranchingKey,
             cleanSnapshotKey, mountSnapshotKey, client, getCheckSnapshotStatusAsyncAction());
         MountSnapshotStep mountSnapshotStep = new MountSnapshotStep(mountSnapshotKey, waitForGreenRestoredIndexKey,
@@ -109,8 +106,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
             null, client, RESTORED_INDEX_PREFIX);
 
         return Arrays.asList(waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep, createSnapshotStep,
-            waitForSnapshotInProgressStep, onAsyncWaitBranchingStep, mountSnapshotStep, waitForGreenIndexHealthStep,
-            copyMetadataStep, copySettingsStep, swapAliasesAndDeleteSourceIndexStep);
+            onAsyncWaitBranchingStep, mountSnapshotStep, waitForGreenIndexHealthStep, copyMetadataStep, copySettingsStep,
+            swapAliasesAndDeleteSourceIndexStep);
     }
 
     /**

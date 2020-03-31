@@ -298,6 +298,12 @@ public class VerifierTests extends ESTestCase {
                 error(idxr, "foo where ip_range_field == ''"));
     }
 
+    public void testMixedSet() {
+        final IndexResolution idxr = loadIndexResolution("mapping-numeric.json");
+        assertEquals("1:11: 2nd argument of [long_field in (1, 'string')] must be [long], found value ['string'] type [keyword]",
+            error(idxr, "foo where long_field in (1, 'string')"));
+    }
+
     public void testObject() {
         final IndexResolution idxr = loadIndexResolution("mapping-object.json");
         accept(idxr, "foo where endgame.pid == 0");

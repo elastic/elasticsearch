@@ -74,7 +74,10 @@ The description of the {transform}.
 (Default)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
-`document_total`, `dt`:::
+`documents_indexed`, `doci`:::
+include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
+
+`documents_processed`, `docp`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-processed]
 
 `frequency`, `f`:::
@@ -97,14 +100,11 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-total]
 `indexed_documents_exp_avg`, `idea`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
 
-`invocation_total`, `itotal`:::
-include::{docdir}/rest-api/common-parms.asciidoc[tag=trigger-count]
-
 `max_page_search_size`, `mpsz`:::
 (Default)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-max-page-search-size]
 
-`page_total`, `pt`:::
+`pages_processed`, `pp`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pages-processed]
 
 `pipeline`, `p`:::
@@ -113,6 +113,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 
 `processed_documents_exp_avg`, `pdea`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
+
+`processing_time`, `pt`:::
+The total time spent processing documents.
 
 `reason`, `r`:::
 include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform-reason]
@@ -137,6 +140,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform]
 `transform_type`, `tt`:::
 (Default)
 Indicates the type of {transform}: `batch` or `continuous`. 
+
+`trigger_count`, `tc`:::
+include::{docdir}/rest-api/common-parms.asciidoc[tag=trigger-count]
 
 `version`, `v`:::
 (Default)

@@ -31,6 +31,7 @@ import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.api.Action
@@ -585,6 +586,10 @@ class BuildPlugin implements Plugin<Project> {
 
         // Default test task should run only unit tests
         maybeConfigure(project.tasks, 'test', Test) { Test task ->
+            if (BuildParams.ci) {
+                // what happens if we force these at the end of the build?
+                task.shouldRunAfter(project.getTasks().withType(RestTestRunnerTask))
+            }
             task.include '**/*Tests.class'
         }
 

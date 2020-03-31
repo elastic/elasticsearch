@@ -168,7 +168,7 @@ class PluginBuildPlugin implements Plugin<Project> {
     /** Adds an integTest task which runs rest tests */
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.mustRunAfter('precommit', 'test')
+        integTest.mustRunAfter('precommit')
         project.check.dependsOn(integTest)
     }
 

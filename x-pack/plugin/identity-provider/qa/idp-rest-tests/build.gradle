@@ -24,6 +24,8 @@ testClusters.integTest {
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
 
+  setting 'logger.org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex', 'DEBUG'
+
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
   extraConfigFile 'idp-sign.crt', file('src/test/resources/idp-sign.crt')
   extraConfigFile 'idp-sign.key', file('src/test/resources/idp-sign.key')

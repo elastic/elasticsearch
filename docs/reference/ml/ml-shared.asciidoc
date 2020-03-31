@@ -550,8 +550,8 @@ The value of the eta hyperparameter.
 
 `eta_growth_rate_per_tree`::::
 (double)
-Specifies with what rate to increase `eta` for every new tree added to the 
-forest. The rate of 1.0 does not change `eta`, the rate of 1.05 increases `eta` 
+Specifies the rate at which the `eta` increases for each new tree that is added to the 
+forest. For example, a rate of `1.05` increases `eta` 
 by 5%.
 
 `feature_bag_fraction`::::
@@ -577,8 +577,8 @@ training stops.
 `max_optimization_rounds_per_hyperparameter`::::
 (integer)
 A multiplier responsible for determining the maximum number of 
-hyperparameter optimization steps in the bayesian optimization procedure. 
-Maximum number of steps is determined as the number of undefined hyperparameters 
+hyperparameter optimization steps in the Bayesian optimization procedure. 
+The maximum number of steps is determined based on the number of undefined hyperparameters 
 times the maximum optimization rounds per hyperparameter.
 
 `max_trees`::::
@@ -587,7 +587,7 @@ The maximum number of trees in the forest.
 
 `num_folds`::::
 (integer)
-Maximum number of folds for the cross-validation procedure.
+The maximum number of folds for the cross-validation procedure.
 
 `num_splits_per_feature`::::
 (integer)
@@ -732,7 +732,7 @@ An object containing statistical data about the {reganalysis}.
 //Begin reg_hyperparameters
 `hyperparameters`::::
 (object)
-An object containing the paramters of the {reganalysis}.
+An object containing the parameters of the {reganalysis}.
 +
 .Properties of `hyperparameters`
 [%collapsible%open]
@@ -751,7 +751,7 @@ The value of the eta hyperparameter.
 
 `eta_growth_rate_per_tree`::::
 (double)
-Specifies with what rate to increase `eta` for every new tree added to the 
+Specifies the rate at which the `eta` increases for every new tree that is added to the 
 forest. The rate of 1.0 does not change `eta`, the rate of 1.05 increases `eta` 
 by 5%.
 

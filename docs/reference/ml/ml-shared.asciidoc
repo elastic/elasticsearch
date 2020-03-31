@@ -636,13 +636,13 @@ end::dfas-soft-tolerance[]
 tag::dfas-iteration[]
 `iteration`::::
 (integer)
-The number of iterations on the {dfanalytics-job}.
+The number of iterations on the analysis.
 end::dfas-iteration[]
 
 tag::dfas-timestamp[]
 `timestamp`::::
 (date)
-The timestamp when the statistics returned in milliseconds since the epoch.
+The timestamp when the statistics were reported in milliseconds since the epoch.
 end::dfas-timestamp[]
 
 //Begin class_timing_stats
@@ -658,13 +658,13 @@ end::dfas-timing-stats[]
 tag::dfas-timing-stats-elapsed[]
 `elapsed_time`::::
 (integer)
-Runtime of the {dfanalytics-job} in milliseconds.
+Runtime of the analysis in milliseconds.
 end::dfas-timing-stats-elapsed[]
 
 tag::dfas-timing-stats-iteration[]
 `iteration_time`::::
 (integer)
-Runtime of the {dfanalytics-job} since the last iteration in milliseconds.
+Runtime of the latest iteration of the analysis in milliseconds.
 end::dfas-timing-stats-iteration[]
 ======
 //End class_timing_stats
@@ -682,7 +682,7 @@ end::dfas-validation-loss[]
 tag::dfas-validation-loss-type[]
 `loss_type`::::
 (string)
-The name of the loss metric. For example, `binomial_logistic`.
+The type of the loss metric. For example, `binomial_logistic`.
 end::dfas-validation-loss-type[]
 
 tag::dfas-validation-loss-fold[]

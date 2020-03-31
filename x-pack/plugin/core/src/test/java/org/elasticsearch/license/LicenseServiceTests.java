@@ -127,7 +127,7 @@ public class LicenseServiceTests extends ESTestCase {
             .build();
 
         final ClusterState clusterState = Mockito.mock(ClusterState.class);
-        Mockito.when(clusterState.metadata()).thenReturn(Metadata.EMPTY_META_DATA);
+        Mockito.when(clusterState.metadata()).thenReturn(Metadata.EMPTY_METADATA);
 
         final ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(clusterState);

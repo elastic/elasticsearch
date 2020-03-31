@@ -329,8 +329,8 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
 
         MetaStateServiceWithFailures(int invertedFailRate, NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) {
             super(nodeEnv, namedXContentRegistry);
-            META_DATA_FORMAT = wrap(Metadata.FORMAT);
-            INDEX_META_DATA_FORMAT = wrap(IndexMetadata.FORMAT);
+            METADATA_FORMAT = wrap(Metadata.FORMAT);
+            INDEX_METADATA_FORMAT = wrap(IndexMetadata.FORMAT);
             MANIFEST_FORMAT = wrap(Manifest.FORMAT);
             failRandomly = false;
             this.invertedFailRate = invertedFailRate;
@@ -388,7 +388,7 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
 
             // We only guarantee atomicity of writes, if there is initial Manifest file
             Manifest manifest = Manifest.empty();
-            Metadata metadata = Metadata.EMPTY_META_DATA;
+            Metadata metadata = Metadata.EMPTY_METADATA;
             metaStateService.writeManifestAndCleanup("startup", Manifest.empty());
             long currentTerm = randomNonNegativeLong();
             long clusterStateVersion = randomNonNegativeLong();

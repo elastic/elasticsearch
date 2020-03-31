@@ -124,7 +124,7 @@ public class MetaStateServiceTests extends ESTestCase {
         assertTrue(manifest.isEmpty());
 
         Metadata metadata = manifestAndMetadata.v2();
-        assertTrue(Metadata.isGlobalStateEquals(metadata, Metadata.EMPTY_META_DATA));
+        assertTrue(Metadata.isGlobalStateEquals(metadata, Metadata.EMPTY_METADATA));
     }
 
     public void testLoadEmptyStateWithManifest() throws IOException {
@@ -134,7 +134,7 @@ public class MetaStateServiceTests extends ESTestCase {
         Tuple<Manifest, Metadata> manifestAndMetadata = metaStateService.loadFullState();
         assertTrue(manifestAndMetadata.v1().isEmpty());
         Metadata metadata = manifestAndMetadata.v2();
-        assertTrue(Metadata.isGlobalStateEquals(metadata, Metadata.EMPTY_META_DATA));
+        assertTrue(Metadata.isGlobalStateEquals(metadata, Metadata.EMPTY_METADATA));
     }
 
     public void testLoadFullStateMissingGlobalMetadata() throws IOException {
@@ -150,7 +150,7 @@ public class MetaStateServiceTests extends ESTestCase {
         Tuple<Manifest, Metadata> manifestAndMetadata = metaStateService.loadFullState();
         assertThat(manifestAndMetadata.v1(), equalTo(manifest));
         Metadata loadedMetadata = manifestAndMetadata.v2();
-        assertTrue(Metadata.isGlobalStateEquals(loadedMetadata, Metadata.EMPTY_META_DATA));
+        assertTrue(Metadata.isGlobalStateEquals(loadedMetadata, Metadata.EMPTY_METADATA));
         assertThat(loadedMetadata.hasIndex("test1"), equalTo(true));
         assertThat(loadedMetadata.index("test1"), equalTo(index));
     }
@@ -210,6 +210,6 @@ public class MetaStateServiceTests extends ESTestCase {
         manifestAndMetadata = metaStateService.loadFullState();
         assertTrue(manifestAndMetadata.v1().isEmpty());
         metadata = manifestAndMetadata.v2();
-        assertTrue(Metadata.isGlobalStateEquals(metadata, Metadata.EMPTY_META_DATA));
+        assertTrue(Metadata.isGlobalStateEquals(metadata, Metadata.EMPTY_METADATA));
     }
 }

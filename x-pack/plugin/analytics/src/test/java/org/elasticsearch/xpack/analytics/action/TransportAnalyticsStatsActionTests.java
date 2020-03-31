@@ -50,7 +50,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
 
 
         ClusterState clusterState = mock(ClusterState.class);
-        when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_META_DATA);
+        when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
 
         return new TransportAnalyticsStatsAction(transportService, clusterService, threadPool,

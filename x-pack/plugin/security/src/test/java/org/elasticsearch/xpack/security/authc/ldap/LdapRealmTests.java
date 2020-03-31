@@ -413,7 +413,7 @@ public class LdapRealmTests extends LdapTestCase {
     /**
      * This tests template role mappings (see
      * {@link TemplateRoleName}) with an LDAP realm, using a additional
-     * metadata field (see {@link LdapMetadataResolverSettings#ADDITIONAL_META_DATA_SETTING}).
+     * metadata field (see {@link LdapMetadataResolverSettings#ADDITIONAL_METADATA_SETTING}).
      */
     public void testLdapRealmWithTemplatedRoleMapping() throws Exception {
         String groupSearchBase = "o=sevenSeas";
@@ -422,7 +422,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(defaultGlobalSettings)
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put(getFullSettingKey(REALM_IDENTIFIER.getName(),
-                        LdapMetadataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply(LdapRealmSettings.LDAP_TYPE)), "uid")
+                        LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING.apply(LdapRealmSettings.LDAP_TYPE)), "uid")
                 .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 

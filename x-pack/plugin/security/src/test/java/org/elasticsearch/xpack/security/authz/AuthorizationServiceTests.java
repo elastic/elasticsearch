@@ -1296,7 +1296,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private ClusterState mockEmptyMetadata() {
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
-        when(state.metadata()).thenReturn(Metadata.EMPTY_META_DATA);
+        when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         return state;
     }
 

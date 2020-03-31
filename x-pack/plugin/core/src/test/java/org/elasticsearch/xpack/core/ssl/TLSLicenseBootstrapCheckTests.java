@@ -19,7 +19,7 @@ public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCas
     public void testBootstrapCheckOnEmptyMetadata() {
         assertTrue(new TLSLicenseBootstrapCheck().check(emptyContext).isSuccess());
         assertTrue(new TLSLicenseBootstrapCheck().check(createTestContext(Settings.builder().put("xpack.security.transport.ssl.enabled"
-            , randomBoolean()).build(), Metadata.EMPTY_META_DATA)).isSuccess());
+            , randomBoolean()).build(), Metadata.EMPTY_METADATA)).isSuccess());
     }
 
     public void testBootstrapCheckFailureOnPremiumLicense() throws Exception {

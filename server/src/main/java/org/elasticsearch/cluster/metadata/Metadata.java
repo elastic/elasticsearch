@@ -148,7 +148,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         false, false, true, RestStatus.FORBIDDEN,
             EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
-    public static final Metadata EMPTY_META_DATA = builder().build();
+    public static final Metadata EMPTY_METADATA = builder().build();
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
 
@@ -909,7 +909,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 coordinationMetadata = new CoordinationMetadata(in);
             } else {
-                coordinationMetadata = CoordinationMetadata.EMPTY_META_DATA;
+                coordinationMetadata = CoordinationMetadata.EMPTY_METADATA;
             }
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
@@ -1045,7 +1045,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private boolean clusterUUIDCommitted;
         private long version;
 
-        private CoordinationMetadata coordinationMetadata = CoordinationMetadata.EMPTY_META_DATA;
+        private CoordinationMetadata coordinationMetadata = CoordinationMetadata.EMPTY_METADATA;
         private Settings transientSettings = Settings.Builder.EMPTY_SETTINGS;
         private Settings persistentSettings = Settings.Builder.EMPTY_SETTINGS;
         private DiffableStringMap hashesOfConsistentSettings = new DiffableStringMap(Collections.emptyMap());

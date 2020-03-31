@@ -324,7 +324,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_META_DATA)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
                 .put(v1Template)
                 .build())
             .build();
@@ -389,7 +389,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_META_DATA)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
                 .put(v1Template)
                 .build())
             .build();
@@ -428,7 +428,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_META_DATA)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
                 .put(v1Template)
                 .build())
             .build();

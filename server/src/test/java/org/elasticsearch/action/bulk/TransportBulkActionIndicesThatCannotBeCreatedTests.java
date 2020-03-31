@@ -107,7 +107,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             BulkRequest bulkRequest, Function<String, Boolean> shouldAutoCreate) {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterState state = mock(ClusterState.class);
-        when(state.getMetadata()).thenReturn(Metadata.EMPTY_META_DATA);
+        when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(state);
         DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(state.getNodes()).thenReturn(discoveryNodes);

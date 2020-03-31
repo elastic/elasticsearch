@@ -446,7 +446,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         AssertingAckListener[] listeners = new AssertingAckListener[numberOfIterations];
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
-        Metadata metadata = Metadata.EMPTY_META_DATA;
+        Metadata metadata = Metadata.EMPTY_METADATA;
         ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metadata(metadata).build();
         ClusterState previousState;
         for (int i = 0; i < numberOfIterations; i++) {
@@ -539,7 +539,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
         discoveryNodesBuilder.localNodeId(master.discoveryNode.getId()).masterNodeId(master.discoveryNode.getId());
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
-        Metadata metadata = Metadata.EMPTY_META_DATA;
+        Metadata metadata = Metadata.EMPTY_METADATA;
         ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metadata(metadata).nodes(discoveryNodes).build();
         ClusterState previousState = master.clusterState;
         try {
@@ -617,7 +617,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         discoveryNodesBuilder.localNodeId(master.discoveryNode.getId()).masterNodeId(master.discoveryNode.getId());
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
-        Metadata metadata = Metadata.EMPTY_META_DATA;
+        Metadata metadata = Metadata.EMPTY_METADATA;
         ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metadata(metadata).nodes(discoveryNodes).build();
         ClusterState previousState = master.clusterState;
         try {

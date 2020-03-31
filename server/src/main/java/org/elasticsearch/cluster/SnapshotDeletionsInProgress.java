@@ -174,6 +174,14 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         private final long startTime;
         private final long repositoryStateId;
 
+        public Entry(String repo, String pattern, long startTime) {
+            this.repo = repo;
+            this.pattern = pattern;
+            this.startTime = startTime;
+            this.snapshotIds = Collections.emptyList();
+            this.repositoryStateId = RepositoryData.UNKNOWN_REPO_GEN;
+        }
+
         public Entry(Snapshot snapshot, long startTime, long repositoryStateId) {
             this.snapshotIds = Collections.singletonList(snapshot.getSnapshotId());
             this.repo = snapshot.getRepository();
@@ -257,7 +265,6 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         public String toString() {
             return "Entry[repository=" + repo + ", repositoryStateId=" + repositoryStateId + ", snapshotIds="
                 + snapshotIds + ", pattern=" + pattern + "]";
-
         }
     }
 }

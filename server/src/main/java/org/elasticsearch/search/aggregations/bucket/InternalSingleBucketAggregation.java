@@ -34,6 +34,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -179,6 +180,11 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
             return this;
         }
         return create(rewritten);
+    }
+
+    @Override
+    public void forEachBucket(Consumer<InternalAggregations> consumer) {
+        consumer.accept(aggregations);
     }
 
     @Override

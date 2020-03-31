@@ -195,8 +195,14 @@ public class EvilLoggerTests extends ESTestCase {
                         "_deprecation.log";
         final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
         // we appended an integer to each log message, use that for sorting
-        deprecationEvents.sort(Comparator.comparingInt(s -> Integer.parseInt(s.split("message")[1])));
+        Pattern pattern = Pattern.compile(".*message(\\d+)\"");
+        deprecationEvents.sort(Comparator.comparingInt(s -> {
+            Matcher matcher = pattern.matcher(s);
+            matcher.matches();
+            return Integer.parseInt(matcher.group(1));
+        }));
         assertThat(deprecationEvents.size(), equalTo(128));
+
         for (int i = 0; i < 128; i++) {
             assertLogLine(
                     deprecationEvents.get(i),

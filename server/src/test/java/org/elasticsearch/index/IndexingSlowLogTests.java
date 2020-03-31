@@ -83,8 +83,6 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
         assertThat(p.get("routing"), nullValue());
-
-        assertThat(p.asString(), containsString("routing[]"));
     }
 
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
@@ -99,16 +97,17 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         // Turning on document logging logs the whole thing
         p = IndexingSlowLogMessage.of(index, pd, 10, true, Integer.MAX_VALUE);
-        assertThat(p.getFormattedMessage(), containsString("source[{\"foo\":\"bar\"}]"));
+        assertThat(p.get("source"), equalTo("{\\\"foo\\\":\\\"bar\\\"}"));
 
         // And you can truncate the source
         p = IndexingSlowLogMessage.of(index, pd, 10, true, 3);
-        assertThat(p.getFormattedMessage(), containsString("source[{\"f]"));
+        assertThat(p.get("source"), equalTo("{\\\"f"));
 
         // And you can truncate the source
         p = IndexingSlowLogMessage.of(index, pd, 10, true, 3);
-        assertThat(p.getFormattedMessage(), containsString("source[{\"f]"));
-        assertThat(p.getFormattedMessage(), startsWith("[foo/123] took"));
+        assertThat(p.get("source"), containsString("{\\\"f"));
+        assertThat(p.get("message"), startsWith("[foo/123]"));
+        assertThat(p.get("took"), containsString("10nanos"));
 
         // Throwing a error if source cannot be converted
         source = new BytesArray("invalid");

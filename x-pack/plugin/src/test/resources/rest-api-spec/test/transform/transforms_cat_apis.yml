@@ -64,10 +64,10 @@ teardown:
       cat.transform:
         transform_id: "airline-transform-stats"
         v: true
-        h: id,version,source_index,dest_index,search_total,index_total,dt,cdtea,indexed_documents_exp_avg
+        h: id,version,source_index,dest_index,search_total,index_total,docp,cdtea,indexed_documents_exp_avg
   - match:
       $body: |
-        /^   id                       \s+ version \s+ source_index \s+ dest_index              \s+ search_total \s+ index_total \s+ dt \s+ cdtea  \s+ indexed_documents_exp_avg \n
+        /^   id                       \s+ version \s+ source_index \s+ dest_index              \s+ search_total \s+ index_total \s+ docp \s+ cdtea  \s+ indexed_documents_exp_avg \n
             (airline\-transform-stats \s+ [^\s]+  \s+ airline-data \s+ airline-data-by-airline \s+ 0            \s+ 0           \s+ 0  \s+ 0.0    \s+ 0.0 \n)+  $/
 
 

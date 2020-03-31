@@ -26,8 +26,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -139,8 +141,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         for (Entry entry : entries) {
             builder.startObject();
             {
-                builder.field("repository", entry.snapshot.getRepository());
-                builder.field("snapshot", entry.snapshot.getSnapshotId().getName());
+                builder.field("repository", entry.repository());
+                builder.field("snapshot", entry.getPattern());
                 builder.humanReadableField("start_time_millis", "start_time", new TimeValue(entry.startTime));
                 builder.field("repository_state_id", entry.repositoryStateId);
             }
@@ -154,7 +156,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public String toString() {
         StringBuilder builder = new StringBuilder("SnapshotDeletionsInProgress[");
         for (int i = 0; i < entries.size(); i++) {
-            builder.append(entries.get(i).getSnapshot().getSnapshotId().getName());
+            builder.append(entries.get(i).getPattern());
             if (i + 1 < entries.size()) {
                 builder.append(",");
             }
@@ -166,27 +168,45 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      * A class representing a snapshot deletion request entry in the cluster state.
      */
     public static final class Entry implements Writeable, RepositoryOperation {
-        private final Snapshot snapshot;
+        private final List<SnapshotId> snapshotIds;
+        private final String repo;
+        private final String pattern;
         private final long startTime;
         private final long repositoryStateId;
 
         public Entry(Snapshot snapshot, long startTime, long repositoryStateId) {
-            this.snapshot = snapshot;
+            this.snapshotIds = Collections.singletonList(snapshot.getSnapshotId());
+            this.repo = snapshot.getRepository();
+            this.pattern = snapshot.getSnapshotId().getName();
             this.startTime = startTime;
             this.repositoryStateId = repositoryStateId;
         }
 
         public Entry(StreamInput in) throws IOException {
-            this.snapshot = new Snapshot(in);
+            final Snapshot snapshot = new Snapshot(in);
+            this.snapshotIds = Collections.singletonList(snapshot.getSnapshotId());
+            this.repo = snapshot.getRepository();
+            this.pattern = snapshot.getSnapshotId().getName();
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
         }
 
-        /**
-         * The snapshot to delete.
-         */
-        public Snapshot getSnapshot() {
-            return snapshot;
+        public String getPattern() {
+            return pattern;
+        }
+
+        public boolean matches(Snapshot snapshot) {
+            if (repo.equals(snapshot.getRepository()) == false) {
+                return false;
+            }
+            if (repositoryStateId == RepositoryData.UNKNOWN_REPO_GEN) {
+                return pattern.equals(snapshot.getSnapshotId().getName());
+            }
+            return snapshotIds.contains(snapshot.getSnapshotId());
+        }
+
+        public List<SnapshotId> getSnapshotIds() {
+            return snapshotIds;
         }
 
         /**
@@ -205,31 +225,39 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 return false;
             }
             Entry that = (Entry) o;
-            return snapshot.equals(that.snapshot)
+            return pattern.equals(that.pattern)
+                       && snapshotIds.equals(that.snapshotIds)
                        && startTime == that.startTime
                        && repositoryStateId == that.repositoryStateId;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshot, startTime, repositoryStateId);
+            return Objects.hash(pattern, snapshotIds, startTime, repositoryStateId);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            snapshot.writeTo(out);
+            new Snapshot(repo, snapshotIds.get(0)).writeTo(out);
             out.writeVLong(startTime);
             out.writeLong(repositoryStateId);
         }
 
         @Override
         public String repository() {
-            return snapshot.getRepository();
+            return repo;
         }
 
         @Override
         public long repositoryStateId() {
             return repositoryStateId;
+        }
+
+        @Override
+        public String toString() {
+            return "Entry[repository=" + repo + ", repositoryStateId=" + repositoryStateId + ", snapshotIds="
+                + snapshotIds + ", pattern=" + pattern + "]";
+
         }
     }
 }

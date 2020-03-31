@@ -121,6 +121,8 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
+    public static final Version TWO_STEP_DELETE_VERSION = Version.V_8_0_0;
+
     public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_7_6_0;
 
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
@@ -773,7 +775,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
             assert deletionsInProgress.getEntries().size() == 1 : "only one in-progress deletion allowed per cluster";
             SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
-            deleteSnapshotFromRepository(entry.getSnapshot(), null, entry.repositoryStateId(), state.nodes().getMinNodeVersion());
+            final List<SnapshotId> snapshotIdsToDelete = entry.getSnapshotIds();
+            assert snapshotIdsToDelete.size() == 1 : "Can only delete one snapshot at a time but saw [" + snapshotIdsToDelete + "]";
+            deleteSnapshotFromRepository(new Snapshot(entry.repository(), entry.getSnapshotIds().get(0)),
+                null, entry.repositoryStateId(), state.nodes().getMinNodeVersion());
         }
     }
 
@@ -1427,7 +1432,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         SnapshotDeletionsInProgress deletionsInProgress = clusterState.custom(SnapshotDeletionsInProgress.TYPE);
         if (deletionsInProgress != null) {
             for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
-                if (entry.getSnapshot().getRepository().equals(repository)) {
+                if (entry.repository().equals(repository)) {
                     return true;
                 }
             }

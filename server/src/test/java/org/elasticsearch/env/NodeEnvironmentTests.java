@@ -22,7 +22,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.set.Sets;
@@ -52,7 +51,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
@@ -383,28 +381,6 @@ public class NodeEnvironmentTests extends ESTestCase {
                 env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
 
         env.close();
-    }
-
-    public void testNodeIdNotPersistedAtInitialization() throws IOException {
-        NodeEnvironment env = newNodeEnvironment(new String[0], Settings.builder()
-            .put("node.local_storage", false)
-            .put("node.master", false)
-            .put("node.data", false)
-            .build());
-        String nodeID = env.nodeId();
-        env.close();
-        final String[] paths = tmpPaths();
-        env = newNodeEnvironment(paths, Settings.EMPTY);
-        assertThat("previous node didn't have local storage enabled, id should change", env.nodeId(), not(equalTo(nodeID)));
-        nodeID = env.nodeId();
-        env.close();
-        env = newNodeEnvironment(paths, Settings.EMPTY);
-        assertThat(env.nodeId(), not(equalTo(nodeID)));
-        env.close();
-        env = newNodeEnvironment(Settings.EMPTY);
-        assertThat(env.nodeId(), not(equalTo(nodeID)));
-        env.close();
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{Node.NODE_LOCAL_STORAGE_SETTING});
     }
 
     public void testExistingTempFiles() throws IOException {

@@ -102,6 +102,9 @@ public class SignificanceHeuristicTests extends ESTestCase {
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(version);
+        if (version.before(Version.V_7_8_0)) {
+            sigTerms.mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree.EMPTY);
+        }
         out.writeNamedWriteable(sigTerms);
 
         // read

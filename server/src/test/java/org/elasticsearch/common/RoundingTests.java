@@ -39,6 +39,7 @@ import java.time.zone.ZoneOffsetTransition;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongUnaryOperator;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -226,18 +227,22 @@ public class RoundingTests extends ESTestCase {
      * described in
      * {@link #assertInterval(long, long, long, Rounding, ZoneId)}
      */
-    public void testRoundingRandom() {
+    public void testRandomTimeUnitRounding() {
         for (int i = 0; i < 1000; ++i) {
             Rounding.DateTimeUnit unit = randomFrom(Rounding.DateTimeUnit.values());
             ZoneId tz = randomZone();
             Rounding rounding = new Rounding.TimeUnitRounding(unit, tz);
-            long date = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
+            long[] bounds = randomDateBounds();
+            LongUnaryOperator rounder = rounding.rounder(bounds[0], bounds[1]);
+
+            // Check that rounding is internally consistent and consistent with nextRoundingValue
+            long date = dateBetween(bounds[0], bounds[1]);
             long unitMillis = unit.getField().getBaseUnit().getDuration().toMillis();
             // FIXME this was copy pasted from the other impl and not used. breaks the nasty date actually gets assigned
             if (randomBoolean()) {
                 nastyDate(date, tz, unitMillis);
             }
-            final long roundedDate = rounding.round(date);
+            final long roundedDate = rounder.applyAsLong(date);
             final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
 
             assertInterval(roundedDate, date, nextRoundingValue, rounding, tz);
@@ -252,7 +257,19 @@ public class RoundingTests extends ESTestCase {
                         + Instant.ofEpochMilli(roundedDate), nextRoundingValue - roundedDate, equalTo(unitMillis));
                 }
             }
+
+            // Round a whole bunch of dates and make sure they line up with the known good java time implementation
+            LongUnaryOperator javaTimeRounder = rounding.javaTimeRounder();
+            for (int d = 0; d < 1000; d++) {
+                date = dateBetween(bounds[0], bounds[1]);
+                assertThat(rounder.applyAsLong(date), equalTo(javaTimeRounder.applyAsLong(date)));
+            }
         }
+    }
+
+    public void testDummy() { // NOCOMMIT remove me
+        Rounding rounding = new Rounding.TimeUnitRounding(Rounding.DateTimeUnit.HOUR_OF_DAY, ZoneId.of("America/New_York"));
+        rounding.round(System.currentTimeMillis());
     }
 
     /**
@@ -361,10 +378,7 @@ public class RoundingTests extends ESTestCase {
         assertThat(rounding.round(time("2016-03-28T13:00:00+02:00")), isDate(time("2016-03-28T12:00:00+02:00"), tz));
     }
 
-    /**
-     * randomized test on {@link org.elasticsearch.common.Rounding.TimeIntervalRounding} with random interval and time zone offsets
-     */
-    public void testIntervalRoundingRandom() {
+    public void testRandomTimeIntervalRounding() {
         for (int i = 0; i < 1000; i++) {
             TimeUnit unit = randomFrom(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
             long interval = unit.toMillis(randomIntBetween(1, 365));
@@ -718,9 +732,9 @@ public class RoundingTests extends ESTestCase {
      * @param rounding the rounding instance
      */
     private void assertInterval(long rounded, long unrounded, long nextRoundingValue, Rounding rounding, ZoneId tz) {
-        assertThat("rounding should be idempotent ", rounding.round(rounded), isDate(rounded, tz));
-        assertThat("rounded value smaller or equal than unrounded" + rounding, rounded, lessThanOrEqualTo(unrounded));
-        assertThat("values less than rounded should round further down" + rounding, rounding.round(rounded - 1), lessThan(rounded));
+        assertThat("rounding should be idempotent", rounding.round(rounded), isDate(rounded, tz));
+        assertThat("rounded value smaller or equal than unrounded", rounded, lessThanOrEqualTo(unrounded));
+        assertThat("values less than rounded should round further down", rounding.round(rounded - 1), lessThan(rounded));
         assertThat("nextRounding value should be a rounded date", rounding.round(nextRoundingValue), isDate(nextRoundingValue, tz));
         assertThat("values above nextRounding should round down there", rounding.round(nextRoundingValue + 1),
             isDate(nextRoundingValue, tz));
@@ -762,6 +776,18 @@ public class RoundingTests extends ESTestCase {
         return true;
     }
 
+    private static long randomDate() {
+        return Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
+    }
+
+    private static long[] randomDateBounds() {
+        long b1 = randomDate();
+        long b2 = randomValueOtherThan(b1, RoundingTests::randomDate);
+        if (b1 < b2) {
+            return new long[] {b1, b2};
+        }
+        return new long[] {b2, b1};
+    }
     private static long dateBetween(long lower, long upper) {
         long dateBetween = randomLongBetween(lower, upper - 1);
         assert lower <= dateBetween && dateBetween < upper;

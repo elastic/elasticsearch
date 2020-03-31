@@ -49,8 +49,8 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
                             AggregatorFactories factories,
                             SearchContext context,
                             Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                            Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+                            Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, pipelineAggregators, metadata);
         this.filter = filter;
     }
 
@@ -72,12 +72,12 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalFilter(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
-                metaData());
+                metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalFilter(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+        return new InternalFilter(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metadata());
     }
 }
 

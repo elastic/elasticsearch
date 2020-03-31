@@ -33,6 +33,14 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 + "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 
+    public void testEndsWithFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> plan("process where endsWith(plain_text, \"foo\") == true"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [endsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
+                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
     public void testStartsWithFunctionWithInexact() {
         VerificationException e = expectThrows(VerificationException.class,
                 () -> plan("process where startsWith(plain_text, \"foo\") == true"));

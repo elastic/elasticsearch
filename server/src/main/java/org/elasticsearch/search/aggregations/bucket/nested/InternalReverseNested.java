@@ -32,8 +32,8 @@ import java.util.Map;
  */
 public class InternalReverseNested extends InternalSingleBucketAggregation implements ReverseNested {
     public InternalReverseNested(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, docCount, aggregations, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, docCount, aggregations, pipelineAggregators, metadata);
     }
 
     /**
@@ -50,6 +50,6 @@ public class InternalReverseNested extends InternalSingleBucketAggregation imple
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalReverseNested(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
+        return new InternalReverseNested(name, docCount, subAggregations, pipelineAggregators(), getMetadata());
     }
 }

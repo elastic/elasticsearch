@@ -36,9 +36,9 @@ class CompositeAggregationFactory extends AggregatorFactory {
     private final CompositeKey afterKey;
 
     CompositeAggregationFactory(String name, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData,
+                                AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata,
                                 int size, CompositeValuesSourceConfig[] sources, CompositeKey afterKey) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
+        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.size = size;
         this.sources = sources;
         this.afterKey = afterKey;
@@ -46,8 +46,8 @@ class CompositeAggregationFactory extends AggregatorFactory {
 
     @Override
     protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new CompositeAggregator(name, factories, searchContext, parent, pipelineAggregators, metaData,
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        return new CompositeAggregator(name, factories, searchContext, parent, pipelineAggregators, metadata,
             size, sources, afterKey);
     }
 }

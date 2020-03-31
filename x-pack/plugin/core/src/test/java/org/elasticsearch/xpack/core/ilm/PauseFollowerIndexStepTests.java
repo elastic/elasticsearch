@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.mockito.Mockito;
 
@@ -28,7 +28,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
     }
 
     public void testPauseFollowingIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
@@ -64,7 +64,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
     }
 
     public void testPauseFollowingIndexFailed() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)

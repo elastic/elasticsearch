@@ -29,8 +29,8 @@ public class GeoTileGridTests extends GeoGridTestCase<InternalGeoTileGridBucket,
 
     @Override
     protected InternalGeoTileGrid createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
-                                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalGeoTileGrid(name, size, buckets, pipelineAggregators, metaData);
+                                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalGeoTileGrid(name, size, buckets, pipelineAggregators, metadata);
     }
 
     @Override

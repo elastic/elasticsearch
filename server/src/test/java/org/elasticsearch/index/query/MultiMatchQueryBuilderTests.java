@@ -33,7 +33,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -387,7 +387,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
         try {
             // `*` is in the list of the default_field => leniency set to true
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                     STRING_FIELD_NAME, "*", STRING_FIELD_NAME_2).build())
             );
@@ -395,7 +395,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 .toQuery(context);
             assertQueryWithAllFieldsWildcard(query);
 
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index", context.getIndexSettings().getSettings(),
                     Settings.builder().putList("index.query.default_field", STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5")
                         .build())
@@ -410,7 +410,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             );
             assertEquals(expected, query);
 
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index", context.getIndexSettings().getSettings(),
                     Settings.builder().putList("index.query.default_field",
                         STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5", INT_FIELD_NAME).build())
@@ -434,7 +434,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
         } finally {
             // Reset to the default value
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index", context.getIndexSettings().getSettings(),
                     Settings.builder().putNull("index.query.default_field").build())
             );
@@ -529,11 +529,11 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(exc.getMessage(), containsString("negative [boost]"));
     }
 
-    private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
+    private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)
             .build();
-        return IndexMetaData.builder(name).settings(build).build();
+        return IndexMetadata.builder(name).settings(build).build();
     }
 
     private void assertQueryWithAllFieldsWildcard(Query query) {

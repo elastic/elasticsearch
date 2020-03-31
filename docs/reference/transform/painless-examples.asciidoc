@@ -392,7 +392,7 @@ three properties (`error`, `success`, `other`) with long data type.
 document, then it counts the errors, successes, and other responses based on the 
 first digit of the responses.
 <6> The `combine_script` returns `state.responses` from each shard.
-<7> The `reduce_script` craters a `counts` array with the `error`, `success`, 
+<7> The `reduce_script` creates a `counts` array with the `error`, `success`, 
 and `other` properties, then iterates through the value of `responses` returned 
 by each shard and assigns the different response types to the appropriate 
 properties of the `counts` object; error responses to the error counts, success 

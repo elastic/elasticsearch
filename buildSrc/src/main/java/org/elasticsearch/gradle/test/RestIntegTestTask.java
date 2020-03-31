@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,82 +16,93 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle.test
 
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
-import org.gradle.api.DefaultTask
-import org.gradle.api.Task
-import org.gradle.api.tasks.testing.Test
+package org.elasticsearch.gradle.test;
 
-/**
- * A wrapper task around setting up a cluster and running rest tests.
- */
-class RestIntegTestTask extends DefaultTask {
+import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
+import org.gradle.api.Action;
+import org.gradle.api.DefaultTask;
+import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.Project;
+import org.gradle.api.Task;
 
-    protected Test runner
+import java.util.function.Supplier;
 
-    RestIntegTestTask() {
-        runner = project.tasks.create("${name}Runner", RestTestRunnerTask.class)
-        super.dependsOn(runner)
+public class RestIntegTestTask extends DefaultTask {
 
-        ElasticsearchCluster cluster = project.testClusters.create(name)
-        runner.useCluster cluster
+    protected RestTestRunnerTask runner;
+    private static final String TESTS_REST_CLUSTER = "tests.rest.cluster";
+    private static final String TESTS_CLUSTER = "tests.cluster";
+    private static final String TESTS_CLUSTER_NAME = "tests.clustername";
 
-        runner.include('**/*IT.class')
-        runner.systemProperty('tests.rest.load_packaged', 'false')
-
-        if (System.getProperty("tests.rest.cluster") == null) {
-            if (System.getProperty("tests.cluster") != null || System.getProperty("tests.clustername") != null) {
-                throw new IllegalArgumentException("tests.rest.cluster, tests.cluster, and tests.clustername must all be null or non-null")
+    public RestIntegTestTask() {
+        Project project = getProject();
+        String name = getName();
+        super.dependsOn(project);
+        runner = project.getTasks().create(name + "Runner", RestTestRunnerTask.class);
+        NamedDomainObjectContainer<ElasticsearchCluster> testClusters =
+            (NamedDomainObjectContainer<ElasticsearchCluster>) project.getExtensions().getByName("testClusters");
+        ElasticsearchCluster cluster = testClusters.create(name);
+        runner.useCluster(cluster);
+        runner.include("**/*IT.class");
+        runner.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString());
+        if (System.getProperty(TESTS_REST_CLUSTER) == null) {
+            if (System.getProperty(TESTS_CLUSTER) != null || System.getProperty(TESTS_CLUSTER_NAME) != null) {
+                throw new IllegalArgumentException(String.format("%s, %s, and %s must all be null or non-null",
+                    TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME));
             }
-
-            runner.nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",")}")
-            runner.nonInputProperties.systemProperty('tests.cluster', "${-> cluster.transportPortURI}")
-            runner.nonInputProperties.systemProperty('tests.clustername', "${-> cluster.getName()}")
+            SystemPropertyCommandLineArgumentProvider runnerNonInputProperties =
+                (SystemPropertyCommandLineArgumentProvider) runner.getExtensions().getByName("nonInputProperties");
+            runnerNonInputProperties.systemProperty(TESTS_REST_CLUSTER,
+                (Supplier<String>) () -> String.join(",", cluster.getAllHttpSocketURI()));
+            runnerNonInputProperties.systemProperty(TESTS_CLUSTER,
+                (Supplier<String>) () -> String.join(",", cluster.getAllTransportPortURI()));
+            runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, (Supplier<String>) cluster::getName);
         } else {
-            if (System.getProperty("tests.cluster") == null || System.getProperty("tests.clustername") == null) {
-                throw new IllegalArgumentException("tests.rest.cluster, tests.cluster, and tests.clustername must all be null or non-null")
+            if (System.getProperty(TESTS_CLUSTER) == null || System.getProperty(TESTS_CLUSTER_NAME) == null) {
+                throw new IllegalArgumentException(String.format("%s, %s, and %s must all be null or non-null",
+                    TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME));
             }
             // an external cluster was specified and all responsibility for cluster configuration is taken by the user
-            runner.systemProperty('tests.rest.cluster', System.getProperty("tests.rest.cluster"))
-            runner.systemProperty('test.cluster', System.getProperty("tests.cluster"))
-            runner.systemProperty('test.clustername', System.getProperty("tests.clustername"))
+            runner.systemProperty(TESTS_REST_CLUSTER, System.getProperty(TESTS_REST_CLUSTER));
+            runner.systemProperty(TESTS_CLUSTER, System.getProperty(TESTS_CLUSTER));
+            runner.systemProperty(TESTS_CLUSTER_NAME, System.getProperty(TESTS_CLUSTER_NAME));
         }
-
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
-        project.gradle.projectsEvaluated {
-            if (enabled == false) {
-                runner.enabled = false
-                return // no need to add cluster formation tasks if the task won't run!
+        project.getGradle().projectsEvaluated(x -> {
+            if (isEnabled() == false) {
+                runner.setEnabled(false);
             }
-        }
+        });
     }
 
     @Override
     public Task dependsOn(Object... dependencies) {
-        runner.dependsOn(dependencies)
+        runner.dependsOn(dependencies);
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture) dependency).getStopTask())
+                runner.finalizedBy(((Fixture) dependency).getStopTask());
             }
         }
-        return this
+        return this;
     }
 
     @Override
     public void setDependsOn(Iterable<?> dependencies) {
-        runner.setDependsOn(dependencies)
+        runner.setDependsOn(dependencies);
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture) dependency).getStopTask())
+                runner.finalizedBy(((Fixture) dependency).getStopTask());
             }
         }
     }
 
-    public void runner(Closure configure) {
-        project.tasks.getByName("${name}Runner").configure(configure)
+    public void runner(Action<? super RestTestRunnerTask> configure) {
+        configure.execute(runner);
     }
-
 }
+
+

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.compat.version7;
+package org.elasticsearch.rest.compat.version7.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;

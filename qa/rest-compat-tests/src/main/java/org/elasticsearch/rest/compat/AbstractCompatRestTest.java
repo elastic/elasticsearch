@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 /**
@@ -72,7 +73,12 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
 
 
     private static void mutateTestCandidate(ClientYamlTestCandidate testCandidate) {
-        testCandidate.getTestSection().getExecutableSections().stream().filter(s -> s instanceof DoSection).forEach(ds -> {
+        testCandidate.getSetupSection().getExecutableSections().stream().filter(s -> s instanceof DoSection).forEach(updateDoSection());
+        testCandidate.getTestSection().getExecutableSections().stream().filter(s -> s instanceof DoSection).forEach(updateDoSection());
+    }
+
+    private static Consumer<? super ExecutableSection> updateDoSection() {
+        return ds -> {
             DoSection doSection = (DoSection) ds;
             //TODO: be more selective here
             doSection.setIgnoreWarnings(true);
@@ -80,11 +86,11 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
             String compatibleHeader = createCompatibleHeader();
             //TODO decide which one to use - Accept or Content-Type
             doSection.getApiCallSection()
-                     .addHeaders(Map.of(
-                         CompatibleConstants.COMPATIBLE_HEADER, compatibleHeader,
-                         "Content-Type", compatibleHeader
-                         ));
-        });
+                .addHeaders(Map.of(
+                    CompatibleConstants.COMPATIBLE_HEADER, compatibleHeader,
+                    "Content-Type", compatibleHeader
+                ));
+        };
     }
 
     private static String createCompatibleHeader() {

@@ -27,6 +27,7 @@ testClusters.integTest {
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
   extraConfigFile 'idp-sign.crt', file('src/test/resources/idp-sign.crt')
   extraConfigFile 'idp-sign.key', file('src/test/resources/idp-sign.key')
+  extraConfigFile 'wildcard_services.json', file('src/test/resources/wildcard_services.json')
 
   user username: "admin_user", password: "admin-password"
   user username: "idp_user", password: "idp-password", role: "idp_role"

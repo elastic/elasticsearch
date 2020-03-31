@@ -190,7 +190,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         public Builder() {
 
         }
-        
+
         public Builder(CoordinationMetaData state) {
             this.term = state.term;
             this.lastCommittedConfiguration = state.lastCommittedConfiguration;

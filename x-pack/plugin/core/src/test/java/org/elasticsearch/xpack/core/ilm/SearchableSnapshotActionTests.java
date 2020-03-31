@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction.NAME;
 import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction.getCheckSnapshotStatusAsyncAction;
 import static org.hamcrest.Matchers.is;
 
-public class SearchableSnaposhotActionTests extends AbstractActionTestCase<SearchableSnapshotAction> {
+public class SearchableSnapshotActionTests extends AbstractActionTestCase<SearchableSnapshotAction> {
 
     @Override
     public void testToSteps() {

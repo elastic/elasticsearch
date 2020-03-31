@@ -19,7 +19,6 @@
 
 package org.elasticsearch.tasksplugin;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -28,6 +27,6 @@ public class TasksPluginTests extends ESTestCase {
     public void testDummy() {
         // This is a dummy test case to satisfy the conventions
         TasksPlugin plugin = new TasksPlugin();
-        assertThat(plugin.getSystemIndexDescriptors(Settings.EMPTY), Matchers.hasSize(1));
+        assertThat(plugin.getSystemIndexDescriptors(), Matchers.hasSize(1));
     }
 }

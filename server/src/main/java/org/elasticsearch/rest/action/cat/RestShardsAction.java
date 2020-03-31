@@ -200,6 +200,9 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("warmer.total", "alias:wto,warmerTotal;default:false;text-align:right;desc:total warmer ops");
         table.addCell("warmer.total_time", "alias:wtt,warmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
 
+        table.addCell("path.data", "alias:pd,dataPath;default:false;text-align:right;desc:shard data path");
+        table.addCell("path.state", "alias:ps,statsPath;default:false;text-align:right;desc:shard state path");
+
         table.endHeaders();
         return table;
     }
@@ -214,7 +217,8 @@ public class RestShardsAction extends AbstractCatAction {
         return null;
     }
 
-    private Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
+    // package private for testing
+    Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
         Table table = getTableWithHeader(request);
 
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
@@ -350,6 +354,9 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getWarmer, WarmerStats::current));
             table.addCell(getOrNull(commonStats, CommonStats::getWarmer, WarmerStats::total));
             table.addCell(getOrNull(commonStats, CommonStats::getWarmer, WarmerStats::totalTime));
+
+            table.addCell(getOrNull(shardStats, ShardStats::getDataPath, s -> s));
+            table.addCell(getOrNull(shardStats, ShardStats::getStatePath, s -> s));
 
             table.endRow();
         }

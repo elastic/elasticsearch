@@ -48,6 +48,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Perce
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.ByteArrayInputStream;
@@ -101,6 +102,9 @@ public class SignificanceHeuristicTests extends ESTestCase {
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(version);
+        if (version.before(Version.V_7_8_0)) {
+            sigTerms.mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree.EMPTY);
+        }
         out.writeNamedWriteable(sigTerms);
 
         // read
@@ -147,7 +151,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     public void testReduce() {
         List<InternalAggregation> aggs = createInternalAggregations();
-        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, true);
+        InternalAggregation.ReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
         SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).reduce(aggs, context);
         assertThat(reducedAgg.getBuckets().size(), equalTo(2));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));

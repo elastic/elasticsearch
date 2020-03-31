@@ -22,7 +22,8 @@ public class RawInferenceResultsTests extends ESTestCase {
         for (int i = 0; i < n; i++) {
             results[i] = randomDouble();
         }
-        return new RawInferenceResults(results, randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("foo", 1.08));
+        return new RawInferenceResults(results,
+            randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("foo", new double[]{1.08}));
     }
 
     public void testEqualityAndHashcode() {
@@ -31,7 +32,9 @@ public class RawInferenceResultsTests extends ESTestCase {
         for (int i = 0; i < n; i++) {
             results[i] = randomDouble();
         }
-        Map<String, Double> importance = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("foo", 1.08);
+        Map<String, double[]> importance = randomBoolean() ?
+            Collections.emptyMap() :
+            Collections.singletonMap("foo", new double[]{1.08, 42.0});
         RawInferenceResults lft = new RawInferenceResults(results, new HashMap<>(importance));
         RawInferenceResults rgt = new RawInferenceResults(Arrays.copyOf(results, n), new HashMap<>(importance));
         assertThat(lft, equalTo(rgt));

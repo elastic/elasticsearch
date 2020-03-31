@@ -29,7 +29,12 @@ public class KeywordEsField extends EsField {
     
     public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision,
             boolean normalized, boolean isAlias) {
-        super(name, KEYWORD, properties, hasDocValues, isAlias);
+        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias);
+    }
+
+    protected KeywordEsField(String name, DataType esDataType, Map<String, EsField> properties, boolean hasDocValues, int precision,
+            boolean normalized, boolean isAlias) {
+        super(name, esDataType, properties, hasDocValues, isAlias);
         this.precision = precision;
         this.normalized = normalized;
     }

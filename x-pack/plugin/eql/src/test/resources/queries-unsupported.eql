@@ -626,58 +626,44 @@ any where process_name == "svchost.exe"
 ;
 
 
-// array functions
-registry where arrayContains(bytes_written_string_list, 'En-uS');
-registry where arrayContains(bytes_written_string_list, 'En');
+// Array functions
+// * parser will recognize as valid, but functions will fail to resolve in verifier
 
 
-network where mysterious_field
-  and arraySearch(mysterious_field.subarray, s, true)
-;
+// registry where arrayContains(bytes_written_string_list, 'En-uS');
+// registry where arrayContains(bytes_written_string_list, 'En');
 
-registry where arraySearch(bytes_written_string_list, a, a == 'en-us');
+// network where mysterious_field
+//  and arraySearch(mysterious_field.subarray, s, true);
 
-registry where arraySearch(bytes_written_string_list, a, endsWith(a, '-us'));
+// registry where arraySearch(bytes_written_string_list, a, a == 'en-us');
+// registry where arraySearch(bytes_written_string_list, a, endsWith(a, '-us'));
+// network where mysterious_field and arraySearch(mysterious_field.subarray, s, false);
+// network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a == 's0-*');
+// network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a != 's0-*');
 
+// network where mysterious_field
+//   and arraySearch(mysterious_field.subarray, sub1,
+//     arraySearch(sub1.c, nested, nested.x.y == '*'))
+// ;
 
-network where mysterious_field and arraySearch(mysterious_field.subarray, s, false)
-;
+// network where mysterious_field
+//   and arraySearch(mysterious_field.subarray, sub1,
+//     sub1.a == 's0-a' and arraySearch(sub1.c, nested, nested.z == 's0-c1-x-z'))
+// ;
 
-network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a == 's0-*')
-;
+// network where mysterious_field
+//   and arraySearch(mysterious_field.subarray, sub1,
+//     sub1.a == 's0-a' and arraySearch(sub1.c, nested, nested.z == sub1.cross_match));
 
-network where mysterious_field and arraySearch(mysterious_field.subarray, s, s.a != 's0-*')
-;
+// network where mysterious_field
+//   and arraySearch(mysterious_field.subarray, sub1,
+//     arraySearch(sub1.c, nested, nested.x.y == mysterious_field.outer_cross_match));
 
-network where mysterious_field
-  and arraySearch(mysterious_field.subarray, sub1,
-    arraySearch(sub1.c, nested, nested.x.y == '*'))
-;
+// registry where arrayCount(bytes_written_string_list, s, s == '*-us') == 1;
+// registry where arrayCount(bytes_written_string_list, s, s == '*en*') == 2;
+// registry where arrayContains(bytes_written_string_list, "missing", "en-US");
 
-network where mysterious_field
-  and arraySearch(mysterious_field.subarray, sub1,
-    sub1.a == 's0-a' and arraySearch(sub1.c, nested, nested.z == 's0-c1-x-z'))
-;
-
-network where mysterious_field
-  and arraySearch(mysterious_field.subarray, sub1,
-    sub1.a == 's0-a' and arraySearch(sub1.c, nested, nested.z == sub1.cross_match))
-;
-
-network where mysterious_field
-  and arraySearch(mysterious_field.subarray, sub1,
-    arraySearch(sub1.c, nested, nested.x.y == mysterious_field.outer_cross_match))
-;
-
-
-registry where arrayCount(bytes_written_string_list, s, s == '*-us') == 1
-;
-
-registry where arrayCount(bytes_written_string_list, s, s == '*en*') == 2
-;
-
-registry where arrayContains(bytes_written_string_list, "missing", "en-US")
-;
 
 // array fields
 

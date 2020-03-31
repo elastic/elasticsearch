@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -22,16 +22,16 @@ public class WatchStoreUtils {
      * @throws IndexNotFoundException If no index exists
      */
     public static IndexMetaData getConcreteIndex(String name, MetaData metaData) {
-        AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(name);
-        if (aliasOrIndex == null) {
+        IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(name);
+        if (indexAbstraction == null) {
             return null;
         }
 
-        if (aliasOrIndex.isAlias() && aliasOrIndex.getIndices().size() > 1) {
+        if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indexAbstraction.getIndices().size() > 1) {
             throw new IllegalStateException("Alias [" + name + "] points to more than one index");
         }
 
-        return aliasOrIndex.getIndices().get(0);
+        return indexAbstraction.getIndices().get(0);
     }
 
 }

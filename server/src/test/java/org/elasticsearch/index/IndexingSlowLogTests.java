@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class IndexingSlowLogTests extends ESTestCase {
@@ -72,6 +73,18 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertThat(p.get("source"), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
     }
 
+    public void testEmptyRoutingField() throws IOException {
+        BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder()
+                                                                 .startObject().field("foo", "bar").endObject());
+        ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
+            null, null, source, XContentType.JSON, null);
+        Index index = new Index("foo", "123");
+
+        ESLogMessage p = IndexingSlowLogMessage.of(index, pd, 10, true, 0);
+        assertThat(p.get("routing"), nullValue());
+    }
+
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
         BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder()
             .startObject().field("foo", "bar").endObject());
@@ -84,16 +97,17 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         // Turning on document logging logs the whole thing
         p = IndexingSlowLogMessage.of(index, pd, 10, true, Integer.MAX_VALUE);
-        assertThat(p.getFormattedMessage(), containsString("source[{\"foo\":\"bar\"}]"));
+        assertThat(p.get("source"), equalTo("{\\\"foo\\\":\\\"bar\\\"}"));
 
         // And you can truncate the source
         p = IndexingSlowLogMessage.of(index, pd, 10, true, 3);
-        assertThat(p.getFormattedMessage(), containsString("source[{\"f]"));
+        assertThat(p.get("source"), equalTo("{\\\"f"));
 
         // And you can truncate the source
         p = IndexingSlowLogMessage.of(index, pd, 10, true, 3);
-        assertThat(p.getFormattedMessage(), containsString("source[{\"f]"));
-        assertThat(p.getFormattedMessage(), startsWith("[foo/123] took"));
+        assertThat(p.get("source"), containsString("{\\\"f"));
+        assertThat(p.get("message"), startsWith("[foo/123]"));
+        assertThat(p.get("took"), containsString("10nanos"));
 
         // Throwing a error if source cannot be converted
         source = new BytesArray("invalid");
@@ -103,13 +117,13 @@ public class IndexingSlowLogTests extends ESTestCase {
         final UncheckedIOException e = expectThrows(UncheckedIOException.class,
             () -> IndexingSlowLogMessage.of(index, doc, 10, true, 3));
         assertThat(e, hasToString(containsString("_failed_to_convert_[Unrecognized token 'invalid':"
-            + " was expecting ('true', 'false' or 'null')\\n"
-            + " at [Source: org.elasticsearch.common.bytes.AbstractBytesReference$MarkSupportingStreamInputWrapper")));
+            + " was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')\\n"
+            + " at [Source: (org.elasticsearch.common.bytes.AbstractBytesReference$MarkSupportingStreamInputWrapper)")));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(JsonParseException.class));
         assertThat(e.getCause(), hasToString(containsString("Unrecognized token 'invalid':"
-                + " was expecting ('true', 'false' or 'null')\n"
-                + " at [Source: org.elasticsearch.common.bytes.AbstractBytesReference$MarkSupportingStreamInputWrapper")));
+                + " was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')\n"
+                + " at [Source: (org.elasticsearch.common.bytes.AbstractBytesReference$MarkSupportingStreamInputWrapper)")));
     }
 
     public void testReformatSetting() {

@@ -50,7 +50,7 @@ public class SearchAfterIT extends ESIntegTestCase {
 
     public void testsShouldFail() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-            .setMapping("field2", "type=keyword")
+            .setMapping("field1", "type=long", "field2", "type=keyword")
             .get()
         );
         ensureGreen();

@@ -10,8 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.AliasOrIndex.Alias;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -71,18 +70,17 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                 + "] is not set on index [" + originalIndexMeta.getIndex().getName() + "]");
         }
 
-        AliasOrIndex aliasOrIndex = clusterState.metaData().getAliasAndIndexLookup().get(rolloverAlias);
-        assert aliasOrIndex.isAlias() : rolloverAlias + " must be an alias but it is an index";
+        IndexAbstraction indexAbstraction = clusterState.metaData().getIndicesLookup().get(rolloverAlias);
+        assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
 
-        Alias alias = (Alias) aliasOrIndex;
-        IndexMetaData aliasWriteIndex = alias.getWriteIndex();
+        IndexMetaData aliasWriteIndex = indexAbstraction.getWriteIndex();
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
         if (aliasWriteIndex != null) {
             rolledIndexName = aliasWriteIndex.getIndex().getName();
             waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get("index.write.wait_for_active_shards");
         } else {
-            List<IndexMetaData> indices = alias.getIndices();
+            List<IndexMetaData> indices = indexAbstraction.getIndices();
             int maxIndexCounter = -1;
             IndexMetaData rolledIndexMeta = null;
             for (IndexMetaData indexMetaData : indices) {

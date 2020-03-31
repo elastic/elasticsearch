@@ -71,7 +71,7 @@ public abstract class DocValuesIndexFieldData {
         private static final Set<String> BINARY_INDEX_FIELD_NAMES = unmodifiableSet(newHashSet(IdFieldMapper.NAME));
 
         private NumericType numericType;
-        private Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction = AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION;
+        private Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction = AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION;
         private RangeType rangeType;
 
         public Builder numericType(NumericType type) {

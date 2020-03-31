@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
 /**
- * Represents an autoscaling decider, a component that determines whether or not scale.
+ * Represents an autoscaling decider, a component that determines whether or not to scale.
  */
 public interface AutoscalingDecider extends ToXContentObject, NamedWriteable {
 

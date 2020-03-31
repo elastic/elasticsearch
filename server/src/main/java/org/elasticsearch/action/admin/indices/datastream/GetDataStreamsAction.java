@@ -59,10 +59,10 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        private final String[] names;
+        private final String name;
 
-        public Request(String[] names) {
-            this.names = Objects.requireNonNull(names);
+        public Request(String name) {
+            this.name = Objects.requireNonNull(name);
         }
 
         @Override
@@ -72,13 +72,13 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.names = in.readStringArray();
+            this.name = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringArray(names);
+            out.writeString(name);
         }
 
         @Override
@@ -86,12 +86,12 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names);
+            return name.equals(request.name);
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(names);
+            return name.hashCode();
         }
     }
 

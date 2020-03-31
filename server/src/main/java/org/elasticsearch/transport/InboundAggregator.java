@@ -19,6 +19,9 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -27,13 +30,26 @@ import org.elasticsearch.common.lease.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.function.Predicate;
 
 public class InboundAggregator implements Releasable {
+
+    private final CircuitBreaker circuitBreaker;
+    private final Predicate<String> canBreak;
 
     private ReleasableBytesReference firstContent;
     private ArrayList<ReleasableBytesReference> contentAggregation;
     private Header currentHeader;
     private boolean isClosed = false;
+
+    public InboundAggregator() {
+        this(new NoopCircuitBreaker("replace"));
+    }
+
+    public InboundAggregator(CircuitBreaker circuitBreaker) {
+        this.circuitBreaker = circuitBreaker;
+        this.canBreak = (s) -> true;
+    }
 
     public void headerReceived(Header header) {
         ensureOpen();
@@ -84,6 +100,7 @@ public class InboundAggregator implements Releasable {
             if (aggregated.getHeader().needsToReadVariableHeader()) {
                 aggregated.getHeader().finishParsingHeader(aggregated.openOrGetStreamInput());
             }
+            checkBreaker(aggregated);
             success = true;
             return aggregated;
         } finally {
@@ -125,6 +142,20 @@ public class InboundAggregator implements Releasable {
     private void ensureOpen() {
         if (isClosed) {
             throw new IllegalStateException("Aggregator is already closed");
+        }
+    }
+
+    private void checkBreaker(InboundMessage message) {
+        final int contentLength = message.getContentLength();
+        boolean canTripBreaker = true;
+        if (canTripBreaker) {
+            try {
+                circuitBreaker.addEstimateBytesAndMaybeBreak(contentLength, "<transport_request>");
+            } catch (CircuitBreakingException e) {
+
+            }
+        } else {
+            circuitBreaker.addWithoutBreaking(contentLength);
         }
     }
 }

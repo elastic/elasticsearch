@@ -36,6 +36,7 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
     // From SAMLConstants
     private final String REDIRECT_BINDING = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect";
 
+
     @Before
     public void defineApplicationPrivileges() throws IOException {
         super.createApplicationPrivileges("elastic-cloud", Map.ofEntries(
@@ -44,6 +45,7 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
         ));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54445")
     public void testCreateAndDeleteServiceProvider() throws Exception {
         final String entityId = "ec:" + randomAlphaOfLength(8) + ":" + randomAlphaOfLength(12);
         final Map<String, Object> request = Map.ofEntries(

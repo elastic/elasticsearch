@@ -549,7 +549,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String jobId = "secondary-privs-put-job";
         createJob(jobId, "airline.keyword");
         String datafeedId = "datafeed-" + jobId;
-        // Primary auth header does not have accesss, but secondary auth does
+        // Primary auth header does not have access, but secondary auth does
         new DatafeedBuilder(datafeedId, jobId, "airline-data")
                 .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN)
                 .setSecondaryAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS)

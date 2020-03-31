@@ -35,7 +35,7 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
-            if (!(indexFieldData instanceof IndexAggregateDoubleMetricFieldData)) {
+            if ((indexFieldData instanceof IndexAggregateDoubleMetricFieldData) == false) {
                 throw new IllegalArgumentException(
                     "Expected aggregate_metric_double type on field ["
                         + fieldContext.field()

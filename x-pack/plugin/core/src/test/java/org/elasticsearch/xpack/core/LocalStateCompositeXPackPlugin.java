@@ -16,7 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -331,10 +331,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
             for(Plugin p: plugins) {
-                templates = p.getIndexTemplateMetaDataUpgrader().apply(templates);
+                templates = p.getIndexTemplateMetadataUpgrader().apply(templates);
             }
             return templates;
         };

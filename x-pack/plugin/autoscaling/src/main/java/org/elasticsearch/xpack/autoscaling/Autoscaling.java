@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -126,7 +126,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(MetaData.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, AutoscalingMetadata.NAME, AutoscalingMetadata.AutoscalingMetadataDiff::new),
             new NamedWriteableRegistry.Entry(AutoscalingDecider.class, AlwaysAutoscalingDecider.NAME, AlwaysAutoscalingDecider::new)
         );
@@ -136,7 +136,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
             new NamedXContentRegistry.Entry(
-                MetaData.Custom.class,
+                Metadata.Custom.class,
                 new ParseField(AutoscalingMetadata.NAME),
                 parser -> AutoscalingMetadata.PARSER.parse(parser, null)
             ),

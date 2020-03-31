@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAuto
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingMetadata;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
 
-public class AutoscalingMetadataDiffableSerializationTests extends AbstractDiffableSerializationTestCase<MetaData.Custom> {
+public class AutoscalingMetadataDiffableSerializationTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -43,7 +43,7 @@ public class AutoscalingMetadataDiffableSerializationTests extends AbstractDiffa
     }
 
     @Override
-    protected Writeable.Reader<MetaData.Custom> instanceReader() {
+    protected Writeable.Reader<Metadata.Custom> instanceReader() {
         return AutoscalingMetadata::new;
     }
 
@@ -53,12 +53,12 @@ public class AutoscalingMetadataDiffableSerializationTests extends AbstractDiffa
     }
 
     @Override
-    protected MetaData.Custom makeTestChanges(final MetaData.Custom testInstance) {
+    protected Metadata.Custom makeTestChanges(final Metadata.Custom testInstance) {
         return mutateInstance(testInstance);
     }
 
     @Override
-    protected MetaData.Custom mutateInstance(final MetaData.Custom instance) {
+    protected Metadata.Custom mutateInstance(final Metadata.Custom instance) {
         final AutoscalingMetadata metadata = (AutoscalingMetadata) instance;
         final SortedMap<String, AutoscalingPolicyMetadata> policies = new TreeMap<>(metadata.policies());
         if (policies.size() == 0 || randomBoolean()) {
@@ -75,7 +75,7 @@ public class AutoscalingMetadataDiffableSerializationTests extends AbstractDiffa
     }
 
     @Override
-    protected Writeable.Reader<Diff<MetaData.Custom>> diffReader() {
+    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
         return AutoscalingMetadata.AutoscalingMetadataDiff::new;
     }
 

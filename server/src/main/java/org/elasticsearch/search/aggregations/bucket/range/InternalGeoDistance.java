@@ -67,14 +67,14 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
         @Override
         public InternalGeoDistance create(String name, List<Bucket> ranges, DocValueFormat format, boolean keyed,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-            return new InternalGeoDistance(name, ranges, keyed, pipelineAggregators, metaData);
+                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+            return new InternalGeoDistance(name, ranges, keyed, pipelineAggregators, metadata);
         }
 
         @Override
         public InternalGeoDistance create(List<Bucket> ranges, InternalGeoDistance prototype) {
             return new InternalGeoDistance(prototype.name, ranges, prototype.keyed, prototype.pipelineAggregators(),
-                    prototype.metaData);
+                    prototype.metadata);
         }
 
         @Override
@@ -92,8 +92,8 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     public InternalGeoDistance(String name, List<Bucket> ranges, boolean keyed,
             List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, ranges, DocValueFormat.RAW, keyed, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, ranges, DocValueFormat.RAW, keyed, pipelineAggregators, metadata);
     }
 
     /**

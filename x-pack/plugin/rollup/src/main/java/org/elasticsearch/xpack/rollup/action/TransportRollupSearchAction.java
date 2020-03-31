@@ -17,9 +17,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -101,7 +101,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request.indices());
-        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetaData().indices());
+        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetadata().indices());
 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
@@ -357,7 +357,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
     }
 
-    static RollupSearchContext separateIndices(String[] indices, ImmutableOpenMap<String, IndexMetaData> indexMetaData) {
+    static RollupSearchContext separateIndices(String[] indices, ImmutableOpenMap<String, IndexMetadata> indexMetadata) {
 
         if (indices.length == 0) {
             throw new IllegalArgumentException("Must specify at least one concrete index.");
@@ -367,10 +367,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         List<String> normal = new ArrayList<>();
         Set<RollupJobCaps>  jobCaps = new HashSet<>();
         Arrays.stream(indices).forEach(i -> {
-            if (i.equals(MetaData.ALL)) {
+            if (i.equals(Metadata.ALL)) {
                 throw new IllegalArgumentException("Searching _all via RollupSearch endpoint is not supported at this time.");
             }
-            Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(i, indexMetaData.get(i));
+            Optional<RollupIndexCaps> caps = TransportGetRollupCapsAction.findRollupIndexCaps(i, indexMetadata.get(i));
             if (caps.isPresent()) {
                 rollup.add(i);
                 jobCaps.addAll(caps.get().getJobCaps());

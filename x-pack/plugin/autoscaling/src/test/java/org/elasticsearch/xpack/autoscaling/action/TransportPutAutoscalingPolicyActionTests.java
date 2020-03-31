@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.autoscaling.action;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -33,7 +33,7 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         {
             final ClusterState.Builder builder = ClusterState.builder(new ClusterName(randomAlphaOfLength(8)));
             if (randomBoolean()) {
-                builder.metaData(MetaData.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadata()));
+                builder.metadata(Metadata.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadata()));
             }
             currentState = builder.build();
         }
@@ -43,7 +43,7 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(currentState, policy, mockLogger);
 
         // ensure the new policy is in the updated cluster state
-        final AutoscalingMetadata metadata = state.metaData().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), hasKey(policy.name()));
         assertThat(metadata.policies().get(policy.name()).policy(), equalTo(policy));
@@ -51,7 +51,7 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         verifyNoMoreInteractions(mockLogger);
 
         // ensure that existing policies were preserved
-        final AutoscalingMetadata currentMetadata = currentState.metaData().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
         if (currentMetadata != null) {
             for (final Map.Entry<String, AutoscalingPolicyMetadata> entry : currentMetadata.policies().entrySet()) {
                 assertThat(metadata.policies(), hasKey(entry.getKey()));
@@ -64,12 +64,12 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final ClusterState currentState;
         {
             final ClusterState.Builder builder = ClusterState.builder(new ClusterName(randomAlphaOfLength(8)));
-            builder.metaData(
-                MetaData.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
+            builder.metadata(
+                Metadata.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
             );
             currentState = builder.build();
         }
-        final AutoscalingMetadata currentMetadata = currentState.metaData().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
         final String name = randomFrom(currentMetadata.policies().keySet());
         // add to the existing deciders, to ensure the policy has changed
         final AutoscalingPolicy policy = new AutoscalingPolicy(
@@ -81,7 +81,7 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(currentState, policy, mockLogger);
 
         // ensure the updated policy is in the updated cluster state
-        final AutoscalingMetadata metadata = state.metaData().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), hasKey(policy.name()));
         assertThat(metadata.policies().get(policy.name()).policy(), equalTo(policy));
@@ -102,13 +102,13 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final ClusterState currentState;
         {
             final ClusterState.Builder builder = ClusterState.builder(new ClusterName(randomAlphaOfLength(8)));
-            builder.metaData(
-                MetaData.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
+            builder.metadata(
+                Metadata.builder().putCustom(AutoscalingMetadata.NAME, randomAutoscalingMetadataOfPolicyCount(randomIntBetween(1, 8)))
             );
             currentState = builder.build();
         }
         // randomly put an existing policy
-        final AutoscalingMetadata currentMetadata = currentState.metaData().custom(AutoscalingMetadata.NAME);
+        final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
         final AutoscalingPolicy policy = randomFrom(currentMetadata.policies().values()).policy();
         final Logger mockLogger = mock(Logger.class);
         final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(currentState, policy, mockLogger);

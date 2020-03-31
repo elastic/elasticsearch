@@ -102,9 +102,9 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
             final ClusterSettings clusterSettings,
             final Settings settings) {
         return new ClusterGetSettingsResponse(
-                settingsFilter.filter(state.metaData().persistentSettings()),
-                settingsFilter.filter(state.metaData().transientSettings()),
-                renderDefaults ? settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), settings)) : Settings.EMPTY);
+                settingsFilter.filter(state.metadata().persistentSettings()),
+                settingsFilter.filter(state.metadata().transientSettings()),
+                renderDefaults ? settingsFilter.filter(clusterSettings.diff(state.metadata().settings(), settings)) : Settings.EMPTY);
     }
 
 }

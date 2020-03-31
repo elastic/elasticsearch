@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +31,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class AutoscalingMetadata implements MetaData.Custom {
+public class AutoscalingMetadata implements Metadata.Custom {
 
     public static final String NAME = "autoscaling";
 
@@ -89,12 +89,12 @@ public class AutoscalingMetadata implements MetaData.Custom {
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.ALL_CONTEXTS;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.ALL_CONTEXTS;
     }
 
     @Override
-    public Diff<MetaData.Custom> diff(final MetaData.Custom previousState) {
+    public Diff<Metadata.Custom> diff(final Metadata.Custom previousState) {
         return new AutoscalingMetadataDiff((AutoscalingMetadata) previousState, this);
     }
 
@@ -128,7 +128,7 @@ public class AutoscalingMetadata implements MetaData.Custom {
         return Objects.hash(policies);
     }
 
-    public static class AutoscalingMetadataDiff implements NamedDiff<MetaData.Custom> {
+    public static class AutoscalingMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, AutoscalingPolicyMetadata>> policies;
 
@@ -146,7 +146,7 @@ public class AutoscalingMetadata implements MetaData.Custom {
         }
 
         @Override
-        public MetaData.Custom apply(final MetaData.Custom part) {
+        public Metadata.Custom apply(final Metadata.Custom part) {
             return new AutoscalingMetadata(new TreeMap<>(policies.apply(((AutoscalingMetadata) part).policies)));
         }
 

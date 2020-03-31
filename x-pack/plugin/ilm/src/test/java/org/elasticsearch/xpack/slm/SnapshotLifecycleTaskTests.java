@@ -18,7 +18,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
@@ -65,7 +65,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .putCustom(SnapshotLifecycleMetadata.TYPE, meta)
                 .build())
             .build();
@@ -86,7 +86,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .putCustom(SnapshotLifecycleMetadata.TYPE, meta)
                 .build())
             .build();
@@ -117,7 +117,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .putCustom(SnapshotLifecycleMetadata.TYPE, meta)
                 .build())
             .build();
@@ -208,7 +208,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .putCustom(SnapshotLifecycleMetadata.TYPE, meta)
                 .build())
             .build();

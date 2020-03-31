@@ -10,9 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -56,15 +56,15 @@ public class LimitedRoleTests extends ESTestCase {
     }
 
     public void testAuthorize() {
-        IndexMetaData.Builder imbBuilder = IndexMetaData
-                .builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                .putAlias(AliasMetaData.builder("_alias"));
-        IndexMetaData.Builder imbBuilder1 = IndexMetaData
-                .builder("_index1").settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                .putAlias(AliasMetaData.builder("_alias1"));
-        MetaData md = MetaData.builder().put(imbBuilder).put(imbBuilder1).build();
+        IndexMetadata.Builder imbBuilder = IndexMetadata
+                .builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .putAlias(AliasMetadata.builder("_alias"));
+        IndexMetadata.Builder imbBuilder1 = IndexMetadata
+                .builder("_index1").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .putAlias(AliasMetadata.builder("_alias1"));
+        Metadata md = Metadata.builder().put(imbBuilder).put(imbBuilder1).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         Role fromRole = Role.builder("a-role").cluster(Collections.singleton("manage_security"), Collections.emptyList())
                 .add(IndexPrivilege.ALL, "_index").add(IndexPrivilege.CREATE_INDEX, "_index1").build();

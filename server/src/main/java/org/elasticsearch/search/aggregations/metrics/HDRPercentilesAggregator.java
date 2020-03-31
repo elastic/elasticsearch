@@ -34,9 +34,9 @@ class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
 
     HDRPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent, double[] percents,
             int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
         super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, formatter,
-                pipelineAggregators, metaData);
+                pipelineAggregators, metadata);
     }
 
     @Override
@@ -45,7 +45,7 @@ class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalHDRPercentiles(name, keys, state, keyed, format, pipelineAggregators(), metaData());
+            return new InternalHDRPercentiles(name, keys, state, keyed, format, pipelineAggregators(), metadata());
         }
     }
 
@@ -66,6 +66,6 @@ class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         state.setAutoResize(true);
         return new InternalHDRPercentiles(name, keys, state,
                 keyed,
-                format, pipelineAggregators(), metaData());
+                format, pipelineAggregators(), metadata());
     }
 }

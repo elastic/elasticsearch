@@ -89,9 +89,9 @@ final class CompositeAggregator extends BucketsAggregator {
     private boolean earlyTerminated;
 
     CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata,
                         int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metadata);
         this.size = size;
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
@@ -153,13 +153,13 @@ final class CompositeAggregator extends BucketsAggregator {
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
         return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
-            earlyTerminated, pipelineAggregators(), metaData());
+            earlyTerminated, pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalComposite(name, size, sourceNames, formats, Collections.emptyList(), null, reverseMuls,
-            false, pipelineAggregators(), metaData());
+            false, pipelineAggregators(), metadata());
     }
 
     private void finishLeaf() {

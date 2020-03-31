@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -96,8 +96,8 @@ public class TransportPutAutoscalingPolicyAction extends TransportMasterNodeActi
     static ClusterState putAutoscalingPolicy(final ClusterState currentState, final AutoscalingPolicy policy, final Logger logger) {
         final ClusterState.Builder builder = ClusterState.builder(currentState);
         final AutoscalingMetadata currentMetadata;
-        if (currentState.metaData().custom(AutoscalingMetadata.NAME) != null) {
-            currentMetadata = currentState.metaData().custom(AutoscalingMetadata.NAME);
+        if (currentState.metadata().custom(AutoscalingMetadata.NAME) != null) {
+            currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
         } else {
             currentMetadata = AutoscalingMetadata.EMPTY;
         }
@@ -113,7 +113,7 @@ public class TransportPutAutoscalingPolicyAction extends TransportMasterNodeActi
             logger.info("updating autoscaling policy [{}]", policy.name());
         }
         final AutoscalingMetadata newMetadata = new AutoscalingMetadata(newPolicies);
-        builder.metaData(MetaData.builder(currentState.getMetaData()).putCustom(AutoscalingMetadata.NAME, newMetadata).build());
+        builder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(AutoscalingMetadata.NAME, newMetadata).build());
         return builder.build();
     }
 

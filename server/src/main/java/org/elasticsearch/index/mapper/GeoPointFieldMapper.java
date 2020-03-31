@@ -41,6 +41,8 @@ import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointDVIndexFieldDa
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.VectorGeoPointShapeQueryProcessor;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -244,6 +246,11 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
 
         @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.GEOPOINT;
+        }
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
@@ -254,8 +261,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context,
-                "Geo fields do not support exact searching, use dedicated geo queries instead: ["
+            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
                 + name() + "]");
         }
     }

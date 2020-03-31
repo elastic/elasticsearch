@@ -53,6 +53,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -274,6 +276,12 @@ public class HistogramFieldMapper extends FieldMapper {
                     };
                 }
             };
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            // TODO: Histogram ValuesSourceType should move into this plugin.
+            return CoreValuesSourceType.HISTOGRAM;
         }
 
         @Override

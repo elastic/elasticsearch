@@ -44,6 +44,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -179,7 +180,8 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
             String firstBackingIndexName = request.name + "-000001";
             CreateIndexClusterStateUpdateRequest createIndexRequest =
-                new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName);
+                new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
+                .settings(Settings.builder().put("index.hidden", true).build());
             currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
             IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
             assert firstBackingIndex != null;

@@ -69,7 +69,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -78,6 +77,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -1384,25 +1384,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         throw new IllegalStateException("data stream [" + ds.getName() + "] conflicts with existing index or alias");
                     }
 
-                    SortedMap<String, IndexAbstraction> map =
+                    SortedMap<String, IndexAbstraction> potentialConflicts =
                         indicesLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
-                    if (map.size() != 0) {
-                        if (map.size() == ds.getIndices().size()) {
-                            int numValidIndices = 0;
-                            for (int i = 0; i < map.size(); i++) {
-                                IndexAbstraction space =  map.get(String.format(Locale.ROOT, "%s-%06d", ds.getName(), i));
-                                if (space != null && space.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
-                                    numValidIndices++;
-                                }
-                            }
-                            if (numValidIndices == map.size()) {
-                                continue;
+                    if (potentialConflicts.size() != 0) {
+                        List<String> indexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
+                        List<String> conflicts = new ArrayList<>();
+                        for (Map.Entry<String, IndexAbstraction> entry : potentialConflicts.entrySet()) {
+                            if (entry.getValue().getType() != IndexAbstraction.Type.CONCRETE_INDEX ||
+                                indexNames.contains(entry.getKey()) == false) {
+                                conflicts.add(entry.getKey());
                             }
                         }
 
-                        throw new IllegalStateException("data stream [" + ds.getName() +
-                            "] could create backing indices that conflict with " + map.size() + " existing index(s) or alias(s)" +
-                            " including '" + map.firstKey() + "'");
+                        if (conflicts.size() > 0) {
+                            throw new IllegalStateException("data stream [" + ds.getName() +
+                                "] could create backing indices that conflict with " + conflicts.size() + " existing index(s) or alias(s)" +
+                                " including '" + conflicts.get(0) + "'");
+                        }
                     }
                 }
             }

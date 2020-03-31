@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
@@ -39,8 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCase<Request> {
-
-    private final MetadataCreateIndexService metadataCreateIndexService = new MockMetadataCreateIndexService();
 
     @Override
     protected Writeable.Reader<Request> instanceReader() {
@@ -70,16 +69,19 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
     }
 
     public void testCreateDataStream() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = new MockMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
         ClusterState newState = CreateDataStreamAction.TransportAction.createDataStream(metadataCreateIndexService, cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
-        assertThat(newState.metadata().index(dataStreamName + "-000000"), notNullValue());
+        assertThat(newState.metadata().index(dataStreamName + "-000001"), notNullValue());
+        assertThat(newState.metadata().index(dataStreamName + "-000001").getSettings().get("index.hidden"), equalTo("true"));
     }
 
     public void testCreateDuplicateDataStream() {
+        final MetadataCreateIndexService metadataCreateIndexService = new MockMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
@@ -92,6 +94,7 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
     }
 
     public void testCreateDataStreamWithInvalidName() {
+        final MetadataCreateIndexService metadataCreateIndexService = new MockMetadataCreateIndexService();
         final String dataStreamName = "_My-da#ta- ,stream-";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
@@ -111,7 +114,10 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
                                                     boolean silent) throws Exception {
             Metadata.Builder b = Metadata.builder(currentState.metadata())
                 .put(IndexMetadata.builder(request.index())
-                    .settings(settings(Version.CURRENT))
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(request.settings())
+                        .build())
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .build(), false);

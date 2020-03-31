@@ -40,7 +40,7 @@ public class PutUserRequestTests extends ESTestCase {
         assertThat(validation.validationErrors().size(), is(1));
     }
 
-    public void testValidateRejectsMetaDataWithLeadingUnderscore() throws Exception {
+    public void testValidateRejectsMetadataWithLeadingUnderscore() throws Exception {
         final PutUserRequest request = new PutUserRequest();
         request.username("foo");
         request.roles("bar");

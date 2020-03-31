@@ -19,7 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License.OperationMode;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -223,7 +223,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             assertEquals(DatafeedState.STOPPED, datafeedState);
 
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertEquals(0, tasks.taskMap().size());
         });
 
@@ -248,7 +248,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             assertEquals(DatafeedState.STARTED, datafeedState);
 
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertEquals(2, tasks.taskMap().size());
         });
 
@@ -268,7 +268,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             assertEquals(DatafeedState.STOPPED, datafeedState);
 
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertEquals(0, tasks.taskMap().size());
         });
     }
@@ -305,7 +305,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             JobState jobState = getJobStats(jobId).getState();
             assertEquals(JobState.CLOSED, jobState);
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertEquals(0, tasks.taskMap().size());
         });
 

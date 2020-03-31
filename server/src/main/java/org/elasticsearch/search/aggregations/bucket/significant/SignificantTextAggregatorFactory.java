@@ -77,8 +77,8 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
                                                 String fieldName,
                                                 String [] sourceFieldNames,
                                                 boolean filterDuplicateText,
-                                                Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                                Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
 
         // Note that if the field is unmapped (its field type is null), we don't fail,
         // and just use the given field name as a placeholder.
@@ -173,7 +173,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
 
     @Override
     protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata)
             throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
@@ -200,7 +200,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory
             includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
         return new SignificantTextAggregator(name, factories, searchContext, parent, pipelineAggregators, bucketCountThresholds,
-                incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metaData);
+                incExcFilter, significanceHeuristic, this, indexedFieldName, sourceFieldNames, filterDuplicateText, metadata);
 
     }
 }

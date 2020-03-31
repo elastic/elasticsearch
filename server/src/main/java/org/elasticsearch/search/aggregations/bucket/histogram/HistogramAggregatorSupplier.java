@@ -37,5 +37,5 @@ public interface HistogramAggregatorSupplier extends AggregatorSupplier {
                      BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
                      @Nullable ValuesSource valuesSource, DocValueFormat formatter,
                      SearchContext context, Aggregator parent,
-                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
+                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException;
 }

@@ -63,9 +63,9 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                         SearchContext context,
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
                     return new RangeAggregator(name, factories, valuesSource, format, rangeFactory, ranges, keyed, context, parent,
-                        pipelineAggregators, metaData);
+                        pipelineAggregators, metadata);
                 }
             });
     }
@@ -78,8 +78,8 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                           QueryShardContext queryShardContext,
                                           AggregatorFactory parent,
                                           AggregatorFactories.Builder subFactoriesBuilder,
-                                          Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                          Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
@@ -90,8 +90,8 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new Unmapped<>(name, ranges, keyed, config.format(), searchContext, parent, rangeFactory, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new Unmapped<>(name, ranges, keyed, config.format(), searchContext, parent, rangeFactory, pipelineAggregators, metadata);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
 
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             aggregationTypeName);
@@ -109,6 +109,6 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((RangeAggregatorSupplier)aggregatorSupplier).build(name, factories, (Numeric) valuesSource, config.format(), rangeFactory,
-            ranges, keyed, searchContext, parent, pipelineAggregators, metaData);
+            ranges, keyed, searchContext, parent, pipelineAggregators, metadata);
     }
 }

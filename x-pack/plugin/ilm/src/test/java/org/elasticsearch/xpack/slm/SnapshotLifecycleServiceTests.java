@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.slm;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -66,11 +66,11 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
         assertThat(e.getMessage(), containsString("no such repository [repo]"));
 
-        RepositoryMetaData repo = new RepositoryMetaData("repo", "fs", Settings.EMPTY);
-        RepositoriesMetaData repoMeta = new RepositoriesMetaData(Collections.singletonList(repo));
+        RepositoryMetadata repo = new RepositoryMetadata("repo", "fs", Settings.EMPTY);
+        RepositoriesMetadata repoMeta = new RepositoriesMetadata(Collections.singletonList(repo));
         ClusterState stateWithRepo = ClusterState.builder(state)
-            .metaData(MetaData.builder()
-            .putCustom(RepositoriesMetaData.TYPE, repoMeta))
+            .metadata(Metadata.builder()
+            .putCustom(RepositoriesMetadata.TYPE, repoMeta))
             .build();
 
         SnapshotLifecycleService.validateRepositoryExists("repo", stateWithRepo);
@@ -336,11 +336,11 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     }
 
     public ClusterState createState(SnapshotLifecycleMetadata snapMeta) {
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .putCustom(SnapshotLifecycleMetadata.TYPE, snapMeta)
             .build();
         return ClusterState.builder(new ClusterName("cluster"))
-            .metaData(metaData)
+            .metadata(metadata)
             .build();
     }
 

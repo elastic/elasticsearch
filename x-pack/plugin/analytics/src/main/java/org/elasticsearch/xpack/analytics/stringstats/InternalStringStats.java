@@ -65,8 +65,8 @@ public class InternalStringStats extends InternalAggregation {
                                Map<String, Long> charOccurences, boolean showDistribution,
                                DocValueFormat formatter,
                                List<PipelineAggregator> pipelineAggregators,
-                               Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                               Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.format = formatter;
         this.showDistribution = showDistribution;
         this.count = count;
@@ -213,7 +213,7 @@ public class InternalStringStats extends InternalAggregation {
         }
 
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, occurs,
-            showDistribution, format, pipelineAggregators(), getMetaData());
+            showDistribution, format, pipelineAggregators(), getMetadata());
     }
 
     @Override

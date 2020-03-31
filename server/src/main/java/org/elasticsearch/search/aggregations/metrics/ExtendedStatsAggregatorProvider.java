@@ -38,5 +38,5 @@ public interface ExtendedStatsAggregatorProvider extends AggregatorSupplier {
                      Aggregator parent,
                      double sigma,
                      List<PipelineAggregator> pipelineAggregators,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

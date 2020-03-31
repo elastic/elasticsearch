@@ -28,7 +28,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -159,7 +159,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     public void testDeleteIndexTemplate() throws Exception {
-        final int existingTemplates = admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size();
+        final int existingTemplates = admin().cluster().prepareState().execute().actionGet().getState().metadata().templates().size();
         logger.info("--> put template_1 and template_2");
         client().admin().indices().preparePutTemplate("template_1")
                 .setPatterns(Collections.singletonList("te*"))
@@ -202,9 +202,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         ClusterState state = admin().cluster().prepareState().execute().actionGet().getState();
 
-        assertThat(state.metaData().templates().size(), equalTo(1 + existingTemplates));
-        assertThat(state.metaData().templates().containsKey("template_2"), equalTo(true));
-        assertThat(state.metaData().templates().containsKey("template_1"), equalTo(false));
+        assertThat(state.metadata().templates().size(), equalTo(1 + existingTemplates));
+        assertThat(state.metadata().templates().containsKey("template_2"), equalTo(true));
+        assertThat(state.metadata().templates().containsKey("template_1"), equalTo(false));
 
 
         logger.info("--> put template_1 back");
@@ -219,12 +219,12 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         logger.info("--> delete template*");
         admin().indices().prepareDeleteTemplate("template*").execute().actionGet();
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(),
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metadata().templates().size(),
                    equalTo(existingTemplates));
 
         logger.info("--> delete * with no templates, make sure we don't get a failure");
         admin().indices().prepareDeleteTemplate("*").execute().actionGet();
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(),
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metadata().templates().size(),
                    equalTo(0));
     }
 
@@ -603,16 +603,16 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().addIndices("test").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(4));
 
-        for (AliasMetaData aliasMetaData : getAliasesResponse.getAliases().get("test")) {
-            assertThat(aliasMetaData.alias(), anyOf(equalTo("alias1"), equalTo("test-alias"), equalTo("alias3"), equalTo("alias4")));
-            if ("alias1".equals(aliasMetaData.alias())) {
-                assertThat(aliasMetaData.indexRouting(), equalTo("test"));
-                assertThat(aliasMetaData.searchRouting(), equalTo("test"));
-            } else if ("alias3".equals(aliasMetaData.alias())) {
-                assertThat(aliasMetaData.filter(), nullValue());
-            } else if ("test-alias".equals(aliasMetaData.alias())) {
-                assertThat(aliasMetaData.indexRouting(), nullValue());
-                assertThat(aliasMetaData.searchRouting(), equalTo("test-routing"));
+        for (AliasMetadata aliasMetadata : getAliasesResponse.getAliases().get("test")) {
+            assertThat(aliasMetadata.alias(), anyOf(equalTo("alias1"), equalTo("test-alias"), equalTo("alias3"), equalTo("alias4")));
+            if ("alias1".equals(aliasMetadata.alias())) {
+                assertThat(aliasMetadata.indexRouting(), equalTo("test"));
+                assertThat(aliasMetadata.searchRouting(), equalTo("test"));
+            } else if ("alias3".equals(aliasMetadata.alias())) {
+                assertThat(aliasMetadata.filter(), nullValue());
+            } else if ("test-alias".equals(aliasMetadata.alias())) {
+                assertThat(aliasMetadata.indexRouting(), nullValue());
+                assertThat(aliasMetadata.searchRouting(), equalTo("test-routing"));
             }
         }
     }

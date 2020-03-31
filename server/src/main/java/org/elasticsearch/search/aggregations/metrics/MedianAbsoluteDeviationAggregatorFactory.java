@@ -47,10 +47,10 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
                                              QueryShardContext queryShardContext,
                                              AggregatorFactory parent,
                                              AggregatorFactories.Builder subFactoriesBuilder,
-                                             Map<String, Object> metaData,
+                                             Map<String, Object> metadata,
                                              double compression) throws IOException {
 
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
     }
 
@@ -65,14 +65,14 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
                                         SearchContext context,
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData,
+                                        Map<String, Object> metadata,
                                         double compression) throws IOException {
                     return new MedianAbsoluteDeviationAggregator(
                         name,
                         context,
                         parent,
                         pipelineAggregators,
-                        metaData,
+                        metadata,
                         (ValuesSource.Numeric) valuesSource,
                         format,
                         compression
@@ -85,14 +85,14 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
 
         return new MedianAbsoluteDeviationAggregator(
             name,
             searchContext,
             parent,
             pipelineAggregators,
-            metaData,
+            metadata,
             null,
             config.format(),
             compression
@@ -105,7 +105,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             MedianAbsoluteDeviationAggregationBuilder.NAME);
 
@@ -114,6 +114,6 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((MedianAbsoluteDeviationAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(),
-            searchContext, parent, pipelineAggregators, metaData, compression);
+            searchContext, parent, pipelineAggregators, metadata, compression);
     }
 }

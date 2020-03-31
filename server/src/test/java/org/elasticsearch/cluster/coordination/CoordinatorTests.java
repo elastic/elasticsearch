@@ -28,9 +28,9 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
@@ -208,7 +208,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             logger.info("setting auto-shrink reconfiguration to true");
             leader.submitSetAutoShrinkVotingConfiguration(true);
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-            assertTrue(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metaData().settings()));
+            assertTrue(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metadata().settings()));
 
             cluster.addNodesAndStabilise(2);
 
@@ -291,7 +291,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 logger.info("setting auto-shrink reconfiguration to false");
                 leader.submitSetAutoShrinkVotingConfiguration(false);
                 cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-                assertFalse(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metaData().settings()));
+                assertFalse(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metadata().settings()));
             }
 
             final ClusterNode disconnect1 = cluster.getAnyNode();
@@ -313,7 +313,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             logger.info("setting auto-shrink reconfiguration to true");
             leader.submitSetAutoShrinkVotingConfiguration(true);
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY * 2); // allow for a reconfiguration
-            assertTrue(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metaData().settings()));
+            assertTrue(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metadata().settings()));
 
             {
                 final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
@@ -906,10 +906,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             final ClusterNode leader = cluster.getAnyLeader();
             leader.submitUpdateTask("update NO_MASTER_BLOCK_SETTING", cs -> {
-                final Builder settingsBuilder = Settings.builder().put(cs.metaData().persistentSettings());
+                final Builder settingsBuilder = Settings.builder().put(cs.metadata().persistentSettings());
                 settingsBuilder.put(NO_MASTER_BLOCK_SETTING.getKey(), noMasterBlockSetting);
                 return
-                    ClusterState.builder(cs).metaData(MetaData.builder(cs.metaData()).persistentSettings(settingsBuilder.build())).build();
+                    ClusterState.builder(cs).metadata(Metadata.builder(cs.metadata()).persistentSettings(settingsBuilder.build())).build();
             }, (source, e) -> {});
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing setting update");
 
@@ -1027,7 +1027,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             newNode.close();
             final ClusterNode detachedNode = newNode.restartedNode(
-                DetachClusterCommand::updateMetaData,
+                DetachClusterCommand::updateMetadata,
                 term -> DetachClusterCommand.updateCurrentTerm(), newNode.nodeSettings);
             cluster1.clusterNodes.replaceAll(cn -> cn == newNode ? detachedNode : cn);
             cluster1.stabilise();

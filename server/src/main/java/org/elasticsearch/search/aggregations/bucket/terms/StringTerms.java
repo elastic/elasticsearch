@@ -105,9 +105,9 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
     }
 
     public StringTerms(String name, BucketOrder order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
+            Map<String, Object> metadata, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
-        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format,
+        super(name, order, requiredSize, minDocCount, pipelineAggregators, metadata, format,
                 shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -125,7 +125,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
     @Override
     public StringTerms create(List<Bucket> buckets) {
-        return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData, format, shardSize,
+        return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metadata, format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -142,7 +142,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
     @Override
     protected StringTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
-        return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), getMetaData(), format, shardSize,
+        return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), getMetadata(), format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 

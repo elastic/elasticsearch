@@ -53,16 +53,16 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>("template", false,
-        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetaData>) a[2]));
+        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetadata>) a[2]));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
             new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered()))), MAPPINGS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            Map<String, AliasMetaData> aliasMap = new HashMap<>();
+            Map<String, AliasMetadata> aliasMap = new HashMap<>();
             while ((p.nextToken()) != XContentParser.Token.END_OBJECT) {
-                AliasMetaData alias = AliasMetaData.Builder.fromXContent(p);
+                AliasMetadata alias = AliasMetadata.Builder.fromXContent(p);
                 aliasMap.put(alias.alias(), alias);
             }
             return aliasMap;
@@ -74,9 +74,9 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
     @Nullable
     private final CompressedXContent mappings;
     @Nullable
-    private final Map<String, AliasMetaData> aliases;
+    private final Map<String, AliasMetadata> aliases;
 
-    public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetaData> aliases) {
+    public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetadata> aliases) {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
@@ -94,7 +94,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             this.mappings = null;
         }
         if (in.readBoolean()) {
-            this.aliases = in.readMap(StreamInput::readString, AliasMetaData::new);
+            this.aliases = in.readMap(StreamInput::readString, AliasMetadata::new);
         } else {
             this.aliases = null;
         }
@@ -108,7 +108,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         return mappings;
     }
 
-    public Map<String, AliasMetaData> aliases() {
+    public Map<String, AliasMetadata> aliases() {
         return aliases;
     }
 
@@ -130,7 +130,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetaData) -> aliasMetaData.writeTo(stream));
+            out.writeMap(this.aliases, StreamOutput::writeString, (stream, aliasMetadata) -> aliasMetadata.writeTo(stream));
         }
     }
 
@@ -176,8 +176,8 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
         if (this.aliases != null) {
             builder.startObject(ALIASES.getPreferredName());
-            for (AliasMetaData alias : this.aliases.values()) {
-                AliasMetaData.Builder.toXContent(alias, builder, params);
+            for (AliasMetadata alias : this.aliases.values()) {
+                AliasMetadata.Builder.toXContent(alias, builder, params);
             }
             builder.endObject();
         }

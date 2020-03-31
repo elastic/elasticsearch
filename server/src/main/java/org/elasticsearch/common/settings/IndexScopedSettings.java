@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -54,31 +54,31 @@ import java.util.function.Predicate;
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
 
-    public static final Predicate<String> INDEX_SETTINGS_KEY_PREDICATE = (s) -> s.startsWith(IndexMetaData.INDEX_SETTING_PREFIX);
+    public static final Predicate<String> INDEX_SETTINGS_KEY_PREDICATE = (s) -> s.startsWith(IndexMetadata.INDEX_SETTING_PREFIX);
 
     public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Set.of(
             MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
             MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
-            IndexMetaData.SETTING_INDEX_VERSION_CREATED,
-            IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
-            IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
-            IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
-            IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
-            IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING,
-            IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING,
-            IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING,
-            IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING,
-            IndexMetaData.INDEX_READ_ONLY_SETTING,
-            IndexMetaData.INDEX_BLOCKS_READ_SETTING,
-            IndexMetaData.INDEX_BLOCKS_WRITE_SETTING,
-            IndexMetaData.INDEX_BLOCKS_METADATA_SETTING,
-            IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING,
-            IndexMetaData.INDEX_PRIORITY_SETTING,
-            IndexMetaData.INDEX_DATA_PATH_SETTING,
-            IndexMetaData.INDEX_HIDDEN_SETTING,
-            IndexMetaData.INDEX_FORMAT_SETTING,
+            IndexMetadata.SETTING_INDEX_VERSION_CREATED,
+            IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
+            IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
+            IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
+            IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING,
+            IndexMetadata.INDEX_READ_ONLY_SETTING,
+            IndexMetadata.INDEX_BLOCKS_READ_SETTING,
+            IndexMetadata.INDEX_BLOCKS_WRITE_SETTING,
+            IndexMetadata.INDEX_BLOCKS_METADATA_SETTING,
+            IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING,
+            IndexMetadata.INDEX_PRIORITY_SETTING,
+            IndexMetadata.INDEX_DATA_PATH_SETTING,
+            IndexMetadata.INDEX_HIDDEN_SETTING,
+            IndexMetadata.INDEX_FORMAT_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -160,10 +160,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
             FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
             EngineConfig.INDEX_CODEC_SETTING,
-            IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
+            IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS,
             IndexSettings.DEFAULT_PIPELINE,
             IndexSettings.FINAL_PIPELINE,
-            MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
+            MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
             IndexSettings.ON_HEAP_ID_TERMS_INDEX,
 
             // validate that built-in similarities don't get redefined
@@ -187,12 +187,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         super(settings, settingsSet, Collections.emptySet(), Property.IndexScope);
     }
 
-    private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetaData metaData) {
-        super(settings, metaData.getSettings(), other, Loggers.getLogger(IndexScopedSettings.class, metaData.getIndex()));
+    private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetadata metadata) {
+        super(settings, metadata.getSettings(), other, Loggers.getLogger(IndexScopedSettings.class, metadata.getIndex()));
     }
 
-    public IndexScopedSettings copy(Settings settings, IndexMetaData metaData) {
-        return new IndexScopedSettings(settings, this, metaData);
+    public IndexScopedSettings copy(Settings settings, IndexMetadata metadata) {
+        return new IndexScopedSettings(settings, this, metadata);
     }
 
     @Override
@@ -206,20 +206,20 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     @Override
     public boolean isPrivateSetting(String key) {
         switch (key) {
-            case IndexMetaData.SETTING_CREATION_DATE:
-            case IndexMetaData.SETTING_INDEX_UUID:
-            case IndexMetaData.SETTING_VERSION_UPGRADED:
-            case IndexMetaData.SETTING_INDEX_PROVIDED_NAME:
+            case IndexMetadata.SETTING_CREATION_DATE:
+            case IndexMetadata.SETTING_INDEX_UUID:
+            case IndexMetadata.SETTING_VERSION_UPGRADED:
+            case IndexMetadata.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyConfig.INDEX_MERGE_ENABLED:
                 // we keep the shrink settings for BWC - this can be removed in 8.0
                 // we can't remove in 7 since this setting might be baked into an index coming in via a full cluster restart from 6.0
             case "index.shrink.source.uuid":
             case "index.shrink.source.name":
-            case IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY:
-            case IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY:
+            case IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY:
+            case IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY:
                 return true;
             default:
-                return IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
+                return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
         }
     }
 }

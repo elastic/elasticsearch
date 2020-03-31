@@ -36,4 +36,3 @@ public class GeoClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }
-

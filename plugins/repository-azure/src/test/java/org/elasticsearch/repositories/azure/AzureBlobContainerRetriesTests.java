@@ -176,34 +176,35 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         final CountDown countDownGet = new CountDown(maxRetries);
         final byte[] bytes = randomBlobContent();
         httpServer.createContext("/container/read_blob_max_retries", exchange -> {
-            Streams.readFully(exchange.getRequestBody());
-            if ("HEAD".equals(exchange.getRequestMethod())) {
-                if (countDownHead.countDown()) {
-                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(bytes.length));
-                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-                    exchange.close();
-                    return;
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("HEAD".equals(exchange.getRequestMethod())) {
+                    if (countDownHead.countDown()) {
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(bytes.length));
+                        exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                        return;
+                    }
+                } else if ("GET".equals(exchange.getRequestMethod())) {
+                    if (countDownGet.countDown()) {
+                        final int rangeStart = getRangeStart(exchange);
+                        assertThat(rangeStart, lessThan(bytes.length));
+                        final int length = bytes.length - rangeStart;
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                        exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
+                        exchange.getResponseBody().write(bytes, rangeStart, length);
+                        return;
+                    }
                 }
-            } else if ("GET".equals(exchange.getRequestMethod())) {
-                if (countDownGet.countDown()) {
-                    final int rangeStart = getRangeStart(exchange);
-                    assertThat(rangeStart, lessThan(bytes.length));
-                    final int length = bytes.length - rangeStart;
-                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
-                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
-                    exchange.getResponseBody().write(bytes, rangeStart, length);
-                    exchange.close();
-                    return;
+                if (randomBoolean()) {
+                    AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
                 }
+            } finally {
+                exchange.close();
             }
-            if (randomBoolean()) {
-                AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
-            }
-            exchange.close();
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
@@ -220,38 +221,39 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         final CountDown countDownGet = new CountDown(maxRetries);
         final byte[] bytes = randomBlobContent();
         httpServer.createContext("/container/read_range_blob_max_retries", exchange -> {
-            Streams.readFully(exchange.getRequestBody());
-            if ("HEAD".equals(exchange.getRequestMethod())) {
-                if (countDownHead.countDown()) {
-                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(bytes.length));
-                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-                    exchange.close();
-                    return;
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("HEAD".equals(exchange.getRequestMethod())) {
+                    if (countDownHead.countDown()) {
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(bytes.length));
+                        exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                        return;
+                    }
+                } else if ("GET".equals(exchange.getRequestMethod())) {
+                    if (countDownGet.countDown()) {
+                        final int rangeStart = getRangeStart(exchange);
+                        assertThat(rangeStart, lessThan(bytes.length));
+                        final Optional<Integer> rangeEnd = getRangeEnd(exchange);
+                        assertThat(rangeEnd.isPresent(), is(true));
+                        assertThat(rangeEnd.get(), greaterThanOrEqualTo(rangeStart));
+                        final int length = (rangeEnd.get() - rangeStart) + 1;
+                        assertThat(length, lessThanOrEqualTo(bytes.length - rangeStart));
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                        exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
+                        exchange.getResponseBody().write(bytes, rangeStart, length);
+                        return;
+                    }
                 }
-            } else if ("GET".equals(exchange.getRequestMethod())) {
-                if (countDownGet.countDown()) {
-                    final int rangeStart = getRangeStart(exchange);
-                    assertThat(rangeStart, lessThan(bytes.length));
-                    final Optional<Integer> rangeEnd = getRangeEnd(exchange);
-                    assertThat(rangeEnd.isPresent(), is(true));
-                    assertThat(rangeEnd.get(), greaterThanOrEqualTo(rangeStart));
-                    final int length = (rangeEnd.get() - rangeStart) + 1;
-                    assertThat(length, lessThanOrEqualTo(bytes.length - rangeStart));
-                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
-                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
-                    exchange.getResponseBody().write(bytes, rangeStart, length);
-                    exchange.close();
-                    return;
+                if (randomBoolean()) {
+                    AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
                 }
+            } finally {
+                exchange.close();
             }
-            if (randomBoolean()) {
-                AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
-            }
-            exchange.close();
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);

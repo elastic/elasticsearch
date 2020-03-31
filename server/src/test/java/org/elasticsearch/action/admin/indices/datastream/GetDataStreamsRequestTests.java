@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Request;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<Request> {
@@ -42,13 +43,7 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected Request createTestInstance() {
-        return new Request(generateRandomStringArray(8, 8, false));
-    }
-
-    public void testValidateRequest() {
-        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(new String[]{});
-        ActionRequestValidationException e = req.validate();
-        assertNull(e);
+        return new Request(randomAlphaOfLength(8) + (randomBoolean() ? "*" : ""));
     }
 
     public void testGetDataStreams() {
@@ -56,7 +51,7 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
         DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metaData(MetaData.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
-        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(new String[]{dataStreamName});
+        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(dataStreamName);
         List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamName));
@@ -65,8 +60,9 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
     public void testGetNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
-        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(new String[]{dataStreamName});
-        List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
-        assertThat(dataStreams.size(), equalTo(0));
+        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(dataStreamName);
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
+            () -> GetDataStreamsAction.TransportAction.getDataStreams(cs, req));
+        assertThat(e.getMessage(), containsString("data_stream matching [" + dataStreamName + "] not found"));
     }
 }

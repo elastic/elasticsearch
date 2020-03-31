@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -43,7 +44,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,7 +63,7 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
         private final String name;
 
         public Request(String name) {
-            this.name = Objects.requireNonNull(name);
+            this.name = name;
         }
 
         @Override
@@ -164,22 +165,21 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
             Map<String, DataStream> dataStreams = clusterState.metaData().dataStreams();
 
             // return all data streams if no name was specified
-            if (request.names.length == 0) {
-                return new ArrayList<>(dataStreams.values());
-            }
+            final String requestedName = request.name == null ? "*" : request.name;
 
             final List<DataStream> results = new ArrayList<>();
-            for (String name : request.names) {
-                if (Regex.isSimpleMatchPattern(name)) {
+                if (Regex.isSimpleMatchPattern(requestedName)) {
                     for (Map.Entry<String, DataStream> entry : dataStreams.entrySet()) {
-                        if (Regex.simpleMatch(name, entry.getKey())) {
+                        if (Regex.simpleMatch(requestedName, entry.getKey())) {
                             results.add(entry.getValue());
                         }
                     }
-                } else if (dataStreams.containsKey(name)) {
-                    results.add(dataStreams.get(name));
+                } else if (dataStreams.containsKey(request.name)) {
+                    results.add(dataStreams.get(request.name));
+                } else {
+                    throw new ResourceNotFoundException("data_stream matching [" + request.name + "] not found");
                 }
-            }
+            results.sort(Comparator.comparing(DataStream::getName));
             return results;
         }
 

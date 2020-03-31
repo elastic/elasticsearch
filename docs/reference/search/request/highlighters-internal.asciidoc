@@ -140,11 +140,11 @@ Since the field `content` was not indexed either with offsets or term vectors,
 its raw field value will be analyzed, and in-memory index will be built from
 the terms that match the query:
 
-    {"token":"onli","start_offset":12,"end_offset":16,"position":3},
+    {"token":"only","start_offset":12,"end_offset":16,"position":3},
     {"token":"fox","start_offset":19,"end_offset":22,"position":5},
     {"token":"fox","start_offset":53,"end_offset":58,"position":11},
-    {"token":"onli","start_offset":117,"end_offset":121,"position":24},
-    {"token":"onli","start_offset":159,"end_offset":163,"position":34},
+    {"token":"only","start_offset":117,"end_offset":121,"position":24},
+    {"token":"only","start_offset":159,"end_offset":163,"position":34},
     {"token":"fox","start_offset":164,"end_offset":167,"position":35}
 
 Our complex phrase query will be converted to the span query:

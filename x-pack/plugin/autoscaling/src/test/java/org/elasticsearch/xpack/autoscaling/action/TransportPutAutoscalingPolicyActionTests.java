@@ -47,7 +47,6 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)
         );
-        final ClusterService clusterService = mock(ClusterService.class);
         final ClusterBlocks blocks = ClusterBlocks.builder()
             .addGlobalBlock(
                 randomFrom(

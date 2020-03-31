@@ -44,13 +44,13 @@ if (!isEclipse) {
   }
 
   compileJava9Java {
-    sourceCompatibility = 11
-    targetCompatibility = 11
+    sourceCompatibility = 9
+    targetCompatibility = 9
   }
 
   forbiddenApisJava9 {
-    if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_11) {
-      targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
+    if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
+      targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
     }
     replaceSignatureFiles 'jdk-signatures'
   }

@@ -27,8 +27,8 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -79,7 +79,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
     private ShardRouting routing;
     private Environment environment;
     private ShardPath shardPath;
-    private IndexMetaData indexMetaData;
+    private IndexMetadata indexMetadata;
     private ClusterState clusterState;
     private IndexShard indexShard;
     private Path[] dataPaths;
@@ -108,22 +108,22 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         Files.createDirectories(path);
         dataPaths = new Path[] {path};
         final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .build();
 
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(path);
         shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        final IndexMetaData.Builder metaData = IndexMetaData.builder(routing.getIndexName())
+        final IndexMetadata.Builder metadata = IndexMetadata.builder(routing.getIndexName())
             .settings(settings)
             .primaryTerm(0, randomIntBetween(1, 100))
             .putMapping("_doc", "{ \"properties\": {} }");
-        indexMetaData = metaData.build();
+        indexMetadata = metadata.build();
 
-        clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder().put(indexMetaData, false).build()).build();
+        clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, false).build()).build();
 
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(0, logger, environment, Files::exists)) {
             final Path[] dataPaths = Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
@@ -134,7 +134,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             }
         }
 
-        indexShard = newStartedShard(p -> newShard(routing, shardPath, indexMetaData, null, null,
+        indexShard = newStartedShard(p -> newShard(routing, shardPath, indexMetadata, null, null,
             new InternalEngineFactory(), () -> { }, RetentionLeaseSyncer.EMPTY, EMPTY_EVENT_LISTENER), true);
 
         translogPath = shardPath.resolveTranslog();
@@ -468,7 +468,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE
         );
 
-        final IndexMetaData metaData = IndexMetaData.builder(indexMetaData)
+        final IndexMetadata metadata = IndexMetadata.builder(indexMetadata)
             .settings(Settings.builder()
                 .put(indexShard.indexSettings().getSettings())
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum"))
@@ -484,7 +484,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                     return new Store(shardId, indexSettings, baseDirectoryWrapper, new DummyShardLock(shardId));
         };
 
-        return newShard(shardRouting, shardPath, metaData, storeProvider, null, indexShard.engineFactory,
+        return newShard(shardRouting, shardPath, metadata, storeProvider, null, indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(), indexShard.getRetentionLeaseSyncer(), EMPTY_EVENT_LISTENER);
     }
 

@@ -40,16 +40,16 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new GeoCentroidAggregator(name, searchContext, parent, null, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new GeoCentroidAggregator(name, searchContext, parent, null, pipelineAggregators, metadata);
     }
 
     @Override
@@ -58,7 +58,7 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new GeoCentroidAggregator(name, searchContext, parent, valuesSource, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new GeoCentroidAggregator(name, searchContext, parent, valuesSource, pipelineAggregators, metadata);
     }
 }

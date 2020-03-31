@@ -11,14 +11,14 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackPlugin.XPackMetaDataCustom;
+import org.elasticsearch.xpack.core.XPackPlugin.XPackMetadataCustom;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
 
@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  * Custom cluster state metadata that stores all the snapshot lifecycle
  * policies and their associated metadata
  */
-public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
+public class SnapshotLifecycleMetadata implements XPackMetadataCustom {
 
     public static final String TYPE = "snapshot_lifecycle";
 
@@ -100,12 +100,12 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.ALL_CONTEXTS;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.ALL_CONTEXTS;
     }
 
     @Override
-    public Diff<MetaData.Custom> diff(MetaData.Custom previousState) {
+    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
         return new SnapshotLifecycleMetadataDiff((SnapshotLifecycleMetadata) previousState, this);
     }
 
@@ -160,7 +160,7 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
             this.slmStats.equals(other.slmStats);
     }
 
-    public static class SnapshotLifecycleMetadataDiff implements NamedDiff<MetaData.Custom> {
+    public static class SnapshotLifecycleMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, SnapshotLifecyclePolicyMetadata>> lifecycles;
         final OperationMode operationMode;
@@ -186,7 +186,7 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
         }
 
         @Override
-        public MetaData.Custom apply(MetaData.Custom part) {
+        public Metadata.Custom apply(Metadata.Custom part) {
             TreeMap<String, SnapshotLifecyclePolicyMetadata> newLifecycles = new TreeMap<>(
                 lifecycles.apply(((SnapshotLifecycleMetadata) part).snapshotConfigurations));
             return new SnapshotLifecycleMetadata(newLifecycles, this.operationMode, this.slmStats);

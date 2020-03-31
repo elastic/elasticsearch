@@ -227,9 +227,9 @@ public class RangeAggregator extends BucketsAggregator {
 
     public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metadata);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.format = format;
@@ -338,7 +338,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, format, keyed, pipelineAggregators(), metaData());
+        return rangeFactory.create(name, buckets, format, keyed, pipelineAggregators(), metadata());
     }
 
     @Override
@@ -352,7 +352,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, format, keyed, pipelineAggregators(), metaData());
+        return rangeFactory.create(name, buckets, format, keyed, pipelineAggregators(), metadata());
     }
 
     public static class Unmapped<R extends RangeAggregator.Range> extends NonCollectingAggregator {
@@ -363,10 +363,10 @@ public class RangeAggregator extends BucketsAggregator {
         private final DocValueFormat format;
 
         public Unmapped(String name, R[] ranges, boolean keyed, DocValueFormat format, SearchContext context, Aggregator parent,
-                InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata)
                 throws IOException {
 
-            super(name, context, parent, pipelineAggregators, metaData);
+            super(name, context, parent, pipelineAggregators, metadata);
             this.ranges = ranges;
             this.keyed = keyed;
             this.format = format;
@@ -380,7 +380,7 @@ public class RangeAggregator extends BucketsAggregator {
             for (RangeAggregator.Range range : ranges) {
                 buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, format));
             }
-            return factory.create(name, buckets, format, keyed, pipelineAggregators(), metaData());
+            return factory.create(name, buckets, format, keyed, pipelineAggregators(), metadata());
         }
     }
 

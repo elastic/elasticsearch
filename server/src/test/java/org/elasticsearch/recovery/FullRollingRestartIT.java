@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
@@ -137,8 +137,8 @@ public class FullRollingRestartIT extends ESIntegTestCase {
          * to relocating to the restarting node since all had 2 shards and now one node has nothing allocated.
          * We have a fix for this to wait until we have allocated unallocated shards now so this shouldn't happen.
          */
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "6")
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "6")
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))).get();
 
         for (int i = 0; i < 100; i++) {

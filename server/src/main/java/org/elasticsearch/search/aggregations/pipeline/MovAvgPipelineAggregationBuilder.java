@@ -246,11 +246,11 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
         // If the user doesn't set a preference for cost minimization, ask
         // what the model prefers
         boolean minimize = this.minimize == null ? model.minimizeByDefault() : this.minimize;
-        return new MovAvgPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, window, predict, model, minimize, metaData);
+        return new MovAvgPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, window, predict, model, minimize, metadata);
     }
 
     @Override

@@ -45,7 +45,7 @@ import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -217,9 +217,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
             MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
             MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
-            MetaData.SETTING_READ_ONLY_SETTING,
-            MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
-            MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+            Metadata.SETTING_READ_ONLY_SETTING,
+            Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
+            Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
             RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
             RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
             RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,

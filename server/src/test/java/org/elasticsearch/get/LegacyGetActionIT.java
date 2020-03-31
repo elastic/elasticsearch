@@ -22,7 +22,7 @@ package org.elasticsearch.get;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -39,14 +39,14 @@ public class LegacyGetActionIT extends ESIntegTestCase {
         return false;
     }
 
-    public void testGetFieldsMetaDataWithRouting() throws Exception {
+    public void testGetFieldsMetadataWithRouting() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("_doc", "field1", "type=keyword,store=true")
                 .addAlias(new Alias("alias"))
                 .setSettings(
                         Settings.builder()
                                 .put("index.refresh_interval", -1)
-                                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_0_0))); // multi-types in 6.0.0
+                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_0_0))); // multi-types in 6.0.0
 
         try (XContentBuilder source = jsonBuilder().startObject().field("field1", "value").endObject()) {
             client()

@@ -34,7 +34,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
     @Override
     protected InternalMedianAbsoluteDeviation createTestInstance(String name,
                                                                  List<PipelineAggregator> pipelineAggregators,
-                                                                 Map<String, Object> metaData) {
+                                                                 Map<String, Object> metadata) {
 
         final TDigestState valuesSketch = new TDigestState(randomDoubleBetween(20, 1000, true));
         final int numberOfValues = frequently()
@@ -44,7 +44,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
             valuesSketch.add(randomDouble());
         }
 
-        return new InternalMedianAbsoluteDeviation(name, pipelineAggregators, metaData, randomNumericDocValueFormat(), valuesSketch);
+        return new InternalMedianAbsoluteDeviation(name, pipelineAggregators, metadata, randomNumericDocValueFormat(), valuesSketch);
     }
 
     @Override
@@ -81,7 +81,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
     protected InternalMedianAbsoluteDeviation mutateInstance(InternalMedianAbsoluteDeviation instance) throws IOException {
         String name = instance.getName();
         TDigestState valuesSketch = instance.getValuesSketch();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
 
         switch (between(0, 2)) {
             case 0:
@@ -96,15 +96,15 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
                 valuesSketch = newValuesSketch;
                 break;
             case 2:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(metaData);
+                    metadata = new HashMap<>(metadata);
                 }
-                metaData.put(randomAlphaOfLengthBetween(2, 10), randomInt());
+                metadata.put(randomAlphaOfLengthBetween(2, 10), randomInt());
                 break;
         }
 
-        return new InternalMedianAbsoluteDeviation(name, instance.pipelineAggregators(), metaData, instance.format, valuesSketch);
+        return new InternalMedianAbsoluteDeviation(name, instance.pipelineAggregators(), metadata, instance.format, valuesSketch);
     }
 }

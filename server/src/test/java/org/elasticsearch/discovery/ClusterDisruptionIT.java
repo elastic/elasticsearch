@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.coordination.LagDetector;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -119,8 +119,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()
                 .put(indexSettings())
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
             ));
         ensureGreen();
 
@@ -274,8 +274,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
             )
             .get());
         ensureGreen("test");
@@ -328,8 +328,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         String nonMasterNode = randomFrom(nonMasterNodes);
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
             ));
         ensureGreen();
         String nonMasterNodeId = internalCluster().clusterService(nonMasterNode).localNode().getId();
@@ -453,7 +453,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertBusy(() -> {
             for (String masterNode : allMasterEligibleNodes) {
                 final ClusterState masterState = internalCluster().clusterService(masterNode).state();
-                assertTrue("index not deleted on " + masterNode, masterState.metaData().hasIndex(idxName) == false);
+                assertTrue("index not deleted on " + masterNode, masterState.metadata().hasIndex(idxName) == false);
             }
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
@@ -465,7 +465,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         startCluster(3);
         String index = "restart_while_indexing";
         assertAcked(client().admin().indices().prepareCreate(index).setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, between(1, 2))));
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(1, 2))));
         AtomicBoolean stopped = new AtomicBoolean();
         Thread[] threads = new Thread[between(1, 4)];
         AtomicInteger docID = new AtomicInteger();

@@ -30,7 +30,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -127,7 +127,7 @@ public abstract class StreamOutput extends OutputStream {
 
     /**
      * Test if the stream has the specified feature. Features are used when serializing {@link ClusterState.Custom} or
-     * {@link MetaData.Custom}; see also {@link ClusterState.FeatureAware}.
+     * {@link Metadata.Custom}; see also {@link ClusterState.FeatureAware}.
      *
      * @param feature the feature to test
      * @return true if the stream has the specified feature

@@ -28,9 +28,9 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -54,8 +54,8 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
@@ -135,7 +135,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                 PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask> taskInProgress,
+                                                 PersistentTasksCustomMetadata.PersistentTask<ShardFollowTask> taskInProgress,
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
         Client followerClient = wrapClient(client, params.getHeaders());
@@ -161,18 +161,18 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 }
 
                 CcrRequests.getIndexMetadata(remoteClient, leaderIndex, minRequiredMappingVersion, 0L, timeout, ActionListener.wrap(
-                    indexMetaData -> {
-                        if (indexMetaData.getMappings().isEmpty()) {
-                            assert indexMetaData.getMappingVersion() == 1;
-                            handler.accept(indexMetaData.getMappingVersion());
+                    indexMetadata -> {
+                        if (indexMetadata.getMappings().isEmpty()) {
+                            assert indexMetadata.getMappingVersion() == 1;
+                            handler.accept(indexMetadata.getMappingVersion());
                             return;
                         }
-                        assert indexMetaData.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
-                            indexMetaData.getMappings().size() + "]";
-                        MappingMetaData mappingMetaData = indexMetaData.getMappings().iterator().next().value;
-                        PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
+                        assert indexMetadata.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
+                            indexMetadata.getMappings().size() + "]";
+                        MappingMetadata mappingMetadata = indexMetadata.getMappings().iterator().next().value;
+                        PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetadata);
                         followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
-                            putMappingResponse -> handler.accept(indexMetaData.getMappingVersion()),
+                            putMappingResponse -> handler.accept(indexMetadata.getMappingVersion()),
                             errorHandler));
                     },
                     errorHandler
@@ -184,11 +184,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final Index leaderIndex = params.getLeaderShardId().getIndex();
                 final Index followIndex = params.getFollowShardId().getIndex();
 
-                ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
+                ClusterStateRequest clusterStateRequest = CcrRequests.metadataRequest(leaderIndex.getName());
 
                 CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
-                    final IndexMetaData leaderIMD = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
-                    final IndexMetaData followerIMD = clusterService.state().metaData().getIndexSafe(followIndex);
+                    final IndexMetadata leaderIMD = clusterStateResponse.getState().metadata().getIndexSafe(leaderIndex);
+                    final IndexMetadata followerIMD = clusterService.state().metadata().getIndexSafe(followIndex);
 
                     final Settings existingSettings = TransportResumeFollowAction.filter(followerIMD.getSettings());
                     final Settings settings = TransportResumeFollowAction.filter(leaderIMD.getSettings());
@@ -259,27 +259,27 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final Index leaderIndex = params.getLeaderShardId().getIndex();
                 final Index followerIndex = params.getFollowShardId().getIndex();
 
-                final ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
+                final ClusterStateRequest clusterStateRequest = CcrRequests.metadataRequest(leaderIndex.getName());
 
                 final CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
-                    final IndexMetaData leaderIndexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
-                    final IndexMetaData followerIndexMetaData = clusterService.state().metaData().getIndexSafe(followerIndex);
+                    final IndexMetadata leaderIndexMetadata = clusterStateResponse.getState().metadata().getIndexSafe(leaderIndex);
+                    final IndexMetadata followerIndexMetadata = clusterService.state().metadata().getIndexSafe(followerIndex);
 
                     // partition the aliases into the three sets
                     final HashSet<String> aliasesOnLeaderNotOnFollower = new HashSet<>();
                     final HashSet<String> aliasesInCommon = new HashSet<>();
                     final HashSet<String> aliasesOnFollowerNotOnLeader = new HashSet<>();
 
-                    for (final ObjectCursor<String> aliasName : leaderIndexMetaData.getAliases().keys()) {
-                        if (followerIndexMetaData.getAliases().containsKey(aliasName.value)) {
+                    for (final ObjectCursor<String> aliasName : leaderIndexMetadata.getAliases().keys()) {
+                        if (followerIndexMetadata.getAliases().containsKey(aliasName.value)) {
                             aliasesInCommon.add(aliasName.value);
                         } else {
                             aliasesOnLeaderNotOnFollower.add(aliasName.value);
                         }
                     }
 
-                    for (final ObjectCursor<String> aliasName : followerIndexMetaData.getAliases().keys()) {
-                        if (leaderIndexMetaData.getAliases().containsKey(aliasName.value)) {
+                    for (final ObjectCursor<String> aliasName : followerIndexMetadata.getAliases().keys()) {
+                        if (leaderIndexMetadata.getAliases().containsKey(aliasName.value)) {
                             assert aliasesInCommon.contains(aliasName.value) : aliasName.value;
                         } else {
                             aliasesOnFollowerNotOnLeader.add(aliasName.value);
@@ -290,7 +290,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                     // add the aliases the follower does not have
                     for (final String aliasName : aliasesOnLeaderNotOnFollower) {
-                        final AliasMetaData alias = leaderIndexMetaData.getAliases().get(aliasName);
+                        final AliasMetadata alias = leaderIndexMetadata.getAliases().get(aliasName);
                         // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
                         aliasActions.add(IndicesAliasesRequest.AliasActions.add()
                                 .index(followerIndex.getName())
@@ -303,26 +303,26 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                     // update the aliases that are different (ignoring write aliases)
                     for (final String aliasName : aliasesInCommon) {
-                        final AliasMetaData leaderAliasMetaData = leaderIndexMetaData.getAliases().get(aliasName);
+                        final AliasMetadata leaderAliasMetadata = leaderIndexMetadata.getAliases().get(aliasName);
                         // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
-                        final AliasMetaData leaderAliasMetaDataWithoutWriteIndex = new AliasMetaData.Builder(aliasName)
-                                .filter(leaderAliasMetaData.filter())
-                                .indexRouting(leaderAliasMetaData.indexRouting())
-                                .searchRouting(leaderAliasMetaData.searchRouting())
+                        final AliasMetadata leaderAliasMetadataWithoutWriteIndex = new AliasMetadata.Builder(aliasName)
+                                .filter(leaderAliasMetadata.filter())
+                                .indexRouting(leaderAliasMetadata.indexRouting())
+                                .searchRouting(leaderAliasMetadata.searchRouting())
                                 .writeIndex(false)
                                 .build();
-                        final AliasMetaData followerAliasMetaData = followerIndexMetaData.getAliases().get(aliasName);
-                        if (leaderAliasMetaDataWithoutWriteIndex.equals(followerAliasMetaData)) {
+                        final AliasMetadata followerAliasMetadata = followerIndexMetadata.getAliases().get(aliasName);
+                        if (leaderAliasMetadataWithoutWriteIndex.equals(followerAliasMetadata)) {
                             // skip this alias, the leader and follower have the same modulo the write index
                             continue;
                         }
                         // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
                         aliasActions.add(IndicesAliasesRequest.AliasActions.add()
                                 .index(followerIndex.getName())
-                                .alias(leaderAliasMetaData.alias())
-                                .filter(leaderAliasMetaData.filter() == null ? null : leaderAliasMetaData.filter().toString())
-                                .indexRouting(leaderAliasMetaData.indexRouting())
-                                .searchRouting(leaderAliasMetaData.searchRouting())
+                                .alias(leaderAliasMetadata.alias())
+                                .filter(leaderAliasMetadata.filter() == null ? null : leaderAliasMetadata.filter().toString())
+                                .indexRouting(leaderAliasMetadata.indexRouting())
+                                .searchRouting(leaderAliasMetadata.searchRouting())
                                 .writeIndex(false));
                     }
 
@@ -332,14 +332,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     }
 
                     if (aliasActions.isEmpty()) {
-                        handler.accept(leaderIndexMetaData.getAliasesVersion());
+                        handler.accept(leaderIndexMetadata.getAliasesVersion());
                     } else {
                         final IndicesAliasesRequest request = new IndicesAliasesRequest();
                         request.origin("ccr");
                         aliasActions.forEach(request::addAliasAction);
                         followerClient.admin().indices().aliases(
                                 request,
-                                ActionListener.wrap(r -> handler.accept(leaderIndexMetaData.getAliasesVersion()), errorHandler));
+                                ActionListener.wrap(r -> handler.accept(leaderIndexMetadata.getAliasesVersion()), errorHandler));
                     }
                 };
 
@@ -502,8 +502,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     }
 
     private String getLeaderShardHistoryUUID(ShardFollowTask params) {
-        IndexMetaData followIndexMetaData = clusterService.state().metaData().index(params.getFollowShardId().getIndex());
-        Map<String, String> ccrIndexMetadata = followIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        IndexMetadata followIndexMetadata = clusterService.state().metadata().index(params.getFollowShardId().getIndex());
+        Map<String, String> ccrIndexMetadata = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         String[] recordedLeaderShardHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
         return recordedLeaderShardHistoryUUIDs[params.getLeaderShardId().id()];
     }
@@ -550,8 +550,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         client.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
             IndexStats indexStats = r.getIndex(shardId.getIndexName());
             if (indexStats == null) {
-                IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
-                if (indexMetaData != null) {
+                IndexMetadata indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                if (indexMetadata != null) {
                     errorHandler.accept(new ShardNotFoundException(shardId));
                 } else {
                     errorHandler.accept(new IndexNotFoundException(shardId.getIndex()));

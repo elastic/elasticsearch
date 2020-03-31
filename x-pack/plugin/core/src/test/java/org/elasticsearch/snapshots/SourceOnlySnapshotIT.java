@@ -15,7 +15,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -147,7 +147,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
-        ImmutableOpenMap<String, MappingMetaData> mapping = getMappingsResponse
+        ImmutableOpenMap<String, MappingMetadata> mapping = getMappingsResponse
             .getMappings().get(sourceIdx);
         assertTrue(mapping.containsKey("_doc"));
         String nested = useNested ?

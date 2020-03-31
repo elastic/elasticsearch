@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -93,18 +93,18 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     }
 
     public void testNumInferenceProcessors() throws Exception {
-        MetaData metaData = null;
+        Metadata metadata = null;
 
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
             Settings.EMPTY,
             ingestService);
-        processorFactory.accept(buildClusterState(metaData));
+        processorFactory.accept(buildClusterState(metadata));
 
         assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
-        metaData = MetaData.builder().build();
+        metadata = Metadata.builder().build();
 
-        processorFactory.accept(buildClusterState(metaData));
+        processorFactory.accept(buildClusterState(metadata));
         assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
 
         processorFactory.accept(buildClusterStateWithModelReferences("model1", "model2", "model3"));
@@ -269,8 +269,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    private static ClusterState buildClusterState(MetaData metaData) {
-       return ClusterState.builder(new ClusterName("_name")).metaData(metaData).build();
+    private static ClusterState buildClusterState(Metadata metadata) {
+       return ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
     }
 
     private static ClusterState buildClusterStateWithModelReferences(String... modelId) throws IOException {
@@ -285,7 +285,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);
 
         return ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .nodes(DiscoveryNodes.builder()
                 .add(new DiscoveryNode("min_node",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),

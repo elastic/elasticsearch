@@ -43,8 +43,8 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, configs, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, configs, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.multiValueMode = multiValueMode;
     }
 
@@ -52,9 +52,9 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData)
+                                            Map<String, Object> metadata)
         throws IOException {
-        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, pipelineAggregators, metaData);
+        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, pipelineAggregators, metadata);
     }
 
     @Override
@@ -63,7 +63,7 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new MatrixStatsAggregator(name, valuesSources, searchContext, parent, multiValueMode, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new MatrixStatsAggregator(name, valuesSources, searchContext, parent, multiValueMode, pipelineAggregators, metadata);
     }
 }

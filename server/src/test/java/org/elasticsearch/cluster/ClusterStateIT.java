@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ClusterStateIT extends ESIntegTestCase {
 
     public abstract static
-    class Custom implements MetaData.Custom {
+    class Custom implements Metadata.Custom {
 
         private static final ParseField VALUE = new ParseField("value");
 
@@ -93,12 +93,12 @@ public class ClusterStateIT extends ESIntegTestCase {
         }
 
         @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return MetaData.ALL_CONTEXTS;
+        public EnumSet<Metadata.XContentContext> context() {
+            return Metadata.ALL_CONTEXTS;
         }
 
         @Override
-        public Diff<MetaData.Custom> diff(final MetaData.Custom previousState) {
+        public Diff<Metadata.Custom> diff(final Metadata.Custom previousState) {
             return null;
         }
 
@@ -189,10 +189,10 @@ public class ClusterStateIT extends ESIntegTestCase {
             registerBuiltinWritables();
         }
 
-        protected <T extends MetaData.Custom> void registerMetaDataCustom(
+        protected <T extends Metadata.Custom> void registerMetadataCustom(
                 final String name, final Writeable.Reader<T> reader, final CheckedFunction<XContentParser, T, IOException> parser) {
-            namedWritables.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, name, reader));
-            namedXContents.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(name), parser));
+            namedWritables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, name, reader));
+            namedXContents.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(name), parser));
         }
 
         protected abstract void registerBuiltinWritables();
@@ -231,18 +231,18 @@ public class ClusterStateIT extends ESIntegTestCase {
                     return;
                 }
 
-                final MetaData metaData = state.metaData();
+                final Metadata metadata = state.metadata();
                 if (state.nodes().isLocalNodeElectedMaster()) {
-                    if (metaData.custom(getType()) == null) {
+                    if (metadata.custom(getType()) == null) {
                         if (installed.compareAndSet(false, true)) {
                             clusterService.submitStateUpdateTask("install-metadata-custom", new ClusterStateUpdateTask(Priority.URGENT) {
 
                                 @Override
                                 public ClusterState execute(ClusterState currentState) {
                                     if (currentState.custom(getType()) == null) {
-                                        final MetaData.Builder builder = MetaData.builder(currentState.metaData());
+                                        final Metadata.Builder builder = Metadata.builder(currentState.metadata());
                                         builder.putCustom(getType(), getInstance());
-                                        return ClusterState.builder(currentState).metaData(builder).build();
+                                        return ClusterState.builder(currentState).metadata(builder).build();
                                     } else {
                                         return currentState;
                                     }
@@ -273,7 +273,7 @@ public class ClusterStateIT extends ESIntegTestCase {
 
         @Override
         protected void registerBuiltinWritables() {
-            registerMetaDataCustom(
+            registerMetadataCustom(
                     NodeCustom.TYPE,
                     NodeCustom::new,
                     parser -> {
@@ -304,7 +304,7 @@ public class ClusterStateIT extends ESIntegTestCase {
 
         @Override
         protected void registerBuiltinWritables() {
-            registerMetaDataCustom(
+            registerMetadataCustom(
                     NodeAndTransportClientCustom.TYPE,
                     NodeAndTransportClientCustom::new,
                     parser -> {
@@ -336,15 +336,15 @@ public class ClusterStateIT extends ESIntegTestCase {
 
     public void testOptionalCustoms() throws Exception {
         // ensure that the customs are injected into the cluster state
-        assertBusy(() -> assertTrue(clusterService().state().metaData().customs().containsKey(NodeCustom.TYPE)));
-        assertBusy(() -> assertTrue(clusterService().state().metaData().customs().containsKey(NodeAndTransportClientCustom.TYPE)));
+        assertBusy(() -> assertTrue(clusterService().state().metadata().customs().containsKey(NodeCustom.TYPE)));
+        assertBusy(() -> assertTrue(clusterService().state().metadata().customs().containsKey(NodeAndTransportClientCustom.TYPE)));
         final ClusterStateResponse state = internalCluster().transportClient().admin().cluster().prepareState().get();
-        final ImmutableOpenMap<String, MetaData.Custom> customs = state.getState().metaData().customs();
+        final ImmutableOpenMap<String, Metadata.Custom> customs = state.getState().metadata().customs();
         final Set<String> keys = new HashSet<>(Arrays.asList(customs.keys().toArray(String.class)));
         assertThat(keys, hasItem(IndexGraveyard.TYPE));
         assertThat(keys, not(hasItem(NodeCustom.TYPE)));
         assertThat(keys, hasItem(NodeAndTransportClientCustom.TYPE));
-        final MetaData.Custom actual = customs.get(NodeAndTransportClientCustom.TYPE);
+        final Metadata.Custom actual = customs.get(NodeAndTransportClientCustom.TYPE);
         assertThat(actual, instanceOf(NodeAndTransportClientCustom.class));
         assertThat(((NodeAndTransportClientCustom)actual).value(), equalTo(NodeAndTransportClientPlugin.VALUE));
     }

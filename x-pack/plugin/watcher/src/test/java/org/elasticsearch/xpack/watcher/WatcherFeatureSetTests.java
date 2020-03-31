@@ -21,7 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -102,7 +102,7 @@ public class WatcherFeatureSetTests extends ESTestCase {
             secondNode.setStats(secondCounters);
             nodes.add(secondNode);
 
-            listener.onResponse(new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetaData(false),
+            listener.onResponse(new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetadata(false),
                     nodes, Collections.emptyList()));
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());

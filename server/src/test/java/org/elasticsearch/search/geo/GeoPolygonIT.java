@@ -21,7 +21,7 @@ package org.elasticsearch.search.geo;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
@@ -51,7 +51,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
     protected void setupSuiteScopeCluster() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
                 Version.CURRENT);
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", "location",
             "type=geo_point", "alias",

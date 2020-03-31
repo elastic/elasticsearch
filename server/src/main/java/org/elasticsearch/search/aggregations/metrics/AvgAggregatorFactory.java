@@ -37,16 +37,16 @@ import java.util.Map;
 class AvgAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     AvgAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new AvgAggregator(name, null, config.format(), searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new AvgAggregator(name, null, config.format(), searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
@@ -55,7 +55,7 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Nu
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new AvgAggregator(name, valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new AvgAggregator(name, valuesSource, config.format(), searchContext, parent, pipelineAggregators, metadata);
     }
 }

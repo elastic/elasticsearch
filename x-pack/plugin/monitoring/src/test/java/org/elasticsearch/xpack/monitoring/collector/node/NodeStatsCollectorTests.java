@@ -115,8 +115,8 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
-        verify(clusterState).metaData();
-        verify(metaData).clusterUUID();
+        verify(clusterState).metadata();
+        verify(metadata).clusterUUID();
 
         assertEquals(1, results.size());
 

@@ -50,8 +50,8 @@ public final class DateHistogramAggregatorFactory
             BucketOrder order, boolean keyed, long minDocCount,
             Rounding rounding, Rounding shardRounding, ExtendedBounds extendedBounds, QueryShardContext queryShardContext,
             AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.order = order;
         this.keyed = keyed;
         this.minDocCount = minDocCount;
@@ -79,19 +79,19 @@ public final class DateHistogramAggregatorFactory
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         if (valuesSource instanceof ValuesSource.Numeric) {
-            return createAggregator((ValuesSource.Numeric) valuesSource, searchContext, parent, pipelineAggregators, metaData);
+            return createAggregator((ValuesSource.Numeric) valuesSource, searchContext, parent, pipelineAggregators, metadata);
         } else if (valuesSource instanceof ValuesSource.Range) {
             ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
             if (rangeValueSource.rangeType() != RangeType.DATE) {
                 throw new IllegalArgumentException("Expected date range type but found range type [" + rangeValueSource.rangeType().name
                     + "]");
             }
-            return createRangeAggregator((ValuesSource.Range) valuesSource, searchContext, parent, pipelineAggregators, metaData);
+            return createRangeAggregator((ValuesSource.Range) valuesSource, searchContext, parent, pipelineAggregators, metadata);
         }
         else {
             throw new IllegalArgumentException("Expected one of [Date, Range] values source, found ["
@@ -101,25 +101,25 @@ public final class DateHistogramAggregatorFactory
 
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource, SearchContext searchContext,
                                         Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+            Map<String, Object> metadata) throws IOException {
         return new DateHistogramAggregator(name, factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds,
-                valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
+                valuesSource, config.format(), searchContext, parent, pipelineAggregators, metadata);
     }
 
     private Aggregator createRangeAggregator(ValuesSource.Range valuesSource,
                                              SearchContext searchContext,
                                              Aggregator parent,
                                              List<PipelineAggregator> pipelineAggregators,
-                                             Map<String, Object> metaData) throws IOException {
+                                             Map<String, Object> metadata) throws IOException {
         return new DateRangeHistogramAggregator(name, factories, rounding, shardRounding, order, keyed, minDocCount, extendedBounds,
-            valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
+            valuesSource, config.format(), searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return createAggregator(null, searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return createAggregator(null, searchContext, parent, pipelineAggregators, metadata);
     }
 }

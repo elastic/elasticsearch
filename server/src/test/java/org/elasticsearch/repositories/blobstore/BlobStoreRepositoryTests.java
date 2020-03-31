@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -223,7 +223,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     public void testFsRepositoryCompressDeprecated() {
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
         final Settings settings = Settings.builder().put(node().settings()).put("location", location).build();
-        final RepositoryMetaData metaData = new RepositoryMetaData("test-repo", REPO_TYPE, settings);
+        final RepositoryMetadata metadata = new RepositoryMetadata("test-repo", REPO_TYPE, settings);
 
         Settings useCompressSettings = Settings.builder()
             .put(node().getEnvironment().settings())
@@ -232,7 +232,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         Environment useCompressEnvironment =
             new Environment(useCompressSettings, node().getEnvironment().configFile());
 
-        new FsRepository(metaData, useCompressEnvironment, null, BlobStoreTestUtil.mockClusterService());
+        new FsRepository(metadata, useCompressEnvironment, null, BlobStoreTestUtil.mockClusterService());
 
         assertWarnings("[repositories.fs.compress] setting was deprecated in Elasticsearch and will be removed in a future release!" +
             " See the breaking changes documentation for the next major version.");

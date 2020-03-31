@@ -24,7 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -379,7 +379,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
     @Override
     public Settings indexSettings() {
         Settings settings = super.indexSettings();
-        int numShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
+        int numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
         return Settings.builder().put(settings).put("index.number_of_routing_shards", numShards).build();
     }
 

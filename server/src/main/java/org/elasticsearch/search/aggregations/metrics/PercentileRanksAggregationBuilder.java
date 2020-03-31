@@ -128,8 +128,8 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource, Pe
 
     protected PercentileRanksAggregationBuilder(PercentileRanksAggregationBuilder clone,
                                                 Builder factoriesBuilder,
-                                                Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                                Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.values = clone.values;
         this.method = clone.method;
         this.numberOfSignificantValueDigits = clone.numberOfSignificantValueDigits;
@@ -138,8 +138,8 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource, Pe
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new PercentileRanksAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new PercentileRanksAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -246,10 +246,10 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource, Pe
         switch (method) {
         case TDIGEST:
             return new TDigestPercentileRanksAggregatorFactory(name, config, values, compression, keyed, queryShardContext, parent,
-                    subFactoriesBuilder, metaData);
+                    subFactoriesBuilder, metadata);
         case HDR:
             return new HDRPercentileRanksAggregatorFactory(name, config, values, numberOfSignificantValueDigits, keyed, queryShardContext,
-                    parent, subFactoriesBuilder, metaData);
+                    parent, subFactoriesBuilder, metadata);
         default:
             throw new IllegalStateException("Illegal method [" + method + "]");
         }

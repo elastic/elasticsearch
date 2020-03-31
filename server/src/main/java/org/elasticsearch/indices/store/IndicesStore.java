@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -152,8 +152,8 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                     IndexService indexService = indicesService.indexService(indexRoutingTable.getIndex());
                     final IndexSettings indexSettings;
                     if (indexService == null) {
-                        IndexMetaData indexMetaData = event.state().getMetaData().getIndexSafe(indexRoutingTable.getIndex());
-                        indexSettings = new IndexSettings(indexMetaData, settings);
+                        IndexMetadata indexMetadata = event.state().getMetadata().getIndexSafe(indexRoutingTable.getIndex());
+                        indexSettings = new IndexSettings(indexMetadata, settings);
                     } else {
                         indexSettings = indexService.getIndexSettings();
                     }

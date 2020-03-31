@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -156,9 +156,9 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(HistoryStoreField.INDEX_PREFIX + "*").get();
-        Iterator<ImmutableOpenMap<String, MappingMetaData>> iterator = mappingsResponse.getMappings().valuesIt();
+        Iterator<ImmutableOpenMap<String, MappingMetadata>> iterator = mappingsResponse.getMappings().valuesIt();
         while (iterator.hasNext()) {
-            ImmutableOpenMap<String, MappingMetaData> mapping = iterator.next();
+            ImmutableOpenMap<String, MappingMetadata> mapping = iterator.next();
             assertThat(mapping.containsKey(SINGLE_MAPPING_NAME), is(true));
             Map<String, Object> docMapping = mapping.get(SINGLE_MAPPING_NAME).getSourceAsMap();
             if (abortAtInput) {

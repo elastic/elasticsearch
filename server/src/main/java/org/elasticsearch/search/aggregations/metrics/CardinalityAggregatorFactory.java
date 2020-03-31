@@ -42,8 +42,8 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.precisionThreshold = precisionThreshold;
     }
 
@@ -51,8 +51,8 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new CardinalityAggregator(name, null, precision(), searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new CardinalityAggregator(name, null, precision(), searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
@@ -61,9 +61,9 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new CardinalityAggregator(name, valuesSource, precision(), searchContext, parent, pipelineAggregators,
-                metaData);
+                metadata);
     }
 
     private int precision() {

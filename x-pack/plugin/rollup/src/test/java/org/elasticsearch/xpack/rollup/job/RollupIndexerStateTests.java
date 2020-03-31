@@ -93,7 +93,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
 
                 @Override
-                public Map<String, Object> getMetaData() {
+                public Map<String, Object> getMetadata() {
                     return null;
                 }
 
@@ -455,7 +455,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                         }
 
                         @Override
-                        public Map<String, Object> getMetaData() {
+                        public Map<String, Object> getMetadata() {
                             return null;
                         }
 
@@ -661,7 +661,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
 
                 @Override
-                public Map<String, Object> getMetaData() {
+                public Map<String, Object> getMetadata() {
                     return null;
                 }
 
@@ -774,7 +774,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
 
                 @Override
-                public Map<String, Object> getMetaData() {
+                public Map<String, Object> getMetadata() {
                     return null;
                 }
 
@@ -931,7 +931,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
 
                 @Override
-                public Map<String, Object> getMetaData() {
+                public Map<String, Object> getMetadata() {
                     return null;
                 }
 

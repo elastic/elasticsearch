@@ -30,7 +30,7 @@ import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -68,7 +68,7 @@ public final class HdfsRepository extends BlobStoreRepository {
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
     public HdfsRepository(
-        final RepositoryMetaData metadata,
+        final RepositoryMetadata metadata,
         final Environment environment,
         final NamedXContentRegistry namedXContentRegistry,
         final ClusterService clusterService) {

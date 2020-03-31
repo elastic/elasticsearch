@@ -687,7 +687,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     public static void declareInnerHitsParseFields(ObjectParser<Map<String, Object>, Void> parser) {
-        declareMetaDataFields(parser);
+        declareMetadataFields(parser);
         parser.declareString((map, value) -> map.put(Fields._TYPE, new Text(value)), new ParseField(Fields._TYPE));
         parser.declareString((map, value) -> map.put(Fields._INDEX, value), new ParseField(Fields._INDEX));
         parser.declareString((map, value) -> map.put(Fields._ID, value), new ParseField(Fields._ID));
@@ -789,7 +789,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * we need to declare parse fields for each metadata field, except for _ID, _INDEX and _TYPE which are
      * handled individually. All other fields are parsed to an entry in the fields map
      */
-    private static void declareMetaDataFields(ObjectParser<Map<String, Object>, Void> parser) {
+    private static void declareMetadataFields(ObjectParser<Map<String, Object>, Void> parser) {
         for (String metadatafield : MapperService.getAllMetaFields()) {
             if (metadatafield.equals(Fields._ID) == false && metadatafield.equals(Fields._INDEX) == false
                     && metadatafield.equals(Fields._TYPE) == false) {

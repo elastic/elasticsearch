@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -169,7 +169,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
 
         final String clusterUUID = UUIDs.randomBase64UUID();
         when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT)
-                                                            .metaData(MetaData.builder().clusterUUID(clusterUUID).build())
+                                                            .metadata(Metadata.builder().clusterUUID(clusterUUID).build())
                                                             .build());
 
         final MonitoringBulkRequest request = new MonitoringBulkRequest();

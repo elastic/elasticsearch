@@ -53,8 +53,8 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     WeightedAvgAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, DocValueFormat format,
                             SearchContext context, Aggregator parent,
-                            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSources = valuesSources;
         this.format = format;
         if (valuesSources != null) {
@@ -140,12 +140,12 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSources == null || bucket >= valueSums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalWeightedAvg(name, valueSums.get(bucket), weights.get(bucket), format, pipelineAggregators(), metaData());
+        return new InternalWeightedAvg(name, valueSums.get(bucket), weights.get(bucket), format, pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalWeightedAvg(name, 0.0, 0L, format, pipelineAggregators(), metaData());
+        return new InternalWeightedAvg(name, 0.0, 0L, format, pipelineAggregators(), metadata());
     }
 
     @Override

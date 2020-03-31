@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRespons
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
-import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -609,7 +609,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     public void testMetadataIsNotSentToClient() {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).get();
-        assertFalse(clusterStateResponse.getState().customs().containsKey(TokenMetaData.TYPE));
+        assertFalse(clusterStateResponse.getState().customs().containsKey(TokenMetadata.TYPE));
     }
 
     private String generateAccessToken(Version version) throws Exception {

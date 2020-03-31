@@ -285,7 +285,7 @@ Engine::
 * Add a merge policy that prunes ID postings for soft-deleted but retained documents {pull}40741[#40741]
 
 Features/Indices APIs::
-* Remove "template" field in IndexTemplateMetaData {pull}42099[#42099] (issue: {issue}38502[#38502])
+* Remove "template" field in IndexTemplateMetadata {pull}42099[#42099] (issue: {issue}38502[#38502])
 
 Features/Ingest::
 * Avoid HashMap construction on Grok non-match {pull}42444[#42444]

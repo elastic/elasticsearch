@@ -22,15 +22,15 @@ package org.elasticsearch.indices.exists.indices;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -79,13 +79,13 @@ public class IndicesExistsIT extends ESIntegTestCase {
 
         // Request is blocked
         try {
-            enableIndexBlock("ro", IndexMetaData.SETTING_BLOCKS_METADATA);
+            enableIndexBlock("ro", IndexMetadata.SETTING_BLOCKS_METADATA);
             assertThat(client().admin().indices().prepareExists("ro").execute().actionGet().isExists(), equalTo(true));
-            fail("Exists should fail when " + IndexMetaData.SETTING_BLOCKS_METADATA + " is true");
+            fail("Exists should fail when " + IndexMetadata.SETTING_BLOCKS_METADATA + " is true");
         } catch (ClusterBlockException e) {
             // Ok, a ClusterBlockException is expected
         } finally {
-            disableIndexBlock("ro", IndexMetaData.SETTING_BLOCKS_METADATA);
+            disableIndexBlock("ro", IndexMetadata.SETTING_BLOCKS_METADATA);
         }
     }
 }

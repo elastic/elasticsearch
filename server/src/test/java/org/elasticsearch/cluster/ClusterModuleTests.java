@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -203,26 +203,26 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testPre63CustomsFiltering() {
         final String whiteListedClusterCustom = randomFrom(ClusterModule.PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST);
-        final String whiteListedMetaDataCustom = randomFrom(ClusterModule.PRE_6_3_METADATA_CUSTOMS_WHITE_LIST);
+        final String whiteListedMetadataCustom = randomFrom(ClusterModule.PRE_6_3_METADATA_CUSTOMS_WHITE_LIST);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .putCustom(whiteListedClusterCustom, new RestoreInProgress.Builder().build())
             .putCustom("other", new RestoreInProgress.Builder().build())
-            .metaData(MetaData.builder()
-                .putCustom(whiteListedMetaDataCustom, new RepositoriesMetaData(Collections.emptyList()))
-                .putCustom("other", new RepositoriesMetaData(Collections.emptyList()))
+            .metadata(Metadata.builder()
+                .putCustom(whiteListedMetadataCustom, new RepositoriesMetadata(Collections.emptyList()))
+                .putCustom("other", new RepositoriesMetadata(Collections.emptyList()))
                 .build())
             .build();
 
         assertNotNull(clusterState.custom(whiteListedClusterCustom));
         assertNotNull(clusterState.custom("other"));
-        assertNotNull(clusterState.metaData().custom(whiteListedMetaDataCustom));
-        assertNotNull(clusterState.metaData().custom("other"));
+        assertNotNull(clusterState.metadata().custom(whiteListedMetadataCustom));
+        assertNotNull(clusterState.metadata().custom("other"));
 
         final ClusterState fixedClusterState = ClusterModule.filterCustomsForPre63Clients(clusterState);
 
         assertNotNull(fixedClusterState.custom(whiteListedClusterCustom));
         assertNull(fixedClusterState.custom("other"));
-        assertNotNull(fixedClusterState.metaData().custom(whiteListedMetaDataCustom));
-        assertNull(fixedClusterState.metaData().custom("other"));
+        assertNotNull(fixedClusterState.metadata().custom(whiteListedMetadataCustom));
+        assertNull(fixedClusterState.metadata().custom("other"));
     }
 }

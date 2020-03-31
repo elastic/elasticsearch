@@ -25,46 +25,35 @@ import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 
-import java.util.Locale;
-
 /**
- * Pattern converter to format the node_and_cluster_id variable into JSON fields <code>node.id</code> and <code>cluster.uuid</code>.
- * Keeping those two fields together assures that they will be atomically set and become visible in logs at the same time.
- *
- * @deprecated this class is kept in order to allow working log configuration from 7.x
+ * Pattern converter to format the cluster_id variable into JSON fields <code>cluster.id</code>.
  */
-@Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
-@ConverterKeys({"node_and_cluster_id"})
-@Deprecated
-public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
-
-    public NodeAndClusterIdConverter() {
-        super("NodeAndClusterId", "node_and_cluster_id");
-    }
-
+@Plugin(category = PatternConverter.CATEGORY, name = "ClusterIdConverter")
+@ConverterKeys({"cluster_id"})
+public final class ClusterIdConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static NodeAndClusterIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
-        return new NodeAndClusterIdConverter();
+    public static ClusterIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
+        return new ClusterIdConverter();
+    }
+
+    public ClusterIdConverter() {
+        super("cluster_id", "cluster_id");
     }
 
     /**
-     * Formats the node.id and cluster.uuid into json fields.
+     * Formats the cluster.uuid into json fields.
      *
-     * @param event - a log event is ignored in this method as it uses the nodeId and clusterId to format
+     * @param event - a log event is ignored in this method as it uses the clusterId value
+     *              from <code>NodeAndClusterIdStateListener</code> to format
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
         if (NodeAndClusterIdStateListener.nodeAndClusterId.get() != null) {
-            String nodeId = NodeAndClusterIdStateListener.nodeAndClusterId.get().v1();
-            String clusterUUID = NodeAndClusterIdStateListener.nodeAndClusterId.get().v2();
-            toAppendTo.append(formatIds(nodeId, clusterUUID));
+            toAppendTo.append(NodeAndClusterIdStateListener.nodeAndClusterId.get().v2());
         }
         // nodeId/clusterUuid not received yet, not appending
     }
 
-    private String formatIds(String nodeId, String clusterUUID) {
-        return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
-    }
 }

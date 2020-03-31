@@ -1462,10 +1462,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryMetadata getRepoMetadata(ClusterState state) {
-        final RepositoryMetadata metadata =
+        final RepositoryMetadata repositoryMetadata =
             state.getMetadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE).repository(metadata.name());
-        assert metadata != null;
-        return metadata;
+        assert repositoryMetadata != null;
+        return repositoryMetadata;
     }
 
     /**

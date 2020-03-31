@@ -11,7 +11,7 @@ import org.antlr.v4.runtime.misc.*;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 class EqlBaseLexer extends Lexer {
-  static { RuntimeMetadata.checkVersion("4.5.3", RuntimeMetadata.VERSION); }
+  static { RuntimeMetaData.checkVersion("4.5.3", RuntimeMetaData.VERSION); }
 
   protected static final DFA[] _decisionToDFA;
   protected static final PredictionContextCache _sharedContextCache =

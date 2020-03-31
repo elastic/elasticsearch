@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
-import java.sql.DatabaseMetadata;
+import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.sqlType;
 
 /**
  * System command designed to be used by JDBC / ODBC for column metadata, such as
- * {@link DatabaseMetadata#getColumns(String, String, String, String)}.
+ * {@link DatabaseMetaData#getColumns(String, String, String, String)}.
  */
 public class SysColumns extends Command {
 
@@ -184,7 +184,7 @@ public class SysColumns extends Command {
                             null,
                             odbcCompatible(metaSqlRadix(type), isOdbcClient),
                             // everything is nullable
-                            odbcCompatible(DatabaseMetadata.columnNullable, isOdbcClient),
+                            odbcCompatible(DatabaseMetaData.columnNullable, isOdbcClient),
                             // no remarks
                             null,
                             // no column def

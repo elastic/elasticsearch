@@ -9,10 +9,10 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.sql.Connection;
 import java.sql.JDBCType;
-import java.sql.ParameterMetadata;
+import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetadata;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLSyntaxErrorException;
 
@@ -50,12 +50,12 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
                 statement.setInt(10, 1072);
 
                 try (ResultSet results = statement.executeQuery()) {
-                    ResultSetMetadata resultSetMetadata = results.getMetadata();
-                    ParameterMetadata parameterMetadata = statement.getParameterMetadata();
-                    assertEquals(resultSetMetadata.getColumnCount(), parameterMetadata.getParameterCount());
-                    for (int i = 1; i < resultSetMetadata.getColumnCount(); i++) {
+                    ResultSetMetaData resultSetMetaData = results.getMetaData();
+                    ParameterMetaData parameterMetaData = statement.getParameterMetaData();
+                    assertEquals(resultSetMetaData.getColumnCount(), parameterMetaData.getParameterCount());
+                    for (int i = 1; i < resultSetMetaData.getColumnCount(); i++) {
                         // Makes sure that column types survived the round trip
-                        assertEquals(parameterMetadata.getParameterType(i), resultSetMetadata.getColumnType(i));
+                        assertEquals(parameterMetaData.getParameterType(i), resultSetMetaData.getColumnType(i));
                     }
                     assertTrue(results.next());
                     assertEquals(stringVal, results.getString(1));
@@ -120,10 +120,10 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
                 statement.setString(3, "\"foo");
                 statement.setString(4, "'foo'");
                 try (ResultSet results = statement.executeQuery()) {
-                    ResultSetMetadata resultSetMetadata = results.getMetadata();
-                    assertEquals(4, resultSetMetadata.getColumnCount());
-                    for (int i = 1; i < resultSetMetadata.getColumnCount(); i++) {
-                        assertEquals(JDBCType.VARCHAR.getVendorTypeNumber().intValue(), resultSetMetadata.getColumnType(i));
+                    ResultSetMetaData resultSetMetaData = results.getMetaData();
+                    assertEquals(4, resultSetMetaData.getColumnCount());
+                    for (int i = 1; i < resultSetMetaData.getColumnCount(); i++) {
+                        assertEquals(JDBCType.VARCHAR.getVendorTypeNumber().intValue(), resultSetMetaData.getColumnType(i));
                     }
                     assertTrue(results.next());
                     assertEquals("foo --", results.getString(1));
@@ -140,12 +140,12 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(
                     "SELECT ?, /* ?, */ ? -- ?")) {
-                assertEquals(2, statement.getParameterMetadata().getParameterCount());
+                assertEquals(2, statement.getParameterMetaData().getParameterCount());
                 statement.setString(1, "foo");
                 statement.setString(2, "bar");
                 try (ResultSet results = statement.executeQuery()) {
-                    ResultSetMetadata resultSetMetadata = results.getMetadata();
-                    assertEquals(2, resultSetMetadata.getColumnCount());
+                    ResultSetMetaData resultSetMetaData = results.getMetaData();
+                    assertEquals(2, resultSetMetaData.getColumnCount());
                     assertTrue(results.next());
                     assertEquals("foo", results.getString(1));
                     assertEquals("bar", results.getString(2));
@@ -192,9 +192,9 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
 
     private Tuple<Integer, Object> execute(PreparedStatement statement) throws SQLException {
         try (ResultSet results = statement.executeQuery()) {
-            ResultSetMetadata resultSetMetadata = results.getMetadata();
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
             assertTrue(results.next());
-            Tuple<Integer, Object> result = new Tuple<>(resultSetMetadata.getColumnType(1), results.getObject(1));
+            Tuple<Integer, Object> result = new Tuple<>(resultSetMetaData.getColumnType(1), results.getObject(1));
             assertFalse(results.next());
             return result;
         }

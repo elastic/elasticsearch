@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import java.sql.ResultSetMetadata;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Locale;
@@ -13,12 +13,12 @@ import java.util.Locale;
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
-class JdbcResultSetMetadata implements ResultSetMetadata, JdbcWrapper {
+class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     private final JdbcResultSet rs;
     private final List<JdbcColumnInfo> columns;
 
-    JdbcResultSetMetadata(JdbcResultSet rs, List<JdbcColumnInfo> columns) {
+    JdbcResultSetMetaData(JdbcResultSet rs, List<JdbcColumnInfo> columns) {
         this.rs = rs;
         this.columns = columns;
     }

@@ -14,7 +14,7 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.LeafMetadata;
+import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -575,9 +575,9 @@ public final class FrozenEngine extends ReadOnlyEngine {
         }
 
         @Override
-        public LeafMetadata getMetadata() {
+        public LeafMetaData getMetaData() {
             ensureOpenOrReleased();
-            return in.getMetadata();
+            return in.getMetaData();
         }
 
         @Override

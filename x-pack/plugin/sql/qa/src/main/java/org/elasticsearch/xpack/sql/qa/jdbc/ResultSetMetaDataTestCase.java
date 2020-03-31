@@ -11,10 +11,10 @@ import org.elasticsearch.common.CheckedConsumer;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetadata;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 
-public class ResultSetMetadataTestCase extends JdbcIntegrationTestCase {
+public class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase {
 
     private final String[] fieldsNames = new String[] {"test_byte", "test_integer", "test_long", "test_short",
             "test_double", "test_float", "test_keyword", "test_boolean", "test_date"};
@@ -29,28 +29,28 @@ public class ResultSetMetadataTestCase extends JdbcIntegrationTestCase {
 
         String q = "SELECT test_byte, test_integer, test_long, test_short, test_double, test_float, test_keyword, "
                 + "test_boolean, test_date FROM test";
-        doWithQuery(q, (r) -> assertColumnNamesAndLabels(r.getMetadata(), fieldsNames));
+        doWithQuery(q, (r) -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames));
 
         q = "SELECT test_byte AS b, test_integer AS i, test_long AS l, test_short AS s, test_double AS d, test_float AS f, "
                 + "test_keyword AS k, test_boolean AS bool, test_date AS dt FROM test";
-        doWithQuery(q, (r) -> assertColumnNamesAndLabels(r.getMetadata(), new String[] {"b", "i", "l", "s", "d", "f", "k", "bool", "dt"}));
+        doWithQuery(q, (r) -> assertColumnNamesAndLabels(r.getMetaData(), new String[] {"b", "i", "l", "s", "d", "f", "k", "bool", "dt"}));
     }
 
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(query)) {
                 try (ResultSet results = statement.executeQuery()) {
-                    assertEquals(fieldsNames.length, results.getMetadata().getColumnCount());
+                    assertEquals(fieldsNames.length, results.getMetaData().getColumnCount());
                     consumer.accept(results);
                 }
             }
         }
     }
 
-    private void assertColumnNamesAndLabels(ResultSetMetadata metadata, String[] names) throws SQLException {
+    private void assertColumnNamesAndLabels(ResultSetMetaData MetaData, String[] names) throws SQLException {
         for(int i = 0; i < fieldsNames.length; i++) {
-            assertEquals(names[i], metadata.getColumnName(i + 1));
-            assertEquals(names[i], metadata.getColumnLabel(i + 1));
+            assertEquals(names[i], MetaData.getColumnName(i + 1));
+            assertEquals(names[i], MetaData.getColumnLabel(i + 1));
         }
     }
 }

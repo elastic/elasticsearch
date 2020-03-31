@@ -10,7 +10,7 @@ import java.sql.Blob;
 import java.sql.CallableStatement;
 import java.sql.Clob;
 import java.sql.Connection;
-import java.sql.DatabaseMetadata;
+import java.sql.DatabaseMetaData;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -130,8 +130,8 @@ class JdbcConnection implements Connection, JdbcWrapper {
     }
 
     @Override
-    public DatabaseMetadata getMetadata() throws SQLException {
-        return new JdbcDatabaseMetadata(this);
+    public DatabaseMetaData getMetaData() throws SQLException {
+        return new JdbcDatabaseMetaData(this);
     }
 
     @Override

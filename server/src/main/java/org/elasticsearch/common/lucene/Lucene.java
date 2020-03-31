@@ -41,7 +41,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafMetadata;
+import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
@@ -1035,8 +1035,8 @@ public class Lucene {
             protected void doClose() {
             }
 
-            public LeafMetadata getMetadata() {
-                return new LeafMetadata(Version.LATEST.major, Version.LATEST, null);
+            public LeafMetaData getMetaData() {
+                return new LeafMetaData(Version.LATEST.major, Version.LATEST, null);
             }
 
             public CacheHelper getCoreCacheHelper() {

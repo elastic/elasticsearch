@@ -14,11 +14,11 @@ import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Date;
 import java.sql.NClob;
-import java.sql.ParameterMetadata;
+import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.Ref;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetadata;
+import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -230,8 +230,8 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     }
 
     @Override
-    public ResultSetMetadata getMetadata() throws SQLException {
-        return rs != null ? rs.getMetadata() : null;
+    public ResultSetMetaData getMetaData() throws SQLException {
+        return rs != null ? rs.getMetaData() : null;
     }
 
     @Override
@@ -287,8 +287,8 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     }
 
     @Override
-    public ParameterMetadata getParameterMetadata() throws SQLException {
-        return new JdbcParameterMetadata(this);
+    public ParameterMetaData getParameterMetaData() throws SQLException {
+        return new JdbcParameterMetaData(this);
     }
 
     @Override

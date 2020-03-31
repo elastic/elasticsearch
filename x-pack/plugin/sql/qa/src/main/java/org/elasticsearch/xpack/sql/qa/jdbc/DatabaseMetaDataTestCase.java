@@ -8,19 +8,19 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import org.elasticsearch.common.CheckedSupplier;
 
 import java.sql.Connection;
-import java.sql.DatabaseMetadata;
+import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcAssert.assertResultSets;
 
 /**
- * Tests for our implementation of {@link DatabaseMetadata}.
+ * Tests for our implementation of {@link DatabaseMetaData}.
  */
-public class DatabaseMetadataTestCase extends JdbcIntegrationTestCase {
+public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
     /**
      * We do not support procedures so we return an empty set for
-     * {@link DatabaseMetadata#getProcedures(String, String, String)}.
+     * {@link DatabaseMetaData#getProcedures(String, String, String)}.
      */
     public void testGetProcedures() throws Exception {
         try (Connection h2 = LocalH2.anonymousDb();
@@ -28,7 +28,7 @@ public class DatabaseMetadataTestCase extends JdbcIntegrationTestCase {
             h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_procedures.sql'");
 
             ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock");
-            assertResultSets(expected, es.getMetadata().getProcedures(
+            assertResultSets(expected, es.getMetaData().getProcedures(
                     randomBoolean() ? null : randomAlphaOfLength(5),
                     randomBoolean() ? null : randomAlphaOfLength(5),
                     randomBoolean() ? null : randomAlphaOfLength(5)));
@@ -37,7 +37,7 @@ public class DatabaseMetadataTestCase extends JdbcIntegrationTestCase {
 
     /**
      * We do not support procedures so we return an empty set for
-     * {@link DatabaseMetadata#getProcedureColumns(String, String, String, String)}.
+     * {@link DatabaseMetaData#getProcedureColumns(String, String, String, String)}.
      */
     public void testGetProcedureColumns() throws Exception {
         try (Connection h2 = LocalH2.anonymousDb();
@@ -45,7 +45,7 @@ public class DatabaseMetadataTestCase extends JdbcIntegrationTestCase {
             h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_procedure_columns.sql'");
 
             ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock");
-            assertResultSets(expected, es.getMetadata().getProcedureColumns(
+            assertResultSets(expected, es.getMetaData().getProcedureColumns(
                     randomBoolean() ? null : randomAlphaOfLength(5),
                     randomBoolean() ? null : randomAlphaOfLength(5),
                     randomBoolean() ? null : randomAlphaOfLength(5),
@@ -63,11 +63,11 @@ public class DatabaseMetadataTestCase extends JdbcIntegrationTestCase {
 
             CheckedSupplier<ResultSet, SQLException> all = () ->
                 h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
-            assertResultSets(all.get(), es.getMetadata().getTables("%", "%", "%", null));
-            assertResultSets(all.get(), es.getMetadata().getTables("%", "%", "te%", null));
+            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "%", null));
+            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "te%", null));
             assertResultSets(
                 h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock WHERE TABLE_NAME = 'test1'"),
-                    es.getMetadata().getTables("%", "%", "test1", null));
+                    es.getMetaData().getTables("%", "%", "test1", null));
         }
     }
 
@@ -80,12 +80,12 @@ public class DatabaseMetadataTestCase extends JdbcIntegrationTestCase {
 
             CheckedSupplier<ResultSet, SQLException> all = () -> h2.createStatement()
                     .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
-            assertResultSets(all.get(), es.getMetadata().getTables("%", "%", "%", null));
-            assertResultSets(all.get(), es.getMetadata().getTables("%", "%", "te%", null));
+            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "%", null));
+            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "te%", null));
             assertResultSets(
                     h2.createStatement()
                             .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock WHERE TABLE_NAME = 'test_empty'"),
-                    es.getMetadata().getTables("%", "%", "test_empty", null));
+                    es.getMetaData().getTables("%", "%", "test_empty", null));
         }
     }
 
@@ -98,11 +98,11 @@ public class DatabaseMetadataTestCase extends JdbcIntegrationTestCase {
 
             CheckedSupplier<ResultSet, SQLException> all = () -> h2.createStatement()
                     .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
-            assertResultSets(all.get(), es.getMetadata().getTables("%", "%", "%", new String[] { "BASE TABLE" }));
+            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "%", new String[] { "BASE TABLE" }));
             assertResultSets(
                     h2.createStatement()
                             .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock WHERE TABLE_NAME = 'test1'"),
-                    es.getMetadata().getTables("%", "%", "test1", new String[] { "BASE TABLE" }));
+                    es.getMetaData().getTables("%", "%", "test1", new String[] { "BASE TABLE" }));
         }
     }
 
@@ -112,14 +112,14 @@ public class DatabaseMetadataTestCase extends JdbcIntegrationTestCase {
 
         try (Connection h2 = LocalH2.anonymousDb(); Connection es = esJdbc()) {
             h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_table_types.sql'");
-            assertResultSets(h2.createStatement().executeQuery("SELECT * FROM mock"), es.getMetadata().getTableTypes());
+            assertResultSets(h2.createStatement().executeQuery("SELECT * FROM mock"), es.getMetaData().getTableTypes());
         }
     }
 
     public void testGetCatalogs() throws Exception {
         try (Connection h2 = LocalH2.anonymousDb(); Connection es = esJdbc()) {
             assertResultSets(h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT"),
-                    es.getMetadata().getCatalogs());
+                    es.getMetaData().getCatalogs());
         }
     }
 
@@ -136,7 +136,7 @@ public class DatabaseMetadataTestCase extends JdbcIntegrationTestCase {
             h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_columns.sql'");
 
             ResultSet expected = h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
-            assertResultSets(expected, es.getMetadata().getColumns(null, "%", "%", null));
+            assertResultSets(expected, es.getMetaData().getColumns(null, "%", "%", null));
         }
     }
 
@@ -145,7 +145,7 @@ public class DatabaseMetadataTestCase extends JdbcIntegrationTestCase {
             h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_columns_empty.sql'");
 
             ResultSet expected = h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
-            assertResultSets(expected, es.getMetadata().getColumns(null, "%", "%", null));
+            assertResultSets(expected, es.getMetaData().getColumns(null, "%", "%", null));
         }
     }
 }

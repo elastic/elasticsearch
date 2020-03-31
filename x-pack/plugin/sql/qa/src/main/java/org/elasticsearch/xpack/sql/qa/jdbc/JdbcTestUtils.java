@@ -25,7 +25,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.sql.Date;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetadata;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.time.Instant;
@@ -50,8 +50,8 @@ final class JdbcTestUtils {
     static final String JDBC_TIMEZONE = "timezone";
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
-    static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
-        ResultSetMetadata metadata = rs.getMetadata();
+    static void logResultSetMetaData(ResultSet rs, Logger logger) throws SQLException {
+        ResultSetMetaData metadata = rs.getMetaData();
         // header
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
@@ -81,7 +81,7 @@ final class JdbcTestUtils {
     }
 
     static void logResultSetData(ResultSet rs, Logger log) throws SQLException {
-        ResultSetMetadata metadata = rs.getMetadata();
+        ResultSetMetaData metadata = rs.getMetaData();
 
         int columns = metadata.getColumnCount();
 
@@ -91,7 +91,7 @@ final class JdbcTestUtils {
     }
 
     static String resultSetCurrentData(ResultSet rs) throws SQLException {
-        ResultSetMetadata metadata = rs.getMetadata();
+        ResultSetMetaData metadata = rs.getMetaData();
         return rowAsString(rs, metadata.getColumnCount());
     }
 
@@ -122,7 +122,7 @@ final class JdbcTestUtils {
     }
 
     public static void logLikeCLI(ResultSet rs, Logger logger) throws SQLException {
-        ResultSetMetadata metadata = rs.getMetadata();
+        ResultSetMetaData metadata = rs.getMetaData();
         int columns = metadata.getColumnCount();
 
         List<ColumnInfo> cols = new ArrayList<>(columns);

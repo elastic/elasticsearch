@@ -75,7 +75,7 @@ public class SearchAfterSortedDocQuery extends Query {
         return new ConstantScoreWeight(this, 1.0f) {
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                Sort segmentSort = context.reader().getMetadata().getSort();
+                Sort segmentSort = context.reader().getMetaData().getSort();
                 if (segmentSort == null || Lucene.canEarlyTerminate(sort, segmentSort) == false) {
                     throw new IOException("search sort :[" + sort.getSort() + "] does not match the index sort:[" + segmentSort + "]");
                 }

@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.sql.ResultSetMetadata;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
-public class JdbcResultSetMetadataTests extends ESTestCase {
+public class JdbcResultSetMetaDataTests extends ESTestCase {
 
     private final List<JdbcColumnInfo> columns = Arrays.asList(
                 new JdbcColumnInfo("test_keyword", EsType.KEYWORD, EMPTY, EMPTY, EMPTY, EMPTY, 0),
@@ -23,7 +23,7 @@ public class JdbcResultSetMetadataTests extends ESTestCase {
                 new JdbcColumnInfo("test_double", EsType.DOUBLE, EMPTY, EMPTY, EMPTY, EMPTY, 25),
                 new JdbcColumnInfo("test_long", EsType.LONG, "test_table", "test", "schema", "custom_label", 20)
             );
-    private final JdbcResultSetMetadata metadata = new JdbcResultSetMetadata(null, columns);
+    private final JdbcResultSetMetaData metadata = new JdbcResultSetMetaData(null, columns);
 
     public void testColumnsProperties() throws SQLException {
         int maxColumnIndex = columns.size();
@@ -31,7 +31,7 @@ public class JdbcResultSetMetadataTests extends ESTestCase {
         assertEquals(true, metadata.isCaseSensitive(randomIntBetween(1, maxColumnIndex)));
         assertEquals(true, metadata.isSearchable(randomIntBetween(1, maxColumnIndex)));
         assertEquals(false, metadata.isCurrency(randomIntBetween(1, maxColumnIndex)));
-        assertEquals(ResultSetMetadata.columnNullableUnknown, metadata.isNullable(randomIntBetween(1, maxColumnIndex)));
+        assertEquals(ResultSetMetaData.columnNullableUnknown, metadata.isNullable(randomIntBetween(1, maxColumnIndex)));
         assertEquals(false, metadata.isSigned(1));
         assertEquals(true, metadata.isSigned(2));
         assertEquals(true, metadata.isSigned(3));

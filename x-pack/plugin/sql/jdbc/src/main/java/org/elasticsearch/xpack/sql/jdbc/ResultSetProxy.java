@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import java.sql.ResultSetMetadata;
+import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 
 class ResultSetProxy extends DebuggingInvoker {
@@ -16,8 +16,8 @@ class ResultSetProxy extends DebuggingInvoker {
 
     @Override
     protected Object postProcess(Object result, Object proxy) {
-        if (result instanceof ResultSetMetadata) {
-            return Debug.proxy(new ResultSetMetadataProxy(log, result));
+        if (result instanceof ResultSetMetaData) {
+            return Debug.proxy(new ResultSetMetaDataProxy(log, result));
         }
         if (result instanceof Statement) {
             return parent;

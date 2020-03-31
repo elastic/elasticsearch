@@ -5444,7 +5444,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.refresh("test");
                 try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                     LeafReader leafReader = getOnlyLeafReader(searcher.getIndexReader());
-                    assertEquals(createdVersion.luceneVersion.major, leafReader.getMetadata().getCreatedVersionMajor());
+                    assertEquals(createdVersion.luceneVersion.major, leafReader.getMetaData().getCreatedVersionMajor());
                 }
             }
         }

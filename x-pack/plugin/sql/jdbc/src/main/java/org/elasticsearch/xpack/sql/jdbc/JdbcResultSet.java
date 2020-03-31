@@ -16,7 +16,7 @@ import java.sql.Date;
 import java.sql.NClob;
 import java.sql.Ref;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetadata;
+import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -402,8 +402,8 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     }
 
     @Override
-    public ResultSetMetadata getMetadata() throws SQLException {
-        return new JdbcResultSetMetadata(this, cursor.columns());
+    public ResultSetMetaData getMetaData() throws SQLException {
+        return new JdbcResultSetMetaData(this, cursor.columns());
     }
 
     @Override

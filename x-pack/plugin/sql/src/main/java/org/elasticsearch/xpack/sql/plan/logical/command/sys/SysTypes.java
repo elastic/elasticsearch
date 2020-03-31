@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
-import java.sql.DatabaseMetadata;
+import java.sql.DatabaseMetaData;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.sqlType;
 
 /**
  * System command designed to be used by JDBC / ODBC for column metadata.
- * In JDBC it used for {@link DatabaseMetadata#getTypeInfo()},
+ * In JDBC it used for {@link DatabaseMetaData#getTypeInfo()},
  * in ODBC for <a href="https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function">SQLGetTypeInfo</a>
  */
 public class SysTypes extends Command {
@@ -95,11 +95,11 @@ public class SysTypes extends Command {
                         "'",
                         null,
                         // don't be specific on nullable
-                        DatabaseMetadata.typeNullableUnknown,
+                        DatabaseMetaData.typeNullableUnknown,
                         // all strings are case-sensitive
                         isString(t),
                         // everything is searchable,
-                        DatabaseMetadata.typeSearchable,
+                        DatabaseMetaData.typeSearchable,
                         // only numerics are signed
                         isSigned(t) == false,
                         //no fixed precision scale SQL_FALSE

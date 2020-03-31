@@ -217,7 +217,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             // set size smaller than an agg page
             s.setFetchSize(3);
             try (ResultSet rs = s.executeQuery(query)) {
-                assertEquals(8, rs.getMetadata().getColumnCount());
+                assertEquals(8, rs.getMetaData().getColumnCount());
                 for (int i = 0; i < 10; i++) {
                     assertTrue(rs.next());
                     // the page was set to a pivot row (since the initial 3 is lower as a pivot page takes number of pivot entries + 1)
@@ -256,7 +256,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             // set size smaller than an agg page
             s.setFetchSize(20);
             try (ResultSet rs = s.executeQuery(query)) {
-                assertEquals(3, rs.getMetadata().getColumnCount());
+                assertEquals(3, rs.getMetaData().getColumnCount());
                 for (int i = 0; i < 4; i++) {
                     assertTrue(rs.next());
                     assertEquals(2, rs.getFetchSize());

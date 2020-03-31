@@ -26,7 +26,7 @@ import java.sql.Connection;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetadata;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
@@ -160,12 +160,12 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         createTestDataForByteValueTests(random1, random2, random3);
 
         doWithQuery("SELECT test_byte, test_null_byte, test_keyword FROM test", (results) -> {
-            ResultSetMetadata resultSetMetadata = results.getMetadata();
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
             results.next();
-            assertEquals(3, resultSetMetadata.getColumnCount());
-            assertEquals(Types.TINYINT, resultSetMetadata.getColumnType(1));
-            assertEquals(Types.TINYINT, resultSetMetadata.getColumnType(2));
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.TINYINT, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.TINYINT, resultSetMetaData.getColumnType(2));
             assertEquals(random1, results.getByte(1));
             assertEquals(random1, results.getByte("test_byte"));
             assertEquals(random1, (byte) results.getObject("test_byte", Byte.class));
@@ -289,12 +289,12 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         createTestDataForShortValueTests(random1, random2, random3);
 
         doWithQuery("SELECT test_short, test_null_short, test_keyword FROM test", (results) -> {
-            ResultSetMetadata resultSetMetadata = results.getMetadata();
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
             results.next();
-            assertEquals(3, resultSetMetadata.getColumnCount());
-            assertEquals(Types.SMALLINT, resultSetMetadata.getColumnType(1));
-            assertEquals(Types.SMALLINT, resultSetMetadata.getColumnType(2));
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.SMALLINT, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.SMALLINT, resultSetMetaData.getColumnType(2));
             assertEquals(random1, results.getShort(1));
             assertEquals(random1, results.getShort("test_short"));
             assertEquals(random1, results.getObject("test_short"));
@@ -412,12 +412,12 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         createTestDataForIntegerValueTests(random1, random2, random3);
 
         doWithQuery("SELECT test_integer,test_null_integer,test_keyword FROM test", (results) -> {
-            ResultSetMetadata resultSetMetadata = results.getMetadata();
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
             results.next();
-            assertEquals(3, resultSetMetadata.getColumnCount());
-            assertEquals(Types.INTEGER, resultSetMetadata.getColumnType(1));
-            assertEquals(Types.INTEGER, resultSetMetadata.getColumnType(2));
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.INTEGER, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.INTEGER, resultSetMetaData.getColumnType(2));
             assertEquals(random1, results.getInt(1));
             assertEquals(random1, results.getInt("test_integer"));
             assertEquals(random1, (int) results.getObject("test_integer", Integer.class));
@@ -527,12 +527,12 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         createTestDataForLongValueTests(random1, random2, random3);
 
         doWithQuery("SELECT test_long, test_null_long, test_keyword FROM test", (results) -> {
-            ResultSetMetadata resultSetMetadata = results.getMetadata();
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
             results.next();
-            assertEquals(3, resultSetMetadata.getColumnCount());
-            assertEquals(Types.BIGINT, resultSetMetadata.getColumnType(1));
-            assertEquals(Types.BIGINT, resultSetMetadata.getColumnType(2));
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.BIGINT, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.BIGINT, resultSetMetaData.getColumnType(2));
             assertEquals(random1, results.getLong(1));
             assertEquals(random1, results.getLong("test_long"));
             assertEquals(random1, (long) results.getObject("test_long", Long.class));
@@ -629,12 +629,12 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         createTestDataForDoubleValueTests(random1, random2, random3);
 
         doWithQuery("SELECT test_double, test_null_double, test_keyword FROM test", (results) -> {
-            ResultSetMetadata resultSetMetadata = results.getMetadata();
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
             results.next();
-            assertEquals(3, resultSetMetadata.getColumnCount());
-            assertEquals(Types.DOUBLE, resultSetMetadata.getColumnType(1));
-            assertEquals(Types.DOUBLE, resultSetMetadata.getColumnType(2));
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.DOUBLE, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.DOUBLE, resultSetMetaData.getColumnType(2));
             assertEquals(random1, results.getDouble(1), 0.0d);
             assertEquals(random1, results.getDouble("test_double"), 0.0d);
             assertEquals(random1, results.getObject("test_double", Double.class), 0.0d);
@@ -718,12 +718,12 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         createTestDataForFloatValueTests(random1, random2, random3);
 
         doWithQuery("SELECT test_float, test_null_float, test_keyword FROM test", (results) -> {
-            ResultSetMetadata resultSetMetadata = results.getMetadata();
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
             results.next();
-            assertEquals(3, resultSetMetadata.getColumnCount());
-            assertEquals(Types.REAL, resultSetMetadata.getColumnType(1));
-            assertEquals(Types.REAL, resultSetMetadata.getColumnType(2));
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.REAL, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.REAL, resultSetMetaData.getColumnType(2));
             assertEquals(random1, results.getFloat(1), 0.0f);
             assertEquals(random1, results.getFloat("test_float"), 0.0f);
             assertEquals(random1, results.getObject("test_float", Float.class), 0.0f);
@@ -1015,10 +1015,10 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
 
         doWithQuery("SELECT name, release_date, republish_date FROM library", (results) -> {
-            ResultSetMetadata resultSetMetadata = results.getMetadata();
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
 
             results.next();
-            assertEquals(3, resultSetMetadata.getColumnCount());
+            assertEquals(3, resultSetMetaData.getColumnCount());
             assertEquals(randomMillis, results.getTimestamp("release_date").getTime());
             assertEquals(randomMillis, results.getTimestamp(2).getTime());
             assertTrue(results.getObject(2) instanceof Timestamp);

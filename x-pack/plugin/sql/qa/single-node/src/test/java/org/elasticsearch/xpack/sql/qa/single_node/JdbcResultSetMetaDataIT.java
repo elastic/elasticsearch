@@ -3,9 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.sql.qa.single_node;
 
-import org.elasticsearch.xpack.sql.qa.jdbc.DatabaseMetadataTestCase;
+import org.elasticsearch.xpack.sql.qa.jdbc.ResultSetMetaDataTestCase;
 
-public class JdbcDatabaseMetadataIT extends DatabaseMetadataTestCase {
+public class JdbcResultSetMetaDataIT extends ResultSetMetaDataTestCase {
+
 }

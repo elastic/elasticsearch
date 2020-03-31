@@ -190,7 +190,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             logger.debug("Enrich index [{}] is not marked as a live index since it has no alias information", indexName);
             return true;
         }
-        boolean hasAlias = aliasMetadata.stream().anyMatch((aliasMetadata -> aliasMetadata.getAlias().equals(aliasName)));
+        boolean hasAlias = aliasMetadata.stream().anyMatch((am -> am.getAlias().equals(aliasName)));
         // Index is not currently published to the enrich alias. Should be marked for removal.
         if (hasAlias == false) {
             logger.debug("Enrich index [{}] is not marked as a live index since it lacks the alias [{}]", indexName, aliasName);

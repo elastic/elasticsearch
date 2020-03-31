@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.ObjectUtils;
 
 import java.sql.Connection;
-import java.sql.DatabaseMetadata;
+import java.sql.DatabaseMetaData;
 import java.sql.DriverPropertyInfo;
 import java.sql.JDBCType;
 import java.sql.PreparedStatement;
@@ -26,18 +26,18 @@ import static java.sql.JDBCType.SMALLINT;
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
 /**
- * Implementation of {@link DatabaseMetadata} for Elasticsearch. Draws inspiration
+ * Implementation of {@link DatabaseMetaData} for Elasticsearch. Draws inspiration
  * from <a href="https://www.postgresql.org/docs/9.0/static/information-schema.html">
  * PostgreSQL</a>. Virtual/synthetic tables are not supported so the client returns
  * empty data instead of creating a query.
  */
-class JdbcDatabaseMetadata implements DatabaseMetadata, JdbcWrapper {
+class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     private static final String WILDCARD = "%";
 
     private final JdbcConnection con;
 
-    JdbcDatabaseMetadata(JdbcConnection con) {
+    JdbcDatabaseMetaData(JdbcConnection con) {
         this.con = con;
     }
 
@@ -1121,7 +1121,7 @@ class JdbcDatabaseMetadata implements DatabaseMetadata, JdbcWrapper {
 
     @Override
     public int getSQLStateType() throws SQLException {
-        return DatabaseMetadata.sqlStateSQL;
+        return DatabaseMetaData.sqlStateSQL;
     }
 
     @Override

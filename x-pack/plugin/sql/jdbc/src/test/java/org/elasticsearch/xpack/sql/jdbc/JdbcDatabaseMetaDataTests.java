@@ -13,13 +13,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Properties;
 
-public class JdbcDatabaseMetadataTests extends ESTestCase {
+public class JdbcDatabaseMetaDataTests extends ESTestCase {
 
-    private JdbcDatabaseMetadata md = null;
+    private JdbcDatabaseMetaData md = null;
 
     {
         try {
-            md = new JdbcDatabaseMetadata(
+            md = new JdbcDatabaseMetaData(
                     new JdbcConnection(JdbcConfiguration.create("jdbc:es://localhost:9200/", new Properties(), 10), false));
         } catch (Exception ex) {
             throw new RuntimeException(ex);

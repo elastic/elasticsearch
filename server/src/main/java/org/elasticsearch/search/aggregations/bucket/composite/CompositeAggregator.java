@@ -197,7 +197,7 @@ final class CompositeAggregator extends BucketsAggregator {
      * optimization and null if index sort is not applicable.
      */
     private Sort buildIndexSortPrefix(LeafReaderContext context) throws IOException {
-        Sort indexSort = context.reader().getMetadata().getSort();
+        Sort indexSort = context.reader().getMetaData().getSort();
         if (indexSort == null) {
             return null;
         }

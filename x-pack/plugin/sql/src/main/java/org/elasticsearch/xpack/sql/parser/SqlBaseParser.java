@@ -11,7 +11,7 @@ import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 class SqlBaseParser extends Parser {
-  static { RuntimeMetadata.checkVersion("4.5.3", RuntimeMetadata.VERSION); }
+  static { RuntimeMetaData.checkVersion("4.5.3", RuntimeMetaData.VERSION); }
 
   protected static final DFA[] _decisionToDFA;
   protected static final PredictionContextCache _sharedContextCache =

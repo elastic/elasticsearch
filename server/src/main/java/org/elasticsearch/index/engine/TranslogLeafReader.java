@@ -24,7 +24,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafMetadata;
+import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
@@ -128,7 +128,7 @@ public final class TranslogLeafReader extends LeafReader {
     }
 
     @Override
-    public LeafMetadata getMetadata() {
+    public LeafMetaData getMetaData() {
         throw new UnsupportedOperationException();
     }
 

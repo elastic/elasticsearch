@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.sql.qa.jdbc.DatabaseMetadataTestCase;
+import org.elasticsearch.xpack.sql.qa.jdbc.DatabaseMetaDataTestCase;
 
 import java.util.Properties;
 
-public class JdbcDatabaseMetadataIT extends DatabaseMetadataTestCase {
+public class JdbcDatabaseMetaDataIT extends DatabaseMetaDataTestCase {
     @Override
     protected Settings restClientSettings() {
         return RestSqlIT.securitySettings();

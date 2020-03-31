@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -24,15 +23,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING;
 
 public class LocalModel implements Model {
-
-    private static final long MIN_PERSISTENCE_INTERVAL = TimeValue.timeValueMinutes(1).getMillis();
 
     private final TrainedModelDefinition trainedModelDefinition;
     private final String modelId;
@@ -40,27 +35,15 @@ public class LocalModel implements Model {
     private final Map<String, String> defaultFieldMap;
     private final InferenceStats.Accumulator statsAccumulator;
     private final TrainedModelStatsService trainedModelStatsService;
-    private final Supplier<Long> nanoTimeSupplier;
-    private volatile long lastStatsQueue;
     private volatile long persistenceQuotient = 100;
     private final LongAdder currentInferenceCount;
-
-    public LocalModel(String modelId,
-                      TrainedModelDefinition trainedModelDefinition,
-                      TrainedModelInput input,
-                      Map<String, String> defaultFieldMap,
-                      InferenceStats previousStats,
-                      TrainedModelStatsService trainedModelStatsService) {
-        this(modelId, trainedModelDefinition, input, defaultFieldMap, previousStats, trainedModelStatsService, System::nanoTime);
-    }
 
     LocalModel(String modelId,
                TrainedModelDefinition trainedModelDefinition,
                TrainedModelInput input,
                Map<String, String> defaultFieldMap,
                InferenceStats previousStats,
-               TrainedModelStatsService trainedModelStatsService,
-               Supplier<Long> nanoTimeSupplier) {
+               TrainedModelStatsService trainedModelStatsService) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
         this.fieldNames = new HashSet<>(input.getFieldNames());
@@ -68,8 +51,6 @@ public class LocalModel implements Model {
         this.trainedModelStatsService = trainedModelStatsService;
         this.defaultFieldMap = defaultFieldMap == null ? null : new HashMap<>(defaultFieldMap);
         this.currentInferenceCount = new LongAdder();
-        this.nanoTimeSupplier = nanoTimeSupplier;
-        this.lastStatsQueue = nanoTimeSupplier.get();
     }
 
     long ramBytesUsed() {
@@ -102,7 +83,6 @@ public class LocalModel implements Model {
 
     void persistStats() {
         trainedModelStatsService.queueStats(getLatestStats());
-        lastStatsQueue = nanoTimeSupplier.get();
         if (persistenceQuotient < 1000 && currentInferenceCount.sum() > 1000) {
             persistenceQuotient = 1000;
         }
@@ -119,10 +99,7 @@ public class LocalModel implements Model {
 
             Model.mapFieldsIfNecessary(fields, defaultFieldMap);
 
-            long startTimeInNanos = nanoTimeSupplier.get();
-            boolean shouldPersistStats =
-                (TimeUnit.NANOSECONDS.toMillis(startTimeInNanos - lastStatsQueue) > MIN_PERSISTENCE_INTERVAL)
-                || ((currentInferenceCount.sum() + 1) % persistenceQuotient == 0);
+            boolean shouldPersistStats = ((currentInferenceCount.sum() + 1) % persistenceQuotient == 0);
             if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
                 statsAccumulator.incMissingFields();
                 if (shouldPersistStats) {
@@ -132,7 +109,6 @@ public class LocalModel implements Model {
                 return;
             }
             InferenceResults inferenceResults = trainedModelDefinition.infer(fields, config);
-            statsAccumulator.addTimeSpent(nanoTimeSupplier.get() - startTimeInNanos);
             if (shouldPersistStats) {
                 persistStats();
             }

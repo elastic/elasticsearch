@@ -171,43 +171,6 @@ public class LocalModelTests extends ESTestCase {
         assertThat(model.getLatestStats().getMissingAllFieldsCount(), equalTo(1L));
     }
 
-    public void testInferPersistsStatsAfterTimeWindow() throws Exception {
-        TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
-        doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
-        String modelId = "classification_model";
-        List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
-        TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
-            .setTrainedModel(buildClassification(false))
-            .build();
-
-        TestTimeSupplier supplier = new TestTimeSupplier(0L, TimeValue.timeValueMinutes(2).nanos());
-        Model model = new LocalModel(modelId,
-            definition,
-            new TrainedModelInput(inputFields),
-            null,
-            InferenceStats.emptyStats(modelId, "node_id"),
-            modelStatsService,
-            supplier::getTime
-            );
-        Map<String, Object> fields = new HashMap<>() {{
-            put("field.foo", 1.0);
-            put("field.bar", 0.5);
-            put("categorical", "dog");
-        }};
-
-        SingleValueInferenceResults result = getSingleValue(model, fields, new ClassificationConfig(0));
-        assertThat(result.value(), equalTo(0.0));
-        assertThat(result.valueAsString(), is("0"));
-        assertThat(model.getLatestStats().getInferenceCount(), equalTo(1L));
-        verify(modelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
-            @Override
-            public boolean matches(Object o) {
-                return ((InferenceStats)o).getInferenceCount() == 1L;
-            }
-        }));
-    }
-
     public void testInferPersistsStatsAfterNumberOfCalls() throws Exception {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class));
@@ -218,14 +181,12 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModel(buildClassification(false))
             .build();
 
-        TestTimeSupplier supplier = new TestTimeSupplier(0L, 1L);
         Model model = new LocalModel(modelId,
             definition,
             new TrainedModelInput(inputFields),
             null,
             InferenceStats.emptyStats(modelId, "node_id"),
-            modelStatsService,
-            supplier::getTime
+            modelStatsService
         );
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
@@ -248,21 +209,6 @@ public class LocalModelTests extends ESTestCase {
         }));
     }
 
-    private static class TestTimeSupplier {
-        private volatile long initialTime;
-        private long step;
-
-        TestTimeSupplier(long initialTime, long step) {
-            this.initialTime = initialTime;
-            this.step = step;
-        }
-
-        Long getTime() {
-            long toReturn = initialTime;
-            initialTime += step;
-            return toReturn;
-        }
-    }
     private static SingleValueInferenceResults getSingleValue(Model model,
                                                               Map<String, Object> fields,
                                                               InferenceConfig config) throws Exception {

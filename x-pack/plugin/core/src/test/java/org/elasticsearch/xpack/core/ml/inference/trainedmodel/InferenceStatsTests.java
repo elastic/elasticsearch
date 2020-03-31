@@ -23,7 +23,6 @@ public class InferenceStatsTests extends AbstractSerializingTestCase<InferenceSt
         return new InferenceStats(randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong(),
             modelId,
             nodeId,
             Instant.now()

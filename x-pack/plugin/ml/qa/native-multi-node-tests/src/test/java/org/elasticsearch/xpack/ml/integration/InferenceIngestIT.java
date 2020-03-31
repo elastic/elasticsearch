@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.junit.After;
@@ -30,6 +31,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -141,7 +143,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testSimulate() throws IOException {

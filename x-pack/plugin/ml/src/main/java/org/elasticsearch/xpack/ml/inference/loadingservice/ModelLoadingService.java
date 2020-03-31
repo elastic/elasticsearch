@@ -261,9 +261,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 INFERENCE_MODEL_CACHE_TTL.getKey());
             auditIfNecessary(notification.getKey(), msg);
         }
-        if (notification.getRemovalReason() != RemovalNotification.RemovalReason.REPLACED) {
-            notification.getValue().persistStats();
-        }
+        notification.getValue().persistStats();
     }
 
     @Override

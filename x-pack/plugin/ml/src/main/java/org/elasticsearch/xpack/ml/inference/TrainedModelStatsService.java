@@ -114,14 +114,25 @@ public class TrainedModelStatsService {
 
     void start() {
         stopped = false;
-        scheduledFuture = threadPool.scheduleWithFixedDelay(this::persistStats,
+        scheduledFuture = threadPool.scheduleWithFixedDelay(this::updateStats,
             TimeValue.timeValueSeconds(1),
             MachineLearning.UTILITY_THREAD_POOL_NAME);
     }
 
-    void persistStats() {
+    void updateStats() {
         if (clusterState == null || statsQueue.isEmpty()) {
             return;
+        }
+        if (verifiedStatsIndexCreated == false) {
+            try {
+                PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
+                MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
+                listener.actionGet();
+                verifiedStatsIndexCreated = true;
+            } catch (Exception e) {
+                logger.error("failure creating ml stats index for storing model stats", e);
+                return;
+            }
         }
 
         List<InferenceStats> stats = new ArrayList<>(statsQueue.size());
@@ -133,20 +144,6 @@ public class TrainedModelStatsService {
         }
         if (stats.isEmpty()) {
             return;
-        }
-        if (verifiedStatsIndexCreated == false) {
-            try {
-                PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-                MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
-                listener.actionGet();
-                verifiedStatsIndexCreated = true;
-            } catch (Exception e) {
-                logger.error(
-                    new ParameterizedMessage("failure creating ml stats index for storing model stats {}",
-                        stats.stream().map(InferenceStats::getModelId).collect(Collectors.toList())),
-                    e);
-                return;
-            }
         }
         BulkRequest bulkRequest = new BulkRequest();
         stats.stream().map(TrainedModelStatsService::buildUpdateRequest).filter(Objects::nonNull).forEach(bulkRequest::add);
@@ -165,7 +162,6 @@ public class TrainedModelStatsService {
             Map<String, Object> params = new HashMap<>();
             params.put(InferenceStats.FAILURE_COUNT.getPreferredName(), stats.getFailureCount());
             params.put(InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName(), stats.getMissingAllFieldsCount());
-            params.put(InferenceStats.TOTAL_TIME_SPENT_MILLIS.getPreferredName(), stats.getTotalTimeSpent());
             params.put(InferenceStats.TIMESTAMP.getPreferredName(), stats.getTimeStamp().toEpochMilli());
             params.put(InferenceStats.INFERENCE_COUNT.getPreferredName(), stats.getInferenceCount());
             stats.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);

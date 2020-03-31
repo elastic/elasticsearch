@@ -195,7 +195,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("is not registered with this Identity Provider"));
+        assertThat(e.getMessage(), containsString("is not known to this Identity Provider"));
         assertThat(e.getMessage(), containsString("https://unknown.kibana.org"));
     }
 

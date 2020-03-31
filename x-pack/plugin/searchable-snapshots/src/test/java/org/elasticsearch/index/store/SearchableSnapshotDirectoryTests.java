@@ -349,7 +349,13 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                         .put(Environment.PATH_REPO_SETTING.getKey(), repositoryPath.toAbsolutePath())
                         .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build(), null),
-                    NamedXContentRegistry.EMPTY, BlobStoreTestUtil.mockClusterService(repositoryMetaData));
+                    NamedXContentRegistry.EMPTY, BlobStoreTestUtil.mockClusterService(repositoryMetaData)) {
+
+                    @Override
+                    protected void assertSnapshotOrGenericThread() {
+                        // eliminate thread name check as we create repo manually on test/main threads
+                    }
+                };
                 repository.start();
                 releasables.add(repository::stop);
 
@@ -373,8 +379,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 releasables.add(cacheService);
                 cacheService.start();
 
-                try (Directory snapshotDirectory = new SearchableSnapshotDirectory(blobContainer, snapshot, snapshotId, indexId, shardId,
-                    Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean()).build(), () -> 0L,
+                try (Directory snapshotDirectory = new SearchableSnapshotDirectory(() -> blobContainer, () -> snapshot, snapshotId, indexId,
+                    shardId, Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean()).build(), () -> 0L,
                     cacheService, cacheDir)) {
                     consumer.accept(directory, snapshotDirectory);
                 }
@@ -432,8 +438,9 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             final ShardId shardId = new ShardId(new Index("_name", "_id"), 0);
 
             final Path cacheDir = createTempDir();
-            try (SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(blobContainer, snapshot, snapshotId, indexId,
-                shardId, Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(), () -> 0L, cacheService, cacheDir)) {
+            try (SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(() -> blobContainer, () -> snapshot, snapshotId,
+                indexId, shardId, Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(), () -> 0L, cacheService,
+                cacheDir)) {
 
                 final byte[] buffer = new byte[1024];
                 for (int i = 0; i < randomIntBetween(10, 50); i++) {

@@ -191,8 +191,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             final long bytesInCacheBeforeClear = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
             assertThat(bytesInCacheBeforeClear, greaterThan(0L));
 
-            final Request request = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_searchable_snapshots/cache/clear");
-            assertOK(client().performRequest(request));
+            clearCache(restoredIndexName);
 
             final long bytesInCacheAfterClear = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
             assertThat(bytesInCacheAfterClear, equalTo(bytesInCacheBeforeClear));
@@ -205,7 +204,18 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         });
     }
 
+    private void clearCache(String restoredIndexName) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_searchable_snapshots/cache/clear");
+        assertOK(client().performRequest(request));
+    }
+
     public void assertSearchResults(String indexName, int numDocs, Boolean ignoreThrottled) throws IOException {
+
+        if (randomBoolean()) {
+            logger.info("clearing searchable snapshots cache for [{}] before search", indexName);
+            clearCache(indexName);
+        }
+
         final int randomTieBreaker = randomIntBetween(0, numDocs - 1);
         Map<String, Object> searchResults;
         switch (randomInt(3)) {

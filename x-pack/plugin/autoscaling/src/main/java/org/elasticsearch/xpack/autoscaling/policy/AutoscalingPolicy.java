@@ -27,7 +27,7 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
 
     public static final ParseField DECIDERS_FIELD = new ParseField("deciders");
 
-    public static final ConstructingObjectParser<AutoscalingPolicy, String> PARSER;
+    private static final ConstructingObjectParser<AutoscalingPolicy, String> PARSER;
 
     static {
         PARSER = new ConstructingObjectParser<>(NAME, false, (c, name) -> {

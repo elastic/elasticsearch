@@ -39,10 +39,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_SETTING_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
@@ -486,7 +488,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
 
         // Closing an index is blocked
-        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
+        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA, SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("test", blockSetting);
                 assertBlocked(client().admin().indices().prepareUpdateSettings("test").setSettings(builder));
@@ -646,4 +648,18 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
     }
 
+    public void testUpdateSettingsNormalization() {
+        createIndex("test");
+        ensureGreen("test");
+
+        for (String setting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA, SETTING_READ_ONLY_ALLOW_DELETE)) {
+            String settingWithoutPrefix = setting.substring(INDEX_SETTING_PREFIX.length());
+
+            Settings settings = Settings.builder().put(settingWithoutPrefix, true).build();
+            assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settings));
+
+            settings = Settings.builder().put(settingWithoutPrefix, false).build();
+            assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settings));
+        }
+    }
 }

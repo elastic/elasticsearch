@@ -131,7 +131,7 @@ public class VerifierTests extends ESTestCase {
 
     // Test the known EQL functions that are not supported
     public void testFunctionVerificationUnknown() {
-                error("file where opcode=0 and startsWith(file_name, 'explORER.EXE')"));        assertEquals("1:25: Unknown function [stringContains]",
+        assertEquals("1:25: Unknown function [stringContains]",
                 error("file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)"));
         assertEquals("1:25: Unknown function [indexOf]",
                 error("file where opcode=0 and indexOf(file_name, 'plore') == 2"));

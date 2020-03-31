@@ -261,16 +261,21 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
                     input.readByte();
                 }
 
-                final int bufferSize = BufferedIndexInput.bufferSize(context);
+                // account for internal buffered reads
+                final long bufferSize = BufferedIndexInput.bufferSize(context);
                 if (input.length() <= bufferSize) {
                     // file is read in a single non-optimized read operation
                     assertCounter(inputStats.getDirectBytesRead(), input.length(), 1L, input.length(), input.length());
                     assertThat(inputStats.getDirectBytesRead().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
                     assertCounter(inputStats.getOptimizedBytesRead(), 0L, 0L, 0L, 0L);
                 } else {
+                    final long remaining = input.length() % bufferSize;
+                    final long expectedClockCounts = input.length() / bufferSize + (remaining > 0L ? 1L : 0L);
+
                     // file is read in a single optimized read operation
-                    assertCounter(inputStats.getOptimizedBytesRead(), input.length(), 1L, input.length(), input.length());
-                    assertThat(inputStats.getOptimizedBytesRead().totalNanoseconds(), equalTo(FAKE_CLOCK_ADVANCE_NANOS));
+                    IndexInputStats.TimedCounter optimizedBytesRead = inputStats.getOptimizedBytesRead();
+                    assertCounter(optimizedBytesRead, input.length(), 1L, input.length(), input.length());
+                    assertThat(optimizedBytesRead.totalNanoseconds(), equalTo(expectedClockCounts * FAKE_CLOCK_ADVANCE_NANOS));
                     assertCounter(inputStats.getDirectBytesRead(), 0L, 0L, 0L, 0L);
                 }
             } catch (IOException e) {

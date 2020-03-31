@@ -8,6 +8,7 @@ package org.elasticsearch.index.store.direct;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -22,6 +23,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * A {@link DirectBlobContainerIndexInput} instance corresponds to a single file from a Lucene directory that has been snapshotted. Because
@@ -194,36 +196,38 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             return 0;
         }
 
-        final long startTimeNanos = directory.statsCurrentTimeNanos();
-
         // if we open a stream of length streamLength then it will not be completely consumed by this read, so it is worthwhile to open
         // it and keep it open for future reads
         final InputStream inputStream = openBlobStream(part, pos, streamLength);
         streamForSequentialReads = new StreamForSequentialReads(new FilterInputStream(inputStream) {
-            private int bytesRead = 0;
+            private LongAdder bytesRead = new LongAdder();
+            private LongAdder timeNanos = new LongAdder();
 
-            @Override
-            public int read() throws IOException {
-                final int result = super.read();
+            private int onOptimizedRead(CheckedSupplier<Integer, IOException> read) throws IOException {
+                final long startTimeNanos = directory.statsCurrentTimeNanos();
+                final int result = read.get();
+                final long endTimeNanos = directory.statsCurrentTimeNanos();
                 if (result != -1) {
-                    bytesRead += result;
+                    bytesRead.add(result);
+                    timeNanos.add(endTimeNanos - startTimeNanos);
                 }
                 return result;
             }
 
             @Override
+            public int read() throws IOException {
+                return onOptimizedRead(super::read);
+            }
+
+            @Override
             public int read(byte[] b, int off, int len) throws IOException {
-                final int result = super.read(b, off, len);
-                if (result != -1) {
-                    bytesRead += result;
-                }
-                return result;
+                return onOptimizedRead(() -> super.read(b, off, len));
             }
 
             @Override
             public void close() throws IOException {
                 super.close();
-                stats.addOptimizedBytesRead(bytesRead, directory.statsCurrentTimeNanos() - startTimeNanos);
+                stats.addOptimizedBytesRead(Math.toIntExact(bytesRead.sumThenReset()), timeNanos.sumThenReset());
             }
         }, part, pos, streamLength);
 

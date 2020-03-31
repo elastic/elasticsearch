@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -47,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -67,6 +70,8 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
  * @see CreateIndexResponse
  */
 public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
+    public static final String DEPRECATION_MESSAGE = "Nested duplicate field support will be removed in future version.";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(CreateIndexRequest.class));
 
     public static final ParseField MAPPINGS = new ParseField("mappings");
     public static final ParseField SETTINGS = new ParseField("settings");
@@ -261,7 +266,47 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+
+        // Can we assume the value keyed under "properties" is of type Map<String, Object>, and all the nested maps of this type as well?
+        try {
+            flattenNestedFieldNames(mappingAsMap);
+        }
+        catch (ElasticsearchParseException e) {
+            deprecationLogger.deprecatedAndMaybeLog("put_index_mapping", DEPRECATION_MESSAGE + e.getDetailedMessage());
+        }
+
         return mapping(MapperService.SINGLE_MAPPING_NAME, mappingAsMap);
+    }
+
+    private Set<String> flattenNestedFieldNames(Map<String, Object> mappingAsMap) {
+        Set<String> processedKeys = new HashSet<>();
+
+        Map<String, Object> properties = (Map<String, Object>) mappingAsMap.getOrDefault("properties", Collections.emptyMap());
+
+        for(Map.Entry<String, Object> fieldEntry : properties.entrySet()) {
+            String fieldName = fieldEntry.getKey();
+            Map<String, Object> fieldDefinition = (Map<String, Object>) fieldEntry.getValue();
+
+            Set<String> flattenedNestedFieldKeys = flattenNestedFieldNames(fieldDefinition);
+
+            if (flattenedNestedFieldKeys.size() > 0) {
+                for (String flattenedKey : flattenedNestedFieldKeys) {
+                    String concatenatedKey = fieldName + "." + flattenedKey;
+
+                    if (processedKeys.contains(concatenatedKey)) {
+                        throw new ElasticsearchParseException("Duplicated keys: " + concatenatedKey);
+                    }
+                    else {
+                        processedKeys.add(concatenatedKey);
+                    }
+                }
+            }
+            else {
+                processedKeys.add(fieldName);
+            }
+        }
+
+        return processedKeys;
     }
 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {

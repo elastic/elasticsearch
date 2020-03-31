@@ -26,7 +26,7 @@ startsWith("regsvr32.exe", "regsvr32")  // returns true
 startsWith("regsvr32.exe", "explorer")  // returns false
 startsWith("", "")                      // returns true
 
-// process.path = "regsvr32.exe"
+// process.name = "regsvr32.exe"
 startsWith(process.name, "regsvr32")    // returns true
 startsWith(process.name, "explorer")    // returns false
 

@@ -69,37 +69,22 @@ public class InboundPipeline implements Releasable {
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         pending.add(reference.retain());
 
-        final ReleasableBytesReference composite;
-        if (pending.size() == 1) {
-            composite = pending.peekFirst();
-        } else {
-            final ReleasableBytesReference[] bytesReferences = pending.toArray(new ReleasableBytesReference[0]);
-            final Releasable releasable = () -> Releasables.closeWhileHandlingException(bytesReferences);
-            composite = new ReleasableBytesReference(new CompositeBytesReference(bytesReferences), releasable);
-        }
-
         final ArrayList<Object> fragments = fragmentList.get();
-        int bytesConsumed = 0;
         boolean continueHandling = true;
 
         while (continueHandling && isClosed == false) {
             boolean continueDecoding = true;
-            while (continueDecoding) {
-                final int remaining = composite.length() - bytesConsumed;
-                if (remaining != 0) {
-                    try (ReleasableBytesReference slice = composite.retainedSlice(bytesConsumed, remaining)) {
-                        final int bytesDecoded = decoder.decode(slice, fragments::add);
-                        if (bytesDecoded != 0) {
-                            bytesConsumed += bytesDecoded;
-                            if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
-                                continueDecoding = false;
-                            }
-                        } else {
+            while (continueDecoding && pending.isEmpty() == false) {
+                try (ReleasableBytesReference toDecode = getPendingBytes()) {
+                    final int bytesDecoded = decoder.decode(toDecode, fragments::add);
+                    if (bytesDecoded != 0) {
+                        releasePendingBytes(bytesDecoded);
+                        if (fragments.isEmpty() == false && endOfMessage(fragments.get(fragments.size() - 1))) {
                             continueDecoding = false;
                         }
+                    } else {
+                        continueDecoding = false;
                     }
-                } else {
-                    continueDecoding = false;
                 }
             }
 
@@ -118,8 +103,6 @@ public class InboundPipeline implements Releasable {
                 }
             }
         }
-
-        releasePendingBytes(bytesConsumed);
     }
 
     private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) throws IOException {
@@ -155,11 +138,22 @@ public class InboundPipeline implements Releasable {
         return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
     }
 
-    private void releasePendingBytes(int bytesConsumed) {
-        if (isClosed) {
-            // Are released by the close method
-            return;
+    private ReleasableBytesReference getPendingBytes() {
+        if (pending.size() == 1) {
+            return pending.peekFirst().retain();
+        } else {
+            final ReleasableBytesReference[] bytesReferences = new ReleasableBytesReference[pending.size()];
+            int index = 0;
+            for (ReleasableBytesReference pendingReference : pending) {
+                bytesReferences[index] = pendingReference.retain();
+                ++index;
+            }
+            final Releasable releasable = () -> Releasables.closeWhileHandlingException(bytesReferences);
+            return new ReleasableBytesReference(new CompositeBytesReference(bytesReferences), releasable);
         }
+    }
+
+    private void releasePendingBytes(int bytesConsumed) {
         int bytesToRelease = bytesConsumed;
         while (bytesToRelease != 0) {
             try (ReleasableBytesReference reference = pending.pollFirst()) {

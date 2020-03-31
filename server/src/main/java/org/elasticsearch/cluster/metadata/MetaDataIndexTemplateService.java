@@ -19,9 +19,12 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -37,6 +40,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -54,12 +58,15 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
@@ -69,6 +76,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 public class MetaDataIndexTemplateService {
 
     private static final Logger logger = LogManager.getLogger(MetaDataIndexTemplateService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
@@ -272,6 +280,21 @@ public class MetaDataIndexTemplateService {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
 
+        Map<String, List<String>> overlaps = findConflictingV1Templates(currentState, name, template.indexPatterns());
+        if (overlaps.size() > 0) {
+            String warning = String.format(Locale.ROOT, "index template [%s] has index patterns %s matching patterns from " +
+                    "existing older templates [%s] with patterns (%s); this template [%s] will take precedence during new index creation",
+                name,
+                template.indexPatterns(),
+                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                overlaps.entrySet().stream()
+                    .map(e -> e.getKey() + " => " + e.getValue())
+                    .collect(Collectors.joining(",")),
+                name);
+            logger.warn(warning);
+            deprecationLogger.deprecated(warning);
+        }
+
         // TODO: validation of index template
         // validateAndAddTemplate(request, templateBuilder, indicesService, xContentRegistry);
 
@@ -279,6 +302,48 @@ public class MetaDataIndexTemplateService {
         return ClusterState.builder(currentState)
             .metaData(MetaData.builder(currentState.metaData()).put(name, template))
             .build();
+    }
+
+    /**
+     * Return a map of v1 template names to their index patterns for v1 templates that would overlap
+     * with the given v2 template's index patterns.
+     */
+    static Map<String, List<String>> findConflictingV1Templates(final ClusterState state, final String candidateName,
+                                                                final List<String> indexPatterns) {
+        Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
+        Map<String, List<String>> overlappingTemplates = new HashMap<>();
+        for (ObjectObjectCursor<String, IndexTemplateMetaData> cursor : state.metaData().templates()) {
+            String name = cursor.key;
+            IndexTemplateMetaData template = cursor.value;
+            Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
+            if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
+                logger.debug("index template {} and old template {} would overlap: {} <=> {}",
+                    candidateName, name, indexPatterns, template.patterns());
+                overlappingTemplates.put(name, template.patterns());
+            }
+        }
+        return overlappingTemplates;
+    }
+
+    /**
+     * Return a map of v2 template names to their index patterns for v2 templates that would overlap
+     * with the given v1 template's index patterns.
+     */
+    static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
+                                                                final List<String> indexPatterns) {
+        Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
+        Map<String, List<String>> overlappingTemplates = new HashMap<>();
+        for (Map.Entry<String, IndexTemplateV2> entry : state.metaData().templatesV2().entrySet()) {
+            String name = entry.getKey();
+            IndexTemplateV2 template = entry.getValue();
+            Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
+            if (Operations.isEmpty(Operations.intersection(v1automaton, v2automaton)) == false) {
+                logger.debug("old template {} and index template {} would overlap: {} <=> {}",
+                    candidateName, name, indexPatterns, template.indexPatterns());
+                overlappingTemplates.put(name, template.indexPatterns());
+            }
+        }
+        return overlappingTemplates;
     }
 
     /**
@@ -374,36 +439,8 @@ public class MetaDataIndexTemplateService {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                if (request.create && currentState.metaData().templates().containsKey(request.name)) {
-                    throw new IllegalArgumentException("index_template [" + request.name + "] already exists");
-                }
-
-                templateBuilder.order(request.order);
-                templateBuilder.version(request.version);
-                templateBuilder.patterns(request.indexPatterns);
-                templateBuilder.settings(request.settings);
-
-                if (request.mappings != null) {
-                    try {
-                        templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
-                    } catch (Exception e) {
-                        throw new MapperParsingException("Failed to parse mapping: {}", e, request.mappings);
-                    }
-                }
-
                 validateTemplate(request.settings, request.mappings, indicesService, xContentRegistry);
-
-                for (Alias alias : request.aliases) {
-                    AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
-                        .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
-                    templateBuilder.putAlias(aliasMetaData);
-                }
-                IndexTemplateMetaData template = templateBuilder.build();
-
-                MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(template);
-
-                logger.info("adding template [{}] for index patterns {}", request.name, request.indexPatterns);
-                return ClusterState.builder(currentState).metaData(builder).build();
+                return innerPutTemplate(currentState, request, templateBuilder);
             }
 
             @Override
@@ -411,6 +448,75 @@ public class MetaDataIndexTemplateService {
                 listener.onResponse(new PutResponse(true));
             }
         });
+    }
+
+    // Package visible for testing
+    static ClusterState innerPutTemplate(final ClusterState currentState, PutRequest request,
+                                         IndexTemplateMetaData.Builder templateBuilder) {
+        // Flag for whether this is updating an existing template or adding a new one
+        // TODO: in 8.0+, only allow updating index templates, not adding new ones
+        boolean isUpdate = currentState.metaData().templates().containsKey(request.name);
+        if (request.create && isUpdate) {
+            throw new IllegalArgumentException("index_template [" + request.name + "] already exists");
+        }
+        boolean isUpdateAndPatternsAreUnchanged = isUpdate &&
+            currentState.metaData().templates().get(request.name).patterns().equals(request.indexPatterns);
+
+        Map<String, List<String>> overlaps = findConflictingV2Templates(currentState, request.name, request.indexPatterns);
+        if (overlaps.size() > 0) {
+            // Be less strict (just a warning) if we're updating an existing template or this is a match-all template
+            if (isUpdateAndPatternsAreUnchanged || request.indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
+                String warning = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
+                        " from existing index templates [%s] with patterns (%s); this template [%s] may be ignored in favor of " +
+                        "an index template at index creation time",
+                    request.name,
+                    request.indexPatterns,
+                    Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                    overlaps.entrySet().stream()
+                        .map(e -> e.getKey() + " => " + e.getValue())
+                        .collect(Collectors.joining(",")),
+                    request.name);
+                logger.warn(warning);
+                deprecationLogger.deprecated(warning);
+            } else {
+                // Otherwise, this is a hard error, the user should use V2 index templates instead
+                String error = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
+                        " from existing index templates [%s] with patterns (%s), use index templates (/_index_template) instead",
+                    request.name,
+                    request.indexPatterns,
+                    Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                    overlaps.entrySet().stream()
+                        .map(e -> e.getKey() + " => " + e.getValue())
+                        .collect(Collectors.joining(",")));
+                logger.error(error);
+                throw new IllegalArgumentException(error);
+            }
+        }
+
+        templateBuilder.order(request.order);
+        templateBuilder.version(request.version);
+        templateBuilder.patterns(request.indexPatterns);
+        templateBuilder.settings(request.settings);
+
+        if (request.mappings != null) {
+            try {
+                templateBuilder.putMapping(MapperService.SINGLE_MAPPING_NAME, request.mappings);
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping: {}", e, request.mappings);
+            }
+        }
+
+        for (Alias alias : request.aliases) {
+            AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
+                .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
+            templateBuilder.putAlias(aliasMetaData);
+        }
+        IndexTemplateMetaData template = templateBuilder.build();
+
+        MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(template);
+
+        logger.info("adding template [{}] for index patterns {}", request.name, request.indexPatterns);
+        return ClusterState.builder(currentState).metaData(builder).build();
     }
 
     /**
@@ -474,6 +580,15 @@ public class MetaDataIndexTemplateService {
 
     private static void validateTemplate(Settings settings, String mappings,
                                          IndicesService indicesService, NamedXContentRegistry xContentRegistry) throws Exception {
+        // First check to see if mappings are valid XContent
+        if (mappings != null) {
+            try {
+                new CompressedXContent(mappings);
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping: {}", e, mappings);
+            }
+        }
+
         Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
         try {

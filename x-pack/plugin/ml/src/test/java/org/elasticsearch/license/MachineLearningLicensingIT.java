@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
+public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     @Before
     public void resetLicensing() {

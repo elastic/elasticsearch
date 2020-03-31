@@ -100,24 +100,8 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
- * Service responsible for creating snapshots
- * <p>
- * A typical snapshot creating process looks like this:
- * <ul>
- * <li>On the master node the {@link #createSnapshot(CreateSnapshotRequest, ActionListener)} is called and makes sure that
- * no snapshot is currently running and registers the new snapshot in cluster state</li>
- * <li>When the cluster state is updated the {@link #beginSnapshot} method kicks in and populates the list of shards that need to be
- * snapshotted in cluster state</li>
- * <li>Each data node is watching for these shards and when new shards scheduled for snapshotting appear in the cluster state, data nodes
- * start processing them through {@link SnapshotShardsService#startNewSnapshots} method</li>
- * <li>Once shard snapshot is created data node updates state of the shard in the cluster state using
- * the {@link SnapshotShardsService#sendSnapshotShardUpdate(Snapshot, ShardId, ShardSnapshotStatus)} method</li>
- * <li>When last shard is completed master node in {@link SnapshotShardsService#innerUpdateSnapshotState} method marks the snapshot
- * as completed</li>
- * <li>After cluster state is updated, the {@link #endSnapshot(SnapshotsInProgress.Entry, MetaData)} finalizes snapshot in the repository,
- * notifies all {@link #snapshotCompletionListeners} that snapshot is completed, and finally calls
- * {@link #removeSnapshotFromClusterState(Snapshot, SnapshotInfo, Exception)} to remove snapshot from cluster state</li>
- * </ul>
+ * Service responsible for creating snapshots. See package level documentation of {@link org.elasticsearch.snapshots}
+ * for details.
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 

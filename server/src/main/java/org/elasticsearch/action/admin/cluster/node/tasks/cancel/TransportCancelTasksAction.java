@@ -114,7 +114,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             StepListener<Void> banOnNodesListener = new StepListener<>();
             setBanOnNodes(request.getReason(), cancellableTask, childrenNodes, banOnNodesListener);
             banOnNodesListener.whenComplete(groupedListener::onResponse, groupedListener::onFailure);
-            // We remove bans after all child tasks are completed although in theory we can do it on a per-node basic.
+            // We remove bans after all child tasks are completed although in theory we can do it on a per-node basis.
             completedListener.whenComplete(
                 r -> removeBanOnNodes(cancellableTask, childrenNodes),
                 e -> removeBanOnNodes(cancellableTask, childrenNodes));

@@ -60,6 +60,7 @@ public class RestSamlValidateAuthenticationRequestAction extends IdpBaseRestHand
                         builder.startObject();
                         builder.startObject("service_provider");
                         builder.field("entity_id", response.getSpEntityId());
+                        builder.field("acs", response.getAssertionConsumerService());
                         builder.endObject();
                         builder.field("force_authn", response.isForceAuthn());
                         builder.field("authn_state", response.getAuthnState());

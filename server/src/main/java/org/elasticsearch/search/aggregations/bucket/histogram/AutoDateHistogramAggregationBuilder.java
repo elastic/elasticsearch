@@ -110,20 +110,6 @@ public class AutoDateHistogramAggregationBuilder
 
     private String minimumIntervalExpression;
 
-    public String getMinimumIntervalExpression() {
-        return minimumIntervalExpression;
-    }
-
-    public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
-        if (minimumIntervalExpression != null && !ALLOWED_INTERVALS.containsValue(minimumIntervalExpression)) {
-            throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
-                " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]");
-        }
-        this.minimumIntervalExpression = minimumIntervalExpression;
-        return this;
-    }
-
-
     /** Create a new builder with the given name. */
     public AutoDateHistogramAggregationBuilder(String name) {
         super(name);
@@ -135,6 +121,14 @@ public class AutoDateHistogramAggregationBuilder
         numBuckets = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             minimumIntervalExpression = in.readOptionalString();
+        }
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeVInt(numBuckets);
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            out.writeOptionalString(minimumIntervalExpression);
         }
     }
 
@@ -157,16 +151,21 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(numBuckets);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalString(minimumIntervalExpression);
-        }
-    }
-
-    @Override
     public String getType() {
         return NAME;
+    }
+
+    public String getMinimumIntervalExpression() {
+        return minimumIntervalExpression;
+    }
+
+    public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
+        if (minimumIntervalExpression != null && !ALLOWED_INTERVALS.containsValue(minimumIntervalExpression)) {
+            throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
+                " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]");
+        }
+        this.minimumIntervalExpression = minimumIntervalExpression;
+        return this;
     }
 
     public AutoDateHistogramAggregationBuilder setNumBuckets(int numBuckets) {

@@ -61,6 +61,27 @@ process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
 {"terms":{"opcode":[0,1,2,3]
 
 
+lengthFunctionWithExactSubField
+process where length(file_name) > 0
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
+InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"params":{"v0":"file_name.keyword","v1":0}
+
+
+lengthFunctionWithExactField
+process where 12 == length(user_name)
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"params":{"v0":"user_name","v1":12}
+
+
+lengthFunctionWithConstantKeyword
+process where 5 > length(constant_keyword)
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.lt(
+InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"params":{"v0":"constant_keyword","v1":5}
+
+
 substringFunction
 process where substring(file_name, -4) == '.exe'
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(

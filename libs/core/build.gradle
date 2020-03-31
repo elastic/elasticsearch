@@ -25,40 +25,40 @@ apply plugin: 'nebula.maven-scm'
 
 archivesBaseName = 'elasticsearch-core'
 
-// we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 9 so we do not include this source set in our IDEs
+// we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
 if (!isEclipse) {
   sourceSets {
-    java9 {
+    java11 {
       java {
-        srcDirs = ['src/main/java9']
+        srcDirs = ['src/main/java11']
       }
     }
   }
 
   configurations {
-    java9Compile.extendsFrom(compile)
+    java11Compile.extendsFrom(compile)
   }
 
   dependencies {
-    java9Compile sourceSets.main.output
+    java11Compile sourceSets.main.output
   }
 
-  compileJava9Java {
-    sourceCompatibility = 9
-    targetCompatibility = 9
+  compileJava11Java {
+    sourceCompatibility = 11
+    targetCompatibility = 11
   }
 
-  forbiddenApisJava9 {
-    if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
-      targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
+  forbiddenApisJava11 {
+    if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_11) {
+      targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
     }
     replaceSignatureFiles 'jdk-signatures'
   }
 
   jar {
     metaInf {
-      into 'versions/9'
-      from sourceSets.java9.output
+      into 'versions/11'
+      from sourceSets.java11.output
     }
     manifest.attributes('Multi-Release': 'true')
   }
@@ -81,7 +81,7 @@ dependencies {
   testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   if (!isEclipse) {
-    java9Compile sourceSets.main.output
+    java11Compile sourceSets.main.output
   }
 
   testCompile(project(":test:framework")) {

@@ -15,9 +15,9 @@ more about the Painless scripting language in the
 * <<painless-group-by>>
 * <<painless-bucket-script>>
 
-NOTE: While the context of the following examples is how to use them in 
-{transforms}, the Painless scripts in the snippets below can be used in other 
-{es} search aggregations, too.
+NOTE: While the context of the following examples is the {transform} use case, 
+the Painless scripts in the snippets below can be used in other {es} search 
+aggregations, too.
 
 
 [discrete]
@@ -27,7 +27,7 @@ NOTE: While the context of the following examples is how to use them in
 This snippet shows how to find the latest document, in other words the document 
 with the earliest timestamp. From a technical perspective, it helps to achieve 
 the function of a <<search-aggregations-metrics-top-hits-aggregation>> by using 
-scripted metric aggregation which provides a metric output.
+scripted metric aggregation in a {transform}, which provides a metric output.
 
 [source,js]
 --------------------------------------------------
@@ -105,8 +105,9 @@ You can retrieve the last value in a similar way:
 [[painless-time-features]]
 ==== Getting time features as scripted fields
 
-This snippet shows how to extract time based features by using Painless. The 
-snippet uses an index where `@timestamp` is defined as a `date` type field.
+This snippet shows how to extract time based features by using Painless in a 
+{transform}. The snippet uses an index where `@timestamp` is defined as a `date` 
+type field.
 
 [source,js]
 --------------------------------------------------

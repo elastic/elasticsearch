@@ -59,8 +59,8 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
     }
 
     public AutoscalingPolicy(final String name, final List<AutoscalingDecider> deciders) {
-        this.name = name;
-        this.deciders = deciders;
+        this.name = Objects.requireNonNull(name);
+        this.deciders = Objects.requireNonNull(deciders);
     }
 
     public AutoscalingPolicy(final StreamInput in) throws IOException {

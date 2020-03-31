@@ -333,6 +333,10 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         this.created = created;
     }
 
+    public void setLastModified(Instant lastModified) {
+        this.lastModified = lastModified;
+    }
+
     public void setCreatedMillis(Long millis) {
         this.created = Instant.ofEpochMilli(millis);
     }
@@ -383,8 +387,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
     @Override
     public int hashCode() {
-        return Objects.hash(docId, name, entityId, acs, enabled, created, lastModified, nameIdFormat, authenticationExpiryMillis,
-            certificates, privileges, attributeNames);
+        return Objects.hash(docId, name, entityId, acs, enabled, created, lastModified, nameIdFormat,
+            authenticationExpiryMillis, certificates, privileges, attributeNames);
     }
 
     private static final ObjectParser<SamlServiceProviderDocument, SamlServiceProviderDocument> DOC_PARSER

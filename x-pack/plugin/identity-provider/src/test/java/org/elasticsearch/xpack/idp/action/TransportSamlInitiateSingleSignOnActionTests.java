@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.joda.time.Duration;
 import org.mockito.Mockito;
+import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
@@ -54,7 +55,7 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
     public void testGetResponseForRegisteredSp() throws Exception {
         final SamlInitiateSingleSignOnRequest request = new SamlInitiateSingleSignOnRequest();
         request.setSpEntityId("https://sp.some.org");
-
+        request.setAssertionConsumerService("https://sp.some.org/api/security/v1/saml");
         final PlainActionFuture<SamlInitiateSingleSignOnResponse> future = new PlainActionFuture<>();
         final TransportSamlInitiateSingleSignOnAction action = setupTransportAction(true);
         action.doExecute(mock(Task.class), request, future);
@@ -69,10 +70,10 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         assertThat(response.getSamlResponse(), containsString("https://saml.elasticsearch.org/attributes/roles"));
     }
 
-    public void testGetResponseWithoutSecondaryAuthentication() throws Exception {
+    public void testGetResponseWithoutSecondaryAuthenticationInIdpInitiated() throws Exception {
         final SamlInitiateSingleSignOnRequest request = new SamlInitiateSingleSignOnRequest();
         request.setSpEntityId("https://sp.some.org");
-
+        request.setAssertionConsumerService("https://sp.some.org/api/security/v1/saml");
         final PlainActionFuture<SamlInitiateSingleSignOnResponse> future = new PlainActionFuture<>();
         final TransportSamlInitiateSingleSignOnAction action = setupTransportAction(false);
         action.doExecute(mock(Task.class), request, future);
@@ -81,10 +82,10 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         assertThat(e.getCause().getMessage(), containsString("Request is missing secondary authentication"));
     }
 
-    public void testGetResponseForNotRegisteredSp() throws Exception {
+    public void testGetResponseForNotRegisteredSpInIdpInitiated() throws Exception {
         final SamlInitiateSingleSignOnRequest request = new SamlInitiateSingleSignOnRequest();
         request.setSpEntityId("https://sp2.other.org");
-
+        request.setAssertionConsumerService("https://sp2.some.org/api/security/v1/saml");
         final PlainActionFuture<SamlInitiateSingleSignOnResponse> future = new PlainActionFuture<>();
         final TransportSamlInitiateSingleSignOnAction action = setupTransportAction(true);
         action.doExecute(mock(Task.class), request, future);
@@ -97,10 +98,9 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
     public void testGetResponseWithoutSecondaryAuthenticationInSpInitiatedFlow() throws Exception {
         final SamlInitiateSingleSignOnRequest request = new SamlInitiateSingleSignOnRequest();
         request.setSpEntityId("https://sp.some.org");
-        final SamlAuthenticationState samlAuthenticationState = new SamlAuthenticationState();
-        samlAuthenticationState.setEntityId("https://sp.some.org");
-        samlAuthenticationState.setRequestedAcsUrl("https://sp.some.org/saml/acs");
+        request.setAssertionConsumerService("https://sp.some.org/saml/acs");
         final String requestId = randomAlphaOfLength(12);
+        final SamlAuthenticationState samlAuthenticationState = new SamlAuthenticationState();
         samlAuthenticationState.setAuthnRequestId(requestId);
         request.setSamlAuthenticationState(samlAuthenticationState);
 
@@ -110,6 +110,7 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
 
         final SamlInitiateSingleSignOnResponse response = future.get();
         assertThat(response.getError(), equalTo("Request is missing secondary authentication"));
+        assertThat(response.getSamlStatus(), equalTo(StatusCode.REQUESTER));
         assertThat(response.getPostUrl(), equalTo("https://sp.some.org/saml/acs"));
         assertThat(response.getEntityId(), equalTo("https://sp.some.org"));
         assertThat(response.getSamlResponse(), containsString("InResponseTo=\"" + requestId + "\""));

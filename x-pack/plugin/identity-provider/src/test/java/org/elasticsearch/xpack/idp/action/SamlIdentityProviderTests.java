@@ -150,15 +150,11 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         assertThat(serviceProvider, hasKey("entity_id"));
         assertThat(serviceProvider.get("entity_id"), equalTo(entityId));
         assertThat(serviceProvider, hasKey("acs"));
-        assertThat(serviceProvider.get("acs"), equalTo(authnRequest.getAssertionConsumerServiceURL()));
+        assertThat(serviceProvider.get("acs"), equalTo(acsUrl));
         assertThat(validateResponseObject.evaluate("force_authn"), equalTo(forceAuthn));
         Map<String, String> authnState = validateResponseObject.evaluate("authn_state");
         assertThat(authnState, hasKey("nameid_format"));
         assertThat(authnState.get("nameid_format"), equalTo(nameIdFormat));
-        assertThat(authnState, hasKey("entity_id"));
-        assertThat(authnState.get("entity_id"), equalTo(entityId));
-        assertThat(authnState, hasKey("acs_url"));
-        assertThat(authnState.get("acs_url"), equalTo(acsUrl));
         assertThat(authnState, hasKey("authn_request_id"));
         final String expectedInResponeTo = authnState.get("authn_request_id");
 
@@ -214,14 +210,12 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         Map<String, String> serviceProvider = validateResponseObject.evaluate("service_provider");
         assertThat(serviceProvider, hasKey("entity_id"));
         assertThat(serviceProvider.get("entity_id"), equalTo(entityId));
+        assertThat(serviceProvider, hasKey("acs"));
+        assertThat(serviceProvider.get("acs"), equalTo(acsUrl));
         assertThat(validateResponseObject.evaluate("force_authn"), equalTo(forceAuthn));
         Map<String, String> authnState = validateResponseObject.evaluate("authn_state");
         assertThat(authnState, hasKey("nameid_format"));
         assertThat(authnState.get("nameid_format"), equalTo(nameIdFormat));
-        assertThat(authnState, hasKey("entity_id"));
-        assertThat(authnState.get("entity_id"), equalTo(entityId));
-        assertThat(authnState, hasKey("acs_url"));
-        assertThat(authnState.get("acs_url"), equalTo(acsUrl));
         assertThat(authnState, hasKey("authn_request_id"));
         final String expectedInResponeTo = authnState.get("authn_request_id");
 
@@ -237,7 +231,8 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             .build());
         XContentBuilder authnStateBuilder = jsonBuilder();
         authnStateBuilder.map(authnState);
-        initRequest.setJsonEntity("{ \"entity_id\":\"" + entityId + "\", \"authn_state\":" + Strings.toString(authnStateBuilder) + "}");
+        initRequest.setJsonEntity("{ \"entity_id\":\"" + entityId + "\", \"acs\":\"" + acsUrl + "\"," +
+            "\"authn_state\":" + Strings.toString(authnStateBuilder) + "}");
         Response initResponse = getRestClient().performRequest(initRequest);
         ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
         assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));

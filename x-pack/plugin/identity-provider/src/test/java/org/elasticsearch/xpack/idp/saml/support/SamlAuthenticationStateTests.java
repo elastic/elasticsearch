@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.idp.saml.support;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -17,30 +16,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
 import org.opensaml.saml.saml2.core.NameID;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class SamlAuthenticationStateTests extends IdpSamlTestCase {
-
-    public void testValidation() {
-        final SamlAuthenticationState state = new SamlAuthenticationState();
-        final ValidationException validationException = state.validate();
-        assertThat(validationException, notNullValue());
-        assertThat(validationException.validationErrors(), not(emptyIterable()));
-        assertThat(validationException.validationErrors(), Matchers.containsInAnyOrder(
-            "field [entity_id] is required, but was [null]",
-            "field [acs_url] is required, but was [null]"
-        ));
-    }
 
     public void testXContentRoundTrip() throws Exception {
         final SamlAuthenticationState state1 = generateAuthnState();
@@ -68,8 +51,6 @@ public class SamlAuthenticationStateTests extends IdpSamlTestCase {
 
     private SamlAuthenticationState generateAuthnState() {
         SamlAuthenticationState authnState = new SamlAuthenticationState();
-        authnState.setRequestedAcsUrl("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs");
-        authnState.setEntityId("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         authnState.setAuthnRequestId(randomAlphaOfLength(12));
         authnState.setRequestedNameidFormat(randomFrom(NameID.TRANSIENT, NameID.PERSISTENT, NameID.EMAIL));
         return authnState;
@@ -77,8 +58,6 @@ public class SamlAuthenticationStateTests extends IdpSamlTestCase {
 
     private SamlAuthenticationState generateMinimalAuthnState() {
         SamlAuthenticationState authnState = new SamlAuthenticationState();
-        authnState.setRequestedAcsUrl("https://" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8) + "/saml/acs");
-        authnState.setEntityId("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         authnState.setAuthnRequestId(null);
         authnState.setRequestedNameidFormat(null);
         return authnState;

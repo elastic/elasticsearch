@@ -17,20 +17,24 @@ public class SamlInitiateSingleSignOnResponse extends ActionResponse {
     private String postUrl;
     private String samlResponse;
     private String entityId;
+    private String samlStatus;
     private String error;
 
     public SamlInitiateSingleSignOnResponse(StreamInput in) throws IOException {
         super(in);
+        this.entityId = in.readString();
         this.postUrl = in.readString();
         this.samlResponse = in.readString();
-        this.entityId = in.readString();
+        this.samlStatus = in.readString();
         this.error = in.readOptionalString();
     }
 
-    public SamlInitiateSingleSignOnResponse(String postUrl, String samlResponse, String entityId, @Nullable String error) {
+    public SamlInitiateSingleSignOnResponse(String entityId, String postUrl, String samlResponse, String samlStatus,
+                                            @Nullable String error) {
+        this.entityId = entityId;
         this.postUrl = postUrl;
         this.samlResponse = samlResponse;
-        this.entityId = entityId;
+        this.samlStatus = samlStatus;
         this.error = error;
     }
 
@@ -50,11 +54,16 @@ public class SamlInitiateSingleSignOnResponse extends ActionResponse {
         return error;
     }
 
+    public String getSamlStatus() {
+        return samlStatus;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(entityId);
         out.writeString(postUrl);
         out.writeString(samlResponse);
-        out.writeString(entityId);
+        out.writeString(samlStatus);
         out.writeOptionalString(error);
     }
 }

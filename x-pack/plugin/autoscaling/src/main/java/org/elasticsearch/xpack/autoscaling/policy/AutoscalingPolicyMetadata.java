@@ -27,7 +27,7 @@ public class AutoscalingPolicyMetadata extends AbstractDiffable<AutoscalingPolic
     static final ParseField POLICY_FIELD = new ParseField("policy");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<AutoscalingPolicyMetadata, String> PARSER;
+    private static final ConstructingObjectParser<AutoscalingPolicyMetadata, String> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>("autoscaling_policy_metadata", a -> {
             final AutoscalingPolicy policy = (AutoscalingPolicy) a[0];

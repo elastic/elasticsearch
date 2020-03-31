@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -683,22 +683,22 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     private ClusterState mockClusterState(String watchIndex) {
         MetaData metaData = mock(MetaData.class);
         if (watchIndex == null) {
-            when(metaData.getAliasAndIndexLookup()).thenReturn(Collections.emptySortedMap());
+            when(metaData.getIndicesLookup()).thenReturn(Collections.emptySortedMap());
         } else {
-            SortedMap<String, AliasOrIndex> indices = new TreeMap<>();
+            SortedMap<String, IndexAbstraction> indices = new TreeMap<>();
 
             IndexMetaData indexMetaData = mock(IndexMetaData.class);
             when(indexMetaData.getIndex()).thenReturn(new Index(watchIndex, randomAlphaOfLength(10)));
-            indices.put(watchIndex, new AliasOrIndex.Index(indexMetaData));
+            indices.put(watchIndex, new IndexAbstraction.Index(indexMetaData));
 
             // now point the alias, if the watch index is not .watches
             if (watchIndex.equals(Watch.INDEX) == false) {
                 AliasMetaData aliasMetaData = mock(AliasMetaData.class);
                 when(aliasMetaData.alias()).thenReturn(watchIndex);
-                indices.put(Watch.INDEX, new AliasOrIndex.Alias(aliasMetaData, indexMetaData));
+                indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetaData, indexMetaData));
             }
 
-            when(metaData.getAliasAndIndexLookup()).thenReturn(indices);
+            when(metaData.getIndicesLookup()).thenReturn(indices);
         }
 
         ClusterState clusterState = mock(ClusterState.class);

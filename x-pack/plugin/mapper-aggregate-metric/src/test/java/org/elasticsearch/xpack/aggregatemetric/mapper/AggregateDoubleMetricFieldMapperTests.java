@@ -723,7 +723,7 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
             e.getCause().getMessage(),
             containsString(
                 "Field [metric] of type [aggregate_metric_double] does not support "
-                    + "indexing multiple values for the same field in the same document"
+                    + "indexing multiple values for the same metric in the same field"
             )
         );
     }
@@ -902,6 +902,61 @@ public class AggregateDoubleMetricFieldMapperTests extends ESSingleNodeTestCase 
             () -> createIndex("test").mapperService().documentMapperParser().parse("_doc", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("Metric [min] is not defined in the metrics field."));
+    }
+
+    /**
+     * Test parsing field mapping and adding simple field
+     */
+    public void testParseNestedValue() throws Exception {
+        ensureGreen();
+
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("parent")
+                .startObject("properties")
+                .startObject("metric")
+                .field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max", "sum", "value_count" })
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService()
+            .documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("parent.metric");
+        assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
+
+        ParsedDocument doc = defaultMapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("parent")
+                        .startObject("metric")
+                        .field("min", 10.1)
+                        .field("max", 50.0)
+                        .field("sum", 43)
+                        .field("value_count", 14)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                ),
+                XContentType.JSON
+            )
+        );
+
+        assertThat(doc.rootDoc().getField("parent.metric._min"), notNullValue());
     }
 
     @Override

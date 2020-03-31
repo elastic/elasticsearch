@@ -191,7 +191,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             EnumMap<Metric, NumberFieldMapper> metricMappers = new EnumMap<>(Metric.class);
             // Instantiate one NumberFieldMapper instance for each metric
             for (Metric m : this.metrics) {
-                String fieldName = subfieldName(context.path().pathAsText(name), m);
+                String fieldName = subfieldName(name, m);
                 NumberFieldMapper.Builder builder;
 
                 if (m == Metric.value_count) {
@@ -598,7 +598,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                             + name()
                             + "] of type ["
                             + typeName()
-                            + "] does not support indexing multiple values for the same field in the same document"
+                            + "] does not support indexing multiple values for the same metric in the same field"
                     );
                 }
 

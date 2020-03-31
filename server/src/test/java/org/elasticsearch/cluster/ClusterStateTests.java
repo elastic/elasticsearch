@@ -60,6 +60,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -118,7 +119,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        clusterState.toXContent(builder, new ToXContent.MapParams(singletonMap(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_API)));
         builder.endObject();
 
         assertEquals("{\n" +
@@ -296,6 +297,7 @@ public class ClusterStateTests extends ESTestCase {
         Map<String, String> mapParams = new HashMap<>(){{
             put("flat_settings", "true");
             put("reduce_mappings", "false");
+            put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_API);
         }};
 
         final ClusterState clusterState = buildClusterState();
@@ -476,6 +478,7 @@ public class ClusterStateTests extends ESTestCase {
         Map<String, String> mapParams = new HashMap<>(){{
             put("flat_settings", "false");
             put("reduce_mappings", "true");
+            put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_API);
         }};
 
         final ClusterState clusterState = buildClusterState();

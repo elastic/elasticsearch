@@ -53,10 +53,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.sort.BucketedSort;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -540,6 +540,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
     }
 

@@ -28,12 +28,11 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,14 +45,17 @@ public class ExtendedStatsAggregationBuilder
     public static final ObjectParser<ExtendedStatsAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, ExtendedStatsAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(ExtendedStatsAggregationBuilder::sigma, ExtendedStatsAggregator.SIGMA_FIELD);
     }
 
+    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        ExtendedStatsAggregatorFactory.registerAggregators(valuesSourceRegistry);
+    }
     private double sigma = 2.0;
 
     public ExtendedStatsAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name);
     }
 
     protected ExtendedStatsAggregationBuilder(ExtendedStatsAggregationBuilder clone,
@@ -71,8 +73,13 @@ public class ExtendedStatsAggregationBuilder
      * Read from a stream.
      */
     public ExtendedStatsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in);
         sigma = in.readDouble();
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.NUMERIC;
     }
 
     @Override
@@ -93,7 +100,7 @@ public class ExtendedStatsAggregationBuilder
     }
 
     @Override
-    protected ExtendedStatsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
+    protected ExtendedStatsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                         AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new ExtendedStatsAggregatorFactory(name, config, sigma, queryShardContext, parent, subFactoriesBuilder, metaData);
     }

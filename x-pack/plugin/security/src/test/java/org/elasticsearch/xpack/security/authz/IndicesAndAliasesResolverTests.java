@@ -1383,7 +1383,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         String index = "logs-00003"; // write index
         PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
         List<String> authorizedIndices = Collections.singletonList("logs-alias");
-        assert metaData.getAliasAndIndexLookup().get("logs-alias").getIndices().size() == 3;
+        assert metaData.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
         String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
         String message = "user is authorized to access `logs-alias` and the put mapping request is for a write index"
                 + "so this should have returned the alias name";
@@ -1394,7 +1394,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         String index = "logs-00002"; // read index
         PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
         List<String> authorizedIndices = Collections.singletonList("logs-alias");
-        assert metaData.getAliasAndIndexLookup().get("logs-alias").getIndices().size() == 3;
+        assert metaData.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
         String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
         String message = "user is authorized to access `logs-alias` and the put mapping request is for a read index"
                 + "so this should have returned the concrete index as fallback";
@@ -1504,7 +1504,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final Authentication authentication =
             new Authentication(user, new RealmRef("test", "indices-aliases-resolver-tests", "node"), null);
         rolesStore.getRoles(user, authentication, rolesListener);
-        return RBACEngine.resolveAuthorizedIndicesFromRole(rolesListener.actionGet(), action, metaData.getAliasAndIndexLookup());
+        return RBACEngine.resolveAuthorizedIndicesFromRole(rolesListener.actionGet(), action, metaData.getIndicesLookup());
     }
 
     public static IndexMetaData.Builder indexBuilder(String index) {

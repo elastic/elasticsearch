@@ -19,22 +19,51 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 
 public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCase {
 
-   private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
+    @BeforeClass
+    public static void registerBuilder() {
+        AnalyticsPercentilesAggregatorFactory.registerPercentilesAggregator(valuesSourceRegistry);
+    }
+
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new PercentilesAggregationBuilder("hdr_percentiles")
+            .field(fieldName)
+            .percentilesConfig(new PercentilesConfig.Hdr());
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        // Note: this is the same list as Core, plus Analytics
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.BOOLEAN,
+            AnalyticsValuesSourceType.HISTOGRAM);
+    }
+
+    private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
        DoubleHistogram histogram = new DoubleHistogram(3);//default
        for (double value : values) {
            histogram.recordValue(value);
@@ -54,7 +83,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
 
        }
        return new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef());
-   }
+    }
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {

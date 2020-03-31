@@ -155,7 +155,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -202,16 +201,8 @@ public class Node implements Closeable {
     public static final Setting<Boolean> NODE_INGEST_SETTING =
         Setting.boolSetting("node.ingest", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_REMOTE_CLUSTER_CLIENT =
-        Setting.boolSetting("node.remote_cluster_client", RemoteClusterService.ENABLE_REMOTE_CLUSTERS, Property.NodeScope);
+        Setting.boolSetting("node.remote_cluster_client", true, Property.NodeScope);
 
-    /**
-    * controls whether the node is allowed to persist things like metadata to disk
-    * Note that this does not control whether the node stores actual indices (see
-    * {@link #NODE_DATA_SETTING}). However, if this is false, {@link #NODE_DATA_SETTING}
-    * and {@link #NODE_MASTER_SETTING} must also be false.
-    *
-    */
-    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting("node.local_storage", true, Property.NodeScope);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
     public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = Setting.prefixKeySetting("node.attr.", (key) ->
         new Setting<>(key, "", (value) -> {
@@ -454,7 +445,8 @@ public class Node implements Closeable {
                 new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),
                     clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                     threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptService,
-                    clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories);
+                    clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories,
+                    searchModule.getValuesSourceRegistry());
 
             final AliasValidator aliasValidator = new AliasValidator();
 

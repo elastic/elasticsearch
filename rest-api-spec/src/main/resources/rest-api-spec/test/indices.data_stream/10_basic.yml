@@ -31,3 +31,19 @@
       indices.delete_data_stream:
         name: simple-data-stream2
   - is_true: acknowledged
+
+---
+"Create data stream with invalid name":
+  - skip:
+      version: " - 7.7.99"
+      reason: available only in 7.8+
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: invalid-data-stream#-name
+        body:
+          timestamp_field: "@timestamp"
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }

@@ -567,6 +567,10 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         return cacheHolder.get().stats();
     }
 
+    public ScriptCacheStats cacheStats() {
+        return cacheHolder.get().cacheStats();
+    }
+
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         clusterState = event.state();
@@ -602,7 +606,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                     SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings),
                     compilationLimitsEnabled ?
                         SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(settings) :
-                        SCRIPT_COMPILATION_RATE_ZERO);
+                        SCRIPT_COMPILATION_RATE_ZERO,
+                    SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey());
             }
         }
 
@@ -626,7 +631,8 @@ public class ScriptService implements Closeable, ClusterStateApplier {
 
             return new ScriptCache(cacheSize.existsOrFallbackExists(settings) ? cacheSize.get(settings) : context.cacheSizeDefault,
                                    cacheExpire.existsOrFallbackExists(settings) ? cacheExpire.get(settings) : context.cacheExpireDefault,
-                                   compileRate);
+                                   compileRate,
+                                   SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context.name).getKey());
         }
 
         /**
@@ -675,6 +681,17 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 return general.stats();
             }
             return ScriptStats.sum(contextCache.values().stream().map(AtomicReference::get).map(ScriptCache::stats)::iterator);
+        }
+
+        ScriptCacheStats cacheStats() {
+            if (general != null) {
+                return new ScriptCacheStats(general.stats());
+            }
+            Map<String, ScriptStats> context = new HashMap<>(contextCache.size());
+            for (ScriptContext<?> ctx: contexts) {
+                context.put(ctx.name, contextCache.get(ctx.name).get().stats());
+            }
+            return new ScriptCacheStats(context);
         }
 
         /**

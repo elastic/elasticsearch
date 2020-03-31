@@ -217,13 +217,13 @@ final class AsyncSearchTask extends SearchTask {
 
                 final Cancellable cancellable;
                 try {
-                    cancellable = threadPool.schedule(threadPool.preserveContext(() -> {
+                    cancellable = threadPool.schedule(() -> {
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
                             listener.onResponse(getResponse());
                         }
-                    }), waitForCompletion, "generic");
+                    }, waitForCompletion, "generic");
                 } catch (EsRejectedExecutionException exc) {
                     listener.onFailure(exc);
                     return;

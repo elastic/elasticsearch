@@ -138,7 +138,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
             new NamedXContentRegistry.Entry(
                 Metadata.Custom.class,
                 new ParseField(AutoscalingMetadata.NAME),
-                parser -> AutoscalingMetadata.PARSER.parse(parser, null)
+                AutoscalingMetadata::parse
             ),
             new NamedXContentRegistry.Entry(
                 AutoscalingDecider.class,

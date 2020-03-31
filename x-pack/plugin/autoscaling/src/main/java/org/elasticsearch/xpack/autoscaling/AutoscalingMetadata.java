@@ -40,7 +40,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
     private static final ParseField POLICIES_FIELD = new ParseField("policies");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<AutoscalingMetadata, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<AutoscalingMetadata, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         c -> new AutoscalingMetadata(
             new TreeMap<>(

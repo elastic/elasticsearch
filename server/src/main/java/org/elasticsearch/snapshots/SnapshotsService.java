@@ -100,24 +100,8 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
- * Service responsible for creating snapshots
- * <p>
- * A typical snapshot creating process looks like this:
- * <ul>
- * <li>On the master node the {@link #createSnapshot(CreateSnapshotRequest, ActionListener)} is called and makes sure that
- * no snapshot is currently running and registers the new snapshot in cluster state</li>
- * <li>When the cluster state is updated the {@link #beginSnapshot} method kicks in and populates the list of shards that need to be
- * snapshotted in cluster state</li>
- * <li>Each data node is watching for these shards and when new shards scheduled for snapshotting appear in the cluster state, data nodes
- * start processing them through {@link SnapshotShardsService#startNewSnapshots} method</li>
- * <li>Once shard snapshot is created data node updates state of the shard in the cluster state using
- * the {@link SnapshotShardsService#sendSnapshotShardUpdate(Snapshot, ShardId, ShardSnapshotStatus)} method</li>
- * <li>When last shard is completed master node in {@link SnapshotShardsService#innerUpdateSnapshotState} method marks the snapshot
- * as completed</li>
- * <li>After cluster state is updated, the {@link #endSnapshot(SnapshotsInProgress.Entry, MetaData)} finalizes snapshot in the repository,
- * notifies all {@link #snapshotCompletionListeners} that snapshot is completed, and finally calls
- * {@link #removeSnapshotFromClusterState(Snapshot, SnapshotInfo, Exception)} to remove snapshot from cluster state</li>
- * </ul>
+ * Service responsible for creating snapshots. See package level documentation of {@link org.elasticsearch.snapshots}
+ * for details.
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
@@ -827,22 +811,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         entries.add(updatedSnapshot);
                     } else if (snapshot.state() == State.INIT && initializingSnapshots.contains(snapshot.snapshot()) == false) {
                         changed = true;
-                        // Mark the snapshot as aborted as it failed to start from the previous master
-                        updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, State.ABORTED, snapshot.shards());
-                        entries.add(updatedSnapshot);
-
-                        // Clean up the snapshot that failed to start from the old master
-                        deleteSnapshot(snapshot.snapshot(), new ActionListener<>() {
-                            @Override
-                            public void onResponse(Void aVoid) {
-                                logger.debug("cleaned up abandoned snapshot {} in INIT state", snapshot.snapshot());
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.warn("failed to clean up abandoned snapshot {} in INIT state", snapshot.snapshot());
-                            }
-                        }, updatedSnapshot.repositoryStateId(), false);
+                        // A snapshot in INIT state hasn't yet written anything to the repository so we simply remove it
+                        // from the cluster state  without any further cleanup
                     }
                     assert updatedSnapshot.shards().size() == snapshot.shards().size()
                         : "Shard count changed during snapshot status update from [" + snapshot + "] to [" + updatedSnapshot + "]";

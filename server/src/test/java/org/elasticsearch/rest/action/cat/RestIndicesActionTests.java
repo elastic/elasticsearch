@@ -34,12 +34,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -127,9 +124,7 @@ public class RestIndicesActionTests extends ESTestCase {
             }
         }
 
-        final RestController restController = new RestController(Collections.emptySet(), null, null, null, new UsageService());
         final RestIndicesAction action = new RestIndicesAction();
-        restController.registerHandler(action);
         final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetaDatas);
 
         // now, verify the table is correct

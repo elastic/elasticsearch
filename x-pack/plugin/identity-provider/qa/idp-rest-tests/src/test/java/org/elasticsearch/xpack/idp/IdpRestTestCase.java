@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.idp;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
@@ -45,6 +48,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         String token = basicAuthHeaderValue("idp_user", new SecureString("idp-password".toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
+            .put(CLIENT_SOCKET_TIMEOUT, "90s") // otherwise health checks have client side timeouts
             .build();
     }
 
@@ -58,6 +62,17 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
             };
         }
         return highLevelAdminClient;
+    }
+
+    protected void logIndexState(String index) {
+        try {
+            Response health = adminClient().performRequest(new Request("GET", "/_cluster/health/" + index));
+            logger.info("Health of index [{}] is [{}]", index, entityAsMap(health));
+            Response response = adminClient().performRequest(new Request("GET", "/" + index + "/_settings?flat_settings=true"));
+            logger.info("Settings for index [{}] are [{}]", index, entityAsMap(response));
+        } catch (IOException e) {
+            logger.warn(new ParameterizedMessage("Failed to inspect index [{}]", index), e);
+        }
     }
 
     protected User createUser(String username, SecureString password, String... roles) throws IOException {

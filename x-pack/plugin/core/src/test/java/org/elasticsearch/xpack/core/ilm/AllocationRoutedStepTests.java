@@ -196,8 +196,11 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
     public void testExecuteAllocateNotComplete() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> includes = AllocateActionTests.randomMap(1, 5);
-        Map<String, String> excludes = AllocateActionTests.randomMap(1, 5);
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> excludes = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey),
+            () -> AllocateActionTests.randomMap(1, 5));
+        Map<String, String> requires = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey) ||
+                map.keySet().stream().anyMatch(excludes::containsKey),
+            () -> AllocateActionTests.randomMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
@@ -230,8 +233,11 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
     public void testExecuteAllocateNotCompleteOnlyOneCopyAllocated() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> includes = AllocateActionTests.randomMap(1, 5);
-        Map<String, String> excludes = AllocateActionTests.randomMap(1, 5);
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> excludes = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey),
+            () -> AllocateActionTests.randomMap(1, 5));
+        Map<String, String> requires = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey) ||
+                map.keySet().stream().anyMatch(excludes::containsKey),
+            () -> AllocateActionTests.randomMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
@@ -266,8 +272,11 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
     public void testExecuteAllocateUnassigned() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> includes = AllocateActionTests.randomMap(1, 5);
-        Map<String, String> excludes = AllocateActionTests.randomMap(1, 5);
-        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Map<String, String> excludes = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey),
+            () -> AllocateActionTests.randomMap(1, 5));
+        Map<String, String> requires = randomValueOtherThanMany(map -> map.keySet().stream().anyMatch(includes::containsKey) ||
+                map.keySet().stream().anyMatch(excludes::containsKey),
+            () -> AllocateActionTests.randomMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();

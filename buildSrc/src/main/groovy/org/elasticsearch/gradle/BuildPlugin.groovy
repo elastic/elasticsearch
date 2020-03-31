@@ -26,16 +26,15 @@ import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
-import org.elasticsearch.gradle.info.GlobalInfoExtension
 import org.elasticsearch.gradle.info.JavaHome
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
-import org.gradle.api.Action
 import org.elasticsearch.gradle.testclusters.TestDistribution
-import org.elasticsearch.gradle.tool.Boilerplate
+import org.elasticsearch.gradle.util.GradleUtils
+import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
@@ -83,7 +82,7 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
-import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
+import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -145,7 +144,7 @@ class BuildPlugin implements Plugin<Project> {
         // Common config when running with a FIPS-140 runtime JVM
         if (inFipsJvm()) {
             // This configuration can be removed once system modules are available
-            Boilerplate.maybeCreate(project.configurations, 'extraJars') {
+            GradleUtils.maybeCreate(project.configurations, 'extraJars') {
                 project.dependencies.add('extraJars', "org.bouncycastle:bc-fips:1.0.1")
                 project.dependencies.add('extraJars', "org.bouncycastle:bctls-fips:1.0.9")
             }
@@ -155,7 +154,6 @@ class BuildPlugin implements Plugin<Project> {
             File securityPolicy = buildResources.copy("fips_java.policy")
             File security8Policy = buildResources.copy("fips_java8.policy")
             File bcfksKeystore = buildResources.copy("cacerts.bcfks")
-            GlobalInfoExtension globalInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
             project.pluginManager.withPlugin("elasticsearch.testclusters") {
                 NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
                 if (testClusters != null) {
@@ -164,14 +162,12 @@ class BuildPlugin implements Plugin<Project> {
                         for (File dep : project.getConfigurations().getByName("extraJars").getFiles()) {
                             cluster.extraJarFile(dep)
                         }
-                        globalInfo.ready {
-                            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-                                cluster.extraConfigFile("fips_java.security", securityProperties)
-                                cluster.extraConfigFile("fips_java.policy", securityPolicy)
-                            } else {
-                                cluster.extraConfigFile("fips_java.security", security8Properties)
-                                cluster.extraConfigFile("fips_java.policy", security8Policy)
-                            }
+                        if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+                            cluster.extraConfigFile("fips_java.security", securityProperties)
+                            cluster.extraConfigFile("fips_java.policy", securityPolicy)
+                        } else {
+                            cluster.extraConfigFile("fips_java.security", security8Properties)
+                            cluster.extraConfigFile("fips_java.policy", security8Policy)
                         }
                         cluster.extraConfigFile("cacerts.bcfks", bcfksKeystore)
                         cluster.systemProperty('java.security.properties', '=${ES_PATH_CONF}/fips_java.security')
@@ -187,16 +183,14 @@ class BuildPlugin implements Plugin<Project> {
             }
             project.tasks.withType(Test).configureEach { Test task ->
                 task.dependsOn(buildResources)
-                globalInfo.ready {
-                    // Using the key==value format to override default JVM security settings and policy
-                    // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
-                    if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-                        task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", securityProperties.toString()))
-                        task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", securityPolicy.toString()))
-                    } else {
-                        task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", security8Properties.toString()))
-                        task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", security8Policy.toString()))
-                    }
+                // Using the key==value format to override default JVM security settings and policy
+                // see also: https://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html
+                if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+                    task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", securityProperties.toString()))
+                    task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", securityPolicy.toString()))
+                } else {
+                    task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", security8Properties.toString()))
+                    task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", security8Policy.toString()))
                 }
                 task.systemProperty('javax.net.ssl.trustStorePassword', 'password')
                 task.systemProperty('javax.net.ssl.keyStorePassword', 'password')
@@ -257,7 +251,7 @@ class BuildPlugin implements Plugin<Project> {
     static String getJavaHome(final Task task, final int version) {
         requireJavaHome(task, version)
         JavaHome java = BuildParams.javaVersions.find { it.version == version }
-        return java == null ? null : java.javaHome.absolutePath
+        return java == null ? null : java.javaHome.get().absolutePath
     }
 
     /**
@@ -400,7 +394,7 @@ class BuildPlugin implements Plugin<Project> {
                             dependencyNode.appendNode('groupId', dependency.group)
                             dependencyNode.appendNode('artifactId', dependency.getDependencyProject().convention.getPlugin(BasePluginConvention).archivesBaseName)
                             dependencyNode.appendNode('version', dependency.version)
-                            dependencyNode.appendNode('scope', 'runtime')
+                            dependencyNode.appendNode('scope', 'compile')
                         }
                     }
                 }
@@ -419,13 +413,10 @@ class BuildPlugin implements Plugin<Project> {
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
         ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
-        GlobalInfoExtension globalBuildInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
-        globalBuildInfo.ready {
-            if (BuildParams.compilerJavaVersion < JavaVersion.VERSION_1_10) {
-                ext.set('compactProfile', 'compact3')
-            } else {
-                ext.set('compactProfile', 'full')
-            }
+        if (BuildParams.compilerJavaVersion < JavaVersion.VERSION_1_10) {
+            ext.set('compactProfile', 'compact3')
+        } else {
+            ext.set('compactProfile', 'full')
         }
         ext.set('compactProfile', 'full')
 
@@ -443,12 +434,10 @@ class BuildPlugin implements Plugin<Project> {
                     compileTask.options.forkOptions.javaHome = BuildParams.compilerJavaHome
                 }
                 if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
-                    globalBuildInfo.ready {
-                        // compile with compact 3 profile by default
-                        // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                        if (ext.get('compactProfile') != 'full') {
-                            compileTask.options.compilerArgs << '-profile' << ext.get('compactProfile').toString()
-                        }
+                    // compile with compact 3 profile by default
+                    // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
+                    if (ext.get('compactProfile') != 'full') {
+                        compileTask.options.compilerArgs << '-profile' << ext.get('compactProfile').toString()
                     }
                 }
                 /*
@@ -486,7 +475,9 @@ class BuildPlugin implements Plugin<Project> {
 
         project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
             // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile classpath
-            project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).extendsFrom(project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME))
+            project.configurations.getByName(ShadowBasePlugin.CONFIGURATION_NAME).dependencies.all { Dependency dependency ->
+                project.configurations.getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME).dependencies.add(dependency)
+            }
         }
     }
 
@@ -648,16 +639,13 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(heapdumpDir)
                     project.mkdir(test.workingDir)
                     project.mkdir(test.workingDir.toPath().resolve('temp'))
-
-                    if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
-                        test.jvmArgs '--illegal-access=warn'
-                    }
-                    //TODO remove once jvm.options are added to test system properties
-                    if (BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_8) {
-                        test.systemProperty ('java.locale.providers','SPI,JRE')
-                    } else if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
-                        test.systemProperty ('java.locale.providers','SPI,COMPAT')
-                    }
+                }
+                //TODO remove once jvm.options are added to test system properties
+                if (BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_8) {
+                    test.systemProperty ('java.locale.providers','SPI,JRE')
+                } else if (BuildParams.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
+                    test.systemProperty ('java.locale.providers','SPI,COMPAT')
+                    test.jvmArgs '--illegal-access=warn'
                 }
                 if (inFipsJvm()) {
                     project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bc-fips:1.0.1")

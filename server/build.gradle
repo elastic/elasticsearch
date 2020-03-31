@@ -35,7 +35,7 @@ publishing {
 archivesBaseName = 'elasticsearch'
 
 // we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 9 so we do not include this source set in our IDEs
-if (!isEclipse && !isIdea) {
+if (!isEclipse) {
   sourceSets {
     java9 {
       java {
@@ -82,7 +82,7 @@ dependencies {
   compile project(":libs:elasticsearch-geo")
 
   compileOnly project(':libs:elasticsearch-plugin-classloader')
-  testRuntime project(':libs:elasticsearch-plugin-classloader')
+  testRuntimeOnly project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
   compile "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -124,7 +124,7 @@ dependencies {
   // repackaged jna with native bits linked against all elastic supported platforms
   compile "org.elasticsearch:jna:${versions.jna}"
 
-  if (!isEclipse && !isIdea) {
+  if (!isEclipse) {
     java9Compile sourceSets.main.output
   }
 
@@ -318,10 +318,8 @@ thirdPartyAudit.ignoreMissingClasses(
   'com.google.common.geometry.S2LatLng'
 )
 
-rootProject.globalInfo.ready {
-  if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
-  }
+if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }
 
 dependencyLicenses {

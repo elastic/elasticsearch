@@ -297,7 +297,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     /**
-     * Verifies that the provided "Access Token" (see {@link org.elasticsearch.xpack.security.authc.TokenService})
+     * Verifies that the provided "Access Token" (see org.elasticsearch.xpack.security.authc.TokenService)
      * is for the expected user with the expected name and roles if the user was created from Role-Mapping
      */
     private void verifyElasticsearchAccessTokenForRoleMapping(String accessToken) throws IOException {
@@ -315,7 +315,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     /**
-     * Verifies that the provided "Access Token" (see {@link org.elasticsearch.xpack.security.authc.TokenService})
+     * Verifies that the provided "Access Token" (see org.elasticsearch.xpack.security.authc.TokenService)
      * is for the expected user with the expected name and roles if the user was retrieved from the native realm
      */
     private void verifyElasticsearchAccessTokenForAuthorizingRealms(String accessToken) throws IOException {
@@ -602,7 +602,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         assertThat(id, notNullValue());
         assertThat(realmName, notNullValue());
 
-        final MapBuilder<String, Object> bodyBuilder = new MapBuilder()
+        final MapBuilder<String, Object> bodyBuilder = new MapBuilder<String, Object>()
             .put("content", saml)
             .put("ids", Collections.singletonList(id));
         if (randomBoolean()) {
@@ -643,7 +643,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             final List<Cookie> parsed = new DefaultCookieSpec().parse(header, origin);
             return parsed.stream().filter(c -> SAML_REQUEST_COOKIE.equals(c.getName())).map(c -> {
                 String[] values = c.getValue().split("&");
-                return new Tuple(values[0], values[1]);
+                return Tuple.tuple(values[0], values[1]);
             }).findFirst().orElse(null);
         } catch (MalformedCookieException e) {
             throw new IOException("Cannot read cookies", e);

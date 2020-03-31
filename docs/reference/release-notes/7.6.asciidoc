@@ -1,3 +1,78 @@
+[[release-notes-7.6.2]]
+== {es} version 7.6.2
+
+Also see <<breaking-changes-7.6,Breaking changes in 7.6>>.
+
+[[bug-7.6.2]]
+[float]
+=== Bug fixes
+
+Allocation::
+* Improve performance of shards limits decider {pull}53577[#53577] (issue: {issue}53559[#53559])
+
+Authentication::
+* Fix potential bug in concurrent token refresh support {pull}53668[#53668]
+
+Authorization::
+* Explicitly require that delegate API keys have no privileges {pull}53647[#53647]
+
+CCR::
+* Handle no such remote cluster exception in ccr {pull}53415[#53415] (issue: {issue}53225[#53225])
+
+Distributed::
+* Execute retention lease syncs under system context {pull}53838[#53838] (issues: {issue}48430[#48430], {issue}53751[#53751])
+
+Engine::
+* Fix doc_stats and segment_stats of ReadOnlyEngine {pull}53345[#53345] (issues: {issue}51303[#51303], {issue}51331[#51331])
+
+Features/ILM+SLM::
+* Fix null config in SnapshotLifecyclePolicy.toRequest {pull}53328[#53328] (issues: {issue}44465[#44465], {issue}53171[#53171])
+* ILM Freeze step retry when not acknowledged {pull}53287[#53287]
+
+Features/Ingest::
+* Fix ingest pipeline _simulate api with empty docs never returns a res… {pull}52937[#52937] (issue: {issue}52833[#52833])
+
+Features/Java High Level REST Client::
+* Add unsupported parameters to HLRC search request {pull}53745[#53745]
+* Fix AbstractBulkByScrollRequest slices parameter via Rest {pull}53068[#53068] (issue: {issue}53044[#53044])
+
+Features/Watcher::
+* Disable Watcher script optimization for stored scripts {pull}53497[#53497] (issue: {issue}40212[#40212])
+
+Infra/Core::
+* Avoid self-suppression on grouped action listener {pull}53262[#53262] (issue: {issue}53174[#53174])
+
+Infra/Packaging::
+* Handle special characters and spaces in JAVA_HOME path in elasticsearch-service.bat {pull}52676[#52676]
+
+Infra/Plugins::
+* Ensure only plugin REST tests are run for plugins {pull}53184[#53184] (issues: {issue}52114[#52114], {issue}53183[#53183])
+
+Machine Learning::
+* Fix a bug in the calculation of the minimum loss leaf values for classification {ml-pull}1032[#1032]
+
+Network::
+* Invoke response handler on failure to send {pull}53631[#53631]
+
+SQL::
+* Fix NPE for parameterized LIKE/RLIKE {pull}53573[#53573] (issue: {issue}53557[#53557])
+* Add support for index aliases for SYS COLUMNS command {pull}53525[#53525] (issue: {issue}31609[#31609])
+* Fix issue with LIKE/RLIKE as painless script {pull}53495[#53495] (issue: {issue}53486[#53486])
+* Fix column size for IP data type {pull}53056[#53056] (issue: {issue}52762[#52762])
+
+Search::
+* Fix Term Vectors with artificial docs and keyword fields {pull}53504[#53504] (issue: {issue}53494[#53494])
+* Fix concurrent requests race over scroll context limit {pull}53449[#53449]
+* Fix pre-sorting of shards in the can_match phase {pull}53397[#53397]
+* Fix potential NPE in FuzzyTermsEnum {pull}53231[#53231] (issue: {issue}52894[#52894])
+
+[[upgrade-7.6.2]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Update jackson-databind to 2.8.11.6 {pull}53522[#53522] (issue: {issue}45225[#45225])
+
 [[release-notes-7.6.1]]
 == {es} version 7.6.1
 
@@ -71,6 +146,15 @@ Authentication::
 == {es} version 7.6.0
 
 Also see <<breaking-changes-7.6,Breaking changes in 7.6>>.
+
+[[known-issues-7.6.0]]
+[float]
+=== Known issues
+
+* Indices created in 6.x with <<date,`date`>> and <<date_nanos,`date_nanos`>> fields using formats
+that are incompatible with java.time patterns will cause parsing errors, incorrect date calculations or wrong search results.
+https://github.com/elastic/elasticsearch/pull/52555
+This is fixed in {es} 7.7 and later versions.
 
 [[breaking-7.6.0]]
 [float]

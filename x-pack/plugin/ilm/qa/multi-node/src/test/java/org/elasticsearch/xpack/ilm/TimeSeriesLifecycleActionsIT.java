@@ -866,6 +866,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53612")
     public void testMoveToStepRereadsPolicy() throws Exception {
         createNewSingletonPolicy("hot", new RolloverAction(null, TimeValue.timeValueHours(1), null), TimeValue.ZERO);
 
@@ -1425,6 +1426,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     // This method should be called inside an assertBusy, it has no retry logic of its own
+    @SuppressWarnings("unchecked")
     private void assertHistoryIsPresent(String policyName, String indexName, boolean success,
                                         @Nullable String phase, @Nullable String action, String stepName) throws IOException {
         logger.info("--> checking for history item [{}], [{}], success: [{}], phase: [{}], action: [{}], step: [{}]",
@@ -1656,6 +1658,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         logger.info(response.getStatusLine());
     }
 
+    @SuppressWarnings("unchecked")
     private String getSnapshotState(String snapshot) throws IOException {
         Response response = client().performRequest(new Request("GET", "/_snapshot/repo/" + snapshot));
         Map<String, Object> responseMap;

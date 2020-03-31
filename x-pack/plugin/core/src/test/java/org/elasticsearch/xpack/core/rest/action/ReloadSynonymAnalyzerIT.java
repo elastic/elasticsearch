@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.rest.action;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
 import org.elasticsearch.action.search.SearchResponse;
@@ -40,7 +39,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53443")
 public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
 
     @Override
@@ -49,8 +47,21 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
     }
 
     @Override
+    protected Settings transportClientSettings() {
+        return Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class);
+    }
+
+    /**
+     * Returns a collection of plugins that should be loaded when creating a transport client.
+     */
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class);
     }
 
     /**
@@ -66,10 +77,8 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
         Path config = internalCluster().getInstance(Environment.class).configFile();
         String synonymsFileName = "synonyms.txt";
         Path synonymsFile = config.resolve(synonymsFileName);
-        Files.createFile(synonymsFile);
-        assertTrue(Files.exists(synonymsFile));
         try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.CREATE), StandardCharsets.UTF_8))) {
+                new OutputStreamWriter(Files.newOutputStream(synonymsFile), StandardCharsets.UTF_8))) {
             out.println("foo, baz");
         }
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()

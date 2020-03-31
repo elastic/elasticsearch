@@ -85,6 +85,15 @@ Security::
 
 Also see <<breaking-changes-7.2,Breaking changes in 7.2>>.
 
+[float]
+=== Known issues
+
+* Indices created in 6.x with <<date,`date`>> and <<date_nanos,`date_nanos`>> fields using formats
+that are incompatible with java.time patterns will cause parsing errors, incorrect date calculations or wrong search results.
+https://github.com/elastic/elasticsearch/pull/52555
+This is fixed in {es} 7.7 and later versions.
+
+
 [[breaking-7.2.0]]
 [float]
 === Breaking changes

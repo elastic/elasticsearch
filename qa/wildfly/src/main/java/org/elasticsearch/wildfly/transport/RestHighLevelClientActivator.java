@@ -17,29 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle;
+package org.elasticsearch.wildfly.transport;
 
-import org.gradle.api.GradleException;
+import javax.ws.rs.ApplicationPath;
+import javax.ws.rs.core.Application;
 
-import java.util.Locale;
+import java.util.Collections;
+import java.util.Set;
 
-public class Util {
+@ApplicationPath("/transport")
+public class RestHighLevelClientActivator extends Application {
 
-    public static boolean getBooleanProperty(String property, boolean defaultValue) {
-        String propertyValue = System.getProperty(property);
-        if (propertyValue == null) {
-            return defaultValue;
-        }
-        if ("true".equals(propertyValue)) {
-            return true;
-        } else if ("false".equals(propertyValue)) {
-            return false;
-        } else {
-            throw new GradleException("Sysprop [" + property + "] must be [true] or [false] but was [" + propertyValue + "]");
-        }
+    @Override
+    public Set<Class<?>> getClasses() {
+        return Collections.singleton(RestHighLevelClientEmployeeResource.class);
     }
 
-    public static String capitalize(String s) {
-        return s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1);
-    }
 }

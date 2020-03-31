@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle.tool;
+package org.elasticsearch.gradle.util;
 
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
@@ -36,7 +36,7 @@ import org.gradle.api.tasks.TaskProvider;
 
 import java.util.Optional;
 
-public abstract class Boilerplate {
+public abstract class GradleUtils {
 
     public static <T> Action<T> noop() {
         return t -> {};

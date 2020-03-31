@@ -1,26 +1,13 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.sql.parser;
-import org.antlr.v4.runtime.FailedPredicateException;
-import org.antlr.v4.runtime.NoViableAltException;
-import org.antlr.v4.runtime.Parser;
-import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.RecognitionException;
-import org.antlr.v4.runtime.RuleContext;
-import org.antlr.v4.runtime.RuntimeMetaData;
-import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
-import org.antlr.v4.runtime.Vocabulary;
-import org.antlr.v4.runtime.VocabularyImpl;
-import org.antlr.v4.runtime.atn.ATN;
-import org.antlr.v4.runtime.atn.ATNDeserializer;
-import org.antlr.v4.runtime.atn.ParserATNSimulator;
-import org.antlr.v4.runtime.atn.PredictionContextCache;
+import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.tree.ParseTreeListener;
-import org.antlr.v4.runtime.tree.ParseTreeVisitor;
-import org.antlr.v4.runtime.tree.TerminalNode;
-
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.misc.*;
+import org.antlr.v4.runtime.tree.*;
 import java.util.List;
+import java.util.Iterator;
+import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 class SqlBaseParser extends Parser {
@@ -30,102 +17,102 @@ class SqlBaseParser extends Parser {
   protected static final PredictionContextCache _sharedContextCache =
     new PredictionContextCache();
   public static final int
-    T__0=1, T__1=2, T__2=3, T__3=4, ALL=5, ANALYZE=6, ANALYZED=7, AND=8, ANY=9,
-    AS=10, ASC=11, BETWEEN=12, BY=13, CASE=14, CAST=15, CATALOG=16, CATALOGS=17,
-    COLUMNS=18, CONVERT=19, CURRENT_DATE=20, CURRENT_TIME=21, CURRENT_TIMESTAMP=22,
-    DAY=23, DAYS=24, DEBUG=25, DESC=26, DESCRIBE=27, DISTINCT=28, ELSE=29,
-    END=30, ESCAPE=31, EXECUTABLE=32, EXISTS=33, EXPLAIN=34, EXTRACT=35, FALSE=36,
-    FIRST=37, FOR=38, FORMAT=39, FROM=40, FROZEN=41, FULL=42, FUNCTIONS=43,
-    GRAPHVIZ=44, GROUP=45, HAVING=46, HOUR=47, HOURS=48, IN=49, INCLUDE=50,
-    INNER=51, INTERVAL=52, IS=53, JOIN=54, LAST=55, LEFT=56, LIKE=57, LIMIT=58,
-    MAPPED=59, MATCH=60, MINUTE=61, MINUTES=62, MONTH=63, MONTHS=64, NATURAL=65,
-    NOT=66, NULL=67, NULLS=68, ON=69, OPTIMIZED=70, OR=71, ORDER=72, OUTER=73,
-    PARSED=74, PHYSICAL=75, PIVOT=76, PLAN=77, RIGHT=78, RLIKE=79, QUERY=80,
-    SCHEMAS=81, SECOND=82, SECONDS=83, SELECT=84, SHOW=85, SYS=86, TABLE=87,
-    TABLES=88, TEXT=89, THEN=90, TRUE=91, TO=92, TYPE=93, TYPES=94, USING=95,
-    VERIFY=96, WHEN=97, WHERE=98, WITH=99, YEAR=100, YEARS=101, ESCAPE_ESC=102,
-    FUNCTION_ESC=103, LIMIT_ESC=104, DATE_ESC=105, TIME_ESC=106, TIMESTAMP_ESC=107,
-    GUID_ESC=108, ESC_START=109, ESC_END=110, EQ=111, NULLEQ=112, NEQ=113,
-    LT=114, LTE=115, GT=116, GTE=117, PLUS=118, MINUS=119, ASTERISK=120, SLASH=121,
-    PERCENT=122, CAST_OP=123, CONCAT=124, DOT=125, PARAM=126, STRING=127,
-    INTEGER_VALUE=128, DECIMAL_VALUE=129, IDENTIFIER=130, DIGIT_IDENTIFIER=131,
-    TABLE_IDENTIFIER=132, QUOTED_IDENTIFIER=133, BACKQUOTED_IDENTIFIER=134,
+    T__0=1, T__1=2, T__2=3, T__3=4, ALL=5, ANALYZE=6, ANALYZED=7, AND=8, ANY=9, 
+    AS=10, ASC=11, BETWEEN=12, BY=13, CASE=14, CAST=15, CATALOG=16, CATALOGS=17, 
+    COLUMNS=18, CONVERT=19, CURRENT_DATE=20, CURRENT_TIME=21, CURRENT_TIMESTAMP=22, 
+    DAY=23, DAYS=24, DEBUG=25, DESC=26, DESCRIBE=27, DISTINCT=28, ELSE=29, 
+    END=30, ESCAPE=31, EXECUTABLE=32, EXISTS=33, EXPLAIN=34, EXTRACT=35, FALSE=36, 
+    FIRST=37, FOR=38, FORMAT=39, FROM=40, FROZEN=41, FULL=42, FUNCTIONS=43, 
+    GRAPHVIZ=44, GROUP=45, HAVING=46, HOUR=47, HOURS=48, IN=49, INCLUDE=50, 
+    INNER=51, INTERVAL=52, IS=53, JOIN=54, LAST=55, LEFT=56, LIKE=57, LIMIT=58, 
+    MAPPED=59, MATCH=60, MINUTE=61, MINUTES=62, MONTH=63, MONTHS=64, NATURAL=65, 
+    NOT=66, NULL=67, NULLS=68, ON=69, OPTIMIZED=70, OR=71, ORDER=72, OUTER=73, 
+    PARSED=74, PHYSICAL=75, PIVOT=76, PLAN=77, RIGHT=78, RLIKE=79, QUERY=80, 
+    SCHEMAS=81, SECOND=82, SECONDS=83, SELECT=84, SHOW=85, SYS=86, TABLE=87, 
+    TABLES=88, TEXT=89, THEN=90, TRUE=91, TO=92, TYPE=93, TYPES=94, USING=95, 
+    VERIFY=96, WHEN=97, WHERE=98, WITH=99, YEAR=100, YEARS=101, ESCAPE_ESC=102, 
+    FUNCTION_ESC=103, LIMIT_ESC=104, DATE_ESC=105, TIME_ESC=106, TIMESTAMP_ESC=107, 
+    GUID_ESC=108, ESC_START=109, ESC_END=110, EQ=111, NULLEQ=112, NEQ=113, 
+    LT=114, LTE=115, GT=116, GTE=117, PLUS=118, MINUS=119, ASTERISK=120, SLASH=121, 
+    PERCENT=122, CAST_OP=123, CONCAT=124, DOT=125, PARAM=126, STRING=127, 
+    INTEGER_VALUE=128, DECIMAL_VALUE=129, IDENTIFIER=130, DIGIT_IDENTIFIER=131, 
+    TABLE_IDENTIFIER=132, QUOTED_IDENTIFIER=133, BACKQUOTED_IDENTIFIER=134, 
     SIMPLE_COMMENT=135, BRACKETED_COMMENT=136, WS=137, UNRECOGNIZED=138, DELIMITER=139;
   public static final int
-    RULE_singleStatement = 0, RULE_singleExpression = 1, RULE_statement = 2,
-    RULE_query = 3, RULE_queryNoWith = 4, RULE_limitClause = 5, RULE_queryTerm = 6,
-    RULE_orderBy = 7, RULE_querySpecification = 8, RULE_fromClause = 9, RULE_groupBy = 10,
-    RULE_groupingElement = 11, RULE_groupingExpressions = 12, RULE_namedQuery = 13,
-    RULE_setQuantifier = 14, RULE_selectItems = 15, RULE_selectItem = 16,
-    RULE_relation = 17, RULE_joinRelation = 18, RULE_joinType = 19, RULE_joinCriteria = 20,
-    RULE_relationPrimary = 21, RULE_pivotClause = 22, RULE_pivotArgs = 23,
-    RULE_namedValueExpression = 24, RULE_expression = 25, RULE_booleanExpression = 26,
-    RULE_matchQueryOptions = 27, RULE_predicated = 28, RULE_predicate = 29,
-    RULE_likePattern = 30, RULE_pattern = 31, RULE_patternEscape = 32, RULE_valueExpression = 33,
-    RULE_primaryExpression = 34, RULE_builtinDateTimeFunction = 35, RULE_castExpression = 36,
-    RULE_castTemplate = 37, RULE_convertTemplate = 38, RULE_extractExpression = 39,
-    RULE_extractTemplate = 40, RULE_functionExpression = 41, RULE_functionTemplate = 42,
-    RULE_functionName = 43, RULE_constant = 44, RULE_comparisonOperator = 45,
-    RULE_booleanValue = 46, RULE_interval = 47, RULE_intervalField = 48, RULE_dataType = 49,
-    RULE_qualifiedName = 50, RULE_identifier = 51, RULE_tableIdentifier = 52,
-    RULE_quoteIdentifier = 53, RULE_unquoteIdentifier = 54, RULE_number = 55,
+    RULE_singleStatement = 0, RULE_singleExpression = 1, RULE_statement = 2, 
+    RULE_query = 3, RULE_queryNoWith = 4, RULE_limitClause = 5, RULE_queryTerm = 6, 
+    RULE_orderBy = 7, RULE_querySpecification = 8, RULE_fromClause = 9, RULE_groupBy = 10, 
+    RULE_groupingElement = 11, RULE_groupingExpressions = 12, RULE_namedQuery = 13, 
+    RULE_setQuantifier = 14, RULE_selectItems = 15, RULE_selectItem = 16, 
+    RULE_relation = 17, RULE_joinRelation = 18, RULE_joinType = 19, RULE_joinCriteria = 20, 
+    RULE_relationPrimary = 21, RULE_pivotClause = 22, RULE_pivotArgs = 23, 
+    RULE_namedValueExpression = 24, RULE_expression = 25, RULE_booleanExpression = 26, 
+    RULE_matchQueryOptions = 27, RULE_predicated = 28, RULE_predicate = 29, 
+    RULE_likePattern = 30, RULE_pattern = 31, RULE_patternEscape = 32, RULE_valueExpression = 33, 
+    RULE_primaryExpression = 34, RULE_builtinDateTimeFunction = 35, RULE_castExpression = 36, 
+    RULE_castTemplate = 37, RULE_convertTemplate = 38, RULE_extractExpression = 39, 
+    RULE_extractTemplate = 40, RULE_functionExpression = 41, RULE_functionTemplate = 42, 
+    RULE_functionName = 43, RULE_constant = 44, RULE_comparisonOperator = 45, 
+    RULE_booleanValue = 46, RULE_interval = 47, RULE_intervalField = 48, RULE_dataType = 49, 
+    RULE_qualifiedName = 50, RULE_identifier = 51, RULE_tableIdentifier = 52, 
+    RULE_quoteIdentifier = 53, RULE_unquoteIdentifier = 54, RULE_number = 55, 
     RULE_string = 56, RULE_whenClause = 57, RULE_nonReserved = 58;
   public static final String[] ruleNames = {
-    "singleStatement", "singleExpression", "statement", "query", "queryNoWith",
-    "limitClause", "queryTerm", "orderBy", "querySpecification", "fromClause",
-    "groupBy", "groupingElement", "groupingExpressions", "namedQuery", "setQuantifier",
-    "selectItems", "selectItem", "relation", "joinRelation", "joinType", "joinCriteria",
-    "relationPrimary", "pivotClause", "pivotArgs", "namedValueExpression",
-    "expression", "booleanExpression", "matchQueryOptions", "predicated",
-    "predicate", "likePattern", "pattern", "patternEscape", "valueExpression",
-    "primaryExpression", "builtinDateTimeFunction", "castExpression", "castTemplate",
-    "convertTemplate", "extractExpression", "extractTemplate", "functionExpression",
-    "functionTemplate", "functionName", "constant", "comparisonOperator",
-    "booleanValue", "interval", "intervalField", "dataType", "qualifiedName",
-    "identifier", "tableIdentifier", "quoteIdentifier", "unquoteIdentifier",
+    "singleStatement", "singleExpression", "statement", "query", "queryNoWith", 
+    "limitClause", "queryTerm", "orderBy", "querySpecification", "fromClause", 
+    "groupBy", "groupingElement", "groupingExpressions", "namedQuery", "setQuantifier", 
+    "selectItems", "selectItem", "relation", "joinRelation", "joinType", "joinCriteria", 
+    "relationPrimary", "pivotClause", "pivotArgs", "namedValueExpression", 
+    "expression", "booleanExpression", "matchQueryOptions", "predicated", 
+    "predicate", "likePattern", "pattern", "patternEscape", "valueExpression", 
+    "primaryExpression", "builtinDateTimeFunction", "castExpression", "castTemplate", 
+    "convertTemplate", "extractExpression", "extractTemplate", "functionExpression", 
+    "functionTemplate", "functionName", "constant", "comparisonOperator", 
+    "booleanValue", "interval", "intervalField", "dataType", "qualifiedName", 
+    "identifier", "tableIdentifier", "quoteIdentifier", "unquoteIdentifier", 
     "number", "string", "whenClause", "nonReserved"
   };
 
   private static final String[] _LITERAL_NAMES = {
-    null, "'('", "')'", "','", "':'", "'ALL'", "'ANALYZE'", "'ANALYZED'",
-    "'AND'", "'ANY'", "'AS'", "'ASC'", "'BETWEEN'", "'BY'", "'CASE'", "'CAST'",
-    "'CATALOG'", "'CATALOGS'", "'COLUMNS'", "'CONVERT'", "'CURRENT_DATE'",
-    "'CURRENT_TIME'", "'CURRENT_TIMESTAMP'", "'DAY'", "'DAYS'", "'DEBUG'",
-    "'DESC'", "'DESCRIBE'", "'DISTINCT'", "'ELSE'", "'END'", "'ESCAPE'", "'EXECUTABLE'",
-    "'EXISTS'", "'EXPLAIN'", "'EXTRACT'", "'FALSE'", "'FIRST'", "'FOR'", "'FORMAT'",
-    "'FROM'", "'FROZEN'", "'FULL'", "'FUNCTIONS'", "'GRAPHVIZ'", "'GROUP'",
-    "'HAVING'", "'HOUR'", "'HOURS'", "'IN'", "'INCLUDE'", "'INNER'", "'INTERVAL'",
-    "'IS'", "'JOIN'", "'LAST'", "'LEFT'", "'LIKE'", "'LIMIT'", "'MAPPED'",
-    "'MATCH'", "'MINUTE'", "'MINUTES'", "'MONTH'", "'MONTHS'", "'NATURAL'",
-    "'NOT'", "'NULL'", "'NULLS'", "'ON'", "'OPTIMIZED'", "'OR'", "'ORDER'",
-    "'OUTER'", "'PARSED'", "'PHYSICAL'", "'PIVOT'", "'PLAN'", "'RIGHT'", "'RLIKE'",
-    "'QUERY'", "'SCHEMAS'", "'SECOND'", "'SECONDS'", "'SELECT'", "'SHOW'",
-    "'SYS'", "'TABLE'", "'TABLES'", "'TEXT'", "'THEN'", "'TRUE'", "'TO'",
-    "'TYPE'", "'TYPES'", "'USING'", "'VERIFY'", "'WHEN'", "'WHERE'", "'WITH'",
-    "'YEAR'", "'YEARS'", null, null, null, null, null, null, null, null, "'}'",
-    "'='", "'<=>'", null, "'<'", "'<='", "'>'", "'>='", "'+'", "'-'", "'*'",
+    null, "'('", "')'", "','", "':'", "'ALL'", "'ANALYZE'", "'ANALYZED'", 
+    "'AND'", "'ANY'", "'AS'", "'ASC'", "'BETWEEN'", "'BY'", "'CASE'", "'CAST'", 
+    "'CATALOG'", "'CATALOGS'", "'COLUMNS'", "'CONVERT'", "'CURRENT_DATE'", 
+    "'CURRENT_TIME'", "'CURRENT_TIMESTAMP'", "'DAY'", "'DAYS'", "'DEBUG'", 
+    "'DESC'", "'DESCRIBE'", "'DISTINCT'", "'ELSE'", "'END'", "'ESCAPE'", "'EXECUTABLE'", 
+    "'EXISTS'", "'EXPLAIN'", "'EXTRACT'", "'FALSE'", "'FIRST'", "'FOR'", "'FORMAT'", 
+    "'FROM'", "'FROZEN'", "'FULL'", "'FUNCTIONS'", "'GRAPHVIZ'", "'GROUP'", 
+    "'HAVING'", "'HOUR'", "'HOURS'", "'IN'", "'INCLUDE'", "'INNER'", "'INTERVAL'", 
+    "'IS'", "'JOIN'", "'LAST'", "'LEFT'", "'LIKE'", "'LIMIT'", "'MAPPED'", 
+    "'MATCH'", "'MINUTE'", "'MINUTES'", "'MONTH'", "'MONTHS'", "'NATURAL'", 
+    "'NOT'", "'NULL'", "'NULLS'", "'ON'", "'OPTIMIZED'", "'OR'", "'ORDER'", 
+    "'OUTER'", "'PARSED'", "'PHYSICAL'", "'PIVOT'", "'PLAN'", "'RIGHT'", "'RLIKE'", 
+    "'QUERY'", "'SCHEMAS'", "'SECOND'", "'SECONDS'", "'SELECT'", "'SHOW'", 
+    "'SYS'", "'TABLE'", "'TABLES'", "'TEXT'", "'THEN'", "'TRUE'", "'TO'", 
+    "'TYPE'", "'TYPES'", "'USING'", "'VERIFY'", "'WHEN'", "'WHERE'", "'WITH'", 
+    "'YEAR'", "'YEARS'", null, null, null, null, null, null, null, null, "'}'", 
+    "'='", "'<=>'", null, "'<'", "'<='", "'>'", "'>='", "'+'", "'-'", "'*'", 
     "'/'", "'%'", "'::'", "'||'", "'.'", "'?'"
   };
   private static final String[] _SYMBOLIC_NAMES = {
-    null, null, null, null, null, "ALL", "ANALYZE", "ANALYZED", "AND", "ANY",
-    "AS", "ASC", "BETWEEN", "BY", "CASE", "CAST", "CATALOG", "CATALOGS", "COLUMNS",
-    "CONVERT", "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP", "DAY",
-    "DAYS", "DEBUG", "DESC", "DESCRIBE", "DISTINCT", "ELSE", "END", "ESCAPE",
-    "EXECUTABLE", "EXISTS", "EXPLAIN", "EXTRACT", "FALSE", "FIRST", "FOR",
-    "FORMAT", "FROM", "FROZEN", "FULL", "FUNCTIONS", "GRAPHVIZ", "GROUP",
-    "HAVING", "HOUR", "HOURS", "IN", "INCLUDE", "INNER", "INTERVAL", "IS",
-    "JOIN", "LAST", "LEFT", "LIKE", "LIMIT", "MAPPED", "MATCH", "MINUTE",
-    "MINUTES", "MONTH", "MONTHS", "NATURAL", "NOT", "NULL", "NULLS", "ON",
-    "OPTIMIZED", "OR", "ORDER", "OUTER", "PARSED", "PHYSICAL", "PIVOT", "PLAN",
-    "RIGHT", "RLIKE", "QUERY", "SCHEMAS", "SECOND", "SECONDS", "SELECT", "SHOW",
-    "SYS", "TABLE", "TABLES", "TEXT", "THEN", "TRUE", "TO", "TYPE", "TYPES",
-    "USING", "VERIFY", "WHEN", "WHERE", "WITH", "YEAR", "YEARS", "ESCAPE_ESC",
-    "FUNCTION_ESC", "LIMIT_ESC", "DATE_ESC", "TIME_ESC", "TIMESTAMP_ESC",
-    "GUID_ESC", "ESC_START", "ESC_END", "EQ", "NULLEQ", "NEQ", "LT", "LTE",
-    "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", "CAST_OP",
-    "CONCAT", "DOT", "PARAM", "STRING", "INTEGER_VALUE", "DECIMAL_VALUE",
-    "IDENTIFIER", "DIGIT_IDENTIFIER", "TABLE_IDENTIFIER", "QUOTED_IDENTIFIER",
-    "BACKQUOTED_IDENTIFIER", "SIMPLE_COMMENT", "BRACKETED_COMMENT", "WS",
+    null, null, null, null, null, "ALL", "ANALYZE", "ANALYZED", "AND", "ANY", 
+    "AS", "ASC", "BETWEEN", "BY", "CASE", "CAST", "CATALOG", "CATALOGS", "COLUMNS", 
+    "CONVERT", "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP", "DAY", 
+    "DAYS", "DEBUG", "DESC", "DESCRIBE", "DISTINCT", "ELSE", "END", "ESCAPE", 
+    "EXECUTABLE", "EXISTS", "EXPLAIN", "EXTRACT", "FALSE", "FIRST", "FOR", 
+    "FORMAT", "FROM", "FROZEN", "FULL", "FUNCTIONS", "GRAPHVIZ", "GROUP", 
+    "HAVING", "HOUR", "HOURS", "IN", "INCLUDE", "INNER", "INTERVAL", "IS", 
+    "JOIN", "LAST", "LEFT", "LIKE", "LIMIT", "MAPPED", "MATCH", "MINUTE", 
+    "MINUTES", "MONTH", "MONTHS", "NATURAL", "NOT", "NULL", "NULLS", "ON", 
+    "OPTIMIZED", "OR", "ORDER", "OUTER", "PARSED", "PHYSICAL", "PIVOT", "PLAN", 
+    "RIGHT", "RLIKE", "QUERY", "SCHEMAS", "SECOND", "SECONDS", "SELECT", "SHOW", 
+    "SYS", "TABLE", "TABLES", "TEXT", "THEN", "TRUE", "TO", "TYPE", "TYPES", 
+    "USING", "VERIFY", "WHEN", "WHERE", "WITH", "YEAR", "YEARS", "ESCAPE_ESC", 
+    "FUNCTION_ESC", "LIMIT_ESC", "DATE_ESC", "TIME_ESC", "TIMESTAMP_ESC", 
+    "GUID_ESC", "ESC_START", "ESC_END", "EQ", "NULLEQ", "NEQ", "LT", "LTE", 
+    "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", "CAST_OP", 
+    "CONCAT", "DOT", "PARAM", "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", 
+    "IDENTIFIER", "DIGIT_IDENTIFIER", "TABLE_IDENTIFIER", "QUOTED_IDENTIFIER", 
+    "BACKQUOTED_IDENTIFIER", "SIMPLE_COMMENT", "BRACKETED_COMMENT", "WS", 
     "UNRECOGNIZED", "DELIMITER"
   };
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
@@ -276,7 +263,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_statement; }
-
+   
     public StatementContext() { }
     public void copyFrom(StatementContext ctx) {
       super.copyFrom(ctx);
@@ -1523,7 +1510,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_queryTerm; }
-
+   
     public QueryTermContext() { }
     public void copyFrom(QueryTermContext ctx) {
       super.copyFrom(ctx);
@@ -1975,7 +1962,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_groupingElement; }
-
+   
     public GroupingElementContext() { }
     public void copyFrom(GroupingElementContext ctx) {
       super.copyFrom(ctx);
@@ -2286,7 +2273,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_selectItem; }
-
+   
     public SelectItemContext() { }
     public void copyFrom(SelectItemContext ctx) {
       super.copyFrom(ctx);
@@ -2722,7 +2709,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_relationPrimary; }
-
+   
     public RelationPrimaryContext() { }
     public void copyFrom(RelationPrimaryContext ctx) {
       super.copyFrom(ctx);
@@ -3172,7 +3159,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_booleanExpression; }
-
+   
     public BooleanExpressionContext() { }
     public void copyFrom(BooleanExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -3498,7 +3485,7 @@ class SqlBaseParser extends Parser {
             }
             break;
           }
-          }
+          } 
         }
         setState(528);
         _errHandler.sync(this);
@@ -4018,7 +4005,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_valueExpression; }
-
+   
     public ValueExpressionContext() { }
     public void copyFrom(ValueExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -4299,7 +4286,7 @@ class SqlBaseParser extends Parser {
             }
             break;
           }
-          }
+          } 
         }
         setState(623);
         _errHandler.sync(this);
@@ -4323,7 +4310,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_primaryExpression; }
-
+   
     public PrimaryExpressionContext() { }
     public void copyFrom(PrimaryExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -4695,7 +4682,7 @@ class SqlBaseParser extends Parser {
           }
         }
 
-        setState(650);
+        setState(650); 
         _errHandler.sync(this);
         _la = _input.LA(1);
         do {
@@ -4705,7 +4692,7 @@ class SqlBaseParser extends Parser {
           whenClause();
           }
           }
-          setState(652);
+          setState(652); 
           _errHandler.sync(this);
           _la = _input.LA(1);
         } while ( _la==WHEN );
@@ -4744,7 +4731,7 @@ class SqlBaseParser extends Parser {
           setState(664);
           dataType();
           }
-          }
+          } 
         }
         setState(669);
         _errHandler.sync(this);
@@ -5470,7 +5457,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_constant; }
-
+   
     public ConstantContext() { }
     public void copyFrom(ConstantContext ctx) {
       super.copyFrom(ctx);
@@ -5717,7 +5704,7 @@ class SqlBaseParser extends Parser {
         _localctx = new StringLiteralContext(_localctx);
         enterOuterAlt(_localctx, 5);
         {
-        setState(749);
+        setState(749); 
         _errHandler.sync(this);
         _alt = 1;
         do {
@@ -5733,7 +5720,7 @@ class SqlBaseParser extends Parser {
           default:
             throw new NoViableAltException(this);
           }
-          setState(751);
+          setState(751); 
           _errHandler.sync(this);
           _alt = getInterpreter().adaptivePredict(_input,100,_ctx);
         } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
@@ -6088,7 +6075,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_dataType; }
-
+   
     public DataTypeContext() { }
     public void copyFrom(DataTypeContext ctx) {
       super.copyFrom(ctx);
@@ -6185,7 +6172,7 @@ class SqlBaseParser extends Parser {
           setState(794);
           match(DOT);
           }
-          }
+          } 
         }
         setState(800);
         _errHandler.sync(this);
@@ -6401,7 +6388,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_quoteIdentifier; }
-
+   
     public QuoteIdentifierContext() { }
     public void copyFrom(QuoteIdentifierContext ctx) {
       super.copyFrom(ctx);
@@ -6484,7 +6471,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_unquoteIdentifier; }
-
+   
     public UnquoteIdentifierContext() { }
     public void copyFrom(UnquoteIdentifierContext ctx) {
       super.copyFrom(ctx);
@@ -6617,7 +6604,7 @@ class SqlBaseParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_number; }
-
+   
     public NumberContext() { }
     public void copyFrom(NumberContext ctx) {
       super.copyFrom(ctx);

@@ -187,7 +187,10 @@ public class InboundPipelineTests extends ESTestCase {
         final PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
         BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler = (c, e) -> {};
-        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, recycler, messageHandler, errorHandler);
+        final StatsTracker statsTracker = new StatsTracker();
+        final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
+        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, statsTracker, recycler, millisSupplier, messageHandler,
+            errorHandler);
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             String actionName = "actionName";

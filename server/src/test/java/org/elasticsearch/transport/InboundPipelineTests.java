@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -37,9 +38,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class InboundPipelineTests extends ESTestCase {
 
@@ -82,10 +83,15 @@ public class InboundPipelineTests extends ESTestCase {
         };
 
         final PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, recycler, messageHandler, errorHandler);
+        final StatsTracker statsTracker = new StatsTracker();
+        final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
+        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, statsTracker, recycler, millisSupplier, messageHandler,
+            errorHandler);
+        final FakeTcpChannel channel = new FakeTcpChannel();
 
         final int iterations = randomIntBetween(100, 500);
         long totalMessages = 0;
+        long bytesReceived = 0;
 
         for (int i = 0; i < iterations; ++i) {
             actual.clear();
@@ -144,7 +150,8 @@ public class InboundPipelineTests extends ESTestCase {
                     final BytesReference slice = networkBytes.slice(currentOffset, bytesToRead);
                     try (ReleasableBytesReference reference = new ReleasableBytesReference(slice, () -> {})) {
                         toRelease.add(reference);
-                        pipeline.handleBytes(mock(TcpChannel.class), reference);
+                        bytesReceived += reference.length();
+                        pipeline.handleBytes(channel, reference);
                         currentOffset += bytesToRead;
                     }
                 }
@@ -170,6 +177,9 @@ public class InboundPipelineTests extends ESTestCase {
                     assertEquals(0, released.refCount());
                 }
             }
+
+            assertEquals(bytesReceived, statsTracker.getBytesRead());
+            assertEquals(totalMessages, statsTracker.getMessagesReceived());
         }
     }
 

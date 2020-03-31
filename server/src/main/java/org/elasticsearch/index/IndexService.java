@@ -243,7 +243,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public enum IndexCreationContext {
         CREATE_INDEX,
-        META_DATA_VERIFICATION
+        METADATA_VERIFICATION
     }
 
     public int numberOfShards() {

@@ -35,7 +35,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testAuthorizedIndicesUserWithoutRoles() {
         List<String> authorizedIndices =
-            RBACEngine.resolveAuthorizedIndicesFromRole(Role.EMPTY, "", Metadata.EMPTY_META_DATA.getIndicesLookup());
+            RBACEngine.resolveAuthorizedIndicesFromRole(Role.EMPTY, "", Metadata.EMPTY_METADATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
 
@@ -82,14 +82,14 @@ public class AuthorizedIndicesTests extends ESTestCase {
     public void testAuthorizedIndicesUserWithSomeRolesEmptyMetadata() {
         Role role = Role.builder("role").add(IndexPrivilege.ALL, "*").build();
         List<String> authorizedIndices =
-            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, Metadata.EMPTY_META_DATA.getIndicesLookup());
+            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, Metadata.EMPTY_METADATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
 
     public void testSecurityIndicesAreRemovedFromRegularUser() {
         Role role = Role.builder("user_role").add(IndexPrivilege.ALL, "*").cluster(Set.of("all"), Set.of()).build();
         List<String> authorizedIndices =
-            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, Metadata.EMPTY_META_DATA.getIndicesLookup());
+            RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, Metadata.EMPTY_METADATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
 

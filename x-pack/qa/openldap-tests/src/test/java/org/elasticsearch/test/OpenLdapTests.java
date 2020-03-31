@@ -208,7 +208,7 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveSingleValuedAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getFullSettingKey(realmId.getName(), LdapMetadataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply("ldap")),
+                .putList(getFullSettingKey(realmId.getName(), LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING.apply("ldap")),
                         "cn", "sn")
                 .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                 .build();
@@ -226,7 +226,7 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveMultiValuedAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getFullSettingKey(realmId.getName(), LdapMetadataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply("ldap")),
+                .putList(getFullSettingKey(realmId.getName(), LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING.apply("ldap")),
                         "objectClass")
                 .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                 .build();
@@ -244,7 +244,7 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveMissingAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getFullSettingKey(realmId.getName(), LdapMetadataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply("ldap")),
+                .putList(getFullSettingKey(realmId.getName(), LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING.apply("ldap")),
                         "alias")
                 .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
                 .build();

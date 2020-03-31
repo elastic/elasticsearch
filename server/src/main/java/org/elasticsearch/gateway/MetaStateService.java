@@ -48,8 +48,8 @@ public class MetaStateService {
     private final NamedXContentRegistry namedXContentRegistry;
 
     // we allow subclasses in tests to redefine formats, e.g. to inject failures
-    protected MetadataStateFormat<Metadata> META_DATA_FORMAT = Metadata.FORMAT;
-    protected MetadataStateFormat<IndexMetadata> INDEX_META_DATA_FORMAT = IndexMetadata.FORMAT;
+    protected MetadataStateFormat<Metadata> METADATA_FORMAT = Metadata.FORMAT;
+    protected MetadataStateFormat<IndexMetadata> INDEX_METADATA_FORMAT = IndexMetadata.FORMAT;
     protected MetadataStateFormat<Manifest> MANIFEST_FORMAT = Manifest.FORMAT;
 
     public MetaStateService(NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) {
@@ -78,7 +78,7 @@ public class MetaStateService {
         if (manifest.isGlobalGenerationMissing()) {
             metadataBuilder = Metadata.builder();
         } else {
-            final Metadata globalMetadata = META_DATA_FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(),
+            final Metadata globalMetadata = METADATA_FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(),
                     nodeEnv.nodeDataPaths());
             if (globalMetadata != null) {
                 metadataBuilder = Metadata.builder(globalMetadata);
@@ -91,7 +91,7 @@ public class MetaStateService {
             final Index index = entry.getKey();
             final long generation = entry.getValue();
             final String indexFolderName = index.getUUID();
-            final IndexMetadata indexMetadata = INDEX_META_DATA_FORMAT.loadGeneration(logger, namedXContentRegistry, generation,
+            final IndexMetadata indexMetadata = INDEX_METADATA_FORMAT.loadGeneration(logger, namedXContentRegistry, generation,
                     nodeEnv.resolveIndexFolder(indexFolderName));
             if (indexMetadata != null) {
                 metadataBuilder.put(indexMetadata, false);
@@ -112,7 +112,7 @@ public class MetaStateService {
         Metadata.Builder metadataBuilder;
 
         Tuple<Metadata, Long> metadataAndGeneration =
-                META_DATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+                METADATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
         Metadata globalMetadata = metadataAndGeneration.v1();
         long globalStateGeneration = metadataAndGeneration.v2();
 
@@ -127,7 +127,7 @@ public class MetaStateService {
 
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
             Tuple<IndexMetadata, Long> indexMetadataAndGeneration =
-                    INDEX_META_DATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
+                    INDEX_METADATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
                             nodeEnv.resolveIndexFolder(indexFolderName));
             IndexMetadata indexMetadata = indexMetadataAndGeneration.v1();
             long generation = indexMetadataAndGeneration.v2();
@@ -153,7 +153,7 @@ public class MetaStateService {
      */
     @Nullable
     public IndexMetadata loadIndexState(Index index) throws IOException {
-        return INDEX_META_DATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.indexPaths(index));
+        return INDEX_METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.indexPaths(index));
     }
 
     /**
@@ -164,7 +164,7 @@ public class MetaStateService {
         for (String indexFolderName : nodeEnv.availableIndexFolders(excludeIndexPathIdsPredicate)) {
             assert excludeIndexPathIdsPredicate.test(indexFolderName) == false :
                     "unexpected folder " + indexFolderName + " which should have been excluded";
-            IndexMetadata indexMetadata = INDEX_META_DATA_FORMAT.loadLatestState(logger, namedXContentRegistry,
+            IndexMetadata indexMetadata = INDEX_METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry,
                     nodeEnv.resolveIndexFolder(indexFolderName));
             if (indexMetadata != null) {
                 final String indexPathId = indexMetadata.getIndex().getUUID();
@@ -184,7 +184,7 @@ public class MetaStateService {
      * Loads the global state, *without* index state, see {@link #loadFullState()} for that.
      */
     Metadata loadGlobalState() throws IOException {
-        return META_DATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+        return METADATA_FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
     }
 
     /**
@@ -215,7 +215,7 @@ public class MetaStateService {
         final Index index = indexMetadata.getIndex();
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            long generation = INDEX_META_DATA_FORMAT.write(indexMetadata,
+            long generation = INDEX_METADATA_FORMAT.write(indexMetadata,
                     nodeEnv.indexPaths(indexMetadata.getIndex()));
             logger.trace("[{}] state written", index);
             return generation;
@@ -233,7 +233,7 @@ public class MetaStateService {
     long writeGlobalState(String reason, Metadata metadata) throws WriteStateException {
         logger.trace("[_global] writing state, reason [{}]", reason);
         try {
-            long generation = META_DATA_FORMAT.write(metadata, nodeEnv.nodeDataPaths());
+            long generation = METADATA_FORMAT.write(metadata, nodeEnv.nodeDataPaths());
             logger.trace("[_global] state written");
             return generation;
         } catch (WriteStateException ex) {
@@ -247,7 +247,7 @@ public class MetaStateService {
      * @param currentGeneration current state generation to keep in the directory.
      */
     void cleanupGlobalState(long currentGeneration) {
-        META_DATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.nodeDataPaths());
+        METADATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.nodeDataPaths());
     }
 
     /**
@@ -257,7 +257,7 @@ public class MetaStateService {
      * @param currentGeneration current state generation to keep in the index directory.
      */
     public void cleanupIndex(Index index, long currentGeneration) {
-        INDEX_META_DATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.indexPaths(index));
+        INDEX_METADATA_FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.indexPaths(index));
     }
 
     /**
@@ -266,7 +266,7 @@ public class MetaStateService {
      */
     public void unreferenceAll() throws IOException {
         MANIFEST_FORMAT.writeAndCleanup(Manifest.empty(), nodeEnv.nodeDataPaths()); // write empty file so that indices become unreferenced
-        META_DATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
+        METADATA_FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths());
     }
 
     /**

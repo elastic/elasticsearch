@@ -377,7 +377,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_META_DATA)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
                 .put(meta, false)
                 .build())
             .build();
@@ -432,7 +432,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         assertTrue(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_META_DATA)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
                 .put(meta, false)
                 .build())
             .build();
@@ -468,7 +468,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
             .build();
         existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_META_DATA)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
                 .put(meta, false)
                 .build())
             .build();

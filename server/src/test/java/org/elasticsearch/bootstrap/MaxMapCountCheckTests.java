@@ -84,14 +84,14 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
         settingsThatAllowMemoryMap.add(Settings.builder().put("node.store.allow_mmap", true).build());
 
         for (final Settings settingThatAllowsMemoryMap : settingsThatAllowMemoryMap) {
-            assertFailure(check.check(createTestContext(settingThatAllowsMemoryMap, Metadata.EMPTY_META_DATA)));
+            assertFailure(check.check(createTestContext(settingThatAllowsMemoryMap, Metadata.EMPTY_METADATA)));
         }
     }
 
     public void testMaxMapCountCheckNotEnforcedIfMemoryMapNotAllowed() {
         // nothing should happen if current vm.max_map_count is under the limit but mmap is not allowed
         final Settings settings = Settings.builder().put("node.store.allow_mmap", false).build();
-        final BootstrapContext context = createTestContext(settings, Metadata.EMPTY_META_DATA);
+        final BootstrapContext context = createTestContext(settings, Metadata.EMPTY_METADATA);
         final BootstrapCheck.BootstrapCheckResult result = check.check(context);
         assertTrue(result.isSuccess());
     }

@@ -59,7 +59,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
 
     static final String MASTER_NODE_BOOTSTRAPPED_MSG = "Master node was successfully bootstrapped";
     static final Setting<String> UNSAFE_BOOTSTRAP =
-            ClusterService.USER_DEFINED_META_DATA.getConcreteSetting("cluster.metadata.unsafe-bootstrap");
+            ClusterService.USER_DEFINED_METADATA.getConcreteSetting("cluster.metadata.unsafe-bootstrap");
 
     UnsafeBootstrapMasterCommand() {
         super("Forces the successful election of the current node after the permanent loss of the half or more master-eligible nodes");

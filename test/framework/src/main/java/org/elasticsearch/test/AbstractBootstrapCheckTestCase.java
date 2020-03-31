@@ -31,7 +31,7 @@ public abstract class AbstractBootstrapCheckTestCase extends ESTestCase {
     protected final BootstrapContext emptyContext;
 
     public AbstractBootstrapCheckTestCase() {
-        emptyContext = createTestContext(Settings.EMPTY, Metadata.EMPTY_META_DATA);
+        emptyContext = createTestContext(Settings.EMPTY, Metadata.EMPTY_METADATA);
     }
 
     protected BootstrapContext createTestContext(Settings settings, Metadata metadata) {

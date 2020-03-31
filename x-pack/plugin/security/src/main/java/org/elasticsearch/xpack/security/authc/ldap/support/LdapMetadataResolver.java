@@ -32,7 +32,7 @@ public class LdapMetadataResolver {
     private final boolean ignoreReferralErrors;
 
     public LdapMetadataResolver(RealmConfig realmConfig, boolean ignoreReferralErrors) {
-        this(realmConfig.getSetting(LdapMetadataResolverSettings.ADDITIONAL_META_DATA_SETTING), ignoreReferralErrors);
+        this(realmConfig.getSetting(LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING), ignoreReferralErrors);
     }
 
     LdapMetadataResolver(Collection<String> attributeNames, boolean ignoreReferralErrors) {

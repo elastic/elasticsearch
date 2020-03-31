@@ -7,9 +7,17 @@
 package org.elasticsearch.xpack.autoscaling.action;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -21,12 +29,38 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCase {
+
+    public void testBlock() {
+
+        final TransportPutAutoscalingPolicyAction action = new TransportPutAutoscalingPolicyAction(
+            mock(TransportService.class),
+            mock(ClusterService.class),
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class)
+        );
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterBlocks blocks = ClusterBlocks.builder()
+            .addGlobalBlock(
+                randomFrom(
+                    Metadata.CLUSTER_READ_ONLY_BLOCK,
+                    Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK,
+                    NoMasterBlockService.NO_MASTER_BLOCK_WRITES
+                )
+            )
+            .build();
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
+        final ClusterBlockException e = action.checkBlock(new PutAutoscalingPolicyAction.Request(randomAutoscalingPolicy()), state);
+        assertThat(e, not(nullValue()));
+    }
 
     public void testAddPolicy() {
         final ClusterState currentState;

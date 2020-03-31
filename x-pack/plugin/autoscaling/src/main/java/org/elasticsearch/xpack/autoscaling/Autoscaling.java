@@ -135,11 +135,7 @@ public class Autoscaling extends Plugin implements ActionPlugin {
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
-            new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
-                new ParseField(AutoscalingMetadata.NAME),
-                AutoscalingMetadata::parse
-            ),
+            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse),
             new NamedXContentRegistry.Entry(
                 AutoscalingDecider.class,
                 new ParseField(AlwaysAutoscalingDecider.NAME),

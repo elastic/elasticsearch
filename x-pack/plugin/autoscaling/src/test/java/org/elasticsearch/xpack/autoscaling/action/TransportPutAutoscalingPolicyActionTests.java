@@ -38,8 +38,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCase {
 
-    public void testBlock() {
-
+    public void testWriteBlock() {
         final TransportPutAutoscalingPolicyAction action = new TransportPutAutoscalingPolicyAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -59,6 +58,20 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
         final ClusterBlockException e = action.checkBlock(new PutAutoscalingPolicyAction.Request(randomAutoscalingPolicy()), state);
         assertThat(e, not(nullValue()));
+    }
+
+    public void testNoWriteBlock() {
+        final TransportPutAutoscalingPolicyAction action = new TransportPutAutoscalingPolicyAction(
+            mock(TransportService.class),
+            mock(ClusterService.class),
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class)
+        );
+        final ClusterBlocks blocks = ClusterBlocks.builder().build();
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
+        final ClusterBlockException e = action.checkBlock(new PutAutoscalingPolicyAction.Request(randomAutoscalingPolicy()), state);
+        assertThat(e, nullValue());
     }
 
     public void testAddPolicy() {

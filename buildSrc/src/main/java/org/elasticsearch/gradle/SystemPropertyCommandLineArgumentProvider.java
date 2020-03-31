@@ -19,8 +19,12 @@ public class SystemPropertyCommandLineArgumentProvider implements CommandLineArg
     public Iterable<String> asArguments() {
         return systemProperties.entrySet()
             .stream()
-            .map(entry -> "-D" + entry.getKey() + "=" +
-                (entry.getValue() instanceof Supplier ? ((Supplier)entry.getValue()).get() : entry.getValue()))
+            .map(
+                entry -> "-D"
+                    + entry.getKey()
+                    + "="
+                    + (entry.getValue() instanceof Supplier ? ((Supplier) entry.getValue()).get() : entry.getValue())
+            )
             .collect(Collectors.toList());
     }
 

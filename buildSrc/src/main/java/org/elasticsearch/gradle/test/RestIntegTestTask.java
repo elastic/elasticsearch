@@ -42,28 +42,36 @@ public class RestIntegTestTask extends DefaultTask {
         String name = getName();
         super.dependsOn(project);
         runner = project.getTasks().create(name + "Runner", RestTestRunnerTask.class);
-        NamedDomainObjectContainer<ElasticsearchCluster> testClusters =
-            (NamedDomainObjectContainer<ElasticsearchCluster>) project.getExtensions().getByName("testClusters");
+        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
+            .getExtensions()
+            .getByName("testClusters");
         ElasticsearchCluster cluster = testClusters.create(name);
         runner.useCluster(cluster);
         runner.include("**/*IT.class");
         runner.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString());
         if (System.getProperty(TESTS_REST_CLUSTER) == null) {
             if (System.getProperty(TESTS_CLUSTER) != null || System.getProperty(TESTS_CLUSTER_NAME) != null) {
-                throw new IllegalArgumentException(String.format("%s, %s, and %s must all be null or non-null",
-                    TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME));
+                throw new IllegalArgumentException(
+                    String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
+                );
             }
-            SystemPropertyCommandLineArgumentProvider runnerNonInputProperties =
-                (SystemPropertyCommandLineArgumentProvider) runner.getExtensions().getByName("nonInputProperties");
-            runnerNonInputProperties.systemProperty(TESTS_REST_CLUSTER,
-                (Supplier<String>) () -> String.join(",", cluster.getAllHttpSocketURI()));
-            runnerNonInputProperties.systemProperty(TESTS_CLUSTER,
-                (Supplier<String>) () -> String.join(",", cluster.getAllTransportPortURI()));
+            SystemPropertyCommandLineArgumentProvider runnerNonInputProperties = (SystemPropertyCommandLineArgumentProvider) runner
+                .getExtensions()
+                .getByName("nonInputProperties");
+            runnerNonInputProperties.systemProperty(
+                TESTS_REST_CLUSTER,
+                (Supplier<String>) () -> String.join(",", cluster.getAllHttpSocketURI())
+            );
+            runnerNonInputProperties.systemProperty(
+                TESTS_CLUSTER,
+                (Supplier<String>) () -> String.join(",", cluster.getAllTransportPortURI())
+            );
             runnerNonInputProperties.systemProperty(TESTS_CLUSTER_NAME, (Supplier<String>) cluster::getName);
         } else {
             if (System.getProperty(TESTS_CLUSTER) == null || System.getProperty(TESTS_CLUSTER_NAME) == null) {
-                throw new IllegalArgumentException(String.format("%s, %s, and %s must all be null or non-null",
-                    TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME));
+                throw new IllegalArgumentException(
+                    String.format("%s, %s, and %s must all be null or non-null", TESTS_REST_CLUSTER, TESTS_CLUSTER, TESTS_CLUSTER_NAME)
+                );
             }
             // an external cluster was specified and all responsibility for cluster configuration is taken by the user
             runner.systemProperty(TESTS_REST_CLUSTER, System.getProperty(TESTS_REST_CLUSTER));
@@ -104,5 +112,3 @@ public class RestIntegTestTask extends DefaultTask {
         configure.execute(runner);
     }
 }
-
-

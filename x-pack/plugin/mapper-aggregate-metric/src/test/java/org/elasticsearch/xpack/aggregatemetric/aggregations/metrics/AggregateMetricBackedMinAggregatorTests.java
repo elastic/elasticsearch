@@ -23,9 +23,8 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -49,29 +48,29 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
         testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
                 List.of(
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.max), Double.doubleToLongBits(10)),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.min), Double.doubleToLongBits(2))
                 )
             );
 
             iw.addDocument(
                 List.of(
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.max), Double.doubleToLongBits(50)),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.min), Double.doubleToLongBits(5))
                 )
             );
-        }, sum -> {
-            assertEquals(60, sum.getValue(), 0d);
-            assertTrue(AggregationInspectionHelper.hasValue(sum));
+        }, min -> {
+            assertEquals(2, min.getValue(), 0d);
+            assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
 
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
-        }, sum -> {
-            assertEquals(0L, sum.getValue(), 0d);
-            assertFalse(AggregationInspectionHelper.hasValue(sum));
+        }, min -> {
+            assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0d);
+            assertFalse(AggregationInspectionHelper.hasValue(min));
         });
     }
 
@@ -79,9 +78,9 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
         testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
-        }, sum -> {
-            assertEquals(0L, sum.getValue(), 0d);
-            assertFalse(AggregationInspectionHelper.hasValue(sum));
+        }, min -> {
+            assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0d);
+            assertFalse(AggregationInspectionHelper.hasValue(min));
         });
     }
 
@@ -90,27 +89,27 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
             iw.addDocument(
                 List.of(
                     new StringField("match", "yes", Field.Store.NO),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.max), Double.doubleToLongBits(10)),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.min), Double.doubleToLongBits(2))
                 )
             );
             iw.addDocument(
                 List.of(
                     new StringField("match", "yes", Field.Store.NO),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(20)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.max), Double.doubleToLongBits(20)),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.min), Double.doubleToLongBits(5))
                 )
             );
             iw.addDocument(
                 List.of(
                     new StringField("match", "no", Field.Store.NO),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(40)),
-                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.max), Double.doubleToLongBits(40)),
+                    new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.min), Double.doubleToLongBits(1))
                 )
             );
-        }, sum -> {
-            assertEquals(30L, sum.getValue(), 0d);
-            assertTrue(AggregationInspectionHelper.hasValue(sum));
+        }, min -> {
+            assertEquals(2L, min.getValue(), 0d);
+            assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
 
@@ -132,7 +131,7 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
         return fieldType;
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalSum> verify)
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalMin> verify)
         throws IOException {
         MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
@@ -143,7 +142,7 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
         AggregationBuilder aggregationBuilder,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalSum> verify,
+        Consumer<InternalMin> verify,
         MappedFieldType fieldType
     ) throws IOException {
         try (Directory directory = newDirectory()) {
@@ -158,7 +157,7 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();
-                verify.accept((InternalSum) aggregator.buildAggregation(0L));
+                verify.accept((InternalMin) aggregator.buildAggregation(0L));
             }
         }
     }

@@ -9,6 +9,7 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MinMaxAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
@@ -66,17 +67,17 @@ public class AggregateMetricsAggregatorsRegistrar {
         valuesSourceRegistry.register(
             MinAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) (
+            (MinMaxAggregatorSupplier) (
                 name,
+                valuesSourceConfig,
                 valuesSource,
-                formatter,
                 context,
                 parent,
                 pipelineAggregators,
-                metaData) -> new AggregateMetricBackedAvgAggregator(
+                metaData) -> new AggregateMetricBackedMinAggregator(
                     name,
+                    valuesSourceConfig,
                     (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    formatter,
                     context,
                     parent,
                     pipelineAggregators,
@@ -89,17 +90,17 @@ public class AggregateMetricsAggregatorsRegistrar {
         valuesSourceRegistry.register(
             MaxAggregationBuilder.NAME,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
-            (MetricAggregatorSupplier) (
+            (MinMaxAggregatorSupplier) (
                 name,
+                config,
                 valuesSource,
-                formatter,
                 context,
                 parent,
                 pipelineAggregators,
-                metaData) -> new AggregateMetricBackedAvgAggregator(
+                metaData) -> new AggregateMetricBackedMaxAggregator(
                     name,
+                    config,
                     (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSource,
-                    formatter,
                     context,
                     parent,
                     pipelineAggregators,

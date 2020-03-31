@@ -30,7 +30,6 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
             AggregateDoubleMetricFieldMapper.Metric.min,
             AggregateDoubleMetricFieldMapper.Metric.max
         )) {
-
             NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
             fieldType.addMetricField(m, subfield);
         }

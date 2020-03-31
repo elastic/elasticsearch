@@ -8,21 +8,11 @@ from an {es} index, transform it, and store it in another index. Let's use the
 {kibana-ref}/add-sample-data.html[{kib} sample data] to demonstrate how you can
 pivot and summarize your data with {transforms}.
 
-
-. If the {es} {security-features} are enabled, obtain a user ID with sufficient
-privileges to complete these steps. 
-+
---
-You need `manage_transform` cluster privileges to preview and create 
-{transforms}. Members of the built-in `transform_admin` role have these 
-privileges.
-
-You also need `read` and `view_index_metadata` index privileges on the source
-index and `read`, `create_index`, and `index` privileges on the destination
-index. 
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
---
+. Verify that your environment is set up properly to use {transforms}. If the
+{es} {security-features} are enabled, to complete this tutorial you need a user
+that has authority to preview and create {transforms}. You must also have
+specific index privileges for the source and destination indices. See
+<<transform-setup>>.
 
 . Choose your _source index_.
 +
@@ -268,3 +258,7 @@ TIP: If you do not want to keep the {transform}, you can delete it in
 <<delete-transform,delete {transform} API>>. When
 you delete a {transform}, its destination index and {kib} index
 patterns remain.
+
+Now that you've created a simple {transform} for {kib} sample data, consider
+possible use cases for your own data. For more ideas, see
+<<transform-usage>> and <<transform-examples>>.

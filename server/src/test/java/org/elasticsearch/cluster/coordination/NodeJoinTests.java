@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -108,9 +108,9 @@ public class NodeJoinTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder()
                 .add(localNode)
                 .localNodeId(localNode.getId()))
-            .metaData(MetaData.builder()
-                    .coordinationMetaData(
-                        CoordinationMetaData.builder()
+            .metadata(Metadata.builder()
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder()
                         .term(term)
                         .lastAcceptedConfiguration(config)
                         .lastCommittedConfiguration(config)
@@ -122,9 +122,10 @@ public class NodeJoinTests extends ESTestCase {
     private void setupFakeMasterServiceAndCoordinator(long term, ClusterState initialState) {
         deterministicTaskQueue
             = new DeterministicTaskQueue(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), random());
+        final ThreadPool fakeThreadPool = deterministicTaskQueue.getThreadPool();
         FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService("test_node","test",
-                deterministicTaskQueue::scheduleNow);
-        setupMasterServiceAndCoordinator(term, initialState, fakeMasterService, deterministicTaskQueue.getThreadPool(), Randomness.get());
+            fakeThreadPool, deterministicTaskQueue::scheduleNow);
+        setupMasterServiceAndCoordinator(term, initialState, fakeMasterService, fakeThreadPool, Randomness.get());
         fakeMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             coordinator.handlePublishRequest(new PublishRequest(event.state()));
             publishListener.onResponse(null);
@@ -275,7 +276,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            new VotingConfiguration(Collections.singleton(randomFrom(node0, node1).getId()))));
+            VotingConfiguration.of(randomFrom(node0, node1))));
         assertFalse(isLocalNodeElectedMaster());
         assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
         long newTerm = initialTerm + randomLongBetween(1, 10);
@@ -295,7 +296,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            new VotingConfiguration(Collections.singleton(node1.getId()))));
+            VotingConfiguration.of(node1)));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long higherVersion = initialVersion + randomLongBetween(1, 10);
@@ -311,7 +312,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            new VotingConfiguration(Collections.singleton(node0.getId()))));
+            VotingConfiguration.of(node0)));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long higherVersion = initialVersion + randomLongBetween(1, 10);
@@ -325,7 +326,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            new VotingConfiguration(Collections.singleton(node0.getId()))));
+            VotingConfiguration.of(node0)));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
@@ -342,7 +343,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            new VotingConfiguration(Collections.singleton(node0.getId()))));
+            VotingConfiguration.of(node0)));
         long newTerm = initialTerm + randomLongBetween(1, 10);
 
         joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
@@ -361,7 +362,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            new VotingConfiguration(Collections.singleton(node2.getId()))));
+            VotingConfiguration.of(node2)));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture futNode0 = joinNodeAsync(new JoinRequest(node0, newTerm, Optional.of(
@@ -388,7 +389,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            new VotingConfiguration(Collections.singleton(node0.getId()))));
+            VotingConfiguration.of(node0)));
         long newTerm = initialTerm + randomLongBetween(1, 10);
         handleStartJoinFrom(node1, newTerm);
         handleFollowerCheckFrom(node1, newTerm);
@@ -463,7 +464,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            new VotingConfiguration(Collections.singleton(node0.getId()))));
+            VotingConfiguration.of(node0)));
         long newTerm = initialTerm + randomLongBetween(1, 10);
         handleStartJoinFrom(node1, newTerm);
         handleFollowerCheckFrom(node1, newTerm);
@@ -479,7 +480,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            new VotingConfiguration(Collections.singleton(node1.getId()))));
+            VotingConfiguration.of(node1)));
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture fut = joinNodeAsync(new JoinRequest(node0, newTerm,
             Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));

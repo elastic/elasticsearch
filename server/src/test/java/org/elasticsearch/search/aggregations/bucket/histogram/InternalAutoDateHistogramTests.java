@@ -60,7 +60,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     @Override
     protected InternalAutoDateHistogram createTestInstance(String name,
                                                        List<PipelineAggregator> pipelineAggregators,
-                                                       Map<String, Object> metaData,
+                                                       Map<String, Object> metadata,
                                                        InternalAggregations aggregations) {
 
         roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null, null);
@@ -79,7 +79,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         }
         InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
         BucketInfo bucketInfo = new BucketInfo(roundingInfos, randomIntBetween(0, roundingInfos.length - 1), subAggregations);
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData, 1);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metadata, 1);
     }
 
     /*
@@ -238,7 +238,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         int targetBuckets = instance.getTargetBuckets();
         BucketInfo bucketInfo = instance.getBucketInfo();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -253,16 +253,16 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             bucketInfo = new BucketInfo(bucketInfo.roundingInfos, roundingIdx, bucketInfo.emptySubAggregations);
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData, 1);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metadata, 1);
     }
 }

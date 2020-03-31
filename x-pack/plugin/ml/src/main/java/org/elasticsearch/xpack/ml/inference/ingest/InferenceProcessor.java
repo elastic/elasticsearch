@@ -14,7 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -189,12 +189,12 @@ public class InferenceProcessor extends AbstractProcessor {
         @Override
         public void accept(ClusterState state) {
             minNodeVersion = state.nodes().getMinNodeVersion();
-            MetaData metaData = state.getMetaData();
-            if (metaData == null) {
+            Metadata metadata = state.getMetadata();
+            if (metadata == null) {
                 currentInferenceProcessors = 0;
                 return;
             }
-            IngestMetadata ingestMetadata = metaData.custom(IngestMetadata.TYPE);
+            IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
             if (ingestMetadata == null) {
                 currentInferenceProcessors = 0;
                 return;
@@ -242,7 +242,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
                 //TODO Remove in 8.x
                 if (fieldMap != null) {
-                    LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(FIELD_MAPPINGS, FIELD_MAP);
+                    LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
                 }
             }
             InferenceConfig inferenceConfig = inferenceConfigFromMap(ConfigurationUtils.readMap(TYPE, tag, config, INFERENCE_CONFIG));

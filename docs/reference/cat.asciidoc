@@ -269,4 +269,4 @@ include::cat/thread_pool.asciidoc[]
 
 include::cat/trainedmodel.asciidoc[]
 
-include::cat/transform.asciidoc[]
+include::cat/transforms.asciidoc[]

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,9 +36,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -62,12 +66,19 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         private final ScriptService scriptService;
         private final IntConsumer multiBucketConsumer;
         private final PipelineTree pipelineTreeRoot;
+        /**
+         * Supplies the pipelines when the result of the reduce is serialized
+         * to node versions that need pipeline aggregators to be serialized
+         * to them.
+         */
+        private final Supplier<PipelineTree> pipelineTreeForBwcSerialization;
 
         /**
          * Build a {@linkplain ReduceContext} to perform a partial reduction.
          */
-        public static ReduceContext forPartialReduction(BigArrays bigArrays, ScriptService scriptService) {
-            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null);
+        public static ReduceContext forPartialReduction(BigArrays bigArrays, ScriptService scriptService,
+                Supplier<PipelineTree> pipelineTreeForBwcSerialization) {
+            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization);
         }
 
         /**
@@ -77,15 +88,16 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         public static ReduceContext forFinalReduction(BigArrays bigArrays, ScriptService scriptService,
                 IntConsumer multiBucketConsumer, PipelineTree pipelineTreeRoot) {
             return new ReduceContext(bigArrays, scriptService, multiBucketConsumer,
-                    requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"));
+                    requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"), () -> pipelineTreeRoot);
         }
 
         private ReduceContext(BigArrays bigArrays, ScriptService scriptService, IntConsumer multiBucketConsumer,
-                PipelineTree pipelineTreeRoot) {
+                PipelineTree pipelineTreeRoot, Supplier<PipelineTree> pipelineTreeForBwcSerialization) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
             this.multiBucketConsumer = multiBucketConsumer;
             this.pipelineTreeRoot = pipelineTreeRoot;
+            this.pipelineTreeForBwcSerialization = pipelineTreeForBwcSerialization;
         }
 
         /**
@@ -113,6 +125,15 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         }
 
         /**
+         * Supplies the pipelines when the result of the reduce is serialized
+         * to node versions that need pipeline aggregators to be serialized
+         * to them.
+         */
+        public Supplier<PipelineTree> pipelineTreeForBwcSerialization() {
+            return pipelineTreeForBwcSerialization;
+        }
+
+        /**
          * Adds {@code count} buckets to the global count for the request and fails if this number is greater than
          * the maximum number of buckets allowed in a response
          */
@@ -124,19 +145,30 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     protected final String name;
 
-    protected final Map<String, Object> metaData;
+    protected final Map<String, Object> metadata;
 
     private final List<PipelineAggregator> pipelineAggregators;
+    private List<PipelineAggregator> pipelineAggregatorsForBwcSerialization;
 
     /**
-     * Constructs an get with a given name.
+     * Constructs an aggregation result with a given name.
      *
-     * @param name The name of the get.
+     * @param name The name of the aggregation.
      */
-    protected InternalAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         this.name = name;
         this.pipelineAggregators = pipelineAggregators;
-        this.metaData = metaData;
+        this.metadata = metadata;
+    }
+
+    /**
+     * Merge a {@linkplain PipelineAggregator.PipelineTree} into this
+     * aggregation result tree before serializing to a node older than
+     * 7.8.0.
+     */
+    public final void mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree pipelineTree) {
+        pipelineAggregatorsForBwcSerialization = pipelineTree.aggregators();
+        forEachBucket(bucketAggs -> bucketAggs.mergePipelineTreeForBWCSerialization(pipelineTree));
     }
 
     /**
@@ -144,15 +176,22 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      */
     protected InternalAggregation(StreamInput in) throws IOException {
         name = in.readString();
-        metaData = in.readMap();
-        pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class);
+        metadata = in.readMap();
+        pipelineAggregators = emptyList();
+        if (in.getVersion().before(Version.V_7_8_0)) {
+            in.readNamedWriteableList(PipelineAggregator.class);
+        }
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeGenericValue(metaData);
-        out.writeNamedWriteableList(pipelineAggregators);
+        out.writeGenericValue(metadata);
+        if (out.getVersion().before(Version.V_7_8_0)) {
+            assert pipelineAggregatorsForBwcSerialization != null :
+                "serializing to pre-7.8.0 versions should have called mergePipelineTreeForBWCSerialization";
+            out.writeNamedWriteableList(pipelineAggregatorsForBwcSerialization);
+        }
         doWriteTo(out);
     }
 
@@ -185,6 +224,11 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         throw new IllegalStateException(
                 "Aggregation [" + getName() + "] must be a bucket aggregation but was [" + getWriteableName() + "]");
     }
+
+    /**
+     * Run a {@linkplain Consumer} over all buckets in this aggregation.
+     */
+    public void forEachBucket(Consumer<InternalAggregations> consumer) {}
 
     /**
      * Creates the output from all pipeline aggs that this aggregation is associated with.  Should only
@@ -248,12 +292,25 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     @Override
-    public Map<String, Object> getMetaData() {
-        return metaData;
+    public Map<String, Object> getMetadata() {
+        return metadata;
     }
 
+    /**
+     * @deprecated soon to be removed because it is not longer needed
+     */
+    @Deprecated
     public List<PipelineAggregator> pipelineAggregators() {
         return pipelineAggregators;
+    }
+
+    /**
+     * The {@linkplain PipelineAggregator}s sent to older versions of Elasticsearch.
+     * @deprecated only use these for serializing to older Elasticsearch versions
+     */
+    @Deprecated
+    public List<PipelineAggregator> pipelineAggregatorsForBwcSerialization() {
+        return pipelineAggregatorsForBwcSerialization;
     }
 
     @Override
@@ -269,9 +326,9 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         } else {
             builder.startObject(getName());
         }
-        if (this.metaData != null) {
+        if (this.metadata != null) {
             builder.field(CommonFields.META.getPreferredName());
-            builder.map(this.metaData);
+            builder.map(this.metadata);
         }
         doXContentBody(builder, params);
         builder.endObject();
@@ -282,7 +339,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, metaData, pipelineAggregators);
+        return Objects.hash(name, metadata, pipelineAggregators);
     }
 
     @Override
@@ -295,7 +352,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         InternalAggregation other = (InternalAggregation) obj;
         return Objects.equals(name, other.name) &&
                 Objects.equals(pipelineAggregators, other.pipelineAggregators) &&
-                Objects.equals(metaData, other.metaData);
+                Objects.equals(metadata, other.metadata);
     }
 
     @Override

@@ -34,8 +34,8 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
     private final double min;
 
     public InternalMin(String name, double min, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.min = min;
         this.format = formatter;
     }
@@ -76,7 +76,7 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : aggregations) {
             min = Math.min(min, ((InternalMin) aggregation).min);
         }
-        return new InternalMin(getName(), min, this.format, pipelineAggregators(), getMetaData());
+        return new InternalMin(getName(), min, this.format, pipelineAggregators(), getMetadata());
     }
 
     @Override

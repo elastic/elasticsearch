@@ -20,110 +20,43 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.StatementNode;
-import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.ScriptRoot;
-import org.objectweb.asm.util.Printer;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
-
 /**
  * The root of all Painless trees.  Contains a series of statements.
  */
-public final class SClass extends ANode {
+public class SClass extends ANode {
 
-    private final ScriptClassInfo scriptClassInfo;
-    private final String name;
-    private final Printer debugStream;
-    private final List<SFunction> functions = new ArrayList<>();
-    private final List<SField> fields = new ArrayList<>();
+    protected final List<SFunction> functions = new ArrayList<>();
 
-    private ScriptRoot scriptRoot;
-    private final String sourceText;
-
-    public SClass(ScriptClassInfo scriptClassInfo, String name, String sourceText, Printer debugStream,
-            Location location, List<SFunction> functions) {
+    public SClass(Location location, List<SFunction> functions) {
         super(location);
-        this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
-        this.name = Objects.requireNonNull(name);
-        this.debugStream = debugStream;
         this.functions.addAll(Objects.requireNonNull(functions));
-        this.sourceText = Objects.requireNonNull(sourceText);
     }
 
-    void addFunction(SFunction function) {
-        functions.add(function);
-    }
-
-    void addField(SField field) {
-        fields.add(field);
-    }
-
-    public ScriptRoot analyze(ScriptRoot scriptRoot) {
-        this.scriptRoot = scriptRoot;
-        scriptRoot.addStaticConstant("$NAME", name);
-        scriptRoot.addStaticConstant("$SOURCE", sourceText);
-
+    public void buildClassScope(ScriptRoot scriptRoot) {
         for (SFunction function : functions) {
-            function.generateSignature(scriptRoot.getPainlessLookup());
-
-            String key = FunctionTable.buildLocalFunctionKey(function.name, function.typeParameters.size());
-
-            if (scriptRoot.getFunctionTable().getFunction(key) != null) {
-                throw createError(new IllegalArgumentException("Illegal duplicate functions [" + key + "]."));
-            }
-
-            scriptRoot.getFunctionTable().addFunction(
-                    function.name, function.returnType, function.typeParameters, function.isInternal, function.isStatic);
+            function.buildClassScope(scriptRoot);
         }
-
-        // copy protection is required because synthetic functions are
-        // added for lambdas/method references and analysis here is
-        // only for user-defined functions
-        List<SFunction> functions = new ArrayList<>(this.functions);
-        for (SFunction function : functions) {
-            function.analyze(scriptRoot);
-        }
-
-        return scriptRoot;
     }
 
-    @Override
-    public StatementNode write(ClassNode classNode) {
-        throw new UnsupportedOperationException();
-    }
+    public ClassNode writeClass(ScriptRoot scriptRoot) {
+        buildClassScope(scriptRoot);
 
-    public ClassNode writeClass() {
         ClassNode classNode = new ClassNode();
 
-        for (SField field : fields) {
-            classNode.addFieldNode(field.write(classNode));
-        }
-
         for (SFunction function : functions) {
-            classNode.addFunctionNode(function.write(classNode));
+            classNode.addFunctionNode(function.writeFunction(classNode, scriptRoot));
         }
 
         classNode.setLocation(location);
-        classNode.setScriptClassInfo(scriptClassInfo);
         classNode.setScriptRoot(scriptRoot);
-        classNode.setDebugStream(debugStream);
-        classNode.setName(name);
-        classNode.setSourceText(sourceText);
 
         return classNode;
-    }
-
-    @Override
-    public String toString() {
-        List<Object> subs = new ArrayList<>(functions.size());
-        subs.addAll(functions);
-        return multilineToString(emptyList(), subs);
     }
 }

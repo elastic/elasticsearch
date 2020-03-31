@@ -60,9 +60,9 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accou
      * NOTE: Must be thread safe
      * @param fields The fields inferring against
      * @param featureDecoder A Map translating processed feature names to their original feature names
-     * @return A {@code Map<String, Double>} mapping each featureName to its importance
+     * @return A {@code Map<String, double[]>} mapping each featureName to its importance
      */
-    Map<String, Double> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder);
+    Map<String, double[]> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder);
 
     default Version getMinimalCompatibilityVersion() {
         return Version.V_7_6_0;

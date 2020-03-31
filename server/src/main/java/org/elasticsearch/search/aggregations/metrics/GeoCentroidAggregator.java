@@ -48,8 +48,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
 
     GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
                                     ValuesSource.GeoPoint valuesSource, List<PipelineAggregator> pipelineAggregators,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
@@ -120,12 +120,12 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         final GeoPoint bucketCentroid = (bucketCount > 0)
                 ? new GeoPoint(latSum.get(bucket) / bucketCount, lonSum.get(bucket) / bucketCount)
                 : null;
-        return new InternalGeoCentroid(name, bucketCentroid , bucketCount, pipelineAggregators(), metaData());
+        return new InternalGeoCentroid(name, bucketCentroid , bucketCount, pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoCentroid(name, null, 0L, pipelineAggregators(), metaData());
+        return new InternalGeoCentroid(name, null, 0L, pipelineAggregators(), metadata());
     }
 
     @Override

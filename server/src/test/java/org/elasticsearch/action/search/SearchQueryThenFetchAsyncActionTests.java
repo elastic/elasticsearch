@@ -29,14 +29,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContextId;
@@ -44,6 +42,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Collections;
@@ -59,6 +58,14 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     public void testBottomFieldSort() throws InterruptedException {
+        testCase(false);
+    }
+
+    public void testScrollDisableBottomFieldSort() throws InterruptedException {
+        testCase(true);
+    }
+
+    private void testCase(boolean withScroll) throws InterruptedException {
         final TransportSearchAction.SearchTimeProvider timeProvider =
             new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
 
@@ -89,10 +96,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null, OriginalIndices.NONE));
                 SortField sortField = new SortField("timestamp", SortField.Type.LONG);
                 queryResult.topDocs(new TopDocsAndMaxScore(new TopFieldDocs(
-                    new TotalHits(1, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                    new FieldDoc[] {
-                        new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() })
-                    }, new SortField[] { sortField }), Float.NaN),
+                        new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                        new FieldDoc[] {
+                            new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() })
+                        }, new SortField[] { sortField }), Float.NaN),
                     new DocValueFormat[] { DocValueFormat.RAW });
                 queryResult.from(0);
                 queryResult.size(1);
@@ -109,20 +116,14 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         searchRequest.setBatchedReduceSize(2);
         searchRequest.source(new SearchSourceBuilder()
             .size(1)
-            .trackTotalHitsUpTo(2)
             .sort(SortBuilders.fieldSort("timestamp")));
+        if (withScroll) {
+            searchRequest.scroll(TimeValue.timeValueMillis(100));
+        } else {
+            searchRequest.source().trackTotalHitsUpTo(2);
+        }
         searchRequest.allowPartialSearchResults(false);
-        SearchPhaseController controller = new SearchPhaseController((b) -> new InternalAggregation.ReduceContextBuilder() {
-            @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null);
-            }
-
-            public InternalAggregation.ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(
-                    BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineAggregator.PipelineTree.EMPTY);
-            };
-        });
+        SearchPhaseController controller = new SearchPhaseController(r -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", "test", null, Collections.emptyMap());
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
@@ -143,12 +144,22 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         action.start();
         latch.await();
         assertThat(successfulOps.get(), equalTo(numShards));
-        assertTrue(canReturnNullResponse.get());
-        assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
+        if (withScroll) {
+            assertFalse(canReturnNullResponse.get());
+            assertThat(numWithTopDocs.get(), equalTo(0));
+        } else {
+            assertTrue(canReturnNullResponse.get());
+            assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
+        }
         SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
         assertThat(phase.numReducePhases, greaterThanOrEqualTo(1));
-        assertThat(phase.totalHits.value, equalTo(2L));
-        assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+        if (withScroll) {
+            assertThat(phase.totalHits.value, equalTo((long) numShards));
+            assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
+        } else {
+            assertThat(phase.totalHits.value, equalTo(2L));
+            assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+        }
         assertThat(phase.sortedTopDocs.scoreDocs.length, equalTo(1));
         assertThat(phase.sortedTopDocs.scoreDocs[0], instanceOf(FieldDoc.class));
         assertThat(((FieldDoc) phase.sortedTopDocs.scoreDocs[0]).fields.length, equalTo(1));

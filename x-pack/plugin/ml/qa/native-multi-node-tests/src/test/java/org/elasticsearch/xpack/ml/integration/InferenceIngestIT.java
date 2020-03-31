@@ -156,8 +156,10 @@ public class InferenceIngestIT extends ESRestTestCase {
         String responseString = EntityUtils.toString(response.getEntity());
         assertThat(responseString, containsString("\"predicted_value\":\"second\""));
         assertThat(responseString, containsString("\"predicted_value\":1.0"));
-        assertThat(responseString, containsString("\"col2\":0.944"));
-        assertThat(responseString, containsString("\"col1\":0.19999"));
+        assertThat(responseString, containsString("\"feature_name\":\"col1\""));
+        assertThat(responseString, containsString("\"feature_name\":\"col2\""));
+        assertThat(responseString, containsString("\"importance\":0.944"));
+        assertThat(responseString, containsString("\"importance\":0.19999"));
 
         String sourceWithMissingModel = "{\n" +
             "  \"pipeline\": {\n" +
@@ -221,8 +223,10 @@ public class InferenceIngestIT extends ESRestTestCase {
         Response response = client().performRequest(simulateRequest(source));
         String responseString = EntityUtils.toString(response.getEntity());
         assertThat(responseString, containsString("\"predicted_value\":\"second\""));
-        assertThat(responseString, containsString("\"col2\":0.944"));
-        assertThat(responseString, containsString("\"col1\":0.19999"));
+        assertThat(responseString, containsString("\"feature_name\":\"col1\""));
+        assertThat(responseString, containsString("\"feature_name\":\"col2\""));
+        assertThat(responseString, containsString("\"importance\":0.944"));
+        assertThat(responseString, containsString("\"importance\":0.19999"));
     }
 
     public void testSimulateLangIdent() throws IOException {

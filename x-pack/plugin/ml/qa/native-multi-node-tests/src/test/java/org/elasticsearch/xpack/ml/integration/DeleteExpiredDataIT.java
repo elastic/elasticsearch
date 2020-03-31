@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -14,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -41,6 +44,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -275,6 +279,44 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
         assertThat("Documents for non_existing_job are still around; examples: " + nonExistingJobExampleIds,
             nonExistingJobDocsCount, equalTo(0));
+    }
+
+    /**
+     * Verifies empty state indices deletion. Here is the summary of indices used by the test:
+     *
+     * +------------------+--------+----------+-------------------------+
+     * | index name       | empty? | current? | expected to be removed? |
+     * +------------------+--------+----------+-------------------------+
+     * | .ml-state        | yes    | no       | yes                     |
+     * | .ml-state-000001 | no     | no       | no                      |
+     * | .ml-state-000003 | yes    | no       | yes                     |
+     * | .ml-state-000005 | no     | no       | no                      |
+     * | .ml-state-000007 | yes    | yes      | no                      |
+     * +------------------+--------+----------+-------------------------+
+     */
+    public void testDeleteExpiredDataActionDeletesEmptyStateIndices() throws Exception {
+        client().admin().indices().prepareCreate(".ml-state").get();
+        client().admin().indices().prepareCreate(".ml-state-000001").get();
+        client().prepareIndex(".ml-state-000001").setSource("field_1", "value_1").get();
+        client().admin().indices().prepareCreate(".ml-state-000003").get();
+        client().admin().indices().prepareCreate(".ml-state-000005").get();
+        client().prepareIndex(".ml-state-000005").setSource("field_5", "value_5").get();
+        client().admin().indices().prepareCreate(".ml-state-000007").addAlias(new Alias(".ml-state-write").isHidden(true)).get();
+        refresh();
+
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(".ml-state*").get();
+        assertThat(Strings.toString(getIndexResponse),
+            getIndexResponse.getIndices(),
+            is(arrayContaining(".ml-state", ".ml-state-000001", ".ml-state-000003", ".ml-state-000005", ".ml-state-000007")));
+
+        client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
+        refresh();
+
+        getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(".ml-state*").get();
+        assertThat(Strings.toString(getIndexResponse),
+            getIndexResponse.getIndices(),
+            // Only non-empty or current indices should survive deletion process
+            is(arrayContaining(".ml-state-000001", ".ml-state-000005", ".ml-state-000007")));
     }
 
     private static Job.Builder newJobBuilder(String id) {

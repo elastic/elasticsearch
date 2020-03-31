@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -296,16 +295,6 @@ public abstract class Streams {
         @Override
         public BytesReference bytes() {
             return delegate.bytes();
-        }
-
-        @Override
-        public Version getVersion() {
-            return delegate.getVersion();
-        }
-
-        @Override
-        public void setVersion(Version version) {
-            delegate.setVersion(version);
         }
     }
 }

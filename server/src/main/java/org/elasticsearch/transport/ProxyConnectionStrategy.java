@@ -157,7 +157,9 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     protected boolean strategyMustBeRebuilt(Settings newSettings) {
         String address = PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         int numOfSockets = REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        return numOfSockets != maxNumConnections || configuredAddress.equals(address) == false;
+        String serverName = SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        return numOfSockets != maxNumConnections || configuredAddress.equals(address) == false ||
+            Objects.equals(serverName, configuredServerName) == false;
     }
 
     @Override

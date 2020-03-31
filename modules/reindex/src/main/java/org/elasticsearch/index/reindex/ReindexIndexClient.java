@@ -65,8 +65,8 @@ public class ReindexIndexClient {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public void getReindexTaskDoc(String taskId, ActionListener<ReindexTaskState> listener) {
-        GetRequest getRequest = new GetRequest(REINDEX_ALIAS).id(taskId);
+    public void getReindexTaskDoc(String id, ActionListener<ReindexTaskState> listener) {
+        GetRequest getRequest = new GetRequest(REINDEX_ALIAS).id(id);
         client.get(getRequest, new ActionListener<>() {
             @Override
             public void onResponse(GetResponse response) {
@@ -89,10 +89,9 @@ public class ReindexIndexClient {
         });
     }
 
-    public void createReindexTaskDoc(String taskId, ReindexTaskStateDoc reindexState,
-                                     ActionListener<ReindexTaskState> listener) {
+    public void createReindexTaskDoc(String id, ReindexTaskStateDoc reindexState, ActionListener<ReindexTaskState> listener) {
         ensureReindexIndex(ActionListener.delegateFailure(listener,
-            (l, v) -> index(taskId, reindexState, DocWriteRequest.OpType.CREATE, false, -1, -1, listener)));
+            (l, v) -> index(id, reindexState, DocWriteRequest.OpType.CREATE, false, -1, -1, listener)));
     }
 
     private void ensureReindexIndex(ActionListener<Void> listener) {
@@ -138,14 +137,14 @@ public class ReindexIndexClient {
         });
     }
 
-    public void updateReindexTaskDoc(String taskId, ReindexTaskStateDoc reindexState, long previousTerm, long previousSeqNo,
+    public void updateReindexTaskDoc(String id, ReindexTaskStateDoc reindexState, long previousTerm, long previousSeqNo,
                                      ActionListener<ReindexTaskState> listener) {
-        index(taskId, reindexState, DocWriteRequest.OpType.INDEX, true, previousTerm, previousSeqNo, listener);
+        index(id, reindexState, DocWriteRequest.OpType.INDEX, true, previousTerm, previousSeqNo, listener);
     }
 
-    private void index(String taskId, ReindexTaskStateDoc reindexState, DocWriteRequest.OpType opType, boolean conditional,
+    private void index(String id, ReindexTaskStateDoc reindexState, DocWriteRequest.OpType opType, boolean conditional,
                        long previousTerm, long previousSeqNo, ActionListener<ReindexTaskState> listener) {
-        IndexRequest indexRequest = new IndexRequest(REINDEX_ALIAS).id(taskId).opType(opType);
+        IndexRequest indexRequest = new IndexRequest(REINDEX_ALIAS).id(id).opType(opType);
         if (conditional) {
             indexRequest.setIfPrimaryTerm(previousTerm);
             indexRequest.setIfSeqNo(previousSeqNo);

@@ -103,7 +103,7 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
         StartReindexTaskAction.Response response = client().execute(StartReindexTaskAction.INSTANCE, request).get();
 
         TaskId taskId = new TaskId(response.getEphemeralTaskId());
-        String persistentTaskId = response.getPersistentTaskId();
+        String persistentTaskId = response.getId();
 
         Set<String> reindexNodeNames = Arrays.stream(internalCluster().getNodeNames())
             .map(name -> Tuple.tuple(internalCluster().getInstance(NodeClient.class, name).getLocalNodeId(), name))

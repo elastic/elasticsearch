@@ -183,7 +183,7 @@ public class ReindexFailoverIT extends ReindexTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> dotReindexResponse =
-            (Map<String, Object>) client().prepareGet(".reindex", response.getPersistentTaskId()).get().getSource().get("response");
+            (Map<String, Object>) client().prepareGet(".reindex", response.getId()).get().getSource().get("response");
         assertThat((int) dotReindexResponse.get("created") + (int) dotReindexResponse.get("updated"),
             greaterThanOrEqualTo(docCount));
 

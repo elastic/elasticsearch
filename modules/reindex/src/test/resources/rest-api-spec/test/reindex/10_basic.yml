@@ -92,6 +92,7 @@
   - is_false: timed_out
   - match: {task: '/.+:\d+/'}
   - set: {task: task}
+  - set: {id: id}
   - is_false: updated
   - is_false: version_conflicts
   - is_false: batches
@@ -119,6 +120,25 @@
   - gte: { response.took: 0 }
   - is_false: response.task
   - is_false: response.deleted
+
+  - do:
+      reindex.get:
+        id: $id
+
+  - match: {tasks.0.state: "done"}
+  - match: {tasks.0.start_time: /.+/}
+  - match: {tasks.0.end_time: /.+/}
+  - match: {tasks.0.created: 1}
+  - match: {tasks.0.noops: 0}
+  - match: {tasks.0.batches: 1}
+  - match: {tasks.0.updated: 0}
+  - match: {tasks.0.total: 1}
+  - match: {tasks.0.version_conflicts: 0}
+  - match: {tasks.0.batches: 1}
+  - match: {tasks.0.failures: []}
+  - match: {tasks.0.throttled_millis: 0}
+  - match: {tasks.0.throttled_until_millis: 0}
+  - gte: {tasks.0.duration_in_millis: 0}
 
   # Make sure reindex closed all the scroll contexts
   - do:

@@ -794,6 +794,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.exists_type",
             "indices.get_upgrade",
             "indices.put_alias",
+            "reindex.get",
             "render_search_template",
             "scripts_painless_execute",
             "cluster.put_component_template",

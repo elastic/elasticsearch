@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist;
 
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWithFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
 
@@ -21,6 +22,10 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     public static Integer length(String s) {
         return (Integer) LengthFunctionProcessor.doProcess(s);
+    }
+
+    public static Boolean startsWith(String s, String pattern) {
+        return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern);
     }
 
     public static String substring(String s, Number start, Number end) {

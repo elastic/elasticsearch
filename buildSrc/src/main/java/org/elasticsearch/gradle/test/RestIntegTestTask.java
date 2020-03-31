@@ -70,7 +70,11 @@ public class RestIntegTestTask extends DefaultTask {
         }
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
-        project.getGradle().projectsEvaluated(x -> runner.onlyIf(t -> this.getEnabled()));
+        project.getGradle().projectsEvaluated(x -> {
+            if (isEnabled() == false) {
+                runner.setEnabled(false);
+            }
+        });
     }
 
     @Override

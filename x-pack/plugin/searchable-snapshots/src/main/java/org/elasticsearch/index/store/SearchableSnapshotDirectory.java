@@ -136,10 +136,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return stats.get(fileName);
     }
 
-    public long statsCurrentTimeNanos() {
-        return statsCurrentTimeNanosSupplier.getAsLong();
-    }
-
     private BlobStoreIndexShardSnapshot.FileInfo fileInfo(final String name) throws FileNotFoundException {
         return snapshot.indexFiles()
             .stream()
@@ -219,7 +215,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     protected IndexInputStats createIndexInputStats(final long fileLength) {
-        return new IndexInputStats(fileLength);
+        return new IndexInputStats(fileLength, statsCurrentTimeNanosSupplier);
     }
 
     public CacheKey createCacheKey(String fileName) {
@@ -244,7 +240,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         if (useCache && isExcludedFromCache(name) == false) {
             return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats);
         } else {
-            return new DirectBlobContainerIndexInput(this, fileInfo, context, inputStats, uncachedChunkSize, bufferSize(context));
+            return new DirectBlobContainerIndexInput(blobContainer, fileInfo, context, inputStats, uncachedChunkSize, bufferSize(context));
         }
     }
 

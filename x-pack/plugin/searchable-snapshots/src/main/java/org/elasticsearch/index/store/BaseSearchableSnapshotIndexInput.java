@@ -18,7 +18,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
 
-    protected final SearchableSnapshotDirectory directory;
     protected final BlobContainer blobContainer;
     protected final FileInfo fileInfo;
     protected final IOContext context;
@@ -32,7 +31,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
 
     public BaseSearchableSnapshotIndexInput(
         String resourceDesc,
-        SearchableSnapshotDirectory directory,
+        BlobContainer blobContainer,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
@@ -40,8 +39,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         long length
     ) {
         super(resourceDesc, context);
-        this.directory = Objects.requireNonNull(directory);
-        this.blobContainer = Objects.requireNonNull(directory.blobContainer());
+        this.blobContainer = Objects.requireNonNull(blobContainer);
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
         assert fileInfo.metadata().hashEqualsContents() == false
@@ -55,7 +53,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
 
     public BaseSearchableSnapshotIndexInput(
         String resourceDesc,
-        SearchableSnapshotDirectory directory,
+        BlobContainer blobContainer,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
@@ -63,7 +61,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         long length,
         int bufferSize
     ) {
-        this(resourceDesc, directory, fileInfo, context, stats, offset, length);
+        this(resourceDesc, blobContainer, fileInfo, context, stats, offset, length);
         setBufferSize(bufferSize);
     }
 

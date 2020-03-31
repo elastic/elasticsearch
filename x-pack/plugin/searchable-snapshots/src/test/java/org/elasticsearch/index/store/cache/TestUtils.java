@@ -65,6 +65,18 @@ public final class TestUtils {
         assertThat(counter.max(), equalTo(max));
     }
 
+    public static void assertCounter(
+        IndexInputStats.TimedCounter timedCounter,
+        long total,
+        long count,
+        long min,
+        long max,
+        long totalNanoseconds
+    ) {
+        assertCounter(timedCounter, total, count, min, max);
+        assertThat(timedCounter.totalNanoseconds(), equalTo(totalNanoseconds));
+    }
+
     /**
      * A {@link BlobContainer} that can read a single in-memory blob.
      * Any attempt to read a different blob will throw a {@link FileNotFoundException}

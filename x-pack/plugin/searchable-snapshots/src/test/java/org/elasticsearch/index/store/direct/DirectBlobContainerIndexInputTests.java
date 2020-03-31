@@ -14,7 +14,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.IndexInputStats;
-import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.ByteArrayInputStream;
@@ -96,9 +95,8 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     };
                 }
             });
-        final SearchableSnapshotDirectory directory = mock(SearchableSnapshotDirectory.class);
-        when(directory.blobContainer()).thenReturn(blobContainer);
-        return new DirectBlobContainerIndexInput(directory, fileInfo, newIOContext(random()), new IndexInputStats(0L), minimumReadSize,
+        return new DirectBlobContainerIndexInput(blobContainer, fileInfo, newIOContext(random()), new IndexInputStats(0L, () -> 0L),
+            minimumReadSize,
             randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE));
     }
 

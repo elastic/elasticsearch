@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
 import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
@@ -541,6 +542,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final IndexId indexId = new IndexId("_name", "_uuid");
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
         final AtomicLong fakeClock = new AtomicLong();
+        final LongSupplier statsCurrentTimeNanos = () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS);
 
         final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
 
@@ -553,13 +555,13 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         try (CacheService ignored = cacheService;
              SearchableSnapshotDirectory directory =
                  new SearchableSnapshotDirectory(blobContainer, snapshot, snapshotId, indexId, shardId, indexSettings,
-                     () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS), cacheService, createTempDir()) {
+                     statsCurrentTimeNanos, cacheService, createTempDir()) {
                      @Override
                      protected IndexInputStats createIndexInputStats(long fileLength) {
                          if (seekingThreshold == null) {
                              return super.createIndexInputStats(fileLength);
                          }
-                         return new IndexInputStats(fileLength, seekingThreshold);
+                         return new IndexInputStats(fileLength, seekingThreshold, statsCurrentTimeNanos);
                      }
                  }
         ) {

@@ -7,14 +7,21 @@ package org.elasticsearch.index.store;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.function.LongSupplier;
+
 import static org.elasticsearch.index.store.IndexInputStats.SEEKING_THRESHOLD;
 import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
 
 public class IndexInputStatsTests extends ESTestCase {
 
+    private static LongSupplier FAKE_CLOCK = () -> {
+        assert false : "should not be called";
+        return -1L;
+    };
+
     public void testReads() {
         final long fileLength = randomLongBetween(1L, 1_000L);
-        final IndexInputStats inputStats = new IndexInputStats(fileLength);
+        final IndexInputStats inputStats = new IndexInputStats(fileLength, FAKE_CLOCK);
 
         assertCounter(inputStats.getContiguousReads(), 0L, 0L, 0L, 0L);
         assertCounter(inputStats.getNonContiguousReads(), 0L, 0L, 0L, 0L);
@@ -45,7 +52,7 @@ public class IndexInputStatsTests extends ESTestCase {
     public void testSeeks() {
         final long fileLength = randomLongBetween(1L, 1_000L);
         final long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileLength) : SEEKING_THRESHOLD.getBytes();
-        final IndexInputStats inputStats = new IndexInputStats(fileLength, seekingThreshold);
+        final IndexInputStats inputStats = new IndexInputStats(fileLength, seekingThreshold, FAKE_CLOCK);
 
         assertCounter(inputStats.getForwardSmallSeeks(), 0L, 0L, 0L, 0L);
         assertCounter(inputStats.getForwardLargeSeeks(), 0L, 0L, 0L, 0L);
@@ -84,7 +91,7 @@ public class IndexInputStatsTests extends ESTestCase {
     }
 
     public void testSeekToSamePosition() {
-        final IndexInputStats inputStats = new IndexInputStats(randomLongBetween(1L, 1_000L));
+        final IndexInputStats inputStats = new IndexInputStats(randomLongBetween(1L, 1_000L), FAKE_CLOCK);
         final long position = randomLongBetween(0L, inputStats.getFileLength());
 
         inputStats.incrementSeeks(position, position);

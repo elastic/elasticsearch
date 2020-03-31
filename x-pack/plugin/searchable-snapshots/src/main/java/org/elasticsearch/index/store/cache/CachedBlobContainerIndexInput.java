@@ -34,6 +34,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private static final Logger logger = LogManager.getLogger(CachedBlobContainerIndexInput.class);
     private static final int COPY_BUFFER_SIZE = 8192;
 
+    private final SearchableSnapshotDirectory directory;
     private final CacheFileReference cacheFileReference;
 
     // last read position is kept around in order to detect (non)contiguous reads for stats
@@ -54,7 +55,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     private CachedBlobContainerIndexInput(String resourceDesc, SearchableSnapshotDirectory directory, FileInfo fileInfo, IOContext context,
                                           IndexInputStats stats, long offset, long length, CacheFileReference cacheFileReference) {
-        super(resourceDesc, directory, fileInfo, context, stats, offset, length);
+        super(resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
+        this.directory = directory;
         this.cacheFileReference = cacheFileReference;
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
@@ -127,7 +129,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
 
         int bytesCopied = 0;
-        final long startTimeNanos = directory.statsCurrentTimeNanos();
+        final long startTimeNanos = stats.currentTimeNanos();
         try (InputStream input = openInputStream(start, length)) {
             long remaining = end - start;
             while (remaining > 0) {
@@ -141,7 +143,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
             }
-            final long endTimeNanos = directory.statsCurrentTimeNanos();
+            final long endTimeNanos = stats.currentTimeNanos();
             stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
         }
     }
@@ -192,7 +194,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             new ParameterizedMessage("direct reading of range [{}-{}] for cache file [{}]", start, end, cacheFileReference));
 
         int bytesCopied = 0;
-        final long startTimeNanos = directory.statsCurrentTimeNanos();
+        final long startTimeNanos = stats.currentTimeNanos();
         try (InputStream input = openInputStream(start, length)) {
             long remaining = end - start;
             while (remaining > 0) {
@@ -206,7 +208,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
             }
-            final long endTimeNanos = directory.statsCurrentTimeNanos();
+            final long endTimeNanos = stats.currentTimeNanos();
             stats.addDirectBytesRead(bytesCopied, endTimeNanos - startTimeNanos);
         }
         return bytesCopied;

@@ -19,7 +19,7 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     InternalEqlScriptUtils() {}
 
-    public static String string(String s, Number start, Number end) {
+    public static String string(String s) {
         return (String) ToStringFunctionProcessor.doProcess(s);
     }
 

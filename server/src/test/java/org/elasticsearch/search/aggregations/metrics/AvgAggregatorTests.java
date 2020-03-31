@@ -595,7 +595,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();
-            verify.accept((InternalAvg) aggregator.buildAggregation(0L));
+        verify.accept((InternalAvg) aggregator.buildAggregation(0L));
 
         indexReader.close();
         directory.close();

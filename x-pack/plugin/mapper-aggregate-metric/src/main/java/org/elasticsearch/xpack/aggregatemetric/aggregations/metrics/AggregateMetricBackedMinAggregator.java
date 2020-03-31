@@ -5,22 +5,14 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -38,17 +30,11 @@ import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricField
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.SingleValue {
-    private static final int MAX_BKD_LOOKUPS = 1024;
 
     private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
     final DocValueFormat format;
-
-    final String pointField;
-    final Function<byte[], Number> pointConverter;
-
     DoubleArray mins;
 
     AggregateMetricBackedMinAggregator(
@@ -68,12 +54,6 @@ class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.Single
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
         this.format = config.format();
-        this.pointConverter = getPointReaderOrNull(context, parent, config);
-        if (pointConverter != null) {
-            pointField = config.fieldContext().field();
-        } else {
-            pointField = null;
-        }
     }
 
     @Override
@@ -91,23 +71,9 @@ class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.Single
                 throw new CollectionTerminatedException();
             }
         }
-        if (pointConverter != null) {
-            Number segMin = findLeafMinValue(ctx.reader(), pointField, pointConverter);
-            if (segMin != null) {
-                /*
-                 * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
-                 * so the ordinal for the bucket is always 0.
-                 */
-                double min = mins.get(0);
-                min = Math.min(min, segMin.doubleValue());
-                mins.set(0, min);
-                // the minimum value has been extracted, we don't need to collect hits on this segment.
-                throw new CollectionTerminatedException();
-            }
-        }
+
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.getAggregateMetricValues(ctx, Metric.min);
-
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
 
@@ -152,81 +118,5 @@ class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.Single
     @Override
     public void doClose() {
         Releasables.close(mins);
-    }
-
-    /**
-     * Returns a converter for point values if early termination is applicable to
-     * the context or <code>null</code> otherwise.
-     *
-     * @param context The {@link SearchContext} of the aggregation.
-     * @param parent The parent aggregator.
-     * @param config The config for the values source metric.
-     */
-    static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent, ValuesSourceConfig config) {
-        if (context.query() != null && context.query().getClass() != MatchAllDocsQuery.class) {
-            return null;
-        }
-        if (parent != null) {
-            return null;
-        }
-        if (config.fieldContext() != null && config.script() == null && config.missing() == null) {
-            MappedFieldType fieldType = config.fieldContext().fieldType();
-            if (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE) {
-                return null;
-            }
-            Function<byte[], Number> converter = null;
-            if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-                converter = ((NumberFieldMapper.NumberFieldType) fieldType)::parsePoint;
-            } else if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
-                DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) fieldType;
-                converter = dft.resolution()::parsePointAsMillis;
-            }
-            return converter;
-        }
-        return null;
-    }
-
-    /**
-     * Returns the minimum value indexed in the <code>fieldName</code> field or <code>null</code>
-     * if the value cannot be inferred from the indexed {@link PointValues}.
-     */
-    static Number findLeafMinValue(LeafReader reader, String fieldName, Function<byte[], Number> converter) throws IOException {
-        final PointValues pointValues = reader.getPointValues(fieldName);
-        if (pointValues == null) {
-            return null;
-        }
-        final Bits liveDocs = reader.getLiveDocs();
-        if (liveDocs == null) {
-            return converter.apply(pointValues.getMinPackedValue());
-        }
-        final Number[] result = new Number[1];
-        try {
-            pointValues.intersect(new PointValues.IntersectVisitor() {
-                private short lookupCounter = 0;
-
-                @Override
-                public void visit(int docID) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public void visit(int docID, byte[] packedValue) {
-                    if (liveDocs.get(docID)) {
-                        result[0] = converter.apply(packedValue);
-                        // this is the first leaf with a live doc so the value is the minimum for this segment.
-                        throw new CollectionTerminatedException();
-                    }
-                    if (++lookupCounter > MAX_BKD_LOOKUPS) {
-                        throw new CollectionTerminatedException();
-                    }
-                }
-
-                @Override
-                public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                    return PointValues.Relation.CELL_CROSSES_QUERY;
-                }
-            });
-        } catch (CollectionTerminatedException e) {}
-        return result[0];
     }
 }

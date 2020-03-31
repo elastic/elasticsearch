@@ -60,7 +60,7 @@ public abstract class CancellableTask extends Task {
      */
     public abstract boolean shouldCancelChildrenOnCancellation();
 
-    public final boolean isCancelled() {
+    public boolean isCancelled() {
         return cancelled.get();
     }
 

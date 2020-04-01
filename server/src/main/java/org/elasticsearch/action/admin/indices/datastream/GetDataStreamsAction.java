@@ -73,13 +73,13 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.name = in.readString();
+            this.name = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(name);
+            out.writeOptionalString(name);
         }
 
         @Override
@@ -87,12 +87,12 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return name.equals(request.name);
+            return Objects.equals(name, request.name);
         }
 
         @Override
         public int hashCode() {
-            return name.hashCode();
+            return Objects.hash(name);
         }
     }
 

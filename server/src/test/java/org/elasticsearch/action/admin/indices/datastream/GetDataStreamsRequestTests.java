@@ -43,10 +43,25 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLength(8) + (randomBoolean() ? "*" : ""));
+        final String searchParameter;
+        switch (randomIntBetween(1, 4)) {
+            case 1:
+                searchParameter = randomAlphaOfLength(8);
+                break;
+            case 2:
+                searchParameter = randomAlphaOfLength(8) + "*";
+                break;
+            case 3:
+                searchParameter = "*";
+                break;
+            default:
+                searchParameter = null;
+                break;
+        }
+        return new Request(searchParameter);
     }
 
-    public void testGetDataStreams() {
+    public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
         DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
@@ -55,6 +70,37 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
         List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamName));
+    }
+
+    public void testGetDataStreamsWithWildcards() {
+        final String[] dataStreamNames = {"my-data-stream", "another-data-stream"};
+        DataStream ds1 = new DataStream(dataStreamNames[0], "timestamp", Collections.emptyList());
+        DataStream ds2 = new DataStream(dataStreamNames[1], "timestamp", Collections.emptyList());
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().dataStreams(
+                Map.of(dataStreamNames[0], ds1, dataStreamNames[1], ds2)).build())
+            .build();
+
+        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(dataStreamNames[1].substring(0, 5) + "*");
+        List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        assertThat(dataStreams.size(), equalTo(1));
+        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
+
+        req = new GetDataStreamsAction.Request("*");
+        dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        assertThat(dataStreams.size(), equalTo(2));
+        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
+        assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
+
+        req = new GetDataStreamsAction.Request((String) null);
+        dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        assertThat(dataStreams.size(), equalTo(2));
+        assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
+        assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
+
+        req = new GetDataStreamsAction.Request("matches-none*");
+        dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        assertThat(dataStreams.size(), equalTo(0));
     }
 
     public void testGetNonexistentDataStream() {

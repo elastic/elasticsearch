@@ -76,7 +76,6 @@
 
   - do:
       indices.get_data_streams:
-        name: null
   - match: { 0.name: get-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
   - match: { 1.name: get-data-stream2 }
@@ -87,6 +86,14 @@
         name: get-data-stream1
   - match: { 0.name: get-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
+
+  - do:
+      indices.get_data_streams:
+        name: get-data-*
+  - match: { 0.name: get-data-stream1 }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 1.name: get-data-stream2 }
+  - match: { 1.timestamp_field: '@timestamp2' }
 
   - do:
       indices.get_data_streams:

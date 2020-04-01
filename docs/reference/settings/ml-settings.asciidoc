@@ -49,6 +49,10 @@ instances, see
 IMPORTANT: If you want to use {ml} features in your cluster, you must have
 `xpack.ml.enabled` set to `true` on all master-eligible nodes. This is the
 default behavior.
++
+IMPORTANT: If you want to use {ml} features with your Kibana, you must have
+`xpack.ml.enabled` set to `true` on all coordinating nodes which Kibana connects. This is the
+default behavior.
 
 `xpack.ml.inference_model.cache_size`::
 The maximum inference cache size allowed. The inference cache exists in the JVM

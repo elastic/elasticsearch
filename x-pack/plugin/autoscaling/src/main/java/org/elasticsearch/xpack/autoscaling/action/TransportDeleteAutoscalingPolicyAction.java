@@ -73,7 +73,7 @@ public class TransportDeleteAutoscalingPolicyAction extends TransportMasterNodeA
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask("put-autoscaling-policy", new AckedClusterStateUpdateTask<>(request, listener) {
+        clusterService.submitStateUpdateTask("delete-autoscaling-policy", new AckedClusterStateUpdateTask<>(request, listener) {
 
             @Override
             protected AcknowledgedResponse newResponse(final boolean acknowledged) {

@@ -265,8 +265,7 @@ GET _transform/_stats?from=5&size=10
 --------------------------------------------------
 // TEST[skip:todo]
 
-The following example gets usage information for the `ecommerce_transform`
-{transform}:
+The following example gets usage information for the {transform}:
 
 [source,console]
 --------------------------------------------------

@@ -885,7 +885,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                  final Map<String, Object> userMetadata,
                                  Version repositoryMetaVersion,
                                  final ActionListener<SnapshotInfo> listener) {
-
+        assert repositoryStateId > RepositoryData.UNKNOWN_REPO_GEN :
+            "Must finalize based on a valid repository generation but received [" + repositoryStateId + "]";
         final Collection<IndexId> indices = shardGenerations.indices();
         // Once we are done writing the updated index-N blob we remove the now unreferenced index-${uuid} blobs in each shard
         // directory if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
@@ -1026,11 +1027,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     protected void assertSnapshotOrGenericThread() {
-        // NORELEASE
-        /*
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.SNAPSHOT)
-            || Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC) :
-            "Expected current thread [" + Thread.currentThread() + "] to be the snapshot or generic thread.";*/
+        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SNAPSHOT + ']')
+            || Thread.currentThread().getName().contains('[' + ThreadPool.Names.GENERIC + ']') :
+            "Expected current thread [" + Thread.currentThread() + "] to be the snapshot or generic thread.";
     }
 
     @Override

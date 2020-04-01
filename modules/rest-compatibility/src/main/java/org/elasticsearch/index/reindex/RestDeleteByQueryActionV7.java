@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,15 +17,24 @@
  * under the License.
  */
 
-esplugin {
-  description 'Adds a compatiblity layer for the prior major versions REST API'
-  classname 'org.elasticsearch.rest.compat.RestCompatPlugin'
-}
+package org.elasticsearch.index.reindex;
 
-dependencies {
-  compile project(':modules:lang-mustache')
-  compile project(':modules:reindex')
-}
+import org.elasticsearch.Version;
+import org.elasticsearch.index.reindex.RestDeleteByQueryAction;
 
-integTest.enabled = false
-test.enabled = true
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
+public class RestDeleteByQueryActionV7 extends RestDeleteByQueryAction {
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/{index}/_delete_by_query"),
+            new Route(POST, "/{index}/{type}/_delete_by_query"));
+    }
+
+    @Override
+    public String compatibleWithVersion() {
+        return String.valueOf(Version.V_7_0_0.major);
+    }
+}

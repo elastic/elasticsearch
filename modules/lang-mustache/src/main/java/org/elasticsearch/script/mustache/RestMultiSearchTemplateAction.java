@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -49,7 +50,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     }
 
 
-    private final boolean allowExplicitIndex;
+    protected final boolean allowExplicitIndex;
 
     public RestMultiSearchTemplateAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
@@ -79,6 +80,16 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchTemplateRequest}
      */
     public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
+        return parseRequest(restRequest,allowExplicitIndex, k->false);
+    }
+
+    /**
+     * Parses a {@link RestRequest} body and returns a {@link MultiSearchTemplateRequest}
+     * @param typeConsumer - is a function used when parsing a request body. if it contains a types field it will consume it,
+     *                     allowing the same parsing logic to work in v7 and v8.
+     *                     It takes a string - field name, returns a boolean - if the field was "type or types"
+     */
+    public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex, Function<String,Boolean> typeConsumer) throws IOException {
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
@@ -94,7 +105,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                         throw new IllegalArgumentException("Malformed search template");
                     }
                     RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
-                }, k->false);
+                }, typeConsumer);
         return multiRequest;
     }
 

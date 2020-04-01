@@ -21,6 +21,7 @@ package org.elasticsearch.rest.compat.version7;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.document.RestIndexActionV7;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;

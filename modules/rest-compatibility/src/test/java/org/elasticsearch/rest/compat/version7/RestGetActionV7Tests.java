@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.compat.version7;
 
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.document.RestGetActionV7;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;

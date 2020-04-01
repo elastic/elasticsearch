@@ -59,7 +59,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
-    private final boolean allowExplicitIndex;
+    protected final boolean allowExplicitIndex;
 
     public RestMultiSearchAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);

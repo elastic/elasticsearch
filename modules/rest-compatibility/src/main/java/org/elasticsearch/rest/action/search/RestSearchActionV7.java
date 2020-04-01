@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.compat.version7.search;
+package org.elasticsearch.rest.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
@@ -34,15 +34,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchActionV7 extends RestSearchAction {
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in search requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in search requests is deprecated.";
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSearchAction.class));
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/{type}/_search"),
-            new Route(POST, "/{index}/{type}/_search"));
+        return List.of(new Route(GET, "/{index}/{type}/_search"), new Route(POST, "/{index}/{type}/_search"));
     }
 
     @Override

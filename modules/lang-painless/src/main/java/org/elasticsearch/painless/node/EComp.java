@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ComparisonNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -98,15 +99,17 @@ public class EComp extends AExpression {
             throw createError(new IllegalArgumentException("extraneous comparison of [null] constants"));
         }
 
-        left.cast(leftInput, leftOutput);
-        right.cast(rightInput, rightOutput);
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
         output.actual = boolean.class;
 
         ComparisonNode comparisonNode = new ComparisonNode();
 
-        comparisonNode.setLeftNode(left.cast(leftOutput));
-        comparisonNode.setRightNode(right.cast(rightOutput));
+        comparisonNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        comparisonNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
         comparisonNode.setLocation(location);
         comparisonNode.setExpressionType(output.actual);

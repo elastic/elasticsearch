@@ -19,11 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.ir.MemberCallNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -158,6 +160,7 @@ public class ECallLocal extends AExpression {
         }
 
         List<Output> argumentOutputs = new ArrayList<>(arguments.size());
+        List<PainlessCast> argumentCasts = new ArrayList<>(arguments.size());
         // if the class binding is using an implicit this reference then the arguments counted must
         // be incremented by 1 as the this reference will not be part of the arguments passed into
         // the class binding call
@@ -168,14 +171,16 @@ public class ECallLocal extends AExpression {
             argumentInput.expected = typeParameters.get(argument + classBindingOffset);
             argumentInput.internal = true;
             Output argumentOutput = expression.analyze(classNode, scriptRoot, scope, argumentInput);
-            expression.cast(argumentInput, argumentOutput);
             argumentOutputs.add(argumentOutput);
+            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+                    argumentOutput.actual, argumentInput.expected, argumentInput.explicit, argumentInput.internal));
+
         }
 
         MemberCallNode memberCallNode = new MemberCallNode();
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
-            memberCallNode.addArgumentNode(arguments.get(argument).cast(argumentOutputs.get(argument)));
+            memberCallNode.addArgumentNode(cast(argumentOutputs.get(argument).expressionNode, argumentCasts.get(argument)));
         }
 
         memberCallNode.setLocation(location);

@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -141,13 +142,15 @@ public class EBinary extends AExpression {
             }
         }
 
-        left.cast(leftInput, leftOutput);
-        right.cast(rightInput, rightOutput);
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
         BinaryMathNode binaryMathNode = new BinaryMathNode();
 
-        binaryMathNode.setLeftNode(left.cast(leftOutput));
-        binaryMathNode.setRightNode(right.cast(rightOutput));
+        binaryMathNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        binaryMathNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
         binaryMathNode.setLocation(location);
         binaryMathNode.setExpressionType(output.actual);

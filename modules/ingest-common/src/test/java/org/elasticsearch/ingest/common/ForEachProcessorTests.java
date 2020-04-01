@@ -102,7 +102,7 @@ public class ForEachProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("values", List.class), equalTo(Arrays.asList("A", "B", "c")));
     }
 
-    public void testMetaDataAvailable() throws Exception {
+    public void testMetadataAvailable() throws Exception {
         List<Map<String, Object>> values = new ArrayList<>();
         values.add(new HashMap<>());
         values.add(new HashMap<>());

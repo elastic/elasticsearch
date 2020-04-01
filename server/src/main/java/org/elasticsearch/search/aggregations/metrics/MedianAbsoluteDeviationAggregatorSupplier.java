@@ -36,6 +36,6 @@ public interface MedianAbsoluteDeviationAggregatorSupplier extends AggregatorSup
                      SearchContext context,
                      Aggregator parent,
                      List<PipelineAggregator> pipelineAggregators,
-                     Map<String, Object> metaData,
+                     Map<String, Object> metadata,
                      double compression) throws IOException;
 }

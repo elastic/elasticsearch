@@ -19,7 +19,7 @@
 package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -94,7 +94,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         assertBusy(() -> super.assertConsistentRepository(repo, executor), 10L, TimeUnit.MINUTES);
     }
 
-    protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
+    protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetadata> blobs) throws Exception {
         // AWS S3 is eventually consistent so we retry for 10 minutes assuming a list operation will never take longer than that
         // to become consistent.
         assertBusy(() -> super.assertBlobsByPrefix(path, prefix, blobs), 10L, TimeUnit.MINUTES);

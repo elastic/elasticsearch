@@ -20,7 +20,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -33,8 +33,8 @@ public class ShardStateIT extends ESIntegTestCase {
 
     public void testPrimaryFailureIncreasesTerm() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen();
         assertPrimaryTerms(1, 1);
 
@@ -68,15 +68,15 @@ public class ShardStateIT extends ESIntegTestCase {
         for (String node : internalCluster().getNodeNames()) {
             logger.debug("--> asserting primary terms terms on [{}]", node);
             ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
-            IndexMetaData metaData = state.metaData().index("test");
-            assertThat(metaData.primaryTerm(0), equalTo(shard0Term));
-            assertThat(metaData.primaryTerm(1), equalTo(shard1Term));
+            IndexMetadata metadata = state.metadata().index("test");
+            assertThat(metadata.primaryTerm(0), equalTo(shard0Term));
+            assertThat(metadata.primaryTerm(1), equalTo(shard1Term));
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-            IndexService indexService = indicesService.indexService(metaData.getIndex());
+            IndexService indexService = indicesService.indexService(metadata.getIndex());
             if (indexService != null) {
                 for (IndexShard shard : indexService) {
                     assertThat("term mismatch for shard " + shard.shardId(),
-                        shard.getPendingPrimaryTerm(), equalTo(metaData.primaryTerm(shard.shardId().id())));
+                        shard.getPendingPrimaryTerm(), equalTo(metadata.primaryTerm(shard.shardId().id())));
                 }
             }
         }

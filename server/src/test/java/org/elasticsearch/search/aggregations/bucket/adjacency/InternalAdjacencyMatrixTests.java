@@ -67,14 +67,14 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
 
     @Override
     protected InternalAdjacencyMatrix createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, InternalAggregations aggregations) {
+            Map<String, Object> metadata, InternalAggregations aggregations) {
         final List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>();
         for (int i = 0; i < keys.size(); ++i) {
             String key = keys.get(i);
             int docCount = randomIntBetween(0, 1000);
             buckets.add(new InternalAdjacencyMatrix.InternalBucket(key, docCount, aggregations));
         }
-        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators, metaData);
+        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators, metadata);
     }
 
     @Override
@@ -111,7 +111,7 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
         String name = instance.getName();
         List<InternalAdjacencyMatrix.InternalBucket> buckets = instance.getBuckets();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -122,16 +122,16 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
                     InternalAggregations.EMPTY));
             break;
         case 2:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators, metaData);
+        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators, metadata);
     }
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.shard.ShardId;
 
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
@@ -58,13 +58,13 @@ public class RoutingTableGenerator {
 
     }
 
-    public IndexShardRoutingTable genShardRoutingTable(IndexMetaData indexMetaData, int shardId, ShardCounter counter) {
-        final String index = indexMetaData.getIndex().getName();
+    public IndexShardRoutingTable genShardRoutingTable(IndexMetadata indexMetadata, int shardId, ShardCounter counter) {
+        final String index = indexMetadata.getIndex().getName();
         IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", shardId));
         ShardRouting shardRouting = genShardRouting(index, shardId, true);
         counter.update(shardRouting);
         builder.addShard(shardRouting);
-        for (int replicas = indexMetaData.getNumberOfReplicas(); replicas > 0; replicas--) {
+        for (int replicas = indexMetadata.getNumberOfReplicas(); replicas > 0; replicas--) {
             shardRouting = genShardRouting(index, shardId, false);
             counter.update(shardRouting);
             builder.addShard(shardRouting);
@@ -73,10 +73,10 @@ public class RoutingTableGenerator {
         return builder.build();
     }
 
-    public IndexRoutingTable genIndexRoutingTable(IndexMetaData indexMetaData, ShardCounter counter) {
-        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.getIndex());
-        for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
-            builder.addIndexShard(genShardRoutingTable(indexMetaData, shard, counter));
+    public IndexRoutingTable genIndexRoutingTable(IndexMetadata indexMetadata, ShardCounter counter) {
+        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetadata.getIndex());
+        for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
+            builder.addIndexShard(genShardRoutingTable(indexMetadata, shard, counter));
         }
         return builder.build();
     }

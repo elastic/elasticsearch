@@ -30,9 +30,9 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
@@ -128,9 +128,9 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
-        ImmutableOpenMap<String, MappingMetaData> mappings = getIndexResponse.mappings();
-        MappingMetaData indexMapping = mappings.get(sourceIndexName);
-        if (indexMapping == MappingMetaData.EMPTY_MAPPINGS) {
+        ImmutableOpenMap<String, MappingMetadata> mappings = getIndexResponse.mappings();
+        MappingMetadata indexMapping = mappings.get(sourceIndexName);
+        if (indexMapping == MappingMetadata.EMPTY_MAPPINGS) {
             throw new ElasticsearchException(
                 "Enrich policy execution for [{}] failed. No mapping available on source [{}] included in [{}]",
                 policyName,
@@ -497,7 +497,7 @@ public class EnrichPolicyRunner implements Runnable {
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, aliasRequest);
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases = clusterState.metaData().findAliases(aliasRequest, concreteIndices);
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases = clusterState.metadata().findAliases(aliasRequest, concreteIndices);
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
         String[] indices = aliases.keys().toArray(String.class);
         if (indices.length > 0) {

@@ -251,13 +251,13 @@ public class ModelLoadingService implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // If ingest data has not changed or if the current node is not an ingest node, don't bother caching models
-        if (event.changedCustomMetaDataSet().contains(IngestMetadata.TYPE) == false ||
+        if (event.changedCustomMetadataSet().contains(IngestMetadata.TYPE) == false ||
             event.state().nodes().getLocalNode().isIngestNode() == false) {
             return;
         }
 
         ClusterState state = event.state();
-        IngestMetadata currentIngestMetadata = state.metaData().custom(IngestMetadata.TYPE);
+        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Set<String> allReferencedModelKeys = getReferencedModelKeys(currentIngestMetadata);
         if (allReferencedModelKeys.equals(referencedModels)) {
             return;

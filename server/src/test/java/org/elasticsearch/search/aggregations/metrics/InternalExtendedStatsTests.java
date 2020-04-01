@@ -44,19 +44,19 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
 
     @Override
     protected InternalExtendedStats createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+            Map<String, Object> metadata) {
         long count = frequently() ? randomIntBetween(1, Integer.MAX_VALUE) : 0;
         double min = randomDoubleBetween(-1000000, 1000000, true);
         double max = randomDoubleBetween(-1000000, 1000000, true);
         double sum = randomDoubleBetween(-1000000, 1000000, true);
         DocValueFormat format = randomNumericDocValueFormat();
         return createInstance(name, count, sum, min, max, randomDoubleBetween(0, 1000000, true),
-                sigma, format, pipelineAggregators, metaData);
+                sigma, format, pipelineAggregators, metadata);
     }
 
     protected InternalExtendedStats createInstance(String name, long count, double sum, double min, double max, double sumOfSqrs,
-            double sigma, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metaData);
+            double sigma, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metadata);
     }
 
     @Override
@@ -128,7 +128,7 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         double sigma = instance.getSigma();
         DocValueFormat formatter = instance.format;
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 7)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -176,17 +176,17 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
             }
             break;
         case 7:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metaData);
+        return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metadata);
     }
 
     public void testSummationAccuracy() {

@@ -145,9 +145,9 @@ public class IndexNameExpressionResolver {
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
         if (indexExpressions == null || indexExpressions.length == 0) {
-            indexExpressions = new String[]{MetaData.ALL};
+            indexExpressions = new String[]{Metadata.ALL};
         }
-        MetaData metaData = context.getState().metaData();
+        Metadata metadata = context.getState().metadata();
         IndicesOptions options = context.getOptions();
         final boolean failClosed = options.forbidClosedIndices() && options.ignoreUnavailable() == false;
         // If only one index is specified then whether we fail a request if an index is missing depends on the allow_no_indices
@@ -163,7 +163,7 @@ public class IndexNameExpressionResolver {
             if (!options.allowNoIndices()) {
                 IndexNotFoundException infe;
                 if (indexExpressions.length == 1) {
-                    if (indexExpressions[0].equals(MetaData.ALL)) {
+                    if (indexExpressions[0].equals(Metadata.ALL)) {
                         infe = new IndexNotFoundException("no indices exist", (String)null);
                     } else {
                         infe = new IndexNotFoundException((String)null);
@@ -180,11 +180,11 @@ public class IndexNameExpressionResolver {
 
         final Set<Index> concreteIndices = new HashSet<>(expressions.size());
         for (String expression : expressions) {
-            IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(expression);
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(expression);
             if (indexAbstraction == null ) {
                 if (failNoIndices) {
                     IndexNotFoundException infe;
-                    if (expression.equals(MetaData.ALL)) {
+                    if (expression.equals(Metadata.ALL)) {
                         infe = new IndexNotFoundException("no indices exist", expression);
                     } else {
                         infe = new IndexNotFoundException(expression);
@@ -203,7 +203,7 @@ public class IndexNameExpressionResolver {
             }
 
             if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && context.isResolveToWriteIndex()) {
-                IndexMetaData writeIndex = indexAbstraction.getWriteIndex();
+                IndexMetadata writeIndex = indexAbstraction.getWriteIndex();
                 if (writeIndex == null) {
                     throw new IllegalArgumentException("no write index is defined for alias [" + indexAbstraction.getName() + "]." +
                         " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
@@ -216,15 +216,15 @@ public class IndexNameExpressionResolver {
                 if (indexAbstraction.getIndices().size() > 1 && !options.allowAliasesToMultipleIndices()) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
-                    for (IndexMetaData indexMetaData : indexAbstraction.getIndices()) {
-                        indexNames[i++] = indexMetaData.getIndex().getName();
+                    for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
+                        indexNames[i++] = indexMetadata.getIndex().getName();
                     }
                     throw new IllegalArgumentException("Alias [" + expression + "] has more than one indices associated with it [" +
                         Arrays.toString(indexNames) + "], can't execute a single index op");
                 }
 
-                for (IndexMetaData index : indexAbstraction.getIndices()) {
-                    if (index.getState() == IndexMetaData.State.CLOSE) {
+                for (IndexMetadata index : indexAbstraction.getIndices()) {
+                    if (index.getState() == IndexMetadata.State.CLOSE) {
                         if (failClosed) {
                             throw new IndexClosedException(index.getIndex());
                         } else {
@@ -232,7 +232,7 @@ public class IndexNameExpressionResolver {
                                 concreteIndices.add(index.getIndex());
                             }
                         }
-                    } else if (index.getState() == IndexMetaData.State.OPEN) {
+                    } else if (index.getState() == IndexMetadata.State.OPEN) {
                         if (addIndex(index, context)) {
                             concreteIndices.add(index.getIndex());
                         }
@@ -251,8 +251,8 @@ public class IndexNameExpressionResolver {
         return concreteIndices.toArray(new Index[concreteIndices.size()]);
     }
 
-    private static boolean addIndex(IndexMetaData metaData, Context context) {
-        return (context.options.ignoreThrottled() && IndexSettings.INDEX_SEARCH_THROTTLED.get(metaData.getSettings())) == false;
+    private static boolean addIndex(IndexMetadata metadata, Context context) {
+        return (context.options.ignoreThrottled() && IndexSettings.INDEX_SEARCH_THROTTLED.get(metadata.getSettings())) == false;
     }
 
     private static IllegalArgumentException aliasesNotSupportedException(String expression) {
@@ -327,7 +327,7 @@ public class IndexNameExpressionResolver {
     public boolean hasIndexOrAlias(String aliasOrIndex, ClusterState state) {
         Context context = new Context(state, IndicesOptions.lenientExpandOpen());
         String resolvedAliasOrIndex = dateMathExpressionResolver.resolveExpression(aliasOrIndex, context);
-        return state.metaData().getIndicesLookup().containsKey(resolvedAliasOrIndex);
+        return state.metadata().getIndicesLookup().containsKey(resolvedAliasOrIndex);
     }
 
     /**
@@ -359,7 +359,7 @@ public class IndexNameExpressionResolver {
      * <b>NOTE</b>: The provided expressions must have been resolved already via {@link #resolveExpressions}.
      */
     public String[] filteringAliases(ClusterState state, String index, Set<String> resolvedExpressions) {
-        return indexAliases(state, index, AliasMetaData::filteringRequired, false, resolvedExpressions);
+        return indexAliases(state, index, AliasMetadata::filteringRequired, false, resolvedExpressions);
     }
 
     /**
@@ -378,14 +378,14 @@ public class IndexNameExpressionResolver {
      * the index itself - null is returned. Returns {@code null} if no filtering is required.
      * <p><b>NOTE</b>: the provided expressions must have been resolved already via {@link #resolveExpressions}.
      */
-    public String[] indexAliases(ClusterState state, String index, Predicate<AliasMetaData> requiredAlias, boolean skipIdentity,
+    public String[] indexAliases(ClusterState state, String index, Predicate<AliasMetadata> requiredAlias, boolean skipIdentity,
             Set<String> resolvedExpressions) {
         if (isAllIndices(resolvedExpressions)) {
             return null;
         }
 
-        final IndexMetaData indexMetaData = state.metaData().getIndices().get(index);
-        if (indexMetaData == null) {
+        final IndexMetadata indexMetadata = state.metadata().getIndices().get(index);
+        if (indexMetadata == null) {
             // Shouldn't happen
             throw new IndexNotFoundException(index);
         }
@@ -394,30 +394,30 @@ public class IndexNameExpressionResolver {
             return null;
         }
 
-        final ImmutableOpenMap<String, AliasMetaData> indexAliases = indexMetaData.getAliases();
-        final AliasMetaData[] aliasCandidates;
+        final ImmutableOpenMap<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
+        final AliasMetadata[] aliasCandidates;
         if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
             // faster to iterate indexAliases
             aliasCandidates = StreamSupport.stream(Spliterators.spliteratorUnknownSize(indexAliases.values().iterator(), 0), false)
                     .map(cursor -> cursor.value)
-                    .filter(aliasMetaData -> resolvedExpressions.contains(aliasMetaData.alias()))
-                    .toArray(AliasMetaData[]::new);
+                    .filter(aliasMetadata -> resolvedExpressions.contains(aliasMetadata.alias()))
+                    .toArray(AliasMetadata[]::new);
         } else {
             // faster to iterate resolvedExpressions
             aliasCandidates = resolvedExpressions.stream()
                     .map(indexAliases::get)
                     .filter(Objects::nonNull)
-                    .toArray(AliasMetaData[]::new);
+                    .toArray(AliasMetadata[]::new);
         }
 
         List<String> aliases = null;
-        for (AliasMetaData aliasMetaData : aliasCandidates) {
-            if (requiredAlias.test(aliasMetaData)) {
+        for (AliasMetadata aliasMetadata : aliasCandidates) {
+            if (requiredAlias.test(aliasMetadata)) {
                 // If required - add it to the list of aliases
                 if (aliases == null) {
                     aliases = new ArrayList<>();
                 }
-                aliases.add(aliasMetaData.alias());
+                aliases.add(aliasMetadata.alias());
             } else {
                 // If not, we have a non required alias for this index - no further checking needed
                 return null;
@@ -444,7 +444,7 @@ public class IndexNameExpressionResolver {
 
         // TODO: it appears that this can never be true?
         if (isAllIndices(resolvedExpressions)) {
-            return resolveSearchRoutingAllIndices(state.metaData(), routing);
+            return resolveSearchRoutingAllIndices(state.metadata(), routing);
         }
 
         Map<String, Set<String>> routings = null;
@@ -456,14 +456,14 @@ public class IndexNameExpressionResolver {
         }
 
         for (String expression : resolvedExpressions) {
-            IndexAbstraction indexAbstraction = state.metaData().getIndicesLookup().get(expression);
+            IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(expression);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                 IndexAbstraction.Alias alias = (IndexAbstraction.Alias) indexAbstraction;
-                for (Tuple<String, AliasMetaData> item : alias.getConcreteIndexAndAliasMetaDatas()) {
+                for (Tuple<String, AliasMetadata> item : alias.getConcreteIndexAndAliasMetadatas()) {
                     String concreteIndex = item.v1();
-                    AliasMetaData aliasMetaData = item.v2();
+                    AliasMetadata aliasMetadata = item.v2();
                     if (!norouting.contains(concreteIndex)) {
-                        if (!aliasMetaData.searchRoutingValues().isEmpty()) {
+                        if (!aliasMetadata.searchRoutingValues().isEmpty()) {
                             // Routing alias
                             if (routings == null) {
                                 routings = new HashMap<>();
@@ -473,7 +473,7 @@ public class IndexNameExpressionResolver {
                                 r = new HashSet<>();
                                 routings.put(concreteIndex, r);
                             }
-                            r.addAll(aliasMetaData.searchRoutingValues());
+                            r.addAll(aliasMetadata.searchRoutingValues());
                             if (paramRouting != null) {
                                 r.retainAll(paramRouting);
                             }
@@ -527,11 +527,11 @@ public class IndexNameExpressionResolver {
     /**
      * Sets the same routing for all indices
      */
-    public Map<String, Set<String>> resolveSearchRoutingAllIndices(MetaData metaData, String routing) {
+    public Map<String, Set<String>> resolveSearchRoutingAllIndices(Metadata metadata, String routing) {
         if (routing != null) {
             Set<String> r = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
             Map<String, Set<String>> routings = new HashMap<>();
-            String[] concreteIndices = metaData.getConcreteAllIndices();
+            String[] concreteIndices = metadata.getConcreteAllIndices();
             for (String index : concreteIndices) {
                 routings.put(index, r);
             }
@@ -559,7 +559,7 @@ public class IndexNameExpressionResolver {
      * @return true if the provided array explicitly maps to all indices, false otherwise
      */
     static boolean isExplicitAllPattern(Collection<String> aliasesOrIndices) {
-        return aliasesOrIndices != null && aliasesOrIndices.size() == 1 && MetaData.ALL.equals(aliasesOrIndices.iterator().next());
+        return aliasesOrIndices != null && aliasesOrIndices.size() == 1 && Metadata.ALL.equals(aliasesOrIndices.iterator().next());
     }
 
     /**
@@ -569,9 +569,9 @@ public class IndexNameExpressionResolver {
      * @param concreteIndices  array containing the concrete indices that the first argument refers to
      * @return true if the first argument is a pattern that maps to all available indices, false otherwise
      */
-    boolean isPatternMatchingAllIndices(MetaData metaData, String[] indicesOrAliases, String[] concreteIndices) {
+    boolean isPatternMatchingAllIndices(Metadata metadata, String[] indicesOrAliases, String[] concreteIndices) {
         // if we end up matching on all indices, check, if its a wildcard parameter, or a "-something" structure
-        if (concreteIndices.length == metaData.getConcreteAllIndices().length && indicesOrAliases.length > 0) {
+        if (concreteIndices.length == metadata.getConcreteAllIndices().length && indicesOrAliases.length > 0) {
 
             //we might have something like /-test1,+test1 that would identify all indices
             //or something like /-test1 with test1 index missing and IndicesOptions.lenient()
@@ -668,7 +668,7 @@ public class IndexNameExpressionResolver {
         @Override
         public List<String> resolve(Context context, List<String> expressions) {
             IndicesOptions options = context.getOptions();
-            MetaData metaData = context.getState().metaData();
+            Metadata metadata = context.getState().metadata();
             // only check open/closed since if we do not expand to open or closed it doesn't make sense to
             // expand to hidden
             if (options.expandWildcardsClosed() == false && options.expandWildcardsOpen() == false) {
@@ -676,10 +676,10 @@ public class IndexNameExpressionResolver {
             }
 
             if (isEmptyOrTrivialWildcard(expressions)) {
-                return resolveEmptyOrTrivialWildcard(options, metaData);
+                return resolveEmptyOrTrivialWildcard(options, metadata);
             }
 
-            Set<String> result = innerResolve(context, expressions, options, metaData);
+            Set<String> result = innerResolve(context, expressions, options, metadata);
 
             if (result == null) {
                 return expressions;
@@ -692,7 +692,7 @@ public class IndexNameExpressionResolver {
             return new ArrayList<>(result);
         }
 
-        private Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, MetaData metaData) {
+        private Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, Metadata metadata) {
             Set<String> result = null;
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
@@ -701,7 +701,7 @@ public class IndexNameExpressionResolver {
                     throw indexNotFoundException(expression);
                 }
                 validateAliasOrIndex(expression);
-                if (aliasOrIndexExists(options, metaData, expression)) {
+                if (aliasOrIndexExists(options, metadata, expression)) {
                     if (result != null) {
                         result.add(expression);
                     }
@@ -721,7 +721,7 @@ public class IndexNameExpressionResolver {
                 if (Regex.isSimpleMatchPattern(expression) == false) {
                     //TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
                     if (options.ignoreUnavailable() == false) {
-                        IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(expression);
+                        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(expression);
                         if (indexAbstraction == null) {
                             throw indexNotFoundException(expression);
                         } else if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && options.ignoreAliases()) {
@@ -736,8 +736,8 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
 
-                final IndexMetaData.State excludeState = excludeState(options);
-                final Map<String, IndexAbstraction> matches = matches(context, metaData, expression);
+                final IndexMetadata.State excludeState = excludeState(options);
+                final Map<String, IndexAbstraction> matches = matches(context, metadata, expression);
                 Set<String> expand = expand(context, excludeState, matches, expression, options.expandWildcardsHidden());
                 if (add) {
                     result.addAll(expand);
@@ -764,8 +764,8 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        private static boolean aliasOrIndexExists(IndicesOptions options, MetaData metaData, String expression) {
-            IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(expression);
+        private static boolean aliasOrIndexExists(IndicesOptions options, Metadata metadata, String expression) {
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(expression);
             //treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
             return indexAbstraction != null && (options.ignoreAliases() == false ||
                 indexAbstraction.getType() != IndexAbstraction.Type.ALIAS);
@@ -777,14 +777,14 @@ public class IndexNameExpressionResolver {
             return infe;
         }
 
-        private static IndexMetaData.State excludeState(IndicesOptions options) {
-            final IndexMetaData.State excludeState;
+        private static IndexMetadata.State excludeState(IndicesOptions options) {
+            final IndexMetadata.State excludeState;
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
                 excludeState = null;
             } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed() == false) {
-                excludeState = IndexMetaData.State.CLOSE;
+                excludeState = IndexMetadata.State.CLOSE;
             } else if (options.expandWildcardsClosed() && options.expandWildcardsOpen() == false) {
-                excludeState = IndexMetaData.State.OPEN;
+                excludeState = IndexMetadata.State.OPEN;
             } else {
                 assert false : "this shouldn't get called if wildcards expand to none";
                 excludeState = null;
@@ -792,30 +792,30 @@ public class IndexNameExpressionResolver {
             return excludeState;
         }
 
-        public static Map<String, IndexAbstraction> matches(Context context, MetaData metaData, String expression) {
+        public static Map<String, IndexAbstraction> matches(Context context, Metadata metadata, String expression) {
             if (Regex.isMatchAllPattern(expression)) {
                 // Can only happen if the expressions was initially: '-*'
                 if (context.getOptions().ignoreAliases()) {
-                    return metaData.getIndicesLookup().entrySet().stream()
+                    return metadata.getIndicesLookup().entrySet().stream()
                             .filter(e -> e.getValue().getType() != IndexAbstraction.Type.ALIAS)
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 } else {
-                    return metaData.getIndicesLookup();
+                    return metadata.getIndicesLookup();
                 }
             } else if (expression.indexOf("*") == expression.length() - 1) {
-                return suffixWildcard(context, metaData, expression);
+                return suffixWildcard(context, metadata, expression);
             } else {
-                return otherWildcard(context, metaData, expression);
+                return otherWildcard(context, metadata, expression);
             }
         }
 
-        private static Map<String, IndexAbstraction> suffixWildcard(Context context, MetaData metaData, String expression) {
+        private static Map<String, IndexAbstraction> suffixWildcard(Context context, Metadata metadata, String expression) {
             assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
             String fromPrefix = expression.substring(0, expression.length() - 1);
             char[] toPrefixCharArr = fromPrefix.toCharArray();
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);
-            SortedMap<String, IndexAbstraction> subMap = metaData.getIndicesLookup().subMap(fromPrefix, toPrefix);
+            SortedMap<String, IndexAbstraction> subMap = metadata.getIndicesLookup().subMap(fromPrefix, toPrefix);
             if (context.getOptions().ignoreAliases()) {
                  return subMap.entrySet().stream()
                         .filter(entry -> entry.getValue().getType() != IndexAbstraction.Type.ALIAS)
@@ -824,9 +824,9 @@ public class IndexNameExpressionResolver {
             return subMap;
         }
 
-        private static Map<String, IndexAbstraction> otherWildcard(Context context, MetaData metaData, String expression) {
+        private static Map<String, IndexAbstraction> otherWildcard(Context context, Metadata metadata, String expression) {
             final String pattern = expression;
-            return metaData.getIndicesLookup()
+            return metadata.getIndicesLookup()
                 .entrySet()
                 .stream()
                 .filter(e -> context.getOptions().ignoreAliases() == false || e.getValue().getType() != IndexAbstraction.Type.ALIAS)
@@ -834,7 +834,7 @@ public class IndexNameExpressionResolver {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
 
-        private static Set<String> expand(Context context, IndexMetaData.State excludeState, Map<String, IndexAbstraction> matches,
+        private static Set<String> expand(Context context, IndexMetadata.State excludeState, Map<String, IndexAbstraction> matches,
                                           String expression, boolean includeHidden) {
             Set<String> expand = new HashSet<>();
             for (Map.Entry<String, IndexAbstraction> entry : matches.entrySet()) {
@@ -845,7 +845,7 @@ public class IndexNameExpressionResolver {
                     if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                         expand.add(aliasOrIndexName);
                     } else {
-                        for (IndexMetaData meta : indexAbstraction.getIndices()) {
+                        for (IndexMetadata meta : indexAbstraction.getIndices()) {
                             if (excludeState == null || meta.getState() != excludeState) {
                                 expand.add(meta.getIndex().getName());
                             }
@@ -862,23 +862,23 @@ public class IndexNameExpressionResolver {
         }
 
         private boolean isEmptyOrTrivialWildcard(List<String> expressions) {
-            return expressions.isEmpty() || (expressions.size() == 1 && (MetaData.ALL.equals(expressions.get(0)) ||
+            return expressions.isEmpty() || (expressions.size() == 1 && (Metadata.ALL.equals(expressions.get(0)) ||
                 Regex.isMatchAllPattern(expressions.get(0))));
         }
 
-        private static List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, MetaData metaData) {
+        private static List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, Metadata metadata) {
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
-                return Arrays.asList(metaData.getConcreteAllIndices());
+                return Arrays.asList(metadata.getConcreteAllIndices());
             } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.getConcreteVisibleIndices());
+                return Arrays.asList(metadata.getConcreteVisibleIndices());
             } else if (options.expandWildcardsOpen() && options.expandWildcardsHidden()) {
-                return Arrays.asList(metaData.getConcreteAllOpenIndices());
+                return Arrays.asList(metadata.getConcreteAllOpenIndices());
             } else if (options.expandWildcardsOpen()) {
-                return Arrays.asList(metaData.getConcreteVisibleOpenIndices());
+                return Arrays.asList(metadata.getConcreteVisibleOpenIndices());
             } else if (options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
-                return Arrays.asList(metaData.getConcreteAllClosedIndices());
+                return Arrays.asList(metadata.getConcreteAllClosedIndices());
             } else if (options.expandWildcardsClosed()) {
-                return Arrays.asList(metaData.getConcreteVisibleClosedIndices());
+                return Arrays.asList(metadata.getConcreteVisibleClosedIndices());
             } else {
                 return Collections.emptyList();
             }

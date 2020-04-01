@@ -57,16 +57,16 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
     }
 
     @Override
-    protected T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         int numValues = frequently() ? randomInt(100) : 0;
         double[] values = new double[numValues];
         for (int i = 0; i < numValues; ++i) {
             values[i] = randomDouble();
         }
-        return createTestInstance(name, pipelineAggregators, metaData, keyed, docValueFormat, percents, values);
+        return createTestInstance(name, pipelineAggregators, metadata, keyed, docValueFormat, percents, values);
     }
 
-    protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+    protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata,
                                             boolean keyed, DocValueFormat format, double[] percents, double[] values);
 
     protected abstract Class<? extends ParsedPercentiles> implementationClass();

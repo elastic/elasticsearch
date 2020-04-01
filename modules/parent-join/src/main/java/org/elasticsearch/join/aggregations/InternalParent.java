@@ -33,8 +33,8 @@ import java.util.Map;
  */
 public class InternalParent extends InternalSingleBucketAggregation implements Parent {
     public InternalParent(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, docCount, aggregations, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, docCount, aggregations, pipelineAggregators, metadata);
     }
 
     /**
@@ -51,6 +51,6 @@ public class InternalParent extends InternalSingleBucketAggregation implements P
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalParent(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
+        return new InternalParent(name, docCount, subAggregations, pipelineAggregators(), getMetadata());
     }
 }

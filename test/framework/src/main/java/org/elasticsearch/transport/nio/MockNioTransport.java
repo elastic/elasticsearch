@@ -273,8 +273,9 @@ public class MockNioTransport extends TcpTransport {
 
         private MockTcpReadWriteHandler(MockSocketChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
             this.channel = channel;
-            this.pipeline = new InboundPipeline(transport.getVersion(), recycler, transport::inboundMessage,
-                transport::inboundDecodeException);
+            final ThreadPool threadPool = transport.getThreadPool();
+            this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler,
+                threadPool::relativeTimeInMillis, transport::inboundMessage, transport::inboundDecodeException);
         }
 
         @Override

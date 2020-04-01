@@ -180,8 +180,8 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
 
     public TermsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             BucketCountThresholds bucketCountThresholds, BucketOrder order, DocValueFormat format, SubAggCollectionMode collectMode,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, pipelineAggregators, metadata);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = order;
         partiallyBuiltBucketComparator = order == null ? null : order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);

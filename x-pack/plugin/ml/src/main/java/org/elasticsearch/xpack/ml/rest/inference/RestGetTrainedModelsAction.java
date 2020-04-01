@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -53,7 +53,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
         if (Strings.isNullOrEmpty(modelId)) {
-            modelId = MetaData.ALL;
+            modelId = Metadata.ALL;
         }
         boolean includeModelDefinition = restRequest.paramAsBoolean(
             GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION.getPreferredName(),

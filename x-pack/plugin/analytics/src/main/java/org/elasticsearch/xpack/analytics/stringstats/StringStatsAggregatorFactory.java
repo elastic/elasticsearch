@@ -32,9 +32,9 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     StringStatsAggregatorFactory(String name, ValuesSourceConfig config,
                                  Boolean showDistribution,
                                  QueryShardContext queryShardContext,
-                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData)
+                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata)
                                     throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.showDistribution = showDistribution;
     }
 
@@ -49,9 +49,9 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         SearchContext context,
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
                     return new StringStatsAggregator(name, showDistribution, (ValuesSource.Bytes) valuesSource,
-                        format, context, parent, pipelineAggregators, metaData);
+                        format, context, parent, pipelineAggregators, metadata);
                 }
             });
     }
@@ -60,9 +60,9 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new StringStatsAggregator(name, showDistribution,null, config.format(), searchContext, parent,
-                                         pipelineAggregators, metaData);
+                                         pipelineAggregators, metadata);
     }
 
     @Override
@@ -71,7 +71,7 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             StringStatsAggregationBuilder.NAME);
 
@@ -80,7 +80,7 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((StringStatsAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, showDistribution, config.format(),
-            searchContext, parent, pipelineAggregators, metaData);
+            searchContext, parent, pipelineAggregators, metadata);
     }
 
 }

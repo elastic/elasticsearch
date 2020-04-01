@@ -80,6 +80,7 @@ using 4-fold cross validation.
 (Required, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
+[role="child_attributes"]
 [[ml-put-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
@@ -87,183 +88,201 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 (Optional, boolean) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-start]
 
+//Begin analysis
 `analysis`::
 (Required, object)
 The analysis configuration, which contains the information necessary to perform
 one of the following types of analysis: {classification}, {oldetection}, or
 {regression}.
-//include::{docdir}/ml/ml-shared.asciidoc[tag=analysis]
-
-`analysis`.`classification`:::
++
+.Properties of `analysis`
+[%collapsible%open]
+====
+//Begin classification
+`classification`:::
 (Required^*^, object)
 The configuration information necessary to perform
 {ml-docs}/dfa-classification.html[{classification}].
 +
---
 TIP: Advanced parameters are for fine-tuning {classanalysis}. They are set 
 automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
 to give minimum validation error. It is highly recommended to use the default 
 values unless you fully understand the function of these parameters.
---
-
-`analysis`.`classification`.`dependent_variable`::::
-(Required, string)
 +
---
-include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
-
-The data type of the field must be numeric (`integer`, `short`, `long`, `byte`), 
-categorical (`ip`, `keyword`, `text`), or boolean.
---
-
-`analysis`.`classification`.`eta`::::
-(Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
-
-`analysis`.`classification`.`feature_bag_fraction`::::
-(Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
-
-`analysis`.`classification`.`max_trees`::::
-(Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
-
-`analysis`.`classification`.`gamma`::::
-(Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
-
-`analysis`.`classification`.`lambda`::::
-(Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
-
-`analysis`.`classification`.`class_assignment_objective`::::
+.Properties of `classification`
+[%collapsible%open]
+=====
+`class_assignment_objective`::::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
 
-`analysis`.`classification`.`num_top_classes`::::
+`dependent_variable`::::
+(Required, string)
++
+include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
++
+The data type of the field must be numeric (`integer`, `short`, `long`, `byte`), 
+categorical (`ip`, `keyword`, `text`), or boolean.
+
+`eta`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+
+`feature_bag_fraction`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+
+`gamma`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+
+`lambda`::::
+(Optional, double) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+
+`max_trees`::::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
+
+`num_top_classes`::::
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-classes]
 
-`analysis`.`classification`.`prediction_field_name`::::
-(Optional, string) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
-
-`analysis`.`classification`.`randomize_seed`::::
-(Optional, long)
-include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
-
-`analysis`.`classification`.`num_top_feature_importance_values`::::
+`num_top_feature_importance_values`::::
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
 {ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
 importance] values per document to return. By default, it is zero and no feature importance
 calculation occurs.
 
-`analysis`.`classification`.`training_percent`::::
+`prediction_field_name`::::
+(Optional, string) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+
+`randomize_seed`::::
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+
+`training_percent`::::
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
-
-`analysis`.`outlier_detection`:::
+//End classification
+=====
+//Begin outlier_detection
+`outlier_detection`:::
 (Required^*^, object)
 The configuration information necessary to perform
 {ml-docs}/dfa-outlier-detection.html[{oldetection}]:
-
-`analysis`.`outlier_detection`.`compute_feature_influence`::::
++
+.Properties of `outlier_detection`
+[%collapsible%open]
+=====
+`compute_feature_influence`::::
 (Optional, boolean) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
   
-`analysis`.`outlier_detection`.`feature_influence_threshold`:::: 
+`feature_influence_threshold`:::: 
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
 
-`analysis`.`outlier_detection`.`method`::::
+`method`::::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=method]
   
-`analysis`.`outlier_detection`.`n_neighbors`::::
+`n_neighbors`::::
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=n-neighbors]
   
-`analysis`.`outlier_detection`.`outlier_fraction`::::
+`outlier_fraction`::::
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
   
-`analysis`.`outlier_detection`.`standardization_enabled`::::
+`standardization_enabled`::::
 (Optional, boolean) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
-
-`analysis`.`regression`:::
+//End outlier_detection
+=====
+//Begin regression
+`regression`:::
 (Required^*^, object)
 The configuration information necessary to perform
 {ml-docs}/dfa-regression.html[{regression}].
 +
---
 TIP: Advanced parameters are for fine-tuning {reganalysis}. They are set 
 automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
 to give minimum validation error. It is highly recommended to use the default 
 values unless you fully understand the function of these parameters.
-
---
-
-`analysis`.`regression`.`dependent_variable`::::
++
+.Properties of `regression`
+[%collapsible%open]
+=====
+`dependent_variable`::::
 (Required, string)
 +
---
 include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
-
++
 The data type of the field must be numeric.
---
 
-`analysis`.`regression`.`eta`::::
+`eta`::::
 (Optional, double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
 
-`analysis`.`regression`.`feature_bag_fraction`::::
+`feature_bag_fraction`::::
 (Optional, double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
-`analysis`.`regression`.`max_trees`::::
-(Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
-
-`analysis`.`regression`.`gamma`::::
+`gamma`::::
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
 
-`analysis`.`regression`.`lambda`::::
+`lambda`::::
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
-`analysis`.`regression`.`prediction_field_name`::::
-(Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+`max_trees`::::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
 
-`analysis`.`regression`.`num_top_feature_importance_values`::::
+`num_top_feature_importance_values`::::
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
 {ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature importance] 
-values per document to return. By default, it is zero and no feature importance calculation
-occurs.
+values per document to return. By default, it is zero and no feature importance
+calculation occurs.
 
-`analysis`.`regression`.`training_percent`::::
-(Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+`prediction_field_name`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
-`analysis`.`regression`.`randomize_seed`::::
+`randomize_seed`::::
 (Optional, long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
-  
+
+`training_percent`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+=====
+//End regression
+====
+//End analysis
+
+//Begin analyzed_fields
 `analyzed_fields`::
 (Optional, object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields]
-
-`analyzed_fields`.`excludes`:::
++
+.Properties of `analyzed_fields`
+[%collapsible%open]
+====
+`excludes`:::
 (Optional, array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields-excludes]
 
-`analyzed_fields`.`includes`:::
+`includes`:::
 (Optional, array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields-includes]
+//End analyzed_fields
+====
 
 `description`::
 (Optional, string)

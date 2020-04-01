@@ -37,8 +37,8 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
     private final List<TopMetric> topMetrics;
 
     public InternalTopMetrics(String name, @Nullable SortOrder sortOrder, List<String> metricNames,
-            int size, List<TopMetric> topMetrics, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            int size, List<TopMetric> topMetrics, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.sortOrder = sortOrder;
         this.metricNames = metricNames;
         /*
@@ -49,8 +49,8 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
     }
 
     static InternalTopMetrics buildEmptyAggregation(String name, List<String> metricNames,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalTopMetrics(name, SortOrder.ASC, metricNames, 0, emptyList(), pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalTopMetrics(name, SortOrder.ASC, metricNames, 0, emptyList(), pipelineAggregators, metadata);
     }
 
     /**
@@ -106,7 +106,7 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
         PriorityQueue<ReduceState> queue = new PriorityQueue<ReduceState>(aggregations.size()) {
             @Override
             protected boolean lessThan(ReduceState lhs, ReduceState rhs) {
-                return sortOrder.reverseMul() * lhs.sortValue().compareTo(rhs.sortValue()) < 0; 
+                return sortOrder.reverseMul() * lhs.sortValue().compareTo(rhs.sortValue()) < 0;
             }
         };
         for (InternalAggregation agg : aggregations) {
@@ -124,7 +124,7 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
                 queue.updateTop();
             }
         }
-        return new InternalTopMetrics(getName(), sortOrder, metricNames, size, merged, pipelineAggregators(), getMetaData());
+        return new InternalTopMetrics(getName(), sortOrder, metricNames, size, merged, pipelineAggregators(), getMetadata());
     }
 
     @Override
@@ -284,7 +284,7 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
 
         @Override
         public String toString() {
-            return "TopMetric[" + sortFormat + "," + sortValue + "," + metricValues + "]"; 
+            return "TopMetric[" + sortFormat + "," + sortValue + "," + metricValues + "]";
         }
     }
 

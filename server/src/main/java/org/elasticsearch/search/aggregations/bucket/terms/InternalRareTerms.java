@@ -123,8 +123,8 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     protected final long maxDocCount;
 
     protected InternalRareTerms(String name, BucketOrder order, long maxDocCount,
-                            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.order = order;
         this.maxDocCount = maxDocCount;
     }

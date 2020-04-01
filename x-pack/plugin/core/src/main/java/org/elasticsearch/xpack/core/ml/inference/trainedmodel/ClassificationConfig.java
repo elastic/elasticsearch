@@ -187,7 +187,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
             this.numTopFeatureImportanceValues = config.numTopFeatureImportanceValues;
         }
 
-        public Builder setNumTopClasses(int numTopClasses) {
+        public Builder setNumTopClasses(Integer numTopClasses) {
             this.numTopClasses = numTopClasses;
             return this;
         }
@@ -202,7 +202,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
             return this;
         }
 
-        public Builder setNumTopFeatureImportanceValues(int numTopFeatureImportanceValues) {
+        public Builder setNumTopFeatureImportanceValues(Integer numTopFeatureImportanceValues) {
             this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
             return this;
         }

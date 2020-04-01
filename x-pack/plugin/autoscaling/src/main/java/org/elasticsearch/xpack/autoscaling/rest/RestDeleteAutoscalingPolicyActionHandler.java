@@ -25,7 +25,7 @@ public class RestDeleteAutoscalingPolicyActionHandler extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return null;
+        return "delete_autoscaling_policy";
     }
 
     @Override

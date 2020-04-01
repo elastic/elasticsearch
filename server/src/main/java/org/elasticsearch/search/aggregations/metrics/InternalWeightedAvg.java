@@ -35,8 +35,8 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
     private final double weight;
 
     InternalWeightedAvg(String name, double sum, double weight, DocValueFormat format, List<PipelineAggregator> pipelineAggregators,
-                            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.sum = sum;
         this.weight = weight;
         this.format = format;
@@ -100,7 +100,7 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
         }
 
         return new InternalWeightedAvg(getName(), sumCompensation.value(), weightCompensation.value(),
-            format, pipelineAggregators(), getMetaData());
+            format, pipelineAggregators(), getMetadata());
     }
 
     @Override

@@ -57,16 +57,16 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                                     AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected MissingAggregator createUnmapped(SearchContext searchContext,
                                                 Aggregator parent,
                                                 List<PipelineAggregator> pipelineAggregators,
-                                                Map<String, Object> metaData) throws IOException {
-        return new MissingAggregator(name, factories, null, searchContext, parent, pipelineAggregators, metaData);
+                                                Map<String, Object> metadata) throws IOException {
+        return new MissingAggregator(name, factories, null, searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
@@ -75,8 +75,7 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
                                                     Aggregator parent,
                                                     boolean collectsFromSingleBucket,
                                                     List<PipelineAggregator> pipelineAggregators,
-                                                    Map<String, Object> metaData) throws IOException {
-
+                                                    Map<String, Object> metadata) throws IOException {
         final AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config.valueSourceType(), MissingAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof MissingAggregatorSupplier == false) {
@@ -85,7 +84,7 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
 
         return ((MissingAggregatorSupplier) aggregatorSupplier)
-            .build(name, factories, valuesSource, searchContext, parent, pipelineAggregators, metaData);
+            .build(name, factories, valuesSource, searchContext, parent, pipelineAggregators, metadata);
     }
 
 }

@@ -49,8 +49,8 @@ public final class AutoDateHistogramAggregatorFactory
                                               QueryShardContext queryShardContext,
                                               AggregatorFactory parent,
                                               AggregatorFactories.Builder subFactoriesBuilder,
-                                              Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                              Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.numBuckets = numBuckets;
         this.roundingInfos = roundingInfos;
     }
@@ -61,7 +61,7 @@ public final class AutoDateHistogramAggregatorFactory
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         if (valuesSource instanceof Numeric == false) {
             throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
                 this.name());
@@ -69,23 +69,23 @@ public final class AutoDateHistogramAggregatorFactory
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        return createAggregator((Numeric) valuesSource, searchContext, parent, pipelineAggregators, metaData);
+        return createAggregator((Numeric) valuesSource, searchContext, parent, pipelineAggregators, metadata);
     }
 
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos,
-            valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
+            valuesSource, config.format(), searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return createAggregator(null, searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return createAggregator(null, searchContext, parent, pipelineAggregators, metadata);
     }
 }

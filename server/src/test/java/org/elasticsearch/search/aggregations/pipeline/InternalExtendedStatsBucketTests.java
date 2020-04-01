@@ -39,7 +39,7 @@ public class InternalExtendedStatsBucketTests extends InternalExtendedStatsTests
                                                          double max, double sumOfSqrs,
                                                          double sigma, DocValueFormat formatter,
                                                          List<PipelineAggregator> pipelineAggregators,
-                                                         Map<String, Object> metaData) {
+                                                         Map<String, Object> metadata) {
         return new InternalExtendedStatsBucket(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators,
                 Collections.emptyMap());
     }

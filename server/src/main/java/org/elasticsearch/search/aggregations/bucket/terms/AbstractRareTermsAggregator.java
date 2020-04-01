@@ -54,9 +54,9 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource,
 
     AbstractRareTermsAggregator(String name, AggregatorFactories factories, SearchContext context,
                                 Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                Map<String, Object> metaData, long maxDocCount, double precision,
+                                Map<String, Object> metadata, long maxDocCount, double precision,
                                 DocValueFormat format, T valuesSource, U includeExclude) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metadata);
 
         // We seed the rng with the ShardID so results are deterministic and don't change randomly
         this.filter = new SetBackedScalingCuckooFilter(10000, new Random(context.indexShard().shardId().hashCode()), precision);

@@ -33,12 +33,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -100,7 +100,7 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         final Condition<?> condition = createTestCondition();
         String indexName = randomAlphaOfLengthBetween(5, 7);
-        evaluateConditions(Sets.newHashSet(condition), createMetaData(indexName),
+        evaluateConditions(Sets.newHashSet(condition), createMetadata(indexName),
                 createIndicesStatResponse(indexName, docsInShards, docsInPrimaryShards));
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
@@ -117,24 +117,24 @@ public class TransportRolloverActionTests extends ESTestCase {
         long notMatchMaxDocs = randomIntBetween(0, 99);
         ByteSizeValue notMatchMaxSize = new ByteSizeValue(randomIntBetween(0, 9), ByteSizeUnit.MB);
         final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        final IndexMetaData metaData = IndexMetaData.builder(randomAlphaOfLength(10))
+        final IndexMetadata metadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();
         final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
         Map<String, Boolean> results = evaluateConditions(conditions,
-            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), metaData);
+            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), metadata);
         assertThat(results.size(), equalTo(3));
         for (Boolean matched : results.values()) {
             assertThat(matched, equalTo(true));
         }
 
-        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, notMatchMaxSize.getBytes()), metaData);
+        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, notMatchMaxSize.getBytes()), metadata);
         assertThat(results.size(), equalTo(3));
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
             if (entry.getKey().equals(maxAgeCondition.toString())) {
@@ -156,17 +156,17 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
         final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 1000))
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(10))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 1000))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(10))
             .build();
 
-        final IndexMetaData metaData = IndexMetaData.builder(randomAlphaOfLength(10))
+        final IndexMetadata metadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
             .settings(settings)
             .build();
-        Map<String, Boolean> results = evaluateConditions(conditions, null, metaData);
+        Map<String, Boolean> results = evaluateConditions(conditions, null, metadata);
         assertThat(results.size(), equalTo(3));
 
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
@@ -182,7 +182,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         }
     }
 
-    public void testEvaluateWithoutMetaData() {
+    public void testEvaluateWithoutMetadata() {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
@@ -195,17 +195,17 @@ public class TransportRolloverActionTests extends ESTestCase {
         results.forEach((k, v) -> assertFalse(v));
 
         final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 1000))
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(10))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 1000))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(10))
             .build();
 
-        final IndexMetaData metaData = IndexMetaData.builder(randomAlphaOfLength(10))
+        final IndexMetadata metadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
             .settings(settings)
             .build();
-        IndicesStatsResponse indicesStats = randomIndicesStatsResponse(new IndexMetaData[]{metaData});
+        IndicesStatsResponse indicesStats = randomIndicesStatsResponse(new IndexMetadata[]{metadata});
         Map<String, Boolean> results2 = evaluateConditions(conditions, null, indicesStats);
         assertThat(results2.size(), equalTo(3));
         results2.forEach((k, v) -> assertFalse(v));
@@ -219,11 +219,11 @@ public class TransportRolloverActionTests extends ESTestCase {
         when(mockNode.getId()).thenReturn("mocknode");
         when(mockClusterService.localNode()).thenReturn(mockNode);
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
-        final MetaDataCreateIndexService mockCreateIndexService = mock(MetaDataCreateIndexService.class);
+        final MetadataCreateIndexService mockCreateIndexService = mock(MetadataCreateIndexService.class);
         final IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).thenReturn("logs-index-000003");
         final ActionFilters mockActionFilters = mock(ActionFilters.class);
-        final MetaDataIndexAliasesService mdIndexAliasesService = mock(MetaDataIndexAliasesService.class);
+        final MetadataIndexAliasesService mdIndexAliasesService = mock(MetadataIndexAliasesService.class);
 
         final Client mockClient = mock(Client.class);
 
@@ -243,18 +243,18 @@ public class TransportRolloverActionTests extends ESTestCase {
         assert statsResponse.getPrimaries().getDocs().getCount() == 500L;
         assert statsResponse.getTotal().getDocs().getCount() == (total + total);
 
-        final IndexMetaData.Builder indexMetaData = IndexMetaData.builder("logs-index-000001")
-                .putAlias(AliasMetaData.builder("logs-alias").writeIndex(false).build()).settings(settings(Version.CURRENT))
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
+                .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build()).settings(settings(Version.CURRENT))
                 .numberOfShards(1).numberOfReplicas(1);
-        final IndexMetaData.Builder indexMetaData2 = IndexMetaData.builder("logs-index-000002")
-                .putAlias(AliasMetaData.builder("logs-alias").writeIndex(true).build()).settings(settings(Version.CURRENT))
+        final IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("logs-index-000002")
+                .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build()).settings(settings(Version.CURRENT))
                 .numberOfShards(1).numberOfReplicas(1);
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-                .metaData(MetaData.builder().put(indexMetaData).put(indexMetaData2)).build();
+                .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2)).build();
 
         when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean())).thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
-        MetaDataRolloverService rolloverService = new MetaDataRolloverService(mockThreadPool, mockCreateIndexService,
+        MetadataRolloverService rolloverService = new MetadataRolloverService(mockThreadPool, mockCreateIndexService,
             mdIndexAliasesService, mockIndexNameExpressionResolver);
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(mockTransportService, mockClusterService,
                 mockThreadPool, mockActionFilters, mockIndexNameExpressionResolver, rolloverService, mockClient);
@@ -337,14 +337,14 @@ public class TransportRolloverActionTests extends ESTestCase {
         return indexStats;
     }
 
-    private static IndexMetaData createMetaData(String indexName) {
+    private static IndexMetadata createMetadata(String indexName) {
         final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        return IndexMetaData.builder(indexName)
+        return IndexMetadata.builder(indexName)
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();
@@ -356,9 +356,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         return condition;
     }
 
-    public static IndicesStatsResponse randomIndicesStatsResponse(final IndexMetaData[] indices) {
+    public static IndicesStatsResponse randomIndicesStatsResponse(final IndexMetadata[] indices) {
         List<ShardStats> shardStats = new ArrayList<>();
-        for (final IndexMetaData index : indices) {
+        for (final IndexMetadata index : indices) {
             int numShards = randomIntBetween(1, 3);
             int primaryIdx = randomIntBetween(-1, numShards - 1); // -1 means there is no primary shard.
             for (int i = 0; i < numShards; i++) {

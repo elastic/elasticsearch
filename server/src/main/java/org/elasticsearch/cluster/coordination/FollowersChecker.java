@@ -163,7 +163,6 @@ public class FollowersChecker {
         FastResponseState responder = this.fastResponseState;
 
         if (responder.mode == Mode.FOLLOWER && responder.term == request.term) {
-            // TODO trigger a term bump if we voted for a different leader in this term
             logger.trace("responding to {} on fast path", request);
             transportChannel.sendResponse(Empty.INSTANCE);
             return;
@@ -197,15 +196,6 @@ public class FollowersChecker {
             }
         });
     }
-
-    // TODO in the PoC a faulty node was considered non-faulty again if it sent us a PeersRequest:
-    // - node disconnects, detected faulty, removal is enqueued
-    // - node reconnects, pings us, finds we are master, requests to join, all before removal is applied
-    // - join is processed before removal, but we do not publish to known-faulty nodes so the joining node does not receive this publication
-    // - it doesn't start its leader checker since it receives nothing to cause it to become a follower
-    // Apparently this meant that it remained a candidate for too long, leading to a test failure.  At the time this logic was added, we did
-    // not have gossip-based discovery which would (I think) have retried this joining process a short time later. It's therefore possible
-    // that this is no longer required, so it's omitted here until we can be sure if it's necessary or not.
 
     /**
      * @return nodes in the current cluster state which have failed their follower checks.

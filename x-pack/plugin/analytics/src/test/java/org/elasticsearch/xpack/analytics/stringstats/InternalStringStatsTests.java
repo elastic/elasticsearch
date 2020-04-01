@@ -38,15 +38,15 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
     }
 
     protected InternalStringStats createTestInstance(
-            String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+            String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         if (randomBoolean()) {
             return new InternalStringStats(name, 0, 0, 0, 0, emptyMap(), randomBoolean(), DocValueFormat.RAW,
-                    pipelineAggregators, metaData);
+                    pipelineAggregators, metadata);
         }
         return new InternalStringStats(name, randomLongBetween(1, Long.MAX_VALUE),
                 randomNonNegativeLong(), between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE), randomCharOccurrences(),
                 randomBoolean(), DocValueFormat.RAW,
-                pipelineAggregators, metaData);
+                pipelineAggregators, metadata);
     };
 
     @Override
@@ -82,7 +82,7 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
              break;
          }
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, charOccurrences, showDistribution,
-                DocValueFormat.RAW, instance.pipelineAggregators(), instance.getMetaData());
+                DocValueFormat.RAW, instance.pipelineAggregators(), instance.getMetadata());
     }
 
     @Override

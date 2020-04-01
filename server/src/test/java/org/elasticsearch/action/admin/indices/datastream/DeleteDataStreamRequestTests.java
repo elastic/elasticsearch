@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction.
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -64,11 +64,11 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
         final String dataStreamName = "my-data-stream";
         DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
+            .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(dataStreamName);
 
         ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(cs, req);
-        assertThat(newState.metaData().dataStreams().size(), equalTo(0));
+        assertThat(newState.metadata().dataStreams().size(), equalTo(0));
     }
 
     public void testDeleteNonexistentDataStream() {

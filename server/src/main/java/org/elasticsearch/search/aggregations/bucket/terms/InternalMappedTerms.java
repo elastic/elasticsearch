@@ -47,9 +47,9 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
     protected long docCountError;
 
     protected InternalMappedTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData, DocValueFormat format, int shardSize,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata, DocValueFormat format, int shardSize,
             boolean showTermDocCountError, long otherDocCount, List<B> buckets, long docCountError) {
-        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData);
+        super(name, order, requiredSize, minDocCount, pipelineAggregators, metadata);
         this.format = format;
         this.shardSize = shardSize;
         this.showTermDocCountError = showTermDocCountError;

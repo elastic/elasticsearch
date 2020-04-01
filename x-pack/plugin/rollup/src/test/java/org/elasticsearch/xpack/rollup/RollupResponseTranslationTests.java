@@ -151,7 +151,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
-        when(sum.getMetaData()).thenReturn(metadata);
+        when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
@@ -159,7 +159,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(count.getValue()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
-        when(count.getMetaData()).thenReturn(null);
+        when(count.getMetadata()).thenReturn(null);
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
@@ -247,7 +247,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
-        when(sum.getMetaData()).thenReturn(metadata);
+        when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
@@ -255,7 +255,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(count.getValue()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
-        when(count.getMetaData()).thenReturn(null);
+        when(count.getMetadata()).thenReturn(null);
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
@@ -375,7 +375,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
-        when(sum.getMetaData()).thenReturn(metadata);
+        when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
@@ -383,7 +383,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(count.getValue()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
-        when(count.getMetaData()).thenReturn(null);
+        when(count.getMetadata()).thenReturn(null);
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 

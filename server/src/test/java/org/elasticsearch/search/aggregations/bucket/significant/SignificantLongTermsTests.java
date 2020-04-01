@@ -46,7 +46,7 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
     @Override
     protected InternalSignificantTerms createTestInstance(String name,
                                                           List<PipelineAggregator> pipelineAggregators,
-                                                          Map<String, Object> metaData,
+                                                          Map<String, Object> metadata,
                                                           InternalAggregations aggs,
                                                           int requiredSize, int numBuckets,
                                                           long subsetSize, int[] subsetDfs,
@@ -57,12 +57,12 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
         Set<Long> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
             long term = randomValueOtherThanMany(l -> terms.add(l) == false, random()::nextLong);
-            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(subsetDfs[i], subsetSize, 
+            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(subsetDfs[i], subsetSize,
                     supersetDfs[i], supersetSize, term, aggs, format, 0);
             bucket.updateScore(significanceHeuristic);
             buckets.add(bucket);
         }
-        return new SignificantLongTerms(name, requiredSize, 1L, pipelineAggregators, metaData, format, subsetSize,
+        return new SignificantLongTerms(name, requiredSize, 1L, pipelineAggregators, metadata, format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
     }
 
@@ -89,7 +89,7 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
             List<SignificantLongTerms.Bucket> buckets = longTerms.getBuckets();
             SignificanceHeuristic significanceHeuristic = longTerms.significanceHeuristic;
             List<PipelineAggregator> pipelineAggregators = longTerms.pipelineAggregators();
-            Map<String, Object> metaData = longTerms.getMetaData();
+            Map<String, Object> metadata = longTerms.getMetadata();
             switch (between(0, 5)) {
             case 0:
                 name += randomAlphaOfLength(5);
@@ -112,24 +112,24 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
                         randomNonNegativeLong(), randomNonNegativeLong(), InternalAggregations.EMPTY, format, 0));
                 break;
             case 8:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(instance.getMetaData());
+                    metadata = new HashMap<>(instance.getMetadata());
                 }
-                metaData.put(randomAlphaOfLength(15), randomInt());
+                metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return new SignificantLongTerms(name, requiredSize, minDocCount, pipelineAggregators, metaData, format, subsetSize,
+            return new SignificantLongTerms(name, requiredSize, minDocCount, pipelineAggregators, metadata, format, subsetSize,
                     supersetSize, significanceHeuristic, buckets);
         } else {
             String name = instance.getName();
             int requiredSize = instance.requiredSize;
             long minDocCount = instance.minDocCount;
             List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-            Map<String, Object> metaData = instance.getMetaData();
+            Map<String, Object> metadata = instance.getMetadata();
             switch (between(0, 3)) {
             case 0:
                 name += randomAlphaOfLength(5);
@@ -141,17 +141,17 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
                 minDocCount += between(1, 100);
                 break;
             case 3:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(instance.getMetaData());
+                    metadata = new HashMap<>(instance.getMetadata());
                 }
-                metaData.put(randomAlphaOfLength(15), randomInt());
+                metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return new UnmappedSignificantTerms(name, requiredSize, minDocCount, pipelineAggregators, metaData);
+            return new UnmappedSignificantTerms(name, requiredSize, minDocCount, pipelineAggregators, metadata);
         }
     }
 }

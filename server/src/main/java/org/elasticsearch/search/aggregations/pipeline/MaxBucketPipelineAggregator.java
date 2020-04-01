@@ -35,8 +35,8 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     private double maxValue;
 
     MaxBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat formatter,
-            Map<String, Object> metaData) {
-        super(name, bucketsPaths, gapPolicy, formatter, metaData);
+            Map<String, Object> metadata) {
+        super(name, bucketsPaths, gapPolicy, formatter, metadata);
     }
 
     /**
@@ -71,7 +71,7 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         String[] keys = maxBucketKeys.toArray(new String[maxBucketKeys.size()]);
-        return new InternalBucketMetricValue(name(), keys, maxValue, format, Collections.emptyList(), metaData());
+        return new InternalBucketMetricValue(name(), keys, maxValue, format, Collections.emptyList(), metadata());
     }
 
 }

@@ -22,8 +22,8 @@ package org.elasticsearch.action.admin.cluster.reroute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
@@ -49,16 +49,16 @@ public class ClusterRerouteResponseTests extends ESTestCase {
     public void testToXContent() throws IOException {
         DiscoveryNode node0 = new DiscoveryNode("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000), Version.CURRENT);
         DiscoveryNodes nodes = new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build();
-        IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(Settings.builder()
+        IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(Settings.builder()
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), true)
                 .put(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey(), 10)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build()).build();
-        ImmutableOpenMap.Builder<String, IndexMetaData> openMapBuilder = ImmutableOpenMap.builder();
-        openMapBuilder.put("index", indexMetaData);
-        MetaData metaData = MetaData.builder().indices(openMapBuilder.build()).build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(nodes).metaData(metaData).build();
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()).build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> openMapBuilder = ImmutableOpenMap.builder();
+        openMapBuilder.put("index", indexMetadata);
+        Metadata metadata = Metadata.builder().indices(openMapBuilder.build()).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(nodes).metadata(metadata).build();
 
         RoutingExplanations routingExplanations = new RoutingExplanations();
         routingExplanations.add(new RerouteExplanation(new AllocateReplicaAllocationCommand("index", 0, "node0"), Decision.YES));

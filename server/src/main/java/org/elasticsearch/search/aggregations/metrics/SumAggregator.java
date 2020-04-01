@@ -46,8 +46,8 @@ class SumAggregator extends NumericMetricsAggregator.SingleValue {
     private DoubleArray compensations;
 
     SumAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         this.format = formatter;
         if (valuesSource != null) {
@@ -109,12 +109,12 @@ class SumAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalSum(name, sums.get(bucket), format, pipelineAggregators(), metaData());
+        return new InternalSum(name, sums.get(bucket), format, pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalSum(name, 0.0, format, pipelineAggregators(), metaData());
+        return new InternalSum(name, 0.0, format, pipelineAggregators(), metadata());
     }
 
     @Override

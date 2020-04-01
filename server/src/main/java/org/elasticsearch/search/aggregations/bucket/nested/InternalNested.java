@@ -32,8 +32,8 @@ import java.util.Map;
  */
 public class InternalNested extends InternalSingleBucketAggregation implements Nested {
     InternalNested(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, docCount, aggregations, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, docCount, aggregations, pipelineAggregators, metadata);
     }
 
     /**
@@ -50,6 +50,6 @@ public class InternalNested extends InternalSingleBucketAggregation implements N
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalNested(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
+        return new InternalNested(name, docCount, subAggregations, pipelineAggregators(), getMetadata());
     }
 }

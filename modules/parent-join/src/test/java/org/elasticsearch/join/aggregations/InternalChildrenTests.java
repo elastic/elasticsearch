@@ -45,8 +45,8 @@ public class InternalChildrenTests extends InternalSingleBucketAggregationTestCa
 
     @Override
     protected InternalChildren createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalChildren(name, docCount, aggregations, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalChildren(name, docCount, aggregations, pipelineAggregators, metadata);
     }
 
     @Override

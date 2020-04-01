@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
@@ -37,14 +37,12 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME;
@@ -114,7 +112,7 @@ public class PreVoteCollectorTests extends ESTestCase {
             assert electionOccurred == false;
             electionOccurred = true;
         }, l -> {
-        }, ElectionStrategy.DEFAULT_INSTANCE); // TODO need tests that check that the max term seen is updated
+        }, ElectionStrategy.DEFAULT_INSTANCE);
         preVoteCollector.update(getLocalPreVoteResponse(), null);
     }
 
@@ -135,8 +133,7 @@ public class PreVoteCollectorTests extends ESTestCase {
     }
 
     private ClusterState makeClusterState(DiscoveryNode[] votingNodes) {
-        final VotingConfiguration votingConfiguration
-            = new VotingConfiguration(Arrays.stream(votingNodes).map(DiscoveryNode::getId).collect(Collectors.toSet()));
+        final VotingConfiguration votingConfiguration = VotingConfiguration.of(votingNodes);
         return CoordinationStateTests.clusterState(lastAcceptedTerm, lastAcceptedVersion, localNode,
             votingConfiguration, votingConfiguration, 0);
     }

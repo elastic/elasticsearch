@@ -31,10 +31,10 @@ import java.util.Map;
 
 public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
     @Override
-    protected InternalMin createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalMin createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         double value = frequently() ? randomDouble() : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY });
         DocValueFormat formatter = randomNumericDocValueFormat();
-        return new InternalMin(name, value, formatter, pipelineAggregators, metaData);
+        return new InternalMin(name, value, formatter, pipelineAggregators, metadata);
     }
 
     @Override
@@ -66,7 +66,7 @@ public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
         double value = instance.getValue();
         DocValueFormat formatter = instance.format;
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -79,16 +79,16 @@ public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
             }
             break;
         case 2:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalMin(name, value, formatter, pipelineAggregators, metaData);
+        return new InternalMin(name, value, formatter, pipelineAggregators, metadata);
     }
 }

@@ -37,8 +37,8 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactories,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metadata);
     }
 
     @Override
@@ -46,7 +46,7 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         if (parent != null) {
             throw new AggregationExecutionException("Aggregation [" + parent.name() + "] cannot have a global " + "sub-aggregation [" + name
                     + "]. Global aggregations can only be defined as top level aggregations");
@@ -54,6 +54,6 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
         if (collectsFromSingleBucket == false) {
             throw new IllegalStateException();
         }
-        return new GlobalAggregator(name, factories, searchContext, pipelineAggregators, metaData);
+        return new GlobalAggregator(name, factories, searchContext, pipelineAggregators, metadata);
     }
 }

@@ -27,9 +27,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexTemplateV2;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -44,11 +44,11 @@ import java.io.IOException;
 public class TransportPutIndexTemplateV2Action
     extends TransportMasterNodeAction<PutIndexTemplateV2Action.Request, AcknowledgedResponse> {
 
-    private final MetaDataIndexTemplateService indexTemplateService;
+    private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
     public TransportPutIndexTemplateV2Action(TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
+                                               ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PutIndexTemplateV2Action.NAME, transportService, clusterService, threadPool, actionFilters,
             PutIndexTemplateV2Action.Request::new, indexNameExpressionResolver);
@@ -78,7 +78,7 @@ public class TransportPutIndexTemplateV2Action
         Template template = indexTemplate.template();
         // Normalize the index settings if necessary
         if (template.settings() != null) {
-            Settings.Builder settings = Settings.builder().put(template.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+            Settings.Builder settings = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
             template = new Template(settings.build(), template.mappings(), template.aliases());
             indexTemplate = new IndexTemplateV2(indexTemplate.indexPatterns(), template, indexTemplate.composedOf(),
                 indexTemplate.priority(), indexTemplate.version(), indexTemplate.metadata());

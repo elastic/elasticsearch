@@ -46,14 +46,14 @@ public abstract class InternalTermsTestCase extends InternalMultiBucketAggregati
     @Override
     protected InternalTerms<?, ?> createTestInstance(String name,
                                                      List<PipelineAggregator> pipelineAggregators,
-                                                     Map<String, Object> metaData,
+                                                     Map<String, Object> metadata,
                                                      InternalAggregations aggregations) {
-        return createTestInstance(name, pipelineAggregators, metaData, aggregations, showDocCount, docCountError);
+        return createTestInstance(name, pipelineAggregators, metadata, aggregations, showDocCount, docCountError);
     }
 
     protected abstract InternalTerms<?, ?> createTestInstance(String name,
                                                               List<PipelineAggregator> pipelineAggregators,
-                                                              Map<String, Object> metaData,
+                                                              Map<String, Object> metadata,
                                                               InternalAggregations aggregations,
                                                               boolean showTermDocCountError,
                                                               long docCountError);
@@ -62,10 +62,10 @@ public abstract class InternalTermsTestCase extends InternalMultiBucketAggregati
     protected InternalTerms<?, ?> createUnmappedInstance(
             String name,
             List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        InternalTerms<?, ?> testInstance = createTestInstance(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        InternalTerms<?, ?> testInstance = createTestInstance(name, pipelineAggregators, metadata);
         return new UnmappedTerms(name, testInstance.order, testInstance.requiredSize, testInstance.minDocCount,
-                pipelineAggregators, metaData);
+                pipelineAggregators, metadata);
     }
 
     @Override

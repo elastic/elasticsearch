@@ -8,8 +8,8 @@ expected_event_ids  = [1]
 
 [[queries]]
 note = "check that string(null) returns 'null'"
-expected_event_ids  = [58, 64, 69, 74, 80, 85, 90, 93, 94, 75303]
-query = 'process where string(exit_code) == "null"'
+expected_event_ids  = [1, 2]
+query = 'process where opcode == 3 and string(ppid) == "null"'
 
 [[queries]]
 query = 'process where serial_event_id < 4'

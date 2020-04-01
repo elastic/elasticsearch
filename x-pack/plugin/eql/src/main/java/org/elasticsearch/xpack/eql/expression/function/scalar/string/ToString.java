@@ -46,7 +46,7 @@ public class ToString extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isExact(source, sourceText(), ParamOrdinal.FIRST);
+        return isExact(source, sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override
@@ -73,10 +73,6 @@ public class ToString extends ScalarFunction {
     public ScriptTemplate asScript() {
         ScriptTemplate sourceScript = asScript(source);
 
-        return asScriptFrom(sourceScript);
-    }
-
-    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s)"),
                 "string",
                 sourceScript.template()),

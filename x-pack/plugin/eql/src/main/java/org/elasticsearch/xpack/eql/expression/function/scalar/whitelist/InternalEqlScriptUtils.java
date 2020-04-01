@@ -35,7 +35,7 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
         return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern);
     }
 
-    public static String string(String s) {
+    public static String string(Object s) {
         return (String) ToStringFunctionProcessor.doProcess(s);
     }
 

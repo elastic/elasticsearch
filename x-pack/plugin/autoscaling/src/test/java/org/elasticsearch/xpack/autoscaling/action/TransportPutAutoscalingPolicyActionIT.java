@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -42,10 +43,10 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
 
     public void testNoOpPolicy() {
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
-        final ClusterState beforeState = client().admin().cluster().prepareState().get().getState();
+        final ClusterState beforeState = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).state();
         putAutoscalingPolicy(policy);
-        final ClusterState afterState = client().admin().cluster().prepareState().get().getState();
-        assertThat(beforeState.custom(AutoscalingMetadata.NAME), sameInstance(afterState.custom(AutoscalingMetadata.NAME)));
+        final ClusterState afterState = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).state();
+        assertThat(beforeState.metadata().custom(AutoscalingMetadata.NAME), sameInstance(afterState.metadata().custom(AutoscalingMetadata.NAME)));
     }
 
     private AutoscalingPolicy putRandomAutoscalingPolicy() {

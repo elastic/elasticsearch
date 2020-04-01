@@ -34,7 +34,8 @@
             "type":{
               "type":"string",
               "required":false,
-              "description":"The doc type inside the index"
+              "description":"The doc type inside the index",
+              "deprecated":true
             }
           },
           "deprecated":{

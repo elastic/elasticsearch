@@ -23,7 +23,8 @@
           "parts":{
             "scroll_id":{
               "type":"string",
-              "description":"The scroll ID"
+              "description":"The scroll ID",
+              "deprecated":true
             }
           },
           "deprecated":{

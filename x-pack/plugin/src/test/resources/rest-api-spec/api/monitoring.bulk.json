@@ -23,7 +23,8 @@
           "parts":{
             "type":{
               "type":"string",
-              "description":"Default document type for items which don't provide one"
+              "description":"Default document type for items which don't provide one",
+              "deprecated":true
             }
           },
           "deprecated":{

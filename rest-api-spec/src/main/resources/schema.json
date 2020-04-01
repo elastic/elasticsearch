@@ -180,7 +180,10 @@
                     "title": "Default value"
                 },
                 "deprecated": {
-                    "$ref": "#/definitions/Deprecated"
+                    "oneOf": [
+                      { "$ref": "#/definitions/Deprecated" },
+                      { "type": "boolean" }
+                    ]
                 },
                 "description": {
                     "type": "string",

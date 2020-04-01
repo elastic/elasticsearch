@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -68,7 +67,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
 
     public static SortedMap<String, AutoscalingDecider> randomAutoscalingDeciders() {
         return new TreeMap<>(
-            Collections.singletonList(new AlwaysAutoscalingDecider())
+            org.elasticsearch.common.collect.List.of(new AlwaysAutoscalingDecider())
                 .stream()
                 .collect(Collectors.toMap(AutoscalingDecider::name, Function.identity()))
         );

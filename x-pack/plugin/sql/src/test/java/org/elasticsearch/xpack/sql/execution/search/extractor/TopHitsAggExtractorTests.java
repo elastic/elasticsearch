@@ -95,8 +95,8 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
 
     private SearchHits searchHitsOf(Object value) {
         TotalHits totalHits = new TotalHits(10, TotalHits.Relation.EQUAL_TO);
-        return new SearchHits(new SearchHit[] {new SearchHit(1, "docId", null,
-                Collections.singletonMap("topHitsAgg", new DocumentField("field", Collections.singletonList(value))))},
+        return new SearchHits(new SearchHit[] {new SearchHit(1, "docId", null, Collections.singletonMap("topHitsAgg",
+            new DocumentField("field", Collections.singletonList(value))), Collections.emptyMap())},
             totalHits, 0.0f);
     }
 }

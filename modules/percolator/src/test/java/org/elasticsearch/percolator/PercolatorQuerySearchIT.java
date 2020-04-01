@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.geo.GeoPlugin;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -40,8 +41,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -75,8 +74,13 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     @Override
+    protected boolean addMockGeoShapeFieldMapper() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class, GeoPlugin.class);
     }
 
     public void testPercolatorQuery() throws Exception {
@@ -964,7 +968,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
             XContentType.JSON)).get();
         assertEquals(1, response.getHits().getTotalHits().value);
-        
+
         response = client().prepareSearch("test").setQuery(new PercolateQueryBuilder("q",
             BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
             XContentType.JSON)).addSort("_doc", SortOrder.ASC).get();

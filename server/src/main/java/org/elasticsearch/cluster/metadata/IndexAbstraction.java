@@ -89,6 +89,11 @@ public interface IndexAbstraction {
          */
         ALIAS("alias"),
 
+        /**
+         * An index abstraction that refers to a data stream.
+         * A data stream typically has multiple backing indices, the latest of which
+         * is the target for index requests.
+         */
         DATA_STREAM("data_stream");
 
         private final String displayName;

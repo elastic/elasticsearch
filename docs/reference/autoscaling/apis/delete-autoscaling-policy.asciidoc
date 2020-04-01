@@ -1,47 +1,15 @@
 [role="xpack"]
 [testenv="platinum"]
-[[autoscaling-put-autoscaling-policy]]
-=== Put autoscaling policy API
+[[autoscaling-delete-autoscaling-policy]]
+=== Delete autoscaling policy API
 ++++
-<titleabbrev>Put autoscaling policy</titleabbrev>
+<titleabbrev>Delete autoscaling policy</titleabbrev>
 ++++
 
-Put autoscaling policy.
+Delete autoscaling policy.
 
-[[autoscaling-put-autoscaling-policy-request]]
+[[autoscaling-delete-autoscaling-policy-request]]
 ==== {api-request-title}
-
-[source,console]
---------------------------------------------------
-PUT /_autoscaling/policy/<name>
-{
-  "policy": {
-    "deciders": {
-      "always": {
-      }
-    }
-  }
-}
---------------------------------------------------
-// TEST[s/<name>/name/]
-
-[[autoscaling-put-autoscaling-policy-prereqs]]
-==== {api-prereq-title}
-
-* If the {es} {security-features} are enabled, you must have
-`manage_autoscaling` cluster privileges. For more information, see
-<<security-privileges>>.
-
-[[autoscaling-put-autoscaling-policy-desc]]
-==== {api-description-title}
-
-This API puts an autoscaling policy with the provided name.
-
-[[autoscaling-put-autoscaling-policy-examples]]
-==== {api-examples-title}
-
-This example puts an autoscaling policy named `my_autoscaling_policy` using the
-always autoscaling decider.
 
 [source,console]
 --------------------------------------------------
@@ -54,6 +22,35 @@ PUT /_autoscaling/policy/my_autoscaling_policy
     }
   }
 }
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/<name>
+--------------------------------------------------
+// TEST[s/<name>/my_autoscaling_policy/]
+
+[[autoscaling-delete-autoscaling-policy-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have
+`manage_autoscaling` cluster privileges. For more information, see
+<<security-privileges>>.
+
+[[autoscaling-delete-autoscaling-policy-desc]]
+==== {api-description-title}
+
+This API deletes an autoscaling policy with the provided name.
+
+[[autoscaling-delete-autoscaling-policy-examples]]
+==== {api-examples-title}
+
+This example deletes an autoscaling policy named `my_autosaling_policy`.
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/my_autoscaling_policy
 --------------------------------------------------
 // TEST
 

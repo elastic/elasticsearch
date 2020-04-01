@@ -33,8 +33,8 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
     private final double sum;
     private final double weight;
 
-    InternalWeightedAvg(String name, double sum, double weight, DocValueFormat format, Map<String, Object> metaData) {
-        super(name, metaData);
+    InternalWeightedAvg(String name, double sum, double weight, DocValueFormat format, Map<String, Object> metadata) {
+        super(name, metadata);
         this.sum = sum;
         this.weight = weight;
         this.format = format;
@@ -97,7 +97,7 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
             sumCompensation.add(avg.sum);
         }
 
-        return new InternalWeightedAvg(getName(), sumCompensation.value(), weightCompensation.value(), format, getMetaData());
+        return new InternalWeightedAvg(getName(), sumCompensation.value(), weightCompensation.value(), format, getMetadata());
     }
 
     @Override

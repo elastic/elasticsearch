@@ -33,10 +33,10 @@ import java.util.Map;
 public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
 
     @Override
-    protected InternalAvg createTestInstance(String name, Map<String, Object> metaData) {
+    protected InternalAvg createTestInstance(String name, Map<String, Object> metadata) {
         DocValueFormat formatter = randomNumericDocValueFormat();
         long count = frequently() ? randomNonNegativeLong() % 100000 : 0;
-        return new InternalAvg(name, randomDoubleBetween(0, 100000, true), count, formatter, metaData);
+        return new InternalAvg(name, randomDoubleBetween(0, 100000, true), count, formatter, metadata);
     }
 
     @Override
@@ -112,7 +112,7 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         double sum = instance.getSum();
         long count = instance.getCount();
         DocValueFormat formatter = instance.getFormatter();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -132,16 +132,16 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
             }
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalAvg(name, sum, count, formatter, metaData);
+        return new InternalAvg(name, sum, count, formatter, metadata);
     }
 }

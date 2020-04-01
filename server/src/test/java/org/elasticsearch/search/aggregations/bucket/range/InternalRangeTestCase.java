@@ -41,11 +41,11 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
     }
 
     @Override
-    protected T createTestInstance(String name, Map<String, Object> metaData, InternalAggregations aggregations) {
-        return createTestInstance(name, metaData, aggregations, keyed);
+    protected T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
+        return createTestInstance(name, metadata, aggregations, keyed);
     }
 
-    protected abstract T createTestInstance(String name, Map<String, Object> metaData, InternalAggregations aggregations, boolean keyed);
+    protected abstract T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations, boolean keyed);
 
     @Override
     protected void assertReduced(T reduced, List<T> inputs) {

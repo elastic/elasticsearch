@@ -34,8 +34,8 @@ public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     private double minValue;
 
     MinBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat formatter,
-            Map<String, Object> metaData) {
-        super(name, bucketsPaths, gapPolicy, formatter, metaData);
+            Map<String, Object> metadata) {
+        super(name, bucketsPaths, gapPolicy, formatter, metadata);
     }
 
     /**
@@ -70,7 +70,7 @@ public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     @Override
     protected InternalAggregation buildAggregation(Map<String, Object> metadata) {
         String[] keys = minBucketKeys.toArray(new String[0]);
-        return new InternalBucketMetricValue(name(), keys, minValue, format, metaData());
+        return new InternalBucketMetricValue(name(), keys, minValue, format, metadata());
     }
 
 }

@@ -43,20 +43,20 @@ public abstract class InternalTermsTestCase extends InternalMultiBucketAggregati
     }
 
     @Override
-    protected InternalTerms<?, ?> createTestInstance(String name, Map<String, Object> metaData, InternalAggregations aggregations) {
-        return createTestInstance(name, metaData, aggregations, showDocCount, docCountError);
+    protected InternalTerms<?, ?> createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
+        return createTestInstance(name, metadata, aggregations, showDocCount, docCountError);
     }
 
     protected abstract InternalTerms<?, ?> createTestInstance(String name,
-                                                              Map<String, Object> metaData,
+                                                              Map<String, Object> metadata,
                                                               InternalAggregations aggregations,
                                                               boolean showTermDocCountError,
                                                               long docCountError);
 
     @Override
-    protected InternalTerms<?, ?> createUnmappedInstance(String name, Map<String, Object> metaData) {
-        InternalTerms<?, ?> testInstance = createTestInstance(name, metaData);
-        return new UnmappedTerms(name, testInstance.order, testInstance.requiredSize, testInstance.minDocCount, metaData);
+    protected InternalTerms<?, ?> createUnmappedInstance(String name, Map<String, Object> metadata) {
+        InternalTerms<?, ?> testInstance = createTestInstance(name, metadata);
+        return new UnmappedTerms(name, testInstance.order, testInstance.requiredSize, testInstance.minDocCount, metadata);
     }
 
     @Override

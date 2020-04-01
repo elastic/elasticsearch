@@ -29,8 +29,8 @@ public class GeoHashGridTests extends GeoGridTestCase<InternalGeoHashGridBucket,
 
     @Override
     protected InternalGeoHashGrid createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
-                                                        Map<String, Object> metaData) {
-        return new InternalGeoHashGrid(name, size, buckets, metaData);
+                                                        Map<String, Object> metadata) {
+        return new InternalGeoHashGrid(name, size, buckets, metadata);
     }
 
     @Override

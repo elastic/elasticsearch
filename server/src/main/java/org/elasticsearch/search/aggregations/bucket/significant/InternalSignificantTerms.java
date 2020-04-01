@@ -165,8 +165,8 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected final int requiredSize;
     protected final long minDocCount;
 
-    protected InternalSignificantTerms(String name, int requiredSize, long minDocCount, Map<String, Object> metaData) {
-        super(name, metaData);
+    protected InternalSignificantTerms(String name, int requiredSize, long minDocCount, Map<String, Object> metadata) {
+        super(name, metadata);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
     }

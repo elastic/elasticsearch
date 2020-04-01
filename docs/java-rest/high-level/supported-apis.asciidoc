@@ -71,6 +71,22 @@ include::search/rank-eval.asciidoc[]
 include::search/explain.asciidoc[]
 include::search/count.asciidoc[]
 
+[role="xpack"]
+== Async Search APIs
+
+:upid: {mainid}-asyncsearch
+:doc-tests-file: {doc-tests}/AsyncSearchDocumentationIT.java
+
+The Java High Level REST Client supports the following Async Search APIs:
+
+* <<{upid}-asyncsearch-submit>>
+* <<{upid}-asyncsearch-get>>
+* <<{upid}-asyncsearch-delete>>
+
+include::asyncsearch/submit.asciidoc[]
+include::asyncsearch/get.asciidoc[]
+include::asyncsearch/delete.asciidoc[]
+
 == Miscellaneous APIs
 
 The Java High Level REST Client supports the following Miscellaneous APIs:

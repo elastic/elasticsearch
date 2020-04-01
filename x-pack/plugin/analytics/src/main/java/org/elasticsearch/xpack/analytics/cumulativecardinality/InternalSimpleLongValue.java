@@ -22,8 +22,8 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
     public static final String NAME = "simple_long_value";
     protected final long value;
 
-    public InternalSimpleLongValue(String name, long value, DocValueFormat formatter, Map<String, Object> metaData) {
-        super(name, metaData);
+    public InternalSimpleLongValue(String name, long value, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.format = formatter;
         this.value = value;
     }

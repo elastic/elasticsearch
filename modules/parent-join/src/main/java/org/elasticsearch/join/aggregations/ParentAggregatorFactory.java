@@ -50,8 +50,8 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
                                    QueryShardContext queryShardContext,
                                    AggregatorFactory parent,
                                    AggregatorFactories.Builder subFactoriesBuilder,
-                                   Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                   Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
 
         this.childFilter = childFilter;
         this.parentFilter = parentFilter;
@@ -59,11 +59,11 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
-                return new InternalParent(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+                return new InternalParent(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metadata());
             }
         };
     }
@@ -73,7 +73,7 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           SearchContext searchContext, Aggregator children,
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
 
         if (rawValuesSource instanceof WithOrdinals == false) {
             throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
@@ -83,7 +83,7 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
         if (collectsFromSingleBucket) {
             return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,
-                parentFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
+                parentFilter, valuesSource, maxOrd, pipelineAggregators, metadata);
         } else {
             return asMultiBucketAggregator(this, searchContext, children);
         }

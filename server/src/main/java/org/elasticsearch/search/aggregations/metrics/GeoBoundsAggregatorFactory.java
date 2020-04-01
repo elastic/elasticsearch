@@ -47,8 +47,8 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                 QueryShardContext queryShardContext,
                                 AggregatorFactory parent,
                                 AggregatorFactories.Builder subFactoriesBuilder,
-                                Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.wrapLongitude = wrapLongitude;
     }
 
@@ -56,8 +56,8 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new GeoBoundsAggregator(name, searchContext, parent, null, wrapLongitude, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new GeoBoundsAggregator(name, searchContext, parent, null, wrapLongitude, pipelineAggregators, metadata);
     }
 
     @Override
@@ -66,7 +66,7 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config.valueSourceType(), GeoBoundsAggregationBuilder.NAME);
 
@@ -76,13 +76,13 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
 
         return ((GeoBoundsAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, valuesSource, wrapLongitude,
-            pipelineAggregators, metaData);
+            pipelineAggregators, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(GeoBoundsAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
-            (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, pipelineAggregators, metaData)
+            (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, pipelineAggregators, metadata)
                 -> new GeoBoundsAggregator(name, aggregationContext, parent, (ValuesSource.GeoPoint) valuesSource,
-                    wrapLongitude, pipelineAggregators, metaData));
+                    wrapLongitude, pipelineAggregators, metadata));
     }
 }

@@ -109,7 +109,7 @@ public class TransformIT extends TransformIntegTestCase {
         waitUntilCheckpoint(config.getId(), 1L);
         assertThat(getTransformStats(config.getId()).getTransformsStats().get(0).getState(), equalTo(TransformStats.State.STARTED));
 
-        long docsIndexed = getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getNumDocuments();
+        long docsIndexed = getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getDocumentsIndexed();
 
         TransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
@@ -124,7 +124,7 @@ public class TransformIT extends TransformIntegTestCase {
 
         // Assert that we wrote the new docs
         assertThat(
-            getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getNumDocuments(),
+            getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getDocumentsIndexed(),
             greaterThan(docsIndexed)
         );
 
@@ -158,7 +158,7 @@ public class TransformIT extends TransformIntegTestCase {
             oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING)
         );
 
-        long docsIndexed = getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getNumDocuments();
+        long docsIndexed = getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getDocumentsIndexed();
 
         TransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
@@ -197,7 +197,7 @@ public class TransformIT extends TransformIntegTestCase {
 
         // Since updates are loaded on checkpoint start, we should see the updated config on this next run
         waitUntilCheckpoint(config.getId(), 2L);
-        long numDocsAfterCp2 = getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getNumDocuments();
+        long numDocsAfterCp2 = getTransformStats(config.getId()).getTransformsStats().get(0).getIndexerStats().getDocumentsIndexed();
         assertThat(numDocsAfterCp2, greaterThan(docsIndexed));
 
         final SearchRequest searchRequest = new SearchRequest(dest).source(
@@ -251,7 +251,7 @@ public class TransformIT extends TransformIntegTestCase {
         assertBusy(() -> {
             TransformStats stateAndStats = getTransformStats(config.getId()).getTransformsStats().get(0);
             assertThat(stateAndStats.getState(), equalTo(TransformStats.State.STOPPED));
-            assertThat(stateAndStats.getIndexerStats().getNumDocuments(), equalTo(1000L));
+            assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), equalTo(1000L));
         });
 
         stopTransform(config.getId());

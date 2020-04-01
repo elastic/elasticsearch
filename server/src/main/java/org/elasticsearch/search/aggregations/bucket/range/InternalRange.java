@@ -196,8 +196,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         @SuppressWarnings("unchecked")
-        public R create(String name, List<B> ranges, DocValueFormat format, boolean keyed, Map<String, Object> metaData) {
-            return (R) new InternalRange<B, R>(name, ranges, format, keyed, metaData);
+        public R create(String name, List<B> ranges, DocValueFormat format, boolean keyed, Map<String, Object> metadata) {
+            return (R) new InternalRange<B, R>(name, ranges, format, keyed, metadata);
         }
 
         @SuppressWarnings("unchecked")
@@ -208,7 +208,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @SuppressWarnings("unchecked")
         public R create(List<B> ranges, R prototype) {
-            return (R) new InternalRange<B, R>(prototype.name, ranges, prototype.format, prototype.keyed, prototype.metaData);
+            return (R) new InternalRange<B, R>(prototype.name, ranges, prototype.format, prototype.keyed, prototype.metadata);
         }
 
         @SuppressWarnings("unchecked")
@@ -222,8 +222,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     protected final DocValueFormat format;
     protected final boolean keyed;
 
-    public InternalRange(String name, List<B> ranges, DocValueFormat format, boolean keyed, Map<String, Object> metaData) {
-        super(name, metaData);
+    public InternalRange(String name, List<B> ranges, DocValueFormat format, boolean keyed, Map<String, Object> metadata) {
+        super(name, metadata);
         this.ranges = ranges;
         this.format = format;
         this.keyed = keyed;
@@ -301,7 +301,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < this.ranges.size(); ++i) {
             ranges.add((B) reduceBucket(rangeList[i], reduceContext));
         }
-        return getFactory().create(name, ranges, format, keyed, getMetaData());
+        return getFactory().create(name, ranges, format, keyed, getMetadata());
     }
 
     @Override

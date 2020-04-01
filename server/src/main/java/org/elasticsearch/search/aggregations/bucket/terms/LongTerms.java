@@ -101,9 +101,9 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     public LongTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
-            Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
+            Map<String, Object> metadata, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
-        super(name, order, requiredSize, minDocCount, metaData, format, shardSize, showTermDocCountError,
+        super(name, order, requiredSize, minDocCount, metadata, format, shardSize, showTermDocCountError,
                 otherDocCount, buckets, docCountError);
     }
 
@@ -121,7 +121,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     public LongTerms create(List<Bucket> buckets) {
-        return new LongTerms(name, order, requiredSize, minDocCount, metaData, format, shardSize,
+        return new LongTerms(name, order, requiredSize, minDocCount, metadata, format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -133,7 +133,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     protected LongTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
-        return new LongTerms(name, order, requiredSize, minDocCount, getMetaData(), format, shardSize,
+        return new LongTerms(name, order, requiredSize, minDocCount, getMetadata(), format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -170,7 +170,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
         return new DoubleTerms(longTerms.getName(), longTerms.order, longTerms.requiredSize,
             longTerms.minDocCount,
-            longTerms.metaData, longTerms.format, longTerms.shardSize,
+            longTerms.metadata, longTerms.format, longTerms.shardSize,
             longTerms.showTermDocCountError, longTerms.otherDocCount,
             newBuckets, longTerms.docCountError);
     }

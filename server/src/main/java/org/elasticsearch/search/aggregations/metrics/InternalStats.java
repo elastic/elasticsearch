@@ -45,8 +45,8 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     protected final double sum;
 
     public InternalStats(String name, long count, double sum, double min, double max, DocValueFormat formatter,
-                         Map<String, Object> metaData) {
-        super(name, metaData);
+                         Map<String, Object> metadata) {
+        super(name, metadata);
         this.count = count;
         this.sum = sum;
         this.min = min;
@@ -159,7 +159,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             // accurate than naive summation.
             kahanSummation.add(stats.getSum());
         }
-        return new InternalStats(name, count, kahanSummation.value(), min, max, format, getMetaData());
+        return new InternalStats(name, count, kahanSummation.value(), min, max, format, getMetadata());
     }
 
     static class Fields {

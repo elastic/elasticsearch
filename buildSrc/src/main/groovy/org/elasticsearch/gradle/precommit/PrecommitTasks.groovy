@@ -24,6 +24,7 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.util.Util
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
@@ -37,8 +38,6 @@ import org.gradle.api.tasks.TaskProvider
 class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
-
-    public static final String CHECKSTYLE_VERSION = '8.20'
 
     public static TaskProvider create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
@@ -232,7 +231,10 @@ class PrecommitTasks {
         project.pluginManager.apply('checkstyle')
         project.checkstyle {
             configDir = checkstyleDir
-            toolVersion = CHECKSTYLE_VERSION
+        }
+        project.dependencies {
+            checkstyle "com.puppycrawl.tools:checkstyle:${VersionProperties.versions.checkstyle}"
+            checkstyle project.files(Util.buildSrcCodeSource)
         }
 
         project.tasks.withType(Checkstyle).configureEach { task ->

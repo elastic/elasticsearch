@@ -37,20 +37,20 @@ public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid
     GeoTileGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
                           int requiredSize, int shardSize, SearchContext aggregationContext,
                           Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                          Map<String, Object> metaData) throws IOException {
+                          Map<String, Object> metadata) throws IOException {
         super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent,
-            pipelineAggregators, metaData);
+            pipelineAggregators, metadata);
     }
 
     @Override
     InternalGeoTileGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                                         Map<String, Object> metaData) {
-        return new InternalGeoTileGrid(name, requiredSize, buckets, metaData);
+                                         Map<String, Object> metadata) {
+        return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
     public InternalGeoTileGrid buildEmptyAggregation() {
-        return new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metaData());
+        return new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metadata());
     }
 
     InternalGeoGridBucket newEmptyBucket() {

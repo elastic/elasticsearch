@@ -36,7 +36,7 @@ public class LongTermsTests extends InternalTermsTestCase {
 
     @Override
     protected InternalTerms<?, ?> createTestInstance(String name,
-                                                     Map<String, Object> metaData,
+                                                     Map<String, Object> metadata,
                                                      InternalAggregations aggregations,
                                                      boolean showTermDocCountError,
                                                      long docCountError) {
@@ -55,7 +55,7 @@ public class LongTermsTests extends InternalTermsTestCase {
             buckets.add(new LongTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
         }
         return new LongTerms(name, order, requiredSize, minDocCount,
-                metaData, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
+                metadata, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
     @Override
@@ -82,7 +82,7 @@ public class LongTermsTests extends InternalTermsTestCase {
             long otherDocCount = longTerms.getSumOfOtherDocCounts();
             List<LongTerms.Bucket> buckets = longTerms.getBuckets();
             long docCountError = longTerms.getDocCountError();
-            Map<String, Object> metaData = longTerms.getMetaData();
+            Map<String, Object> metadata = longTerms.getMetadata();
             switch (between(0, 8)) {
             case 0:
                 name += randomAlphaOfLength(5);
@@ -111,24 +111,24 @@ public class LongTermsTests extends InternalTermsTestCase {
                         docCountError, format));
                 break;
             case 8:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(instance.getMetaData());
+                    metadata = new HashMap<>(instance.getMetadata());
                 }
-                metaData.put(randomAlphaOfLength(15), randomInt());
+                metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return new LongTerms(name, order, requiredSize, minDocCount, metaData, format, shardSize,
+            return new LongTerms(name, order, requiredSize, minDocCount, metadata, format, shardSize,
                     showTermDocCountError, otherDocCount, buckets, docCountError);
         } else {
             String name = instance.getName();
             BucketOrder order = instance.order;
             int requiredSize = instance.requiredSize;
             long minDocCount = instance.minDocCount;
-            Map<String, Object> metaData = instance.getMetaData();
+            Map<String, Object> metadata = instance.getMetadata();
             switch (between(0, 3)) {
             case 0:
                 name += randomAlphaOfLength(5);
@@ -140,17 +140,17 @@ public class LongTermsTests extends InternalTermsTestCase {
                 minDocCount += between(1, 100);
                 break;
             case 3:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(instance.getMetaData());
+                    metadata = new HashMap<>(instance.getMetadata());
                 }
-                metaData.put(randomAlphaOfLength(15), randomInt());
+                metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return new UnmappedTerms(name, order, requiredSize, minDocCount, metaData);
+            return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
         }
     }
 }

@@ -41,8 +41,8 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected final boolean keyed;
 
     AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
-            Map<String, Object> metaData) {
-        super(name, metaData);
+            Map<String, Object> metadata) {
+        super(name, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
@@ -111,11 +111,11 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             }
             merged.add(percentiles.state);
         }
-        return createReduced(getName(), keys, merged, keyed, getMetaData());
+        return createReduced(getName(), keys, merged, keyed, getMetadata());
     }
 
     protected abstract AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            Map<String, Object> metaData);
+            Map<String, Object> metadata);
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

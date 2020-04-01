@@ -71,8 +71,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
 
     private final TDigestState state;
 
-    InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, Map<String, Object> metaData) {
-        super(name, metaData);
+    InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.state = state;
         this.format = formatter;
     }
@@ -172,7 +172,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
             merged.add(percentiles.state);
         }
-        return new InternalBoxplot(name, merged, format, metaData);
+        return new InternalBoxplot(name, merged, format, metadata);
     }
 
     @Override

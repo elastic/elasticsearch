@@ -34,8 +34,8 @@ import java.util.Objects;
 public class InternalValueCount extends InternalNumericMetricsAggregation.SingleValue implements ValueCount {
     private final long value;
 
-    InternalValueCount(String name, long value, Map<String, Object> metaData) {
-        super(name, metaData);
+    InternalValueCount(String name, long value, Map<String, Object> metadata) {
+        super(name, metadata);
         this.value = value;
     }
 
@@ -73,7 +73,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
         for (InternalAggregation aggregation : aggregations) {
             valueCount += ((InternalValueCount) aggregation).value;
         }
-        return new InternalValueCount(name, valueCount, getMetaData());
+        return new InternalValueCount(name, valueCount, getMetadata());
     }
 
     @Override

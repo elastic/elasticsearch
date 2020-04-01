@@ -101,9 +101,9 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
     }
 
     public SignificantLongTerms(String name, int requiredSize, long minDocCount,
-            Map<String, Object> metaData, DocValueFormat format, long subsetSize, long supersetSize,
+            Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
             SignificanceHeuristic significanceHeuristic, List<Bucket> buckets) {
-        super(name, requiredSize, minDocCount, metaData, format, subsetSize, supersetSize, significanceHeuristic,
+        super(name, requiredSize, minDocCount, metadata, format, subsetSize, supersetSize, significanceHeuristic,
                 buckets);
     }
 
@@ -121,7 +121,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
 
     @Override
     public SignificantLongTerms create(List<SignificantLongTerms.Bucket> buckets) {
-        return new SignificantLongTerms(name, requiredSize, minDocCount, metaData, format, subsetSize, supersetSize,
+        return new SignificantLongTerms(name, requiredSize, minDocCount, metadata, format, subsetSize, supersetSize,
                 significanceHeuristic, buckets);
     }
 
@@ -133,7 +133,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
 
     @Override
     protected SignificantLongTerms create(long subsetSize, long supersetSize, List<Bucket> buckets) {
-        return new SignificantLongTerms(getName(), requiredSize, minDocCount, getMetaData(), format, subsetSize,
+        return new SignificantLongTerms(getName(), requiredSize, minDocCount, getMetadata(), format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
     }
 

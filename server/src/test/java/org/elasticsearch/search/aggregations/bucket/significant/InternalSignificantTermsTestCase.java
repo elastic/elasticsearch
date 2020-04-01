@@ -48,7 +48,7 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
 
     @Override
     protected final InternalSignificantTerms createTestInstance(String name,
-                                                          Map<String, Object> metaData,
+                                                          Map<String, Object> metadata,
                                                           InternalAggregations aggregations) {
         final int requiredSize = randomIntBetween(1, 5);
         final int numBuckets = randomNumberOfBuckets();
@@ -69,12 +69,12 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
             subsetSize += subsetDf;
             supersetSize += supersetDf;
         }
-        return createTestInstance(name, metaData, aggregations, requiredSize, numBuckets, subsetSize, subsetDfs,
+        return createTestInstance(name, metadata, aggregations, requiredSize, numBuckets, subsetSize, subsetDfs,
                 supersetSize, supersetDfs, significanceHeuristic);
     }
 
     protected abstract InternalSignificantTerms createTestInstance(String name,
-                                                                   Map<String, Object> metaData,
+                                                                   Map<String, Object> metadata,
                                                                    InternalAggregations aggregations,
                                                                    int requiredSize, int numBuckets,
                                                                    long subsetSize, int[] subsetDfs,
@@ -83,9 +83,9 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
 
     @Override
     protected InternalSignificantTerms createUnmappedInstance(String name,
-                                                              Map<String, Object> metaData) {
-        InternalSignificantTerms<?, ?> testInstance = createTestInstance(name, metaData);
-        return new UnmappedSignificantTerms(name, testInstance.requiredSize, testInstance.minDocCount, metaData);
+                                                              Map<String, Object> metadata) {
+        InternalSignificantTerms<?, ?> testInstance = createTestInstance(name, metadata);
+        return new UnmappedSignificantTerms(name, testInstance.requiredSize, testInstance.minDocCount, metadata);
     }
 
     @Override

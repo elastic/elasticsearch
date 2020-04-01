@@ -38,8 +38,8 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
     private List<Double> data;
 
     PercentilesBucketPipelineAggregator(String name, double[] percents, boolean keyed, String[] bucketsPaths,
-                                        GapPolicy gapPolicy, DocValueFormat formatter, Map<String, Object> metaData) {
-        super(name, bucketsPaths, gapPolicy, formatter, metaData);
+                                        GapPolicy gapPolicy, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, bucketsPaths, gapPolicy, formatter, metadata);
         this.percents = percents;
         this.keyed = keyed;
     }

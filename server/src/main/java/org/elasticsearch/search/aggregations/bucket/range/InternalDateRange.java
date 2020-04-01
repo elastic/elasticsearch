@@ -87,13 +87,14 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
 
         @Override
         public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, DocValueFormat formatter, boolean keyed,
-                Map<String, Object> metaData) {
-            return new InternalDateRange(name, ranges, formatter, keyed, metaData);
+                Map<String, Object> metadata) {
+            return new InternalDateRange(name, ranges, formatter, keyed, metadata);
         }
 
         @Override
         public InternalDateRange create(List<Bucket> ranges, InternalDateRange prototype) {
-            return new InternalDateRange(prototype.name, ranges, prototype.format, prototype.keyed, prototype.metaData);
+            return new InternalDateRange(prototype.name, ranges, prototype.format, prototype.keyed, prototype.metadata);
+
         }
 
         @Override
@@ -110,8 +111,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
     }
 
     InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, DocValueFormat formatter, boolean keyed,
-            Map<String, Object> metaData) {
-        super(name, ranges, formatter, keyed, metaData);
+            Map<String, Object> metadata) {
+        super(name, ranges, formatter, keyed, metadata);
     }
 
     /**

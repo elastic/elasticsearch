@@ -91,8 +91,8 @@ public class FunctionRegistry {
     }
 
     public String resolveAlias(String alias) {
-        String upperCase = normalize(alias);
-        return aliases.getOrDefault(upperCase, upperCase);
+        String normalized = normalize(alias);
+        return aliases.getOrDefault(normalized, normalized);
     }
 
     public boolean functionExists(String functionName) {

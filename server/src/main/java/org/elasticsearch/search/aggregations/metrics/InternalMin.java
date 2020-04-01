@@ -32,8 +32,8 @@ import java.util.Objects;
 public class InternalMin extends InternalNumericMetricsAggregation.SingleValue implements Min {
     private final double min;
 
-    public InternalMin(String name, double min, DocValueFormat formatter, Map<String, Object> metaData) {
-        super(name, metaData);
+    public InternalMin(String name, double min, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.min = min;
         this.format = formatter;
     }
@@ -74,7 +74,7 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : aggregations) {
             min = Math.min(min, ((InternalMin) aggregation).min);
         }
-        return new InternalMin(getName(), min, this.format, getMetaData());
+        return new InternalMin(getName(), min, this.format, getMetadata());
     }
 
     @Override

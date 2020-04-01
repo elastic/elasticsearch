@@ -30,8 +30,8 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
     public static final String NAME = "hdr_percentile_ranks";
 
     public InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-                                      Map<String, Object> metaData) {
-        super(name, cdfValues, state, keyed, formatter, metaData);
+                                      Map<String, Object> metadata) {
+        super(name, cdfValues, state, keyed, formatter, metadata);
     }
 
     /**
@@ -68,8 +68,8 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
 
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            Map<String, Object> metaData) {
-        return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, metaData);
+            Map<String, Object> metadata) {
+        return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, metadata);
     }
 
     public static double percentileRank(DoubleHistogram state, double value) {

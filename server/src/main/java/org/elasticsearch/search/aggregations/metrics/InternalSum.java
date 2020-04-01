@@ -32,8 +32,8 @@ import java.util.Objects;
 public class InternalSum extends InternalNumericMetricsAggregation.SingleValue implements Sum {
     private final double sum;
 
-    InternalSum(String name, double sum, DocValueFormat formatter, Map<String, Object> metaData) {
-        super(name, metaData);
+    InternalSum(String name, double sum, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.sum = sum;
         this.format = formatter;
     }
@@ -77,7 +77,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
             double value = ((InternalSum) aggregation).sum;
             kahanSummation.add(value);
         }
-        return new InternalSum(name, kahanSummation.value(), format, getMetaData());
+        return new InternalSum(name, kahanSummation.value(), format, getMetadata());
     }
 
     @Override

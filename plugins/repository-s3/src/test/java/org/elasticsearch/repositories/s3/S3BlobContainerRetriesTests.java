@@ -26,7 +26,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpStatus;
 import org.apache.http.NoHttpResponseException;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -126,7 +126,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         clientSettings.setSecureSettings(secureSettings);
         service.refreshAndClearCache(S3ClientSettings.load(clientSettings.build()));
 
-        final RepositoryMetaData repositoryMetaData = new RepositoryMetaData("repository", S3Repository.TYPE,
+        final RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repository", S3Repository.TYPE,
             Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build());
 
         return new S3BlobContainer(BlobPath.cleanPath(), new S3BlobStore(service, "bucket",
@@ -134,7 +134,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
-            repositoryMetaData));
+            repositoryMetadata));
     }
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {

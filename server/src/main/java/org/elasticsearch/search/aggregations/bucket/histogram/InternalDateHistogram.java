@@ -210,8 +210,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     final EmptyBucketInfo emptyBucketInfo;
 
     InternalDateHistogram(String name, List<Bucket> buckets, BucketOrder order, long minDocCount, long offset,
-            EmptyBucketInfo emptyBucketInfo, DocValueFormat formatter, boolean keyed, Map<String, Object> metaData) {
-        super(name, metaData);
+            EmptyBucketInfo emptyBucketInfo, DocValueFormat formatter, boolean keyed, Map<String, Object> metadata) {
+        super(name, metadata);
         this.buckets = buckets;
         this.order = order;
         this.offset = offset;
@@ -281,7 +281,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
     @Override
     public InternalDateHistogram create(List<Bucket> buckets) {
-        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, metaData);
+        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, metadata);
     }
 
     @Override
@@ -463,7 +463,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             }
         }
         return new InternalDateHistogram(getName(), reducedBuckets, order, minDocCount, offset, emptyBucketInfo,
-                format, keyed, getMetaData());
+                format, keyed, getMetadata());
     }
 
     @Override
@@ -504,7 +504,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             buckets2.add((Bucket) b);
         }
         buckets2 = Collections.unmodifiableList(buckets2);
-        return new InternalDateHistogram(name, buckets2, order, minDocCount, offset, emptyBucketInfo, format, keyed, getMetaData());
+        return new InternalDateHistogram(name, buckets2, order, minDocCount, offset, emptyBucketInfo, format, keyed, getMetadata());
     }
 
     @Override

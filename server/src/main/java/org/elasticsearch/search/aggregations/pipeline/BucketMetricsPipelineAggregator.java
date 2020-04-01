@@ -44,8 +44,8 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
     protected final GapPolicy gapPolicy;
 
     BucketMetricsPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat format,
-            Map<String, Object> metaData) {
-        super(name, bucketsPaths, metaData);
+            Map<String, Object> metadata) {
+        super(name, bucketsPaths, metadata);
         this.gapPolicy = gapPolicy;
         this.format = format;
     }
@@ -86,7 +86,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                 }
             }
         }
-        return buildAggregation(metaData());
+        return buildAggregation(metadata());
     }
 
     /**

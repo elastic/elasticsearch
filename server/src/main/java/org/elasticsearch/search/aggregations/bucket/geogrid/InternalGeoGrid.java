@@ -47,8 +47,8 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
     protected final int requiredSize;
     protected final List<InternalGeoGridBucket> buckets;
 
-    InternalGeoGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metaData) {
-        super(name, metaData);
+    InternalGeoGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
+        super(name, metadata);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
     }
@@ -70,7 +70,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         out.writeList(buckets);
     }
 
-    abstract InternalGeoGrid create(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metaData);
+    abstract InternalGeoGrid create(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
 
     @Override
     public List<InternalGeoGridBucket> getBuckets() {
@@ -112,7 +112,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
-        return create(getName(), requiredSize, Arrays.asList(list), getMetaData());
+        return create(getName(), requiredSize, Arrays.asList(list), getMetadata());
     }
 
     @Override

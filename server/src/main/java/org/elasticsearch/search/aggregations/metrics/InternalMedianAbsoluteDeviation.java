@@ -51,8 +51,8 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     private final TDigestState valuesSketch;
     private final double medianAbsoluteDeviation;
 
-    InternalMedianAbsoluteDeviation(String name, Map<String, Object> metaData, DocValueFormat format, TDigestState valuesSketch) {
-        super(name, metaData);
+    InternalMedianAbsoluteDeviation(String name, Map<String, Object> metadata, DocValueFormat format, TDigestState valuesSketch) {
+        super(name, metadata);
         this.format = Objects.requireNonNull(format);
         this.valuesSketch = Objects.requireNonNull(valuesSketch);
 
@@ -81,7 +81,7 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
             valueMerged.add(madAggregation.valuesSketch);
         }
 
-        return new InternalMedianAbsoluteDeviation(name, metaData, format, valueMerged);
+        return new InternalMedianAbsoluteDeviation(name, metadata, format, valueMerged);
     }
 
     @Override

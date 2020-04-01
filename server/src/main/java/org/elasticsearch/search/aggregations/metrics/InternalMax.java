@@ -32,8 +32,8 @@ import java.util.Objects;
 public class InternalMax extends InternalNumericMetricsAggregation.SingleValue implements Max {
     private final double max;
 
-    public InternalMax(String name, double max, DocValueFormat formatter, Map<String, Object> metaData) {
-        super(name, metaData);
+    public InternalMax(String name, double max, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.format = formatter;
         this.max = max;
     }
@@ -74,7 +74,7 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : aggregations) {
             max = Math.max(max, ((InternalMax) aggregation).max);
         }
-        return new InternalMax(name, max, format, getMetaData());
+        return new InternalMax(name, max, format, getMetadata());
     }
 
     @Override

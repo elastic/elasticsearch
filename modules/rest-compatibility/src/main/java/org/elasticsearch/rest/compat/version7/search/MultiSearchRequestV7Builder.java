@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -53,7 +54,9 @@ public class MultiSearchRequestV7Builder {
                                            Boolean ccsMinimizeRoundtrips,
                                            NamedXContentRegistry registry,
                                            boolean allowExplicitIndex,
-                                           DeprecationLogger deprecationLogger) throws IOException {
+                                           DeprecationLogger deprecationLogger,
+                                          Function<String,Boolean> compatibleApiConsumer
+                                              ) throws IOException {
 
         boolean hasTypes = false;
         int from = 0;
@@ -155,6 +158,10 @@ public class MultiSearchRequestV7Builder {
             from = nextMarker + 1;
         }
         return hasTypes;
+    }
+
+    private static boolean consumedByCompatibleApi(Function<String,Boolean> compatibleApiConsumer, String key) {
+        return compatibleApiConsumer.apply(key);
     }
 
     public static int findNextMarker(byte marker, int from, BytesReference data) {

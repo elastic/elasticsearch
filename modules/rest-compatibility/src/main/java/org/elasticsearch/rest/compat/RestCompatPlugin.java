@@ -58,9 +58,9 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
                 new RestIndexActionV7.CompatibleRestIndexAction(),
                 new RestIndexActionV7.CompatibleCreateHandler(),
                 new RestIndexActionV7.CompatibleAutoIdHandler(nodesInCluster),
-                new RestCreateIndexActionV7(),
+                new RestCreateIndexActionV7()/*,
                 new RestSearchActionV7(),
-                new RestMultiSearchActionV7(settings)
+                new RestMultiSearchActionV7(settings)*/
             );
         }
         return Collections.emptyList();

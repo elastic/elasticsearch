@@ -17,8 +17,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -114,9 +112,4 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
             return BytesReference.bytes(builder).utf8ToString();
         }
     }
-
-    private String encode(String param) throws UnsupportedEncodingException {
-        return URLEncoder.encode(param, "UTF-8");
-    }
-
 }

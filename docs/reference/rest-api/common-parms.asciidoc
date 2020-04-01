@@ -686,6 +686,14 @@ tag::preference[]
 performed on. Random by default.
 end::preference[]
 
+tag::processing-time-ms[]
+The amount of time spent processing results, in milliseconds.
+end::processing-time-ms[]
+
+tag::processing-total[]
+The number of processing operations.
+end::processing-total[]
+
 tag::search-q[]
 `q`::
 (Optional, string) Query in the Lucene query string syntax.

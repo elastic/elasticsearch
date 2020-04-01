@@ -112,7 +112,7 @@ public class PreVoteCollectorTests extends ESTestCase {
             assert electionOccurred == false;
             electionOccurred = true;
         }, l -> {
-        }, ElectionStrategy.DEFAULT_INSTANCE); // TODO need tests that check that the max term seen is updated
+        }, ElectionStrategy.DEFAULT_INSTANCE);
         preVoteCollector.update(getLocalPreVoteResponse(), null);
     }
 

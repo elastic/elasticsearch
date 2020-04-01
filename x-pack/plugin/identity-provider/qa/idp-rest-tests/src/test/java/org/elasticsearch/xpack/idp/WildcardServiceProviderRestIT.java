@@ -16,8 +16,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -96,7 +94,7 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
 
         final Map<String, Object> map = entityAsMap(response);
         assertThat(map, notNullValue());
-        assertThat(map.keySet(), containsInAnyOrder("post_url", "saml_response", "service_provider"));
+        assertThat(map.keySet(), containsInAnyOrder("post_url", "saml_response", "saml_status", "service_provider", "error"));
         assertThat(map.get("post_url"), equalTo(acs));
         assertThat(map.get("saml_response"), instanceOf(String.class));
 
@@ -111,10 +109,6 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent()).map(body)) {
             return BytesReference.bytes(builder).utf8ToString();
         }
-    }
-
-    private String encode(String param) {
-        return URLEncoder.encode(param, StandardCharsets.UTF_8);
     }
 
 }

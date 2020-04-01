@@ -6,20 +6,19 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 
 public abstract class AutoscalingIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(LocalStateAutoscaling.class);
+        return List.of(LocalStateAutoscaling.class);
     }
 
     @Override
@@ -32,7 +31,7 @@ public abstract class AutoscalingIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.unmodifiableList(Arrays.asList(LocalStateAutoscaling.class, getTestTransportPlugin()));
+        return List.of(LocalStateAutoscaling.class, getTestTransportPlugin());
     }
 
     @Override

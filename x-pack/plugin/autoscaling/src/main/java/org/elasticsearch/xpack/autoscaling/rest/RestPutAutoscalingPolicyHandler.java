@@ -14,7 +14,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -23,7 +22,7 @@ public class RestPutAutoscalingPolicyHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(new Route(PUT, "/_autoscaling/policy/{name}"));
+        return org.elasticsearch.common.collect.List.of(new Route(PUT, "/_autoscaling/policy/{name}"));
     }
 
     @Override

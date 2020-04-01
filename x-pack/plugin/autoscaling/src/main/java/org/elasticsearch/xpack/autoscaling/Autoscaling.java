@@ -36,8 +36,6 @@ import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingDecisionHandle
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -86,9 +84,9 @@ public class Autoscaling extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         if (isSnapshot() || (AUTOSCALING_FEATURE_FLAG_REGISTERED != null && AUTOSCALING_FEATURE_FLAG_REGISTERED)) {
-            return Collections.singletonList(AUTOSCALING_ENABLED_SETTING);
+            return org.elasticsearch.common.collect.List.of(AUTOSCALING_ENABLED_SETTING);
         } else {
-            return Collections.emptyList();
+            return org.elasticsearch.common.collect.List.of();
         }
     }
 
@@ -99,14 +97,12 @@ public class Autoscaling extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled) {
-            return Collections.unmodifiableList(
-                Arrays.asList(
-                    new ActionHandler<>(GetAutoscalingDecisionAction.INSTANCE, TransportGetAutoscalingDecisionAction.class),
-                    new ActionHandler<>(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
-                )
+            return org.elasticsearch.common.collect.List.of(
+                new ActionHandler<>(GetAutoscalingDecisionAction.INSTANCE, TransportGetAutoscalingDecisionAction.class),
+                new ActionHandler<>(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
             );
         } else {
-            return Collections.emptyList();
+            return org.elasticsearch.common.collect.List.of();
         }
     }
 
@@ -121,43 +117,29 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
         if (enabled) {
-            return Collections.unmodifiableList(
-                Arrays.asList(new RestGetAutoscalingDecisionHandler(), new RestPutAutoscalingPolicyHandler())
-            );
+            return org.elasticsearch.common.collect.List.of(new RestGetAutoscalingDecisionHandler(), new RestPutAutoscalingPolicyHandler());
         } else {
-            return Collections.emptyList();
+            return org.elasticsearch.common.collect.List.of();
         }
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Collections.unmodifiableList(
-            Arrays.asList(
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
-                new NamedWriteableRegistry.Entry(
-                    NamedDiff.class,
-                    AutoscalingMetadata.NAME,
-                    AutoscalingMetadata.AutoscalingMetadataDiff::new
-                ),
-                new NamedWriteableRegistry.Entry(AutoscalingDecider.class, AlwaysAutoscalingDecider.NAME, AlwaysAutoscalingDecider::new)
-            )
+        return org.elasticsearch.common.collect.List.of(
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, AutoscalingMetadata.NAME, AutoscalingMetadata.AutoscalingMetadataDiff::new),
+            new NamedWriteableRegistry.Entry(AutoscalingDecider.class, AlwaysAutoscalingDecider.NAME, AlwaysAutoscalingDecider::new)
         );
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return Collections.unmodifiableList(
-            Arrays.asList(
-                new NamedXContentRegistry.Entry(
-                    Metadata.Custom.class,
-                    new ParseField(AutoscalingMetadata.NAME),
-                    AutoscalingMetadata::parse
-                ),
-                new NamedXContentRegistry.Entry(
-                    AutoscalingDecider.class,
-                    new ParseField(AlwaysAutoscalingDecider.NAME),
-                    AlwaysAutoscalingDecider::parse
-                )
+        return org.elasticsearch.common.collect.List.of(
+            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse),
+            new NamedXContentRegistry.Entry(
+                AutoscalingDecider.class,
+                new ParseField(AlwaysAutoscalingDecider.NAME),
+                AlwaysAutoscalingDecider::parse
             )
         );
     }

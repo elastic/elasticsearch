@@ -18,8 +18,11 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public abstract class AutoscalingTestCase extends ESTestCase {
 
@@ -62,8 +65,10 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return new AutoscalingDecisions(decisions);
     }
 
-    public static List<AutoscalingDecider> randomAutoscalingDeciders() {
-        return List.of(new AlwaysAutoscalingDecider());
+    public static SortedMap<String, AutoscalingDecider> randomAutoscalingDeciders() {
+        return new TreeMap<>(
+            List.of(new AlwaysAutoscalingDecider()).stream().collect(Collectors.toMap(AutoscalingDecider::name, Function.identity()))
+        );
     }
 
     public static AutoscalingPolicy randomAutoscalingPolicy() {
@@ -75,7 +80,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     }
 
     public static AutoscalingPolicy mutateAutoscalingPolicy(final AutoscalingPolicy instance) {
-        final List<AutoscalingDecider> deciders;
+        final SortedMap<String, AutoscalingDecider> deciders;
         if (randomBoolean()) {
             // if the policy name did not change, or randomly, use a mutated set of deciders
             deciders = mutateAutoscalingDeciders(instance.deciders());
@@ -85,12 +90,15 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return new AutoscalingPolicy(randomValueOtherThan(instance.name(), () -> randomAlphaOfLength(8)), deciders);
     }
 
-    public static List<AutoscalingDecider> mutateAutoscalingDeciders(final List<AutoscalingDecider> deciders) {
+    public static SortedMap<String, AutoscalingDecider> mutateAutoscalingDeciders(final SortedMap<String, AutoscalingDecider> deciders) {
         if (deciders.size() == 0) {
             return randomAutoscalingDeciders();
         } else {
             // use a proper subset of the deciders
-            return randomSubsetOf(randomIntBetween(0, deciders.size() - 1), deciders);
+            return new TreeMap<>(
+                randomSubsetOf(randomIntBetween(0, deciders.size() - 1), deciders.entrySet()).stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            );
         }
     }
 

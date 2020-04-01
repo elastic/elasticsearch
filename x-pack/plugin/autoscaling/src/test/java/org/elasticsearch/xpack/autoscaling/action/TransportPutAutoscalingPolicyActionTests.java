@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -120,8 +118,7 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         // add to the existing deciders, to ensure the policy has changed
         final AutoscalingPolicy policy = new AutoscalingPolicy(
             name,
-            Stream.concat(currentMetadata.policies().get(name).policy().deciders().stream(), randomAutoscalingDeciders().stream())
-                .collect(Collectors.toUnmodifiableList())
+            mutateAutoscalingDeciders(currentMetadata.policies().get(name).policy().deciders())
         );
         final Logger mockLogger = mock(Logger.class);
         final ClusterState state = TransportPutAutoscalingPolicyAction.putAutoscalingPolicy(currentState, policy, mockLogger);

@@ -783,10 +783,10 @@ xpack.security.authc.providers:
     order: 1
 ------------------------------------------------------------
 
-If {kib} is configured in this way, then users will be presented with the choice
-at the Login Selector screen whether to use username and password, and rely on one
+If {kib} is configured in this way, users are presented with a choice
+at the Login Selector UI. They can provide a username and password, and rely on one
 of the  other security realms within {es}, or log in with SAML. Only users who have
-a username and password for a configured {es} authentication realm will be able to
+a username and password for a configured {es} authentication realm can
 log in via {kib} login form.
 
 Alternatively, when the `basic` authentication provider is enabled, you can

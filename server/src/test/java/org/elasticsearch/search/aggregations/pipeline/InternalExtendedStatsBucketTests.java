@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 

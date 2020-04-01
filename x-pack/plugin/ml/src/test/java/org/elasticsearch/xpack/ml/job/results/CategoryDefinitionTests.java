@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.stream.Stream;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -35,10 +35,7 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
             categoryDefinition.setNumMatches(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            categoryDefinition.setPreferredToCategories(Stream.generate(ESTestCase::randomNonNegativeLong)
-                .limit(10)
-                .mapToLong(Long::longValue)
-                .toArray());
+            categoryDefinition.setPreferredToCategories(LongStream.generate(ESTestCase::randomNonNegativeLong).limit(10).toArray());
         }
         return categoryDefinition;
     }

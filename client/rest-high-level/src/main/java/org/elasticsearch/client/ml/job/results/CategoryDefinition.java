@@ -164,7 +164,7 @@ public class CategoryDefinition implements ToXContentObject {
             builder.field(GROK_PATTERN.getPreferredName(), grokPattern);
         }
         builder.field(NUM_MATCHES.getPreferredName(), numMatches);
-        if (preferredToCategories != null && preferredToCategories.isEmpty() == false) {
+        if (preferredToCategories != null && (preferredToCategories.isEmpty() == false)) {
             builder.field(PREFERRED_TO_CATEGORIES.getPreferredName(), preferredToCategories);
         }
         builder.endObject();

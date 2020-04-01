@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -281,7 +282,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         waitUntilJobIsClosed(job.getId());
 
         List<CategoryDefinition> categories = getCategories(job.getId());
-        assertThat(categories.size(), equalTo(7));
+        assertThat(categories, hasSize(7));
 
         CategoryDefinition category1 = categories.get(0);
         assertThat(category1.getNumMatches(), equalTo(2L));

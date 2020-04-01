@@ -172,6 +172,11 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     }
 
     public void setPreferredToCategories(long[] preferredToCategories) {
+        for (long category : preferredToCategories) {
+            if (category < 0) {
+                throw new IllegalArgumentException("[preferred_to_category] entries must be non-negative");
+            }
+        }
         this.preferredToCategories = preferredToCategories;
     }
 
@@ -184,6 +189,9 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     }
 
     public void setNumMatches(long numMatches) {
+        if (numMatches < 0) {
+            throw new IllegalArgumentException("[num_matches] must be non-negative");
+        }
         this.numMatches = numMatches;
     }
 

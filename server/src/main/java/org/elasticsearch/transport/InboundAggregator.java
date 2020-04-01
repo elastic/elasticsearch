@@ -66,9 +66,7 @@ public class InboundAggregator implements Releasable {
     public void aggregate(ReleasableBytesReference content) {
         ensureOpen();
         assert isAggregating();
-        if (isShortCircuited()) {
-            content.close();
-        } else {
+        if (isShortCircuited() == false) {
             if (isFirstContent()) {
                 firstContent = content.retain();
             } else {
@@ -182,6 +180,9 @@ public class InboundAggregator implements Releasable {
     private void initializeRequestState() {
         assert currentHeader.needsToReadVariableHeader() == false;
         assert currentHeader.isRequest();
+        if (currentHeader.isHandshake()) {
+            return;
+        }
 
         final String actionName = currentHeader.getActionName();
         try {

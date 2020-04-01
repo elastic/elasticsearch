@@ -156,12 +156,15 @@ public class InboundHandler {
         } else {
             final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
             assertRemoteVersion(stream, header.getVersion());
-            final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                header.isCompressed(), message.takeBreakerReleaseControl());
+            TransportChannel transportChannel = null;
             try {
                 if (header.isHandshake()) {
+                    // TODO: Modify the handshaker to use the TcpTransportChannl. This should be
+                    //  straightforward now that handshakes contribute to circuit breaking.
                     handshaker.handleHandshake(version, channel, requestId, stream);
                 } else {
+                    transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version, header.isCompressed(),
+                        message.takeBreakerReleaseControl());
                     final RequestHandlerRegistry<T> reg = getRequestHandler(action);
                     assert reg != null;
                     final T request = reg.newRequest(stream);
@@ -176,7 +179,11 @@ public class InboundHandler {
                     threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));
                 }
             } catch (Exception e) {
-                sendErrorResponse(action, transportChannel, message.getException());
+                if (transportChannel == null) {
+                    transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version, header.isCompressed(),
+                        message.takeBreakerReleaseControl());
+                }
+                sendErrorResponse(action, transportChannel, e);
             }
         }
     }

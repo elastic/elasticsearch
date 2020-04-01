@@ -1134,16 +1134,17 @@ public abstract class ESRestTestCase extends ESTestCase {
             return true;
         }
         switch (name) {
-        case ".triggered_watches":
-        case ".watches":
-        case "logstash-index-template":
-        case ".logstash-management":
-        case "security_audit_log":
-        case ".slm-history":
-        case ".async-search":
-            return true;
-        default:
-            return false;
+            case ".triggered_watches":
+            case ".watches":
+            case "logstash-index-template":
+            case ".logstash-management":
+            case "security_audit_log":
+            case ".slm-history":
+            case ".async-search":
+            case "saml-service-provider":
+                return true;
+            default:
+                return false;
         }
     }
 

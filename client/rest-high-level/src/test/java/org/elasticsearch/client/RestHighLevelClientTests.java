@@ -327,39 +327,23 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testParseCompressedEntity() throws IOException {
-        {
-            IllegalStateException ise = expectThrows(IllegalStateException.class, () -> restHighLevelClient.parseEntity(null, null));
-            assertEquals("Response body expected but not returned", ise.getMessage());
-        }
-        {
-            IllegalStateException ise = expectThrows(IllegalStateException.class,
-                () -> restHighLevelClient.parseEntity(new NStringEntity("", (ContentType) null), null));
-            assertEquals("Elasticsearch didn't return the [Content-Type] header, unable to parse response body", ise.getMessage());
-        }
-        {
-            NStringEntity entity = new NStringEntity("", ContentType.APPLICATION_SVG_XML);
-            IllegalStateException ise = expectThrows(IllegalStateException.class, () -> restHighLevelClient.parseEntity(entity, null));
-            assertEquals("Unsupported Content-Type: " + entity.getContentType().getValue(), ise.getMessage());
-        }
-        {
-            CheckedFunction<XContentParser, String, IOException> entityParser = parser -> {
-                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertTrue(parser.nextToken().isValue());
-                String value = parser.text();
-                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                return value;
-            };
+        CheckedFunction<XContentParser, String, IOException> entityParser = parser -> {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertTrue(parser.nextToken().isValue());
+            String value = parser.text();
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            return value;
+        };
 
-            HttpEntity jsonEntity = new NByteArrayEntity(compress("{\"field\":\"value\"}"), ContentType.APPLICATION_JSON);
-            assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(jsonEntity), entityParser));
-            HttpEntity yamlEntity = new NByteArrayEntity(compress("---\nfield: value\n"), ContentType.create("application/yaml"));
-            assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(yamlEntity), entityParser));
-            HttpEntity smileEntity = createCompressedBinaryEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
-            assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(smileEntity), entityParser));
-            HttpEntity cborEntity = createCompressedBinaryEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
-            assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(cborEntity), entityParser));
-        }
+        HttpEntity jsonEntity = new NByteArrayEntity(compress("{\"field\":\"value\"}"), ContentType.APPLICATION_JSON);
+        assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(jsonEntity), entityParser));
+        HttpEntity yamlEntity = new NByteArrayEntity(compress("---\nfield: value\n"), ContentType.create("application/yaml"));
+        assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(yamlEntity), entityParser));
+        HttpEntity smileEntity = createCompressedBinaryEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
+        assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(smileEntity), entityParser));
+        HttpEntity cborEntity = createCompressedBinaryEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
+        assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(cborEntity), entityParser));
     }
 
     private static byte[] compress(String content) throws IOException {

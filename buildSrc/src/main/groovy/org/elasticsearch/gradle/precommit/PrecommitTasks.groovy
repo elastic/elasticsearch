@@ -114,7 +114,10 @@ class PrecommitTasks {
                 }
                 IT {
                     baseClass "org.elasticsearch.test.ESIntegTestCase"
-                    baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+                    baseClass "org.elasticsearch.test.rest.ESRestTestCase" //TODO: move this to RestTests suffix and re-name all tests
+                }
+                RestApiSpecTests {
+                    baseClass "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase"
                 }
             }
         }

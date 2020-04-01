@@ -4,9 +4,10 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling;
+package org.elasticsearch.xpack.autoscaling.decision;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
 import java.io.IOException;
 

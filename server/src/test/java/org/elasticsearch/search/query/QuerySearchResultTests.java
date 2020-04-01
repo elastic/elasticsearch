@@ -79,9 +79,6 @@ public class QuerySearchResultTests extends ESTestCase {
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
         Version version = VersionUtils.randomVersion(random());
-        if (querySearchResult.aggregations() != null && version.before(Version.V_7_8_0)) {
-            querySearchResult.aggregations().get().mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
-        }
         QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, version);
         assertEquals(querySearchResult.getContextId(), deserialized.getContextId());
         assertNull(deserialized.getSearchShardTarget());

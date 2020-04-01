@@ -140,9 +140,6 @@ public class InternalAggregationsTests extends ESTestCase {
 
     private void writeToAndReadFrom(InternalAggregations aggregations, int iteration) throws IOException {
         Version version = VersionUtils.randomVersion(random());
-        if (version.before(Version.V_7_8_0)) {
-            aggregations.mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree.EMPTY);
-        }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             aggregations.writeTo(out);

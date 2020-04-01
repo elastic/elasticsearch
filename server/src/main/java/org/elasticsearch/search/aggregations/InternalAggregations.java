@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
@@ -103,6 +104,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_7_8_0) && out.getVersion().onOrAfter(Version.V_6_7_0)) {
             if (pipelineTreeForBwcSerialization == null) {
+                mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
                 out.writeNamedWriteableList(getInternalAggregations());
                 out.writeNamedWriteableList(emptyList());
             } else {

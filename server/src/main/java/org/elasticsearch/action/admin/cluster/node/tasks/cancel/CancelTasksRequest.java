@@ -79,7 +79,7 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
     }
 
     /**
-     * If {@code true}, the request blocks until the cancellation of the task and its child tasks is completed.
+     * If {@code true}, the request blocks until the cancellation of the task and its descendant tasks is completed.
      * Otherwise, the request can return soon after the cancellation is started. Defaults to {@code false}.
      */
     public void setWaitForCompletion(boolean waitForCompletion) {

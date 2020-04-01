@@ -195,10 +195,10 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate<Classif
     }
 
     boolean isNoop(ClassificationConfig originalConfig) {
-        return (resultsField == null || originalConfig.getResultsField().equals(resultsField))
+        return (resultsField == null || resultsField.equals(originalConfig.getResultsField()))
             && (numTopFeatureImportanceValues == null
                 || originalConfig.getNumTopFeatureImportanceValues() == numTopFeatureImportanceValues)
-            && (topClassesResultsField == null || originalConfig.getTopClassesResultsField().equals(topClassesResultsField))
+            && (topClassesResultsField == null || topClassesResultsField.equals(originalConfig.getTopClassesResultsField()))
             && (numTopClasses == null || originalConfig.getNumTopClasses() == numTopClasses);
     }
 

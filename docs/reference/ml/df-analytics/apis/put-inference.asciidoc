@@ -87,6 +87,19 @@ An object map that contains metadata about the model.
 (Optional, string) 
 An array of tags to organize the model.
 
+`inference_config`::
+(Required, object)
+The default configuration for inference. This can be either a `regression`
+or `classification` configuration. It must match the underlying
+`definition.trained_model`'s `target_type`.
+
+`model_id.regression`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression]
+
+`model_id.classification`::
+(Optional, object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification]
 
 [[ml-put-inference-preprocessors]]
 ===== {infer-cap} preprocessor definitions

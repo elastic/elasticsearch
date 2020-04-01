@@ -168,6 +168,10 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         return requestingImportance() ? Version.V_7_7_0 : MIN_SUPPORTED_VERSION;
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     public static class Builder {
         private Integer numTopClasses;
         private String topClassesResultsField;

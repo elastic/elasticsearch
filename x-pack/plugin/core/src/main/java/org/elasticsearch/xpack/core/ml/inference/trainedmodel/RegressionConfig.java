@@ -136,6 +136,10 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
         return requestingImportance() ? Version.V_7_7_0 : MIN_SUPPORTED_VERSION;
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     public static class Builder {
         private String resultsField;
         private Integer numTopFeatureImportanceValues;

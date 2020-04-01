@@ -244,19 +244,16 @@ public class AnalyticsResultProcessor {
             case CLASSIFICATION:
                 assert analytics.getAnalysis() instanceof Classification;
                 Classification classification = ((Classification)analytics.getAnalysis());
-                return new ClassificationConfig(classification.getNumTopClasses(),
-                    ClassificationConfig.DEFAULT_RESULTS_FIELD,
-                    ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD,
-                    classification.getBoostedTreeParams().getNumTopFeatureImportanceValues() == null ?
-                        0 :
-                        classification.getBoostedTreeParams().getNumTopFeatureImportanceValues());
+                return ClassificationConfig.builder()
+                    .setNumTopClasses(classification.getNumTopClasses())
+                    .setNumTopFeatureImportanceValues(classification.getBoostedTreeParams().getNumTopFeatureImportanceValues())
+                    .build();
             case REGRESSION:
                 assert analytics.getAnalysis() instanceof Regression;
                 Regression regression = ((Regression)analytics.getAnalysis());
-                return new RegressionConfig(RegressionConfig.DEFAULT_RESULTS_FIELD,
-                    regression.getBoostedTreeParams().getNumTopFeatureImportanceValues() == null ?
-                        0 :
-                        regression.getBoostedTreeParams().getNumTopFeatureImportanceValues());
+                return RegressionConfig.builder()
+                    .setNumTopFeatureImportanceValues(regression.getBoostedTreeParams().getNumTopFeatureImportanceValues())
+                    .build();
             default:
                 setAndReportFailure(ExceptionsHelper.serverError(
                     "process created a model with an unsupported target type [{}]",

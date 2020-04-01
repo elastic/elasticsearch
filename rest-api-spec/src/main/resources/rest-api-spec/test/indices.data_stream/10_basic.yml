@@ -23,9 +23,11 @@
   - match: { 0.name: simple-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
   - length: { 0.indices: 1 }
+  - match: { 0.indices: ['simple-data-stream1-000001'] }
   - match: { 1.name: simple-data-stream2 }
   - match: { 1.timestamp_field: '@timestamp2' }
   - length: { 1.indices: 1 }
+  - match: { 1.indices: ['simple-data-stream2-000001'] }
 
   - do:
       indices.delete_data_stream:

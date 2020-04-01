@@ -46,7 +46,10 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         final ClusterState beforeState = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).state();
         putAutoscalingPolicy(policy);
         final ClusterState afterState = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).state();
-        assertThat(beforeState.metadata().custom(AutoscalingMetadata.NAME), sameInstance(afterState.metadata().custom(AutoscalingMetadata.NAME)));
+        assertThat(
+            beforeState.metadata().custom(AutoscalingMetadata.NAME),
+            sameInstance(afterState.metadata().custom(AutoscalingMetadata.NAME))
+        );
     }
 
     private AutoscalingPolicy putRandomAutoscalingPolicy() {

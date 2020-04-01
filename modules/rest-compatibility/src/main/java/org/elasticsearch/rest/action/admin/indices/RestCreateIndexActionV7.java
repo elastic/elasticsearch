@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 
 import java.io.IOException;
 import java.util.Collections;

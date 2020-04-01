@@ -36,12 +36,10 @@ public class RestMultiSearchTemplateActionV7Tests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        String content = "{ \"index\": \"some_index\" } \n" +
-            "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
+        String content = "{ \"index\": \"some_index\" } \n" + "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/some_index/some_type/_msearch/template")
             .withContent(bytesContent, XContentType.JSON)
             .build();
@@ -51,12 +49,10 @@ public class RestMultiSearchTemplateActionV7Tests extends RestActionTestCase {
     }
 
     public void testTypeInBody() {
-        String content = "{ \"index\": \"some_index\", \"type\": \"some_type\" } \n" +
-            "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
+        String content = "{ \"index\": \"some_index\", \"type\": \"some_type\" } \n" + "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("/some_index/_msearch/template")
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/some_index/_msearch/template")
             .withContent(bytesContent, XContentType.JSON)
             .build();
 

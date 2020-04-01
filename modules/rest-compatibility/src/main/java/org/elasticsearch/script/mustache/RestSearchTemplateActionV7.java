@@ -22,7 +22,6 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.script.mustache.RestSearchTemplateAction;
 
 import java.io.IOException;
 import java.util.List;

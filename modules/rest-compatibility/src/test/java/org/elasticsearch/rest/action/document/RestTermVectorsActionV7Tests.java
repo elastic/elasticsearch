@@ -39,8 +39,7 @@ public class RestTermVectorsActionV7Tests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.POST)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
             .withPath("/some_index/some_type/some_id/_termvectors")
             .build();
 
@@ -49,13 +48,9 @@ public class RestTermVectorsActionV7Tests extends RestActionTestCase {
     }
 
     public void testTypeInBody() throws IOException {
-        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
-            .field("_type", "some_type")
-            .field("_id", 1)
-            .endObject();
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject().field("_type", "some_type").field("_id", 1).endObject();
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.GET)
             .withPath("/some_index/_termvectors/some_id")
             .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();

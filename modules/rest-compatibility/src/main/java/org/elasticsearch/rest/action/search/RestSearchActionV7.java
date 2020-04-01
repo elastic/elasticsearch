@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,8 +39,7 @@ public class RestSearchActionV7 extends RestSearchAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/{type}/_search"),
-            new Route(POST, "/{index}/{type}/_search"));
+        return List.of(new Route(GET, "/{index}/{type}/_search"), new Route(POST, "/{index}/{type}/_search"));
     }
 
     @Override

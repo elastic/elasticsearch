@@ -32,15 +32,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiTermVectorsActionV7 extends RestMultiTermVectorsAction {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestTermVectorsAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
-        "Specifying types in multi term vector requests is deprecated.";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestTermVectorsAction.class));
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in multi term vector requests is deprecated.";
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/{type}/_mtermvectors"),
-            new Route(POST, "/{index}/{type}/_mtermvectors"));
+        return List.of(new Route(GET, "/{index}/{type}/_mtermvectors"), new Route(POST, "/{index}/{type}/_mtermvectors"));
     }
 
     @Override

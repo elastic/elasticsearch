@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.index.reindex.RestDeleteByQueryActionV7;
-import org.elasticsearch.index.reindex.RestUpdateByQueryAction;
 import org.elasticsearch.index.reindex.RestUpdateByQueryActionV7;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;

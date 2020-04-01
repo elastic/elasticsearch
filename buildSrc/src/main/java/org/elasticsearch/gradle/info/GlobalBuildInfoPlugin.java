@@ -303,7 +303,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return _defaultParallel;
     }
 
-    private static GitInfo gitInfo(File rootDir) {
+    public static GitInfo gitInfo(File rootDir) {
         try {
             /*
              * We want to avoid forking another process to run git rev-parse HEAD. Instead, we will read the refs manually. The

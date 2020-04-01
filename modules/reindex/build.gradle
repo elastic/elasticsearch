@@ -133,7 +133,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       env 'JAVA_HOME', getJavaHome(it, 8)
       args 'oldes.OldElasticsearch',
         baseDir,
-        unzip.temporaryDir,
+        unzip.get().temporaryDir,
         version == '090'
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service

@@ -43,7 +43,7 @@ is not created by {dfanalytics}.
 (Required, string) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
 
-
+[role="child_attributes"]
 [[ml-put-inference-request-body]]
 ==== {api-request-body-title}
 
@@ -95,11 +95,43 @@ or `classification` configuration. It must match the underlying
 
 `model_id.regression`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression]
+Regression configuration for inference.
++
+.Properties of regression inference
+[%collapsible%open]
+====
+`num_top_feature_importance_values`::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+
+`results_field`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-results-field]
+====
 
 `model_id.classification`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification]
+Classification configuration for inference.
++
+.Properties of classification inference
+[%collapsible%open]
+====
+`num_top_classes`:::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
+
+`num_top_feature_importance_values`:::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
+
+`results_field`:::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-results-field]
+
+`top_classes_results_field`:::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
+====
 
 [[ml-put-inference-preprocessors]]
 ===== {infer-cap} preprocessor definitions

@@ -1214,6 +1214,39 @@ For more information about these options, see <<multi-index>>.
 --
 end::indices-options[]
 
+tag::inference-config-classification-num-top-classes[]
+Specifies the number of top class predictions to return. Defaults to 0.
+end::inference-config-classification-num-top-classes[]
+
+tag::inference-config-classification-num-top-feature-importance-values[]
+Specifies the maximum number of
+{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
+importance] values per document. By default, it is zero and no feature
+importance calculation occurs.
+end::inference-config-classification-num-top-feature-importance-values[]
+
+tag::inference-config-classification-results-field[]
+The field that is added to incoming documents to contain the inference
+prediction. Defaults to `predicted_value`.
+end::inference-config-classification-results-field[]
+
+tag::inference-config-classification-top-classes-results-field[]
+Specifies the field to which the top classes are written. Defaults to
+`top_classes`.
+end::inference-config-classification-top-classes-results-field[]
+
+tag::inference-config-regression-num-top-feature-importance-values[]
+Specifies the maximum number of
+{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature
+importance] values per document. By default, it is zero and no feature importance
+calculation occurs.
+end::inference-config-regression-num-top-feature-importance-values[]
+
+tag::inference-config-regression-results-field[]
+Specifies the field to which the inference prediction is written. Defaults to
+`predicted_value`.
+end::inference-config-regression-results-field[]
+
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by, 
 over, or partition fields that are used in the detector configuration. You might 
@@ -1877,57 +1910,6 @@ tag::total-partition-field-count[]
 The number of `partition` field values that were analyzed by the models. This
 value is cumulative for all detectors in the job.
 end::total-partition-field-count[]
-
-tag::inference-config-classification[]
-Classification configuration for inference.
-
-+
-.Properties of classification inference
-[%collapsible%open]
-====
-`results_field`::
-(Optional, string)
-The field that is added to incoming documents to contain the inference prediction. Defaults to
-`predicted_value`.
-
-`num_top_classes`::
-(Optional, integer)
-Specifies the number of top class predictions to return. Defaults to 0.
-
-`top_classes_results_field`::
-(Optional, string)
-Specifies the field to which the top classes are written. Defaults to
-`top_classes`.
-
-`num_top_feature_importance_values`::::
-(Optional, integer)
-Specifies the maximum number of
-{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
-importance] values per document. By default, it is zero and no feature
-importance calculation occurs.
-====
-end::inference-config-classification[]
-
-tag::inference-config-regression[]
-Regression configuration for inference.
-
-+
-.Properties of regression inference
-[%collapsible%open]
-====
-`results_field`::
-(Optional, string)
-Specifies the field to which the inference prediction is written. Defaults to
-`predicted_value`.
-
-`num_top_feature_importance_values`::::
-(Optional, integer)
-Specifies the maximum number of
-{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature
-importance] values per document. By default, it is zero and no feature importance
-calculation occurs.
-====
-end::inference-config-regression[]
 
 tag::trained-model-configs[]
 An array of trained model resources, which are sorted by the `model_id` value in 

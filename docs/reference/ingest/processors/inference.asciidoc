@@ -37,13 +37,39 @@ include::common-options.asciidoc[]
 [discrete]
 [[inference-processor-regression-opt]]
 ==== {regression-cap} configuration options
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression]
+
+Regression configuration for inference.
+
+`results_field`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-results-field]
+
+`num_top_feature_importance_values`::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+
 
 [discrete]
 [[inference-processor-classification-opt]]
 ==== {classification-cap} configuration options
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification]
 
+Classification configuration for inference.
+
+`num_top_classes`::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
+
+`num_top_feature_importance_values`::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
+
+`results_field`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-results-field]
+
+`top_classes_results_field`::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
 
 [discrete]
 [[inference-processor-config-example]]
@@ -131,7 +157,7 @@ For example, you provide a tag `foo` in the definition as you can see below:
 // NOTCONSOLE
 
 
-The `{feat-imp}` value is written to the `ml.inference.foo.feature_importance` 
+The {feat-imp} value is written to the `ml.inference.foo.feature_importance` 
 field.
 
 You can also specify a target field as follows:
@@ -145,5 +171,5 @@ You can also specify a target field as follows:
 --------------------------------------------------
 // NOTCONSOLE
 
-In this case, `{feat-imp}` is exposed in the 
+In this case, {feat-imp} is exposed in the 
 `my_field.foo.feature_importance` field.

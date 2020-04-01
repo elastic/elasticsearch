@@ -106,8 +106,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        // TODO: update on backport
-        return Version.V_8_0_0;
+        return Version.V_7_8_0;
     }
 
     @Override

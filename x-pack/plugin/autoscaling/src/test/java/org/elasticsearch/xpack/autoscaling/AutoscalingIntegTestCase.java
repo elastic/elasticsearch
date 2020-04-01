@@ -26,4 +26,5 @@ public abstract class AutoscalingIntegTestCase extends ESIntegTestCase {
         builder.put(Autoscaling.AUTOSCALING_ENABLED_SETTING.getKey(), true);
         return builder.build();
     }
+
 }

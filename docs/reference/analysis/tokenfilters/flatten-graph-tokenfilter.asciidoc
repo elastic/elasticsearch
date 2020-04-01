@@ -15,19 +15,11 @@ not support token graphs containing multi-position tokens.
 
 [WARNING]
 ====
-Flattening graphs containing multi-position tokens is a lossy process.
-Flattening collapses the side paths of a token graph into a linear path.
+Flattening graphs is a lossy process.
 
-If possible, avoid using graph token filters in
-<<analysis-index-search-time,index analyzers>>. Use the respective
-<<analysis-synonym-tokenfilter,`synonym`>> or
-<<analysis-word-delimiter-tokenfilter,`word_delimiter`>> filters instead.
-
-Avoid using the `flatten_graph` filter in <<analysis-index-search-time,search
-analyzers>>. Queries, such as the <<query-dsl-match-query,`match`>> or
-<<query-dsl-match-query-phrase,`match_phrase`>> query, can use token graphs to
-generate multiple sub-queries from a single query string. Using flattened graphs
-can cause unexpected search results.
+If possible, avoid using the `flatten_graph` filter. Instead, use graph token
+filters in <<analysis-index-search-time,search analyzers>> only. This eliminates
+the need for the `flatten_graph` filter.
 ====
 
 The `flatten_graph` filter uses Lucene's

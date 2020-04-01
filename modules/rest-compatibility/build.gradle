@@ -19,7 +19,7 @@
 
 esplugin {
   description 'Adds a compatiblity layer for the prior major versions REST API'
-  classname 'org.elasticsearch.rest.compat.RestCompatPlugin'
+  classname 'org.elasticsearch.compat.RestCompatPlugin'
 }
 
 dependencies {

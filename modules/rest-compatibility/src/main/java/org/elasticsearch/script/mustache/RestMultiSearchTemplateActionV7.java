@@ -75,7 +75,7 @@ public class RestMultiSearchTemplateActionV7 extends RestMultiSearchTemplateActi
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         request.param("type");
 
-        TypeConsumer typeConsumer = new TypeConsumer(request);
+        TypeConsumer typeConsumer = new TypeConsumer(request, "type", "types");
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex, typeConsumer);
         if (typeConsumer.hasTypes()) {
             deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);

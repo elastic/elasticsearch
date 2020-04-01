@@ -21,9 +21,13 @@ package org.elasticsearch.rest.action.document;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.compat.TypeConsumer;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,12 +59,36 @@ public class RestTermVectorsActionV7 extends RestTermVectorsAction {
         return String.valueOf(Version.V_7_0_0.major);
     }
 
+//    @Override
+//    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+//        TypeConsumer typeConsumer = new TypeConsumer(request);
+//        if (typeConsumer.hasTypes()) {
+//            request.param("type");
+//            deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
+//        }
+//        return super.prepareRequest(request, client);
+//    }
+
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.hasParam("type")) {
+        TypeConsumer typeConsumer = new TypeConsumer(request,"_type");
+
+        TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("id"));
+
+        if (request.hasContentOrSourceParam()) {
+            try (XContentParser parser = request.contentOrSourceParamParser()) {
+                TermVectorsRequest.parseRequest(termVectorsRequest, parser, typeConsumer);
+            }
+        }
+        readURIParameters(termVectorsRequest, request);
+
+        if (typeConsumer.hasTypes()) {
             request.param("type");
             deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
         }
-        return super.prepareRequest(request, client);
+
+        return channel -> client.termVectors(termVectorsRequest, new RestToXContentListener<>(channel));
     }
+
+
 }

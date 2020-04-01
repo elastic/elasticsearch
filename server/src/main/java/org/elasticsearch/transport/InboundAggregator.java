@@ -29,6 +29,7 @@ import org.elasticsearch.common.lease.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -107,7 +108,9 @@ public class InboundAggregator implements Releasable {
             final CompositeBytesReference content = new CompositeBytesReference(references);
             releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
         }
-        final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent);
+
+        final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
+        final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
         boolean success = false;
         try {
             if (aggregated.getHeader().needsToReadVariableHeader()) {
@@ -117,7 +120,7 @@ public class InboundAggregator implements Releasable {
                 }
             }
             if (isShortCircuited() == false) {
-                checkBreaker(aggregated.getHeader(), aggregated.getContentLength());
+                checkBreaker(aggregated.getHeader(), aggregated.getContentLength(), breakerControl);
             }
             if (isShortCircuited()) {
                 aggregated.close();
@@ -199,7 +202,7 @@ public class InboundAggregator implements Releasable {
         }
     }
 
-    private void checkBreaker(final Header header, final int contentLength) {
+    private void checkBreaker(final Header header, final int contentLength, final BreakerControl breakerControl) {
         if (header.isRequest() == false) {
             return;
         }
@@ -209,11 +212,33 @@ public class InboundAggregator implements Releasable {
         if (canTripBreaker) {
             try {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(contentLength, "<transport_request>");
+                breakerControl.incrementReservedBytes(contentLength);
             } catch (CircuitBreakingException e) {
                 shortCircuit(e);
             }
         } else {
             circuitBreaker.addWithoutBreaking(contentLength);
+            breakerControl.incrementReservedBytes(contentLength);
+        }
+    }
+
+    private static class BreakerControl implements Releasable {
+
+        private final CircuitBreaker circuitBreaker;
+        private final AtomicInteger bytesToRelease = new AtomicInteger(0);
+
+        private BreakerControl(CircuitBreaker circuitBreaker) {
+            this.circuitBreaker = circuitBreaker;
+        }
+
+        private void incrementReservedBytes(int delta) {
+            bytesToRelease.getAndAdd(delta);
+        }
+
+        @Override
+        public void close() {
+            final int toRelease = bytesToRelease.getAndSet(0);
+            circuitBreaker.addWithoutBreaking(-toRelease);
         }
     }
 }

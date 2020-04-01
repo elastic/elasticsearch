@@ -30,7 +30,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -45,7 +44,6 @@ public class InboundHandler {
     private final ThreadPool threadPool;
     private final OutboundHandler outboundHandler;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final CircuitBreakerService circuitBreakerService;
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
 
@@ -54,11 +52,10 @@ public class InboundHandler {
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
     InboundHandler(ThreadPool threadPool, OutboundHandler outboundHandler, NamedWriteableRegistry namedWriteableRegistry,
-                   CircuitBreakerService circuitBreakerService, TransportHandshaker handshaker, TransportKeepAlive keepAlive) {
+                   TransportHandshaker handshaker, TransportKeepAlive keepAlive) {
         this.threadPool = threadPool;
         this.outboundHandler = outboundHandler;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.circuitBreakerService = circuitBreakerService;
         this.handshaker = handshaker;
         this.keepAlive = keepAlive;
     }
@@ -152,13 +149,13 @@ public class InboundHandler {
         messageListener.onRequestReceived(requestId, action);
         if (message.isShortCircuit()) {
             final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                circuitBreakerService, 0, header.isCompressed());
+                header.isCompressed(), message.takeBreakerReleaseControl());
             sendErrorResponse(action, transportChannel, message.getException());
         } else {
             final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
             assertRemoteVersion(stream, header.getVersion());
             final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                circuitBreakerService, message.getContentLength(), header.isCompressed());
+                header.isCompressed(), message.takeBreakerReleaseControl());
             try {
                 if (header.isHandshake()) {
                     handshaker.handleHandshake(version, channel, requestId, stream);

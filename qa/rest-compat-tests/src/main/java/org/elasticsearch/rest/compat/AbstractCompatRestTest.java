@@ -43,7 +43,6 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
         super(testCandidate);
     }
 
-
     private static final Logger staticLogger = LogManager.getLogger(AbstractCompatRestTest.class);
 
     public static final String COMPAT_TESTS_PATH = "/rest-api-spec/test-compat";
@@ -66,27 +65,29 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
             });
             finalTestCandidates.add(testCandidates.toArray());
         }
-        localCandidates.keySet().forEach(lc -> finalTestCandidates.add(new Object[]{lc}));
+        localCandidates.keySet().forEach(lc -> finalTestCandidates.add(new Object[] { lc }));
         return finalTestCandidates;
     }
-
 
     private static void mutateTestCandidate(ClientYamlTestCandidate testCandidate) {
         testCandidate.getTestSection().getExecutableSections().stream().filter(s -> s instanceof DoSection).forEach(ds -> {
             DoSection doSection = (DoSection) ds;
-            //TODO: be more selective here
+            // TODO: be more selective here
             doSection.setIgnoreWarnings(true);
 
-            doSection.getApiCallSection()
-                     .addHeaders(createCompatibleHeaders(doSection));
+            doSection.getApiCallSection().addHeaders(createCompatibleHeaders(doSection));
         });
     }
 
     private static Map<String, String> createCompatibleHeaders(DoSection doSection) {
         String compatibleHeader = createCompatibleHeader();
         if (doSection.getApiCallSection().hasBody()) {
-            return Map.of(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER, compatibleHeader,
-                CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER, compatibleHeader);
+            return Map.of(
+                CompatibleConstants.COMPATIBLE_ACCEPT_HEADER,
+                compatibleHeader,
+                CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER,
+                compatibleHeader
+            );
         }
         return Map.of(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER, compatibleHeader);
     }
@@ -95,13 +96,12 @@ public class AbstractCompatRestTest extends ESClientYamlSuiteTestCase {
         return "application/vnd.elasticsearch+json;compatible-with=" + CompatibleConstants.COMPATIBLE_VERSION;
     }
 
-
     private static Map<ClientYamlTestCandidate, ClientYamlTestCandidate> getLocalCompatibilityTests() throws Exception {
-        Iterable<Object[]> candidates =
-            ESClientYamlSuiteTestCase.createParameters(ExecutableSection.XCONTENT_REGISTRY, COMPAT_TESTS_PATH);
+        Iterable<Object[]> candidates = ESClientYamlSuiteTestCase.createParameters(ExecutableSection.XCONTENT_REGISTRY, COMPAT_TESTS_PATH);
         Map<ClientYamlTestCandidate, ClientYamlTestCandidate> localCompatibilityTests = new HashMap<>();
         StreamSupport.stream(candidates.spliterator(), false)
-            .flatMap(Arrays::stream).forEach(o -> localCompatibilityTests.put((ClientYamlTestCandidate) o, (ClientYamlTestCandidate) o));
+            .flatMap(Arrays::stream)
+            .forEach(o -> localCompatibilityTests.put((ClientYamlTestCandidate) o, (ClientYamlTestCandidate) o));
         return localCompatibilityTests;
     }
 }

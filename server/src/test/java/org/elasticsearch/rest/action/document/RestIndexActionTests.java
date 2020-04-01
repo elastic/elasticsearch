@@ -53,11 +53,9 @@ public class RestIndexActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenAnswer(invocationOnMock -> clusterStateSupplier.get());
         controller().registerHandler(new RestIndexAction());
         controller().registerHandler(new CreateHandler());
-        controller().registerHandler(new AutoIdHandler(clusterService));
+        controller().registerHandler(new AutoIdHandler(() -> clusterStateSupplier.get().nodes()));
     }
 
     public void testCreateOpTypeValidation() {

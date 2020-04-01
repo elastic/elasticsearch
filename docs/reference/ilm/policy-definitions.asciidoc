@@ -204,17 +204,17 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
-NOTE: To add attributes `box_type` with values of `hot` and `warm` add lines to `elasticsearch.yaml` like so:
+NOTE: To add attributes `box_type` with values of `hot` and `warm` add lines to `elasticsearch.yaml`:
 
-[source,yaml,indent=4]
+[source,yaml]
 --------------------------------------------------------
 node.attr.data: hot
 node.attr.data: warm
 --------------------------------------------------------
 
-    You can also set custom attributes when you start a node:
+Or, instead set custom attributes when you start a node:
 
-[source,sh,indent=4]
+[source,sh]
 --------------------------------------------------------
 ./bin/elasticsearch -Enode.attr.data=hot -Enode.attr.data=warm
 --------------------------------------------------------

@@ -31,6 +31,7 @@ import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -39,8 +40,10 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -234,5 +237,18 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
         randomFrom(mutators).run();
         return mutation;
+    }
+
+    public void testDescriptionForDefault() {
+        assertThat(toDescription(new SearchRequest()), equalTo("indices[], search_type[QUERY_THEN_FETCH], source[]"));
+    }
+
+    public void testDescriptionIncludesScroll() {
+        assertThat(toDescription(new SearchRequest().scroll(TimeValue.timeValueMinutes(5))),
+            equalTo("indices[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]"));
+    }
+
+    private String toDescription(SearchRequest request) {
+        return request.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
     }
 }

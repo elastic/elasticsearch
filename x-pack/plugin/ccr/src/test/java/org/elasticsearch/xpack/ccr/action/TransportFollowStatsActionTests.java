@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -29,23 +29,23 @@ public class TransportFollowStatsActionTests extends ESTestCase {
 
     public void testFindFollowerIndicesFromShardFollowTasks() {
         Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
 
-        IndexMetaData index1 = IndexMetaData.builder("index1").settings(indexSettings).build();
-        IndexMetaData index2 = IndexMetaData.builder("index2").settings(indexSettings).build();
-        IndexMetaData index3 = IndexMetaData.builder("index3").settings(indexSettings).build();
+        IndexMetadata index1 = IndexMetadata.builder("index1").settings(indexSettings).build();
+        IndexMetadata index2 = IndexMetadata.builder("index2").settings(indexSettings).build();
+        IndexMetadata index3 = IndexMetadata.builder("index3").settings(indexSettings).build();
 
-        PersistentTasksCustomMetaData.Builder persistentTasks = PersistentTasksCustomMetaData.builder()
+        PersistentTasksCustomMetadata.Builder persistentTasks = PersistentTasksCustomMetadata.builder()
             .addTask("1", ShardFollowTask.NAME, createShardFollowTask(index1.getIndex()), null)
             .addTask("2", ShardFollowTask.NAME, createShardFollowTask(index2.getIndex()), null)
             .addTask("3", ShardFollowTask.NAME, createShardFollowTask(index3.getIndex()), null);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_cluster"))
-            .metaData(MetaData.builder()
-                .putCustom(PersistentTasksCustomMetaData.TYPE, persistentTasks.build())
+            .metadata(Metadata.builder()
+                .putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build())
                 // only add index1 and index2
                 .put(index1, false)
                 .put(index2, false)

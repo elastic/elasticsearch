@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
@@ -52,7 +52,7 @@ public class AnnotationIndex {
         }, finalListener::onFailure);
 
         // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
-        SortedMap<String, IndexAbstraction> mlLookup = state.getMetaData().getIndicesLookup().tailMap(".ml");
+        SortedMap<String, IndexAbstraction> mlLookup = state.getMetadata().getIndicesLookup().tailMap(".ml");
         if (mlLookup.isEmpty() == false && mlLookup.firstKey().startsWith(".ml")) {
 
             // Create the annotations index if it doesn't exist already.
@@ -62,9 +62,9 @@ public class AnnotationIndex {
                     new CreateIndexRequest(INDEX_NAME)
                         .mapping(annotationsMapping())
                         .settings(Settings.builder()
-                            .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                            .put(IndexMetaData.SETTING_INDEX_HIDDEN, true));
+                            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
 
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
                     ActionListener.<CreateIndexResponse>wrap(

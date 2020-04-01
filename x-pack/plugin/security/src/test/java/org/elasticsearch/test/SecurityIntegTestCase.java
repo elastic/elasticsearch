@@ -22,7 +22,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -55,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.PLUGINS;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -216,7 +217,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     protected void doAssertXPackIsInstalled() {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().addMetric(PLUGINS.metricName()).get();
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
 //            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
@@ -412,7 +413,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                                 Strings.toString(clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject()),
                     SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_MAIN_ALIAS, clusterState, logger,
                         Version.CURRENT.minimumIndexCompatibilityVersion()::onOrBefore));
-                Index securityIndex = resolveSecurityIndex(clusterState.metaData());
+                Index securityIndex = resolveSecurityIndex(clusterState.metadata());
                 if (securityIndex != null) {
                     IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
                     if (indexRoutingTable != null) {
@@ -438,8 +439,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    private static Index resolveSecurityIndex(MetaData metaData) {
-        final IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
+    private static Index resolveSecurityIndex(Metadata metadata) {
+        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
         if (indexAbstraction != null) {
             return indexAbstraction.getIndices().get(0).getIndex();
         }

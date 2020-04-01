@@ -33,8 +33,8 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
     private final double normalizationFactor;
 
     InternalDerivative(String name, double value, double normalizationFactor, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, value, formatter, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, value, formatter, pipelineAggregators, metadata);
         this.normalizationFactor = normalizationFactor;
     }
 

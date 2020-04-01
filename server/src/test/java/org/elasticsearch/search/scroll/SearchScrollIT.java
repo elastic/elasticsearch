@@ -26,7 +26,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -495,8 +495,8 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testStringSortMissingAscTerminates() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
                 .setMapping("no_field", "type=keyword", "some_field", "type=keyword"));
         client().prepareIndex("test").setId("1").setSource("some_field", "test").get();
         refresh();
@@ -630,7 +630,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         final int numShards = randomIntBetween(3, 5);
         assertAcked(
             client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
                 .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}"));
         client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
         client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
@@ -662,13 +662,13 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testRestartDataNodesDuringScrollSearch() throws Exception {
         final String dataNode = internalCluster().startDataOnlyNode();
         createIndex("demo", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", dataNode)
             .build());
         createIndex("prod", Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", dataNode)
             .build());
         int numDocs = randomIntBetween(10, 100);

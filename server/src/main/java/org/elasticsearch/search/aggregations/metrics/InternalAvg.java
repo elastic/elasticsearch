@@ -35,8 +35,8 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     private final long count;
 
     public InternalAvg(String name, double sum, long count, DocValueFormat format, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.sum = sum;
         this.count = count;
         this.format = format;
@@ -97,7 +97,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
             count += avg.count;
             kahanSummation.add(avg.sum);
         }
-        return new InternalAvg(getName(), kahanSummation.value(), count, format, pipelineAggregators(), getMetaData());
+        return new InternalAvg(getName(), kahanSummation.value(), count, format, pipelineAggregators(), getMetadata());
     }
 
     @Override

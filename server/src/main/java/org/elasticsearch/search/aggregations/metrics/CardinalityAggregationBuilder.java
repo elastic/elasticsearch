@@ -66,8 +66,8 @@ public final class CardinalityAggregationBuilder
         super(name);
     }
 
-    public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.precisionThreshold = clone.precisionThreshold;
     }
 
@@ -87,8 +87,8 @@ public final class CardinalityAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new CardinalityAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new CardinalityAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -130,7 +130,7 @@ public final class CardinalityAggregationBuilder
     @Override
     protected CardinalityAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                       AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new CardinalityAggregatorFactory(name, config, precisionThreshold, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new CardinalityAggregatorFactory(name, config, precisionThreshold, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

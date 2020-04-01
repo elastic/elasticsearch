@@ -89,9 +89,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                                                SubAggCollectionMode collectionMode,
                                                boolean showTermDocCountError,
                                                List<PipelineAggregator> pipelineAggregators,
-                                               Map<String, Object> metaData) throws IOException {
+                                               Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
-            pipelineAggregators, metaData);
+            pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         final IndexReader reader = context.searcher().getIndexReader();
@@ -240,7 +240,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
+                pipelineAggregators(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
                 otherDocCount, Arrays.asList(list), 0);
     }
 
@@ -313,9 +313,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                        SubAggCollectionMode collectionMode,
                        boolean showTermDocCountError,
                        List<PipelineAggregator> pipelineAggregators,
-                       Map<String, Object> metaData) throws IOException {
+                       Map<String, Object> metadata) throws IOException {
             super(name, factories, valuesSource, order, format, bucketCountThresholds, null,
-                context, parent, forceDenseMode, collectionMode, showTermDocCountError, pipelineAggregators, metaData);
+                context, parent, forceDenseMode, collectionMode, showTermDocCountError, pipelineAggregators, metadata);
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
         }

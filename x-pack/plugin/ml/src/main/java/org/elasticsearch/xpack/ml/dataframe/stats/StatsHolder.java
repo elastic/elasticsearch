@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.dataframe.stats;
 
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.MemoryUsage;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 
 import java.util.concurrent.atomic.AtomicReference;
 

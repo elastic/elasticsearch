@@ -71,8 +71,8 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
 
     protected MedianAbsoluteDeviationAggregationBuilder(MedianAbsoluteDeviationAggregationBuilder clone,
                                                         AggregatorFactories.Builder factoriesBuilder,
-                                                        Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                                        Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.compression = clone.compression;
     }
 
@@ -96,8 +96,8 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new MedianAbsoluteDeviationAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new MedianAbsoluteDeviationAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -117,7 +117,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
                                                        AggregatorFactories.Builder subFactoriesBuilder)
         throws IOException {
         return new MedianAbsoluteDeviationAggregatorFactory(name, config, queryShardContext,
-            parent, subFactoriesBuilder, metaData, compression);
+            parent, subFactoriesBuilder, metadata, compression);
     }
 
     @Override

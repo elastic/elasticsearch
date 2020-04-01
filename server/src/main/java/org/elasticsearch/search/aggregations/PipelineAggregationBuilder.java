@@ -219,7 +219,7 @@ public abstract class PipelineAggregationBuilder implements NamedWriteable, Base
 
     /** Associate metadata with this {@link PipelineAggregationBuilder}. */
     @Override
-    public abstract PipelineAggregationBuilder setMetaData(Map<String, Object> metaData);
+    public abstract PipelineAggregationBuilder setMetadata(Map<String, Object> metadata);
 
     @Override
     public PipelineAggregationBuilder subAggregations(Builder subFactories) {

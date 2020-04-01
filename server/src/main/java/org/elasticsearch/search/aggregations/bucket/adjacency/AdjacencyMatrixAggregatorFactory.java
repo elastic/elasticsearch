@@ -43,8 +43,8 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
 
     public AdjacencyMatrixAggregatorFactory(String name, List<KeyedFilter> filters, String separator,
                                             QueryShardContext queryShardContext, AggregatorFactory parent,
-                                            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metaData);
+                                            AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metadata);
         IndexSearcher contextSearcher = queryShardContext.searcher();
         this.separator = separator;
         weights = new Weight[filters.size()];
@@ -62,9 +62,9 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         return new AdjacencyMatrixAggregator(name, factories, separator, keys, weights, searchContext, parent,
-                pipelineAggregators, metaData);
+                pipelineAggregators, metadata);
     }
 
 }

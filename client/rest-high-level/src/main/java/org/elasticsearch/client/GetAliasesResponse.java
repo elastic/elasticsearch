@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,9 +52,9 @@ public class GetAliasesResponse implements StatusToXContentObject {
     private final String error;
     private final ElasticsearchException exception;
 
-    private final Map<String, Set<AliasMetaData>> aliases;
+    private final Map<String, Set<AliasMetadata>> aliases;
 
-    GetAliasesResponse(RestStatus status, String error, Map<String, Set<AliasMetaData>> aliases) {
+    GetAliasesResponse(RestStatus status, String error, Map<String, Set<AliasMetadata>> aliases) {
         this.status = status;
         this.error = error;
         this.aliases = aliases;
@@ -90,7 +90,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
     /**
      * Return the requested aliases
      */
-    public Map<String, Set<AliasMetaData>> getAliases() {
+    public Map<String, Set<AliasMetadata>> getAliases() {
         return aliases;
     }
 
@@ -103,13 +103,13 @@ public class GetAliasesResponse implements StatusToXContentObject {
                 builder.field("status", status.getStatus());
             }
 
-            for (Map.Entry<String, Set<AliasMetaData>> entry : aliases.entrySet()) {
+            for (Map.Entry<String, Set<AliasMetadata>> entry : aliases.entrySet()) {
                 builder.startObject(entry.getKey());
                 {
                     builder.startObject("aliases");
                     {
-                        for (final AliasMetaData alias : entry.getValue()) {
-                            AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
+                        for (final AliasMetadata alias : entry.getValue()) {
+                            AliasMetadata.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
                         }
                     }
                     builder.endObject();
@@ -129,7 +129,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
             parser.nextToken();
         }
         ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        Map<String, Set<AliasMetaData>> aliases = new HashMap<>();
+        Map<String, Set<AliasMetadata>> aliases = new HashMap<>();
 
         String currentFieldName;
         Token token;
@@ -159,7 +159,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
                 } else {
                     String indexName = parser.currentName();
                     if (parser.nextToken() == Token.START_OBJECT) {
-                        Set<AliasMetaData> parseInside = parseAliases(parser);
+                        Set<AliasMetadata> parseInside = parseAliases(parser);
                         aliases.put(indexName, parseInside);
                     }
                 }
@@ -173,8 +173,8 @@ public class GetAliasesResponse implements StatusToXContentObject {
         return new GetAliasesResponse(status, error, aliases);
     }
 
-    private static Set<AliasMetaData> parseAliases(XContentParser parser) throws IOException {
-        Set<AliasMetaData> aliases = new HashSet<>();
+    private static Set<AliasMetadata> parseAliases(XContentParser parser) throws IOException {
+        Set<AliasMetadata> aliases = new HashSet<>();
         Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != Token.END_OBJECT) {
@@ -183,7 +183,7 @@ public class GetAliasesResponse implements StatusToXContentObject {
             } else if (token == Token.START_OBJECT) {
                 if ("aliases".equals(currentFieldName)) {
                     while (parser.nextToken() != Token.END_OBJECT) {
-                        AliasMetaData fromXContent = AliasMetaData.Builder.fromXContent(parser);
+                        AliasMetadata fromXContent = AliasMetadata.Builder.fromXContent(parser);
                         aliases.add(fromXContent);
                     }
                 } else {

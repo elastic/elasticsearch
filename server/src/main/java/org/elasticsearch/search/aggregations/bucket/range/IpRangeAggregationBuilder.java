@@ -217,15 +217,15 @@ public final class IpRangeAggregationBuilder
         super(name);
     }
 
-    protected IpRangeAggregationBuilder(IpRangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected IpRangeAggregationBuilder(IpRangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.ranges =  new ArrayList<>(clone.ranges);
         this.keyed = clone.keyed;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new IpRangeAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new IpRangeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -379,7 +379,7 @@ public final class IpRangeAggregationBuilder
             ranges.add(new BinaryRangeAggregator.Range(range.key, toBytesRef(range.from), toBytesRef(range.to)));
         }
         return new BinaryRangeAggregatorFactory(name, config, ranges,
-                keyed, queryShardContext, parent, subFactoriesBuilder, metaData);
+                keyed, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

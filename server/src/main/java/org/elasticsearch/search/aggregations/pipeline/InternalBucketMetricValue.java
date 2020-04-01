@@ -41,8 +41,8 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     private String[] keys;
 
     public InternalBucketMetricValue(String name, String[] keys, double value, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.keys = keys;
         this.value = value;
         this.format = formatter;

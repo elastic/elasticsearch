@@ -67,7 +67,7 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
     public static IndexTemplateV2 randomInstance() {
         Settings settings = null;
         CompressedXContent mappings = null;
-        Map<String, AliasMetaData> aliases = null;
+        Map<String, AliasMetadata> aliases = null;
         Template template = null;
         if (randomBoolean()) {
             if (randomBoolean()) {
@@ -97,9 +97,9 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
             meta);
     }
 
-    private static Map<String, AliasMetaData> randomAliases() {
+    private static Map<String, AliasMetadata> randomAliases() {
         String aliasName = randomAlphaOfLength(5);
-        AliasMetaData aliasMeta = AliasMetaData.builder(aliasName)
+        AliasMetadata aliasMeta = AliasMetadata.builder(aliasName)
             .filter(Collections.singletonMap(randomAlphaOfLength(2), randomAlphaOfLength(2)))
             .routing(randomBoolean() ? null : randomAlphaOfLength(3))
             .isHidden(randomBoolean() ? null : randomBoolean())

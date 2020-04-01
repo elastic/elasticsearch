@@ -788,12 +788,6 @@ description = "check that case insensitive comparisons are performed for fields.
 
 [[queries]]
 query = '''
-file where opcode=0 and endsWith(file_name, 'loREr.exe')'''
-expected_event_ids  = [88]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
 file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)
 '''
 expected_event_ids  = [88]

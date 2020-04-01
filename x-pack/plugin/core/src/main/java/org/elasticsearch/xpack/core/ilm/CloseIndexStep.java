@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 
 /**
  * Invokes a close step on a single index.
@@ -26,10 +26,10 @@ public class CloseIndexStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
                               ClusterStateObserver observer, Listener listener) {
-        if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
-            CloseIndexRequest request = new CloseIndexRequest(indexMetaData.getIndex().getName());
+        if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
+            CloseIndexRequest request = new CloseIndexRequest(indexMetadata.getIndex().getName());
             getClient().admin().indices()
                 .close(request, ActionListener.wrap(closeIndexResponse -> {
                     if (closeIndexResponse.isAcknowledged() == false) {

@@ -34,8 +34,8 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     private final double sum;
 
     InternalSum(String name, double sum, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                    Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.sum = sum;
         this.format = formatter;
     }
@@ -79,7 +79,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
             double value = ((InternalSum) aggregation).sum;
             kahanSummation.add(value);
         }
-        return new InternalSum(name, kahanSummation.value(), format, pipelineAggregators(), getMetaData());
+        return new InternalSum(name, kahanSummation.value(), format, pipelineAggregators(), getMetadata());
     }
 
     @Override

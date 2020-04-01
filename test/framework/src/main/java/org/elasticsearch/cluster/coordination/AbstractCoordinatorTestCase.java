@@ -32,10 +32,10 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -748,20 +748,20 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
 
             MockPersistedState(DiscoveryNode newLocalNode, MockPersistedState oldState,
-                               Function<MetaData, MetaData> adaptGlobalMetaData, Function<Long, Long> adaptCurrentTerm) {
+                               Function<Metadata, Metadata> adaptGlobalMetadata, Function<Long, Long> adaptCurrentTerm) {
                 try {
                     if (oldState.nodeEnvironment != null) {
                         nodeEnvironment = oldState.nodeEnvironment;
-                        final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
+                        final Metadata updatedMetadata = adaptGlobalMetadata.apply(oldState.getLastAcceptedState().metadata());
                         final long updatedTerm = adaptCurrentTerm.apply(oldState.getCurrentTerm());
-                        if (updatedMetaData != oldState.getLastAcceptedState().metaData() || updatedTerm != oldState.getCurrentTerm()) {
+                        if (updatedMetadata != oldState.getLastAcceptedState().metadata() || updatedTerm != oldState.getCurrentTerm()) {
                             try (PersistedClusterStateService.Writer writer =
                                      new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
                                          new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                                          deterministicTaskQueue::getCurrentTimeMillis)
                                          .createWriter()) {
                                 writer.writeFullStateAndCommit(updatedTerm,
-                                    ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build());
+                                    ClusterState.builder(oldState.getLastAcceptedState()).metadata(updatedMetadata).build());
                             }
                         }
                         final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
@@ -812,9 +812,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 newVotingConfiguration, newValue).writeTo(outStream);
                         } else {
                             persistedCurrentTerm = oldState.getCurrentTerm();
-                            final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
-                            if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
-                                ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build().writeTo(outStream);
+                            final Metadata updatedMetadata = adaptGlobalMetadata.apply(oldState.getLastAcceptedState().metadata());
+                            if (updatedMetadata != oldState.getLastAcceptedState().metadata()) {
+                                ClusterState.builder(oldState.getLastAcceptedState()).metadata(updatedMetadata).build().writeTo(outStream);
                             } else {
                                 oldState.getLastAcceptedState().writeTo(outStream);
                             }
@@ -980,7 +980,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 return restartedNode(Function.identity(), Function.identity(), nodeSettings);
             }
 
-            ClusterNode restartedNode(Function<MetaData, MetaData> adaptGlobalMetaData, Function<Long, Long> adaptCurrentTerm,
+            ClusterNode restartedNode(Function<Metadata, Metadata> adaptGlobalMetadata, Function<Long, Long> adaptCurrentTerm,
                                       Settings nodeSettings) {
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(localNode.getName(), localNode.getId(),
@@ -989,7 +989,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     localNode.isMasterNode() && Node.NODE_MASTER_SETTING.get(nodeSettings)
                         ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
                 return new ClusterNode(nodeIndex, newLocalNode,
-                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetaData, adaptCurrentTerm), nodeSettings);
+                    node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm), nodeSettings);
             }
 
             private CoordinationState.PersistedState getPersistedState() {
@@ -1047,10 +1047,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             void submitSetAutoShrinkVotingConfiguration(final boolean autoShrinkVotingConfiguration) {
                 submitUpdateTask("set master nodes failure tolerance [" + autoShrinkVotingConfiguration + "]", cs ->
-                    ClusterState.builder(cs).metaData(
-                        MetaData.builder(cs.metaData())
+                    ClusterState.builder(cs).metadata(
+                        Metadata.builder(cs.metadata())
                             .persistentSettings(Settings.builder()
-                                .put(cs.metaData().persistentSettings())
+                                .put(cs.metadata().persistentSettings())
                                 .put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), autoShrinkVotingConfiguration)
                                 .build())
                             .build())
@@ -1403,10 +1403,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     public ClusterState setValue(ClusterState clusterState, int key, long value) {
-        return ClusterState.builder(clusterState).metaData(
-            MetaData.builder(clusterState.metaData())
+        return ClusterState.builder(clusterState).metadata(
+            Metadata.builder(clusterState.metadata())
                 .persistentSettings(Settings.builder()
-                    .put(clusterState.metaData().persistentSettings())
+                    .put(clusterState.metadata().persistentSettings())
                     .put("value_" + key, value)
                     .build())
                 .build())
@@ -1418,7 +1418,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     public long value(ClusterState clusterState, int key) {
-        return clusterState.metaData().persistentSettings().getAsLong("value_" + key, 0L);
+        return clusterState.metadata().persistentSettings().getAsLong("value_" + key, 0L);
     }
 
     public void assertStateEquals(ClusterState clusterState1, ClusterState clusterState2) {
@@ -1431,7 +1431,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     public Set<Integer> keySet(ClusterState clusterState) {
-        return clusterState.metaData().persistentSettings().keySet().stream()
+        return clusterState.metadata().persistentSettings().keySet().stream()
             .filter(s -> s.startsWith("value_")).map(s -> Integer.valueOf(s.substring("value_".length()))).collect(Collectors.toSet());
     }
 

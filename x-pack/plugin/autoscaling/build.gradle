@@ -14,6 +14,16 @@ archivesBaseName = 'x-pack-autoscaling'
 
 integTest.enabled = false
 
+task internalClusterTest(type: Test) {
+  description = 'Java fantasy integration tests'
+  mustRunAfter test
+
+  include '**/*IT.class'
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+check.dependsOn internalClusterTest
+
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
@@ -26,4 +36,10 @@ gradle.projectsEvaluated {
     .subprojects
     .findAll { it.path.startsWith(project.path + ":qa") }
     .each { check.dependsOn it.check }
+}
+
+testingConventions.naming {
+  IT {
+    baseClass "org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase"
+  }
 }

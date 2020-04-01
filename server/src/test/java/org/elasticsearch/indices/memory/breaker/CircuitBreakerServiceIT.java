@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
@@ -108,7 +109,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
     /** Returns true if any of the nodes used a noop breaker */
     private boolean noopBreakerUsed() {
-        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
+        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats()
+            .addMetric(BREAKER.metricName())
+            .get();
         for (NodeStats nodeStats : stats.getNodes()) {
             if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == NoopCircuitBreaker.LIMIT) {
                 return true;
@@ -159,7 +162,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         errMsg = "which is larger than the limit of [100/100b]";
         assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
 
-        NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
+        NodesStatsResponse stats = client.admin().cluster().prepareNodesStats()
+            .addMetric(BREAKER.metricName())
+            .get();
         int breaks = 0;
         for (NodeStats stat : stats.getNodes()) {
             CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.FIELDDATA);
@@ -211,7 +216,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         errMsg = "which is larger than the limit of [100/100b]";
         assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
 
-        NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
+        NodesStatsResponse stats = client.admin().cluster().prepareNodesStats()
+            .addMetric(BREAKER.metricName())
+            .get();
         int breaks = 0;
         for (NodeStats stat : stats.getNodes()) {
             CircuitBreakerStats breakerStats = stat.getBreaker().getStats(CircuitBreaker.FIELDDATA);
@@ -296,8 +303,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     public void clearFieldData() throws Exception {
         client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
         assertBusy(() -> {
-            NodesStatsResponse resp = client().admin().cluster().prepareNodesStats()
-                    .clear().setBreaker(true).get(new TimeValue(15, TimeUnit.SECONDS));
+            NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().clear()
+                .addMetric(BREAKER.metricName())
+                .get(new TimeValue(15, TimeUnit.SECONDS));
             for (NodeStats nStats : resp.getNodes()) {
                 assertThat("fielddata breaker never reset back to 0",
                         nStats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
@@ -326,7 +334,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             }
         }
 
-        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().clear().setBreaker(true).get();
+        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().clear()
+            .addMetric(BREAKER.metricName())
+            .get();
         int breaks = 0;
         for (NodeStats stat : stats.getNodes()) {
             CircuitBreakerStats breakerStats = stat.getBreaker().getStats(breakerName);

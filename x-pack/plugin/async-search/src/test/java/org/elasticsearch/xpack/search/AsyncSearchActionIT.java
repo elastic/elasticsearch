@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 // TODO: add tests for keepAlive and expiration
-public class AsyncSearchActionTests extends AsyncSearchIntegTestCase {
+public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     private String indexName;
     private int numShards;
 

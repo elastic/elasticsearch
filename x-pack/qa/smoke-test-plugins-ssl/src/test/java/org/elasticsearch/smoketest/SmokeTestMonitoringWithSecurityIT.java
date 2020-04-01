@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -170,7 +171,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     }
 
     private String randomNodeHttpAddress() {
-        List<NodeInfo> nodes = client().admin().cluster().prepareNodesInfo().clear().setHttp(true).get().getNodes();
+        List<NodeInfo> nodes = client().admin().cluster().prepareNodesInfo().clear().addMetric(Metric.HTTP.metricName()).get().getNodes();
         assertThat(nodes.size(), greaterThan(0));
 
         InetSocketAddress[] httpAddresses = new InetSocketAddress[nodes.size()];

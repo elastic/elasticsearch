@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -114,7 +115,7 @@ public class CustomRealmIT extends ESIntegTestCase {
     }
 
     public void testSettingsFiltering() throws Exception {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setSettings(true).get();
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().addMetric(Metric.SETTINGS.metricName()).get();
         for(NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);

@@ -32,8 +32,8 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
 
     PairedTTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, DocValueFormat format,
                           SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                          Map<String, Object> metaData) throws IOException {
-        super(name, valuesSources, tails, format, context, parent, pipelineAggregators, metaData);
+                          Map<String, Object> metadata) throws IOException {
+        super(name, valuesSources, tails, format, context, parent, pipelineAggregators, metadata);
         statsBuilder = new TStatsBuilder(context.bigArrays());
     }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
@@ -61,6 +62,9 @@ import static org.joda.time.DateTime.now;
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0, numDataNodes = 0)
+@TestLogging(value = "org.elasticsearch.xpack.idp.action.TransportPutSamlServiceProviderAction:TRACE," +
+    "org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex:TRACE",
+    reason = "https://github.com/elastic/elasticsearch/issues/54423")
 public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
 
     private final SamlFactory samlFactory = new SamlFactory();

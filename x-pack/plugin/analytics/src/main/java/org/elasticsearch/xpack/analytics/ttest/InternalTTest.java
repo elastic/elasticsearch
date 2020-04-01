@@ -24,8 +24,8 @@ public class InternalTTest extends InternalNumericMetricsAggregation.SingleValue
     protected final TTestState state;
 
     InternalTTest(String name, TTestState state, DocValueFormat formatter,
-                  List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                  List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.state = state;
         this.format = formatter;
     }
@@ -58,7 +58,7 @@ public class InternalTTest extends InternalNumericMetricsAggregation.SingleValue
     @Override
     public InternalTTest reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         TTestState reduced = state.reduce(aggregations.stream().map(a -> ((InternalTTest) a).state));
-        return new InternalTTest(name, reduced, format, pipelineAggregators(), getMetaData());
+        return new InternalTTest(name, reduced, format, pipelineAggregators(), getMetadata());
     }
 
     @Override

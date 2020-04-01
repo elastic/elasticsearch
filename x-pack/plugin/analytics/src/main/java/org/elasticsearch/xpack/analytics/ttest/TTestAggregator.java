@@ -29,8 +29,8 @@ public abstract class TTestAggregator<T extends TTestState> extends NumericMetri
 
     TTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, DocValueFormat format,
                     SearchContext context, Aggregator parent,
-                    List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                    List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSources = valuesSources;
         this.tails = tails;
         this.format = format;
@@ -52,12 +52,12 @@ public abstract class TTestAggregator<T extends TTestState> extends NumericMetri
         if (valuesSources == null || bucket >= size()) {
             return buildEmptyAggregation();
         }
-        return new InternalTTest(name, getState(bucket), format, pipelineAggregators(), metaData());
+        return new InternalTTest(name, getState(bucket), format, pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTTest(name, getEmptyState(), format, pipelineAggregators(), metaData());
+        return new InternalTTest(name, getEmptyState(), format, pipelineAggregators(), metadata());
     }
 
     @Override

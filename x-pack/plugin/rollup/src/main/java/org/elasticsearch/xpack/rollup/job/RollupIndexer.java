@@ -151,7 +151,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
 
         final Map<String, Object> metadata = createMetadata(groupConfig);
         if (metadata.isEmpty() == false) {
-            composite.setMetaData(metadata);
+            composite.setMetadata(metadata);
         }
         composite.size(config.getPageSize());
 

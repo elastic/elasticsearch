@@ -110,10 +110,10 @@ public interface BlobContainer {
      * Lists all blobs in the container.
      *
      * @return  A map of all the blobs in the container.  The keys in the map are the names of the blobs and
-     *          the values are {@link BlobMetaData}, containing basic information about each blob.
+     *          the values are {@link BlobMetadata}, containing basic information about each blob.
      * @throws  IOException if there were any failures in reading from the blob container.
      */
-    Map<String, BlobMetaData> listBlobs() throws IOException;
+    Map<String, BlobMetadata> listBlobs() throws IOException;
 
     /**
      * Lists all child containers under this container. A child container is defined as a container whose {@link #path()} method returns
@@ -131,8 +131,8 @@ public interface BlobContainer {
      * @param   blobNamePrefix
      *          The prefix to match against blob names in the container.
      * @return  A map of the matching blobs in the container.  The keys in the map are the names of the blobs
-     *          and the values are {@link BlobMetaData}, containing basic information about each blob.
+     *          and the values are {@link BlobMetadata}, containing basic information about each blob.
      * @throws  IOException if there were any failures in reading from the blob container.
      */
-    Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+    Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 }

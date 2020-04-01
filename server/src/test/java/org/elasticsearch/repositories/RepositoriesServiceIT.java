@@ -21,7 +21,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -66,9 +66,9 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
             client.admin().cluster().prepareGetRepositories(repositoryName).get();
 
         assertThat(originalGetRepositoriesResponse.repositories(), hasSize(1));
-        RepositoryMetaData originalRepositoryMetaData = originalGetRepositoriesResponse.repositories().get(0);
+        RepositoryMetadata originalRepositoryMetadata = originalGetRepositoriesResponse.repositories().get(0);
 
-        assertThat(originalRepositoryMetaData.type(), equalTo(FsRepository.TYPE));
+        assertThat(originalRepositoryMetadata.type(), equalTo(FsRepository.TYPE));
 
         final Repository originalRepository = repositoriesService.repository(repositoryName);
         assertThat(originalRepository, instanceOf(FsRepository.class));
@@ -85,9 +85,9 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
             client.admin().cluster().prepareGetRepositories(repositoryName).get();
 
         assertThat(updatedGetRepositoriesResponse.repositories(), hasSize(1));
-        final RepositoryMetaData updatedRepositoryMetaData = updatedGetRepositoriesResponse.repositories().get(0);
+        final RepositoryMetadata updatedRepositoryMetadata = updatedGetRepositoriesResponse.repositories().get(0);
 
-        assertThat(updatedRepositoryMetaData.type(), equalTo(updatedRepositoryType));
+        assertThat(updatedRepositoryMetadata.type(), equalTo(updatedRepositoryType));
 
         final Repository updatedRepository = repositoriesService.repository(repositoryName);
         assertThat(updatedRepository, updated ? not(sameInstance(originalRepository)) : sameInstance(originalRepository));

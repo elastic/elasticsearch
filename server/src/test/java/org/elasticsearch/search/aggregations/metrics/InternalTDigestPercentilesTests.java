@@ -21,11 +21,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
-import org.elasticsearch.search.aggregations.metrics.ParsedTDigestPercentiles;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
-import org.elasticsearch.search.aggregations.metrics.InternalPercentilesTestCase;
-import org.elasticsearch.search.aggregations.metrics.ParsedPercentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.Arrays;
@@ -38,13 +33,13 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
     @Override
     protected InternalTDigestPercentiles createTestInstance(String name,
                                                             List<PipelineAggregator> pipelineAggregators,
-                                                            Map<String, Object> metaData,
+                                                            Map<String, Object> metadata,
                                                             boolean keyed, DocValueFormat format, double[] percents, double[] values) {
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
         assertEquals(state.centroidCount(), values.length);
-        return new InternalTDigestPercentiles(name, percents, state, keyed, format, pipelineAggregators, metaData);
+        return new InternalTDigestPercentiles(name, percents, state, keyed, format, pipelineAggregators, metadata);
     }
 
     @Override
@@ -83,7 +78,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         boolean keyed = instance.keyed;
         DocValueFormat formatter = instance.formatter();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 4)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -105,16 +100,16 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
             keyed = keyed == false;
             break;
         case 4:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalTDigestPercentiles(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
+        return new InternalTDigestPercentiles(name, percents, state, keyed, formatter, pipelineAggregators, metadata);
     }
 }

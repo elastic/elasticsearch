@@ -29,8 +29,8 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
     TTestAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs, TTestType testType, int tails,
                            DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,
                            AggregatorFactories.Builder subFactoriesBuilder,
-                           Map<String, Object> metaData) throws IOException {
-        super(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metaData);
+                           Map<String, Object> metadata) throws IOException {
+        super(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.testType = testType;
         this.tails = tails;
     }
@@ -39,14 +39,14 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         switch (testType) {
             case PAIRED:
-                return new PairedTTestAggregator(name, null, tails, format, searchContext, parent, pipelineAggregators, metaData);
+                return new PairedTTestAggregator(name, null, tails, format, searchContext, parent, pipelineAggregators, metadata);
             case HOMOSCEDASTIC:
-                return new UnpairedTTestAggregator(name, null, tails, true, format, searchContext, parent, pipelineAggregators, metaData);
+                return new UnpairedTTestAggregator(name, null, tails, true, format, searchContext, parent, pipelineAggregators, metadata);
             case HETEROSCEDASTIC:
-                return new UnpairedTTestAggregator(name, null, tails, false, format, searchContext, parent, pipelineAggregators, metaData);
+                return new UnpairedTTestAggregator(name, null, tails, false, format, searchContext, parent, pipelineAggregators, metadata);
             default:
                 throw new UnsupportedOperationException("Unsupported t-test type " + testType);
         }
@@ -59,21 +59,21 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         MultiValuesSource.NumericMultiValuesSource numericMultiVS
             = new MultiValuesSource.NumericMultiValuesSource(configs, queryShardContext);
         if (numericMultiVS.areValuesSourcesEmpty()) {
-            return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
+            return createUnmapped(searchContext, parent, pipelineAggregators, metadata);
         }
         switch (testType) {
             case PAIRED:
-                return new PairedTTestAggregator(name, numericMultiVS, tails, format, searchContext, parent, pipelineAggregators, metaData);
+                return new PairedTTestAggregator(name, numericMultiVS, tails, format, searchContext, parent, pipelineAggregators, metadata);
             case HOMOSCEDASTIC:
                 return new UnpairedTTestAggregator(name, numericMultiVS, tails, true, format, searchContext, parent, pipelineAggregators,
-                    metaData);
+                    metadata);
             case HETEROSCEDASTIC:
                 return new UnpairedTTestAggregator(name, numericMultiVS, tails, false, format, searchContext, parent, pipelineAggregators,
-                    metaData);
+                    metadata);
             default:
                 throw new UnsupportedOperationException("Unsupported t-test type " + testType);
         }

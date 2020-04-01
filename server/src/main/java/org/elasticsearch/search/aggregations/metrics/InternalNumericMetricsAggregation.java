@@ -37,8 +37,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
     protected DocValueFormat format = DEFAULT_FORMAT;
 
     public abstract static class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
-        protected SingleValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-            super(name, pipelineAggregators, metaData);
+        protected SingleValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+            super(name, pipelineAggregators, metadata);
         }
 
         /**
@@ -76,8 +76,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
     }
 
     public abstract static class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
-        protected MultiValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-            super(name, pipelineAggregators, metaData);
+        protected MultiValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+            super(name, pipelineAggregators, metadata);
         }
 
         /**
@@ -113,8 +113,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         }
     }
 
-    private InternalNumericMetricsAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    private InternalNumericMetricsAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
     }
 
     /**

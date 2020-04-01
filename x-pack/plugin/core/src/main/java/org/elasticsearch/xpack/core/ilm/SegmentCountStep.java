@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -49,16 +49,16 @@ public class SegmentCountStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener, TimeValue masterTimeout) {
-        getClient().admin().indices().segments(new IndicesSegmentsRequest(indexMetaData.getIndex().getName()),
+    public void evaluateCondition(IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
+        getClient().admin().indices().segments(new IndicesSegmentsRequest(indexMetadata.getIndex().getName()),
             ActionListener.wrap(response -> {
-                IndexSegments idxSegments = response.getIndices().get(indexMetaData.getIndex().getName());
+                IndexSegments idxSegments = response.getIndices().get(indexMetadata.getIndex().getName());
                 if (idxSegments == null || (response.getShardFailures() != null && response.getShardFailures().length > 0)) {
                     final DefaultShardOperationFailedException[] failures = response.getShardFailures();
                     logger.info("[{}] retrieval of segment counts after force merge did not succeed, " +
                             "there were {} shard failures. " +
                             "failures: {}",
-                        indexMetaData.getIndex().getName(),
+                        indexMetadata.getIndex().getName(),
                         response.getFailedShards(),
                         failures == null ? "n/a" : Strings.collectionToDelimitedString(Arrays.stream(failures)
                             .map(Strings::toString)
@@ -73,7 +73,7 @@ public class SegmentCountStep extends AsyncWaitStep {
                         Map<ShardRouting, Integer> unmergedShardCounts = unmergedShards.stream()
                             .collect(Collectors.toMap(ShardSegments::getShardRouting, ss -> ss.getSegments().size()));
                         logger.info("[{}] best effort force merge to [{}] segments did not succeed for {} shards: {}",
-                            indexMetaData.getIndex().getName(), maxNumSegments, unmergedShards.size(), unmergedShardCounts);
+                            indexMetadata.getIndex().getName(), maxNumSegments, unmergedShards.size(), unmergedShardCounts);
                     }
                     // Force merging is best effort, so always return true that the condition has been met.
                     listener.onResponse(true, new Info(unmergedShards.size()));

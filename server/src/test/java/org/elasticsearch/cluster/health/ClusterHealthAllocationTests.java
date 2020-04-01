@@ -22,8 +22,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -40,14 +40,14 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
         }
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
 
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test")
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test")
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(2)
                 .numberOfReplicas(1))
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
-        clusterState = ClusterState.builder(clusterState).metaData(metaData).routingTable(routingTable).build();
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(routingTable).build();
         MockAllocationService allocation = createAllocationService();
         clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
         assertEquals(0, clusterState.nodes().getDataNodes().size());
@@ -69,8 +69,8 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
         assertEquals(ClusterHealthStatus.RED, getClusterHealthStatus(clusterState));
 
         routingTable = RoutingTable.builder(routingTable).remove("test").build();
-        metaData = MetaData.builder(clusterState.metaData()).remove("test").build();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaData).build();
+        metadata = Metadata.builder(clusterState.metadata()).remove("test").build();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadata).build();
         assertEquals(0, clusterState.nodes().getDataNodes().size());
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
     }

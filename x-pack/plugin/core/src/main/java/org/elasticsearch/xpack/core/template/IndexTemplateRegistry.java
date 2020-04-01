@@ -16,7 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -150,7 +150,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final String templateName = newTemplate.getTemplateName();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
-                IndexTemplateMetaData currentTemplate = state.metaData().getTemplates().get(templateName);
+                IndexTemplateMetadata currentTemplate = state.metadata().getTemplates().get(templateName);
                 if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding index template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
                     putTemplate(newTemplate, creationCheck);
@@ -203,7 +203,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         boolean ilmSupported = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
 
         if (ilmSupported) {
-            Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE));
+            Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE));
             List<LifecyclePolicy> policies = getPolicyConfigs().stream()
                 .map(policyConfig -> policyConfig.load(xContentRegistry))
                 .collect(Collectors.toList());

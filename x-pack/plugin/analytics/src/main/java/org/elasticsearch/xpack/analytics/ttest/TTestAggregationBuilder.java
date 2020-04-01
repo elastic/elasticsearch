@@ -59,8 +59,8 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
 
     public TTestAggregationBuilder(TTestAggregationBuilder clone,
                                    AggregatorFactories.Builder factoriesBuilder,
-                                   Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                   Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     public TTestAggregationBuilder a(MultiValuesSourceFieldConfig valueConfig) {
@@ -98,8 +98,8 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new TTestAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new TTestAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -125,7 +125,7 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
         DocValueFormat format,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new TTestAggregatorFactory(name, configs, testType, tails, format, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new TTestAggregatorFactory(name, configs, testType, tails, format, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

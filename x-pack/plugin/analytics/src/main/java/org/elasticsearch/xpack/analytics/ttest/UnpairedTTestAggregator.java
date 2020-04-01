@@ -33,8 +33,8 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
 
     UnpairedTTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, boolean homoscedastic,
                             DocValueFormat format, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                            Map<String, Object> metaData) throws IOException {
-        super(name, valuesSources, tails, format, context, parent, pipelineAggregators, metaData);
+                            Map<String, Object> metadata) throws IOException {
+        super(name, valuesSources, tails, format, context, parent, pipelineAggregators, metadata);
         BigArrays bigArrays = context.bigArrays();
         a = new TStatsBuilder(bigArrays);
         b = new TStatsBuilder(bigArrays);

@@ -37,10 +37,10 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
 
     @Override
     protected InternalTTest createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                               Map<String, Object> metaData) {
+                                               Map<String, Object> metadata) {
         TTestState state = randomState();
         DocValueFormat formatter = randomNumericDocValueFormat();
-        return new InternalTTest(name, state, formatter, pipelineAggregators, metaData);
+        return new InternalTTest(name, state, formatter, pipelineAggregators, metadata);
     }
 
     private TTestState randomState() {
@@ -86,7 +86,7 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
         }
         DocValueFormat formatter = instance.format();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
             case 0:
                 name += randomAlphaOfLength(5);
@@ -95,17 +95,17 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
                 state = randomState();
                 break;
             case 2:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(instance.getMetaData());
+                    metadata = new HashMap<>(instance.getMetadata());
                 }
-                metaData.put(randomAlphaOfLength(15), randomInt());
+                metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalTTest(name, state, formatter, pipelineAggregators, metaData);
+        return new InternalTTest(name, state, formatter, pipelineAggregators, metadata);
     }
 
     @Override

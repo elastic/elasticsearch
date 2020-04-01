@@ -108,6 +108,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertThat(result, equalTo(2));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54540")
     public void testReduceRandom() {
         super.testReduceRandom();
     }

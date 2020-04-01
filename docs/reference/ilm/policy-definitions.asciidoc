@@ -199,6 +199,21 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 
+NOTE: To add attributes `box_type` with values of `hot` and `warm` add lines to `elasticsearch.yaml` like so:
++
+[source,yaml]
+--------------------------------------------------------
+node.attr.data: hot
+node.attr.data: warm
+--------------------------------------------------------
++
+You can also set custom attributes when you start a node:
++
+[source,sh]
+--------------------------------------------------------
+`./bin/elasticsearch -Enode.attr.data=hot -Enode.attr.data=warm
+--------------------------------------------------------
+
 ===== Example: Assign index to a specific node and update replica settings
 
 This example updates the index to have one replica per shard and be allocated

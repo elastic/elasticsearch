@@ -9,6 +9,7 @@ experimental::[]
 {es} supports the following EQL functions:
 
 * <<eql-fn-endswith>>
+* <<eql-fn-length>>
 * <<eql-fn-startswith>>
 * <<eql-fn-substring>>
 
@@ -71,7 +72,7 @@ field datatypes:
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
 
-Fields containing array values use the first array item only.
+Fields containing <<array,array values>> use the first array item only.
 --
 
 `<substring>`::
@@ -90,6 +91,56 @@ field datatypes:
 --
 
 *Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-length]]
+=== `length`
+
+Returns the character length of a provided string, including whitespace and
+punctuation.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+length("explorer.exe")         // returns 12
+length("start explorer.exe")   // returns 18
+length("")                     // returns 0
+length(null)                   // returns null
+
+// process.name = "regsvr32.exe"
+length(process.name)           // returns 12
+----
+
+*Syntax*
+[source,txt]
+----
+length(<string>)
+----
+
+*Parameters*
+
+`<string>`::
++
+--
+(Required, string or `null`)
+String for which to return the character length. If `null`, the function returns
+`null`. Empty strings return `0`.
+
+If using a field as the argument, this parameter only supports the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+<<array,Array values>> are not supported.
+--
+
+*Returns:* integer or `null`
 ====
 
 [discrete]
@@ -151,7 +202,7 @@ field datatypes:
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
 
-Fields containing array values use the first array item only.
+Fields containing <<array,array values>> use the first array item only.
 --
 
 `<substring>`::

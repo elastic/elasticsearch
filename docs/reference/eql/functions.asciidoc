@@ -15,7 +15,7 @@ experimental::[]
 [[eql-fn-startswith]]
 === `startsWith`
 
-Returns `true` if a source string begins with a provided substring.
+Returns `true` if a source string begins with a provided substring. Matching is case insensitive.
 
 [%collapsible]
 ====
@@ -23,6 +23,7 @@ Returns `true` if a source string begins with a provided substring.
 [source,eql]
 ----
 startsWith("regsvr32.exe", "regsvr32")  // returns true
+startsWith("regsvr32.exe", "RegSvr32")  // returns true
 startsWith("regsvr32.exe", "explorer")  // returns false
 startsWith("", "")                      // returns true
 

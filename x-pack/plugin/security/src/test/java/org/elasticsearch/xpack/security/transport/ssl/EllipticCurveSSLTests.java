@@ -33,7 +33,6 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.TRANSPORT;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -72,7 +71,7 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
             new TrustManager[]{CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Collections.singletonList(certPath)))},
             new SecureRandom());
         SSLSocketFactory socketFactory = sslContext.getSocketFactory();
-        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().addMetric(TRANSPORT.metricName()).get();
+        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().setTransport(true).get();
         TransportAddress address = randomFrom(response.getNodes()).getTransport().getAddress().publishAddress();
 
         final CountDownLatch latch = new CountDownLatch(1);

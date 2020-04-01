@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class InboundPipeline implements Releasable {
 
@@ -49,7 +50,8 @@ public class InboundPipeline implements Releasable {
     private boolean isClosed = false;
 
     public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler, LongSupplier relativeTimeInMillis,
-                           CircuitBreaker circuitBreaker, Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
+                           Supplier<CircuitBreaker> circuitBreaker,
+                           Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
                            BiConsumer<TcpChannel, InboundMessage> messageHandler) {
         this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler),
             new InboundAggregator(circuitBreaker, registryFunction), messageHandler);

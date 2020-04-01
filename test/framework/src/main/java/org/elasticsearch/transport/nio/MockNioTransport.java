@@ -277,7 +277,7 @@ public class MockNioTransport extends TcpTransport {
         private MockTcpReadWriteHandler(MockSocketChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
             this.channel = channel;
             final ThreadPool threadPool = transport.getThreadPool();
-            final CircuitBreaker breaker = transport.getInflightBreaker();
+            final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
             final InboundHandler inboundHandler = transport.getInboundHandler();
             final Version version = transport.getVersion();
             final StatsTracker statsTracker = transport.getStatsTracker();

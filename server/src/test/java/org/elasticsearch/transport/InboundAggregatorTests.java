@@ -60,7 +60,7 @@ public class InboundAggregatorTests extends ESTestCase {
             }
         };
         circuitBreaker = new TestCircuitBreaker();
-        aggregator = new InboundAggregator(circuitBreaker, requestCanTripBreaker);
+        aggregator = new InboundAggregator(() -> circuitBreaker, requestCanTripBreaker);
     }
 
     public void testInboundAggregation() throws IOException {

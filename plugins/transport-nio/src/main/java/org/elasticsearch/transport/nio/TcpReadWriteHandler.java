@@ -36,6 +36,7 @@ import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 public class TcpReadWriteHandler extends BytesWriteHandler {
 
@@ -45,7 +46,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
     public TcpReadWriteHandler(NioTcpChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
         this.channel = channel;
         final ThreadPool threadPool = transport.getThreadPool();
-        final CircuitBreaker breaker = transport.getInflightBreaker();
+        final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
         final InboundHandler inboundHandler = transport.getInboundHandler();
         this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
             breaker, inboundHandler::getRequestHandler, transport::inboundMessage);

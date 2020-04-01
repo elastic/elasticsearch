@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -38,7 +38,7 @@ public class LegacyDynamicMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testTypeNotCreatedOnIndexFailure() throws IOException {
-        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_3_0).build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_3_0).build();
         try (XContentBuilder mapping = jsonBuilder()) {
             mapping.startObject();
             {

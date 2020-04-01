@@ -9,8 +9,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -76,20 +76,20 @@ public class VectorsFeatureSetTests extends ESTestCase {
     }
 
     public void testUsageStats() throws Exception {
-        MetaData.Builder metaData = MetaData.builder();
-        IndexMetaData.Builder index1 = IndexMetaData.builder("test-index1")
+        Metadata.Builder metadata = Metadata.builder();
+        IndexMetadata.Builder index1 = IndexMetadata.builder("test-index1")
             .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
             .putMapping("_doc",
                 "{\"properties\":{\"my_dense_vector1\":{\"type\":\"dense_vector\",\"dims\": 10}," +
                     "\"my_dense_vector2\":{\"type\":\"dense_vector\",\"dims\": 30} }}");
-        IndexMetaData.Builder index2 = IndexMetaData.builder("test-index2")
+        IndexMetadata.Builder index2 = IndexMetadata.builder("test-index2")
             .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0)
             .putMapping("_doc",
                 "{\"properties\":{\"my_dense_vector3\":{\"type\":\"dense_vector\",\"dims\": 20}," +
                     "\"my_sparse_vector1\":{\"type\":\"sparse_vector\"} }}");
-        metaData.put(index1);
-        metaData.put(index2);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_testcluster")).metaData(metaData).build();
+        metadata.put(index1);
+        metadata.put(index2);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_testcluster")).metadata(metadata).build();
 
         Mockito.when(clusterService.state()).thenReturn(clusterState);
         when(licenseState.isVectorsAllowed()).thenReturn(true);

@@ -25,7 +25,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -267,7 +267,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected S3Repository createRepository(RepositoryMetaData metadata,
+        protected S3Repository createRepository(RepositoryMetadata metadata,
                                                 NamedXContentRegistry registry, ClusterService clusterService) {
             return new S3Repository(metadata, registry, service, clusterService) {
                 @Override

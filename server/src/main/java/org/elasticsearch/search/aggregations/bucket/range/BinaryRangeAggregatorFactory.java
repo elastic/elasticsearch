@@ -43,8 +43,8 @@ public class BinaryRangeAggregatorFactory
             List<BinaryRangeAggregator.Range> ranges, boolean keyed,
             QueryShardContext queryShardContext,
             AggregatorFactory parent, Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
     }
@@ -52,9 +52,9 @@ public class BinaryRangeAggregatorFactory
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         return new BinaryRangeAggregator(name, factories, null, config.format(),
-                ranges, keyed, searchContext, parent, pipelineAggregators, metaData);
+                ranges, keyed, searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
@@ -62,9 +62,9 @@ public class BinaryRangeAggregatorFactory
                                           SearchContext searchContext, Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         return new BinaryRangeAggregator(name, factories, valuesSource, config.format(),
-                ranges, keyed, searchContext, parent, pipelineAggregators, metaData);
+                ranges, keyed, searchContext, parent, pipelineAggregators, metadata);
     }
 
 }

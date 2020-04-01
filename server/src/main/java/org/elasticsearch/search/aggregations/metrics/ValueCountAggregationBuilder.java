@@ -52,13 +52,13 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
     }
 
     protected ValueCountAggregationBuilder(ValueCountAggregationBuilder clone,
-                                           AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                           AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new ValueCountAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new ValueCountAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -83,7 +83,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
                                                         ValuesSourceConfig<ValuesSource> config,
                                                         AggregatorFactory parent,
                                                         AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new ValueCountAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new ValueCountAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

@@ -90,8 +90,8 @@ public class SnapshotHistoryStore {
      */
     static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> andThen) {
         final String initialHistoryIndexName = SLM_HISTORY_INDEX_PREFIX + "000001";
-        final IndexAbstraction slmHistory = state.metaData().getIndicesLookup().get(SLM_HISTORY_ALIAS);
-        final IndexAbstraction initialHistoryIndex = state.metaData().getIndicesLookup().get(initialHistoryIndexName);
+        final IndexAbstraction slmHistory = state.metadata().getIndicesLookup().get(SLM_HISTORY_ALIAS);
+        final IndexAbstraction initialHistoryIndex = state.metadata().getIndicesLookup().get(initialHistoryIndexName);
 
         if (slmHistory == null && initialHistoryIndex == null) {
             // No alias or index exists with the expected names, so create the index with appropriate alias

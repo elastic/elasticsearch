@@ -13,7 +13,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
@@ -50,7 +50,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
     @Override
     protected WatcherStatsResponse newResponse(WatcherStatsRequest request, List<WatcherStatsResponse.Node> nodes,
                                                List<FailedNodeException> failures) {
-        return new WatcherStatsResponse(clusterService.getClusterName(), getWatcherMetaData(), nodes, failures);
+        return new WatcherStatsResponse(clusterService.getClusterName(), getWatcherMetadata(), nodes, failures);
     }
 
     @Override
@@ -83,11 +83,11 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
         return statsResponse;
     }
 
-    private WatcherMetaData getWatcherMetaData() {
-        WatcherMetaData watcherMetaData = clusterService.state().getMetaData().custom(WatcherMetaData.TYPE);
-        if (watcherMetaData == null) {
-            watcherMetaData = new WatcherMetaData(false);
+    private WatcherMetadata getWatcherMetadata() {
+        WatcherMetadata watcherMetadata = clusterService.state().getMetadata().custom(WatcherMetadata.TYPE);
+        if (watcherMetadata == null) {
+            watcherMetadata = new WatcherMetadata(false);
         }
-        return watcherMetaData;
+        return watcherMetadata;
     }
 }

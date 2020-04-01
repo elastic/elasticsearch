@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -62,11 +62,11 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        MetaData metaData = clusterService.state().metaData();
-        IndexLifecycleMetadata lifecycleMetadata = metaData.custom(IndexLifecycleMetadata.TYPE);
+        Metadata metadata = clusterService.state().metadata();
+        IndexLifecycleMetadata lifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
         if (enabled() && lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
-            metaData.indices().forEach(entry -> {
+            metadata.indices().forEach(entry -> {
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(entry.value.getSettings());
                 Integer indicesManaged = policyUsage.get(policyName);
                 if (indicesManaged == null) {

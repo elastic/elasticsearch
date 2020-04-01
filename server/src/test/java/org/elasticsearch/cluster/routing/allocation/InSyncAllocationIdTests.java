@@ -24,8 +24,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -64,39 +64,39 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
     public void testInSyncAllocationIdsUpdated() {
         logger.info("creating an index with 1 shard, 2 replicas");
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
                 // add index metadata where we have no routing nodes to check that allocation ids are not removed
-                .put(IndexMetaData.builder("test-old").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2)
+                .put(IndexMetadata.builder("test-old").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2)
                         .putInSyncAllocationIds(0, new HashSet<>(Arrays.asList("x", "y"))))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("adding three nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(
                 newNode("node1")).add(newNode("node2")).add(newNode("node3"))).build();
         clusterState = allocation.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(0));
-        assertThat(clusterState.metaData().index("test-old").inSyncAllocationIds(0), equalTo(new HashSet<>(Arrays.asList("x", "y"))));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(0));
+        assertThat(clusterState.metadata().index("test-old").inSyncAllocationIds(0), equalTo(new HashSet<>(Arrays.asList("x", "y"))));
 
         logger.info("start primary shard");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
 
         assertThat(clusterState.getRoutingTable().shardsWithState(STARTED).size(), equalTo(1));
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(1));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(1));
         assertThat(clusterState.getRoutingTable().shardsWithState(STARTED).get(0).allocationId().getId(),
-                equalTo(clusterState.metaData().index("test").inSyncAllocationIds(0).iterator().next()));
-        assertThat(clusterState.metaData().index("test-old").inSyncAllocationIds(0), equalTo(new HashSet<>(Arrays.asList("x", "y"))));
+                equalTo(clusterState.metadata().index("test").inSyncAllocationIds(0).iterator().next()));
+        assertThat(clusterState.metadata().index("test-old").inSyncAllocationIds(0), equalTo(new HashSet<>(Arrays.asList("x", "y"))));
 
         logger.info("start replica shards");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
 
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(3));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(3));
 
         logger.info("remove a node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -105,7 +105,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
 
         // in-sync allocation ids should not be updated
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(3));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(3));
 
         logger.info("remove all remaining nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -115,7 +115,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         // in-sync allocation ids should not be updated
         assertThat(clusterState.getRoutingTable().shardsWithState(UNASSIGNED).size(), equalTo(3));
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(3));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(3));
 
         // force empty primary
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -126,13 +126,13 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             .getClusterState();
 
         // check that in-sync allocation ids are reset by forcing an empty primary
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(0));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(0));
 
         logger.info("start primary shard");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
 
         assertThat(clusterState.getRoutingTable().shardsWithState(STARTED).size(), equalTo(1));
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(1));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(1));
 
         logger.info("fail primary shard");
         ShardRouting startedPrimary = clusterState.getRoutingNodes().shardsWithState(STARTED).get(0);
@@ -140,7 +140,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         assertThat(clusterState.getRoutingTable().shardsWithState(STARTED).size(), equalTo(0));
         assertEquals(Collections.singleton(startedPrimary.allocationId().getId()),
-            clusterState.metaData().index("test").inSyncAllocationIds(0));
+            clusterState.metadata().index("test").inSyncAllocationIds(0));
     }
 
     /**
@@ -160,18 +160,18 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             .remove(replicaShard.currentNodeId()))
             .build();
         clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(2));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(2));
 
         logger.info("fail replica (for which there is no shard routing in the CS anymore)");
         assertNull(clusterState.getRoutingNodes().getByAllocationId(replicaShard.shardId(), replicaShard.allocationId().getId()));
         ShardStateAction.ShardFailedClusterStateTaskExecutor failedClusterStateTaskExecutor =
             new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null, () -> Priority.NORMAL, logger);
-        long primaryTerm = clusterState.metaData().index("test").primaryTerm(0);
+        long primaryTerm = clusterState.metadata().index("test").primaryTerm(0);
         clusterState = failedClusterStateTaskExecutor.execute(clusterState, Arrays.asList(
                 new FailedShardEntry(shardRoutingTable.shardId(), replicaShard.allocationId().getId(), primaryTerm, "dummy", null, true))
             ).resultingState;
 
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(1));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(1));
     }
 
     /**
@@ -188,7 +188,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         ShardRouting primaryShard = shardRoutingTable.primaryShard();
         ShardRouting replicaShard = shardRoutingTable.replicaShards().get(0);
 
-        long primaryTerm = clusterState.metaData().index("test").primaryTerm(0);
+        long primaryTerm = clusterState.metadata().index("test").primaryTerm(0);
 
         List<FailedShardEntry> failureEntries = new ArrayList<>();
         failureEntries.add(new FailedShardEntry(
@@ -200,13 +200,13 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         clusterState = failedClusterStateTaskExecutor.execute(clusterState, failureEntries).resultingState;
 
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0),
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0),
             equalTo(Collections.singleton(primaryShard.allocationId().getId())));
 
         // resend shard failures to check if they are ignored
         clusterState = failedClusterStateTaskExecutor.execute(clusterState, failureEntries).resultingState;
 
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0),
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0),
             equalTo(Collections.singleton(primaryShard.allocationId().getId())));
     }
 
@@ -218,7 +218,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
     public void testInSyncIdsNotGrowingWithoutBounds() throws Exception {
         ClusterState clusterState = createOnePrimaryOneReplicaClusterState(allocation);
 
-        Set<String> inSyncSet = clusterState.metaData().index("test").inSyncAllocationIds(0);
+        Set<String> inSyncSet = clusterState.metadata().index("test").inSyncAllocationIds(0);
         assertThat(inSyncSet.size(), equalTo(2));
 
         IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index("test").shard(0);
@@ -232,7 +232,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
 
         // in-sync allocation ids should not be updated
-        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+        assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));
 
         // check that inSyncAllocationIds can not grow without bounds
         for (int i = 0; i < 5; i++) {
@@ -253,7 +253,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             }
 
         // in-sync allocation set is bounded
-        Set<String> newInSyncSet = clusterState.metaData().index("test").inSyncAllocationIds(0);
+        Set<String> newInSyncSet = clusterState.metadata().index("test").inSyncAllocationIds(0);
         assertThat(newInSyncSet.size(), equalTo(2));
         // only allocation id of replica was changed
         assertFalse(Sets.haveEmptyIntersection(inSyncSet, newInSyncSet));
@@ -266,7 +266,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
     public void testInSyncIdsNotTrimmedWhenNotGrowing() throws Exception {
         ClusterState clusterState = createOnePrimaryOneReplicaClusterState(allocation);
 
-        Set<String> inSyncSet = clusterState.metaData().index("test").inSyncAllocationIds(0);
+        Set<String> inSyncSet = clusterState.metadata().index("test").inSyncAllocationIds(0);
         assertThat(inSyncSet.size(), equalTo(2));
 
         IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index("test").shard(0);
@@ -280,7 +280,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
 
         // in-sync allocation ids should not be updated
-        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+        assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));
 
         logger.info("remove primary node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
@@ -289,12 +289,12 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
 
         // in-sync allocation ids should not be updated
-        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+        assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));
 
         logger.info("decrease number of replicas to 0");
         clusterState = ClusterState.builder(clusterState)
             .routingTable(RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(0, new String[]{"test"}).build())
-            .metaData(MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(0, new String[]{"test"})).build();
+            .metadata(Metadata.builder(clusterState.metadata()).updateNumberOfReplicas(0, new String[]{"test"})).build();
 
         logger.info("add back node 1");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(
@@ -303,12 +303,12 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         assertThat(clusterState.routingTable().index("test").shard(0).assignedShards().size(), equalTo(1));
         // in-sync allocation ids should not be updated
-        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+        assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));
 
         logger.info("start primary shard");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // in-sync allocation ids should not be updated
-        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+        assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));
     }
 
     /**
@@ -317,7 +317,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
     public void testPrimaryAllocationIdNotRemovedFromInSyncSetWhenNoFailOver() throws Exception {
         ClusterState clusterState = createOnePrimaryOneReplicaClusterState(allocation);
 
-        Set<String> inSyncSet = clusterState.metaData().index("test").inSyncAllocationIds(0);
+        Set<String> inSyncSet = clusterState.metadata().index("test").inSyncAllocationIds(0);
         assertThat(inSyncSet.size(), equalTo(2));
 
         IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index("test").shard(0);
@@ -331,7 +331,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
 
         // in-sync allocation ids should not be updated
-        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+        assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));
 
         logger.info("fail primary shard");
         clusterState = failedClusterStateTaskExecutor.execute(clusterState, Collections.singletonList(new FailedShardEntry(
@@ -339,38 +339,38 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         assertThat(clusterState.routingTable().index("test").shard(0).assignedShards().size(), equalTo(0));
         // in-sync allocation ids should not be updated
-        assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
+        assertEquals(inSyncSet, clusterState.metadata().index("test").inSyncAllocationIds(0));
     }
 
     private ClusterState createOnePrimaryOneReplicaClusterState(AllocationService allocation) {
         logger.info("creating an index with 1 shard, 1 replica");
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsNew(metaData.index("test"))
+            .addAsNew(metadata.index("test"))
             .build();
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(
             newNode("node1")).add(newNode("node2"))).build();
         clusterState = allocation.reroute(clusterState, "reroute");
 
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(0));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(0));
 
         logger.info("start primary shard");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
 
         assertThat(clusterState.getRoutingTable().shardsWithState(STARTED).size(), equalTo(1));
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(1));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(1));
         assertThat(clusterState.getRoutingTable().shardsWithState(STARTED).get(0).allocationId().getId(),
-            equalTo(clusterState.metaData().index("test").inSyncAllocationIds(0).iterator().next()));
+            equalTo(clusterState.metadata().index("test").inSyncAllocationIds(0).iterator().next()));
 
         logger.info("start replica shard");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
-        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(2));
+        assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(2));
         return clusterState;
     }
 }

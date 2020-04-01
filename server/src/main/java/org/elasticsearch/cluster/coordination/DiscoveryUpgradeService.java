@@ -25,7 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -126,7 +126,7 @@ public class DiscoveryUpgradeService {
         assert lastKnownLeader.isPresent() == false || Coordinator.isZen1Node(lastKnownLeader.get()) : lastKnownLeader;
         // if there was a leader and it's not a old node then we must have been bootstrapped
 
-        final Settings dynamicSettings = lastAcceptedClusterState.metaData().settings();
+        final Settings dynamicSettings = lastAcceptedClusterState.metadata().settings();
         final int minimumMasterNodes = DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(dynamicSettings)
             ? DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(dynamicSettings)
             : lastAcceptedClusterState.getMinimumMasterNodesOnPublishingMaster();

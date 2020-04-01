@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.UUIDs;
@@ -138,10 +138,10 @@ public class FlushIT extends ESIntegTestCase {
 
     public void testSyncedFlush() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)).get();
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).get();
         ensureGreen();
 
-        final Index index = client().admin().cluster().prepareState().get().getState().metaData().index("test").getIndex();
+        final Index index = client().admin().cluster().prepareState().get().getState().metadata().index("test").getIndex();
 
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {
@@ -186,14 +186,14 @@ public class FlushIT extends ESIntegTestCase {
         }
 
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build()).get();
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()).get();
         ensureGreen("test");
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {
             assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, internalCluster().numDataNodes() - 1).build()).get();
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, internalCluster().numDataNodes() - 1).build()).get();
         ensureGreen("test");
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {
@@ -280,7 +280,7 @@ public class FlushIT extends ESIntegTestCase {
             .getShardsResultPerIndex().get("test");
         // just to make sure the test actually tests the right thing
         int numShards = client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test")
-            .getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1);
+            .getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1);
         assertThat(shardsResult.size(), equalTo(numShards));
         assertThat(shardsResult.get(0).failureReason(), equalTo("no active shards"));
     }
@@ -299,11 +299,11 @@ public class FlushIT extends ESIntegTestCase {
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)).get()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)).get()
         );
         ensureGreen();
-        final Index index = clusterService().state().metaData().index("test").getIndex();
+        final Index index = clusterService().state().metadata().index("test").getIndex();
         final ShardId shardId = new ShardId(index, 0);
         final int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
@@ -342,11 +342,11 @@ public class FlushIT extends ESIntegTestCase {
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)).get()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)).get()
         );
         ensureGreen();
-        final Index index = clusterService().state().metaData().index("test").getIndex();
+        final Index index = clusterService().state().metadata().index("test").getIndex();
         final ShardId shardId = new ShardId(index, 0);
         final int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
@@ -388,7 +388,7 @@ public class FlushIT extends ESIntegTestCase {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2, Settings.builder()
             .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), randomTimeValue(10, 1000, "ms")).build());
         assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(200, 500, "ms"))
             .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(50, 200, "ms"))
             .put("index.routing.allocation.include._name", String.join(",", dataNodes))

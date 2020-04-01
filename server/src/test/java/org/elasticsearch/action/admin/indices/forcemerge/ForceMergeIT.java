@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.settings.Settings;
@@ -43,8 +43,8 @@ public class ForceMergeIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         final String index = "test-index";
         createIndex(index,
-            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build());
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
         ensureGreen(index);
         final ClusterState state = clusterService().state();
         final IndexRoutingTable indexShardRoutingTables = state.routingTable().getIndicesRouting().get(index);

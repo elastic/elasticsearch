@@ -41,17 +41,17 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Nu
                             QueryShardContext queryShardContext,
                             AggregatorFactory parent,
                             AggregatorFactories.Builder subFactoriesBuilder,
-                            Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                            Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData)
+                                            Map<String, Object> metadata)
             throws IOException {
-        return new SumAggregator(name, null, config.format(), searchContext, parent, pipelineAggregators, metaData);
+        return new SumAggregator(name, null, config.format(), searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
@@ -60,7 +60,7 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Nu
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new SumAggregator(name, valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new SumAggregator(name, valuesSource, config.format(), searchContext, parent, pipelineAggregators, metadata);
     }
 }

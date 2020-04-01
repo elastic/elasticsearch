@@ -30,8 +30,8 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
                              QueryShardContext queryShardContext,
                              AggregatorFactory parent,
                              AggregatorFactories.Builder subFactoriesBuilder,
-                             Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                             Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
     }
 
@@ -39,10 +39,10 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData)
+                                        Map<String, Object> metadata)
         throws IOException {
         return new BoxplotAggregator(name, null, config.format(), compression, searchContext, parent,
-            pipelineAggregators, metaData);
+            pipelineAggregators, metadata);
     }
 
     @Override
@@ -51,9 +51,9 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         return new BoxplotAggregator(name, valuesSource, config.format(), compression, searchContext, parent,
-            pipelineAggregators, metaData);
+            pipelineAggregators, metadata);
     }
 
 }

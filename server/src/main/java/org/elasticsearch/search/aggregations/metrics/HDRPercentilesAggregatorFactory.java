@@ -47,8 +47,8 @@ class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
                                         QueryShardContext queryShardContext,
                                         AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                        Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.percents = percents;
         this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
         this.keyed = keyed;
@@ -58,10 +58,10 @@ class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData)
+                                            Map<String, Object> metadata)
             throws IOException {
         return new HDRPercentilesAggregator(name, null, searchContext, parent, percents, numberOfSignificantValueDigits, keyed,
-                config.format(), pipelineAggregators, metaData);
+                config.format(), pipelineAggregators, metadata);
     }
 
     @Override
@@ -70,9 +70,9 @@ class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new HDRPercentilesAggregator(name, valuesSource, searchContext, parent, percents, numberOfSignificantValueDigits, keyed,
-                config.format(), pipelineAggregators, metaData);
+                config.format(), pipelineAggregators, metadata);
     }
 
 }

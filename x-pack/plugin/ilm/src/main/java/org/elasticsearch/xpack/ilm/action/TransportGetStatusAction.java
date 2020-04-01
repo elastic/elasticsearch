@@ -47,7 +47,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<Request,
 
     @Override
     protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
-        IndexLifecycleMetadata metadata = state.metaData().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
         final Response response;
         if (metadata == null) {
             // no need to actually install metadata just yet, but safe to say it is not stopped

@@ -48,8 +48,8 @@ class TDigestPercentileRanksAggregatorFactory
                                                 QueryShardContext queryShardContext,
                                                 AggregatorFactory parent,
                                                 AggregatorFactories.Builder subFactoriesBuilder,
-                                                Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                                Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.percents = percents;
         this.compression = compression;
         this.keyed = keyed;
@@ -59,9 +59,9 @@ class TDigestPercentileRanksAggregatorFactory
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new TDigestPercentileRanksAggregator(name, null, searchContext, parent, percents, compression, keyed, config.format(),
-                pipelineAggregators, metaData);
+                pipelineAggregators, metadata);
     }
 
     @Override
@@ -70,9 +70,9 @@ class TDigestPercentileRanksAggregatorFactory
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new TDigestPercentileRanksAggregator(name, valuesSource, searchContext, parent,
-            percents, compression, keyed, config.format(), pipelineAggregators, metaData);
+            percents, compression, keyed, config.format(), pipelineAggregators, metadata);
     }
 
 }

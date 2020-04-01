@@ -21,9 +21,9 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
@@ -127,8 +127,8 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
 
         final ClusterState.Builder builder = ClusterState.builder(new ClusterName("cluster")).nodes(new Builder()
             .add(localNode).add(otherNode1).add(otherNode2).localNodeId(localNode.getId()));
-        builder.metaData(MetaData.builder()
-                .coordinationMetaData(CoordinationMetaData.builder().addVotingConfigExclusion(otherNode1Exclusion).build()));
+        builder.metadata(Metadata.builder()
+                .coordinationMetadata(CoordinationMetadata.builder().addVotingConfigExclusion(otherNode1Exclusion).build()));
         final ClusterState clusterState = builder.build();
 
         assertThat(makeRequest().resolveVotingConfigExclusionsAndCheckMaximum(clusterState, 3, "setting.name"),

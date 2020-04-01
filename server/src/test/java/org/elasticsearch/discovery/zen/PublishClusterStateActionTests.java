@@ -31,8 +31,8 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
@@ -292,7 +292,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         // cluster state update - add block
         previousClusterState = clusterState;
         clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder()
-            .addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
+            .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
         assertSameStateFromDiff(nodeB.clusterState, clusterState);
         assertThat(nodeB.clusterState.blocks().global().size(), equalTo(1));
@@ -319,9 +319,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // cluster state update 4 - update settings
         previousClusterState = clusterState;
-        MetaData metaData = MetaData.builder(clusterState.metaData())
+        Metadata metadata = Metadata.builder(clusterState.metadata())
             .transientSettings(Settings.builder().put("foo", "bar").build()).build();
-        clusterState = ClusterState.builder(clusterState).metaData(metaData).incrementVersion().build();
+        clusterState = ClusterState.builder(clusterState).metadata(metadata).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
         assertSameStateFromDiff(nodeB.clusterState, clusterState);
         assertThat(nodeB.clusterState.blocks().global().size(), equalTo(0));
@@ -374,7 +374,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         // cluster state update - add block
         previousClusterState = clusterState;
         clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder()
-            .addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
+            .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
         assertSameStateFromDiff(nodeB.clusterState, clusterState);
     }
@@ -410,7 +410,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         // cluster state update - add block
         previousClusterState = clusterState;
         clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder()
-            .addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
+            .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
 
         assertWarnings(
@@ -429,7 +429,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         MockNode master = createMockNode("node0", settings, new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                assertProperMetaDataForVersion(event.state().metaData(), event.state().version());
+                assertProperMetadataForVersion(event.state().metadata(), event.state().version());
             }
         }).setAsMaster();
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder(master.nodes());
@@ -438,7 +438,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             final MockNode node = createMockNode(name, settings, new ClusterStateListener() {
                 @Override
                 public void clusterChanged(ClusterChangedEvent event) {
-                    assertProperMetaDataForVersion(event.state().metaData(), event.state().version());
+                    assertProperMetadataForVersion(event.state().metadata(), event.state().version());
                 }
             });
             discoveryNodesBuilder.add(node.discoveryNode);
@@ -446,13 +446,13 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         AssertingAckListener[] listeners = new AssertingAckListener[numberOfIterations];
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
-        MetaData metaData = MetaData.EMPTY_META_DATA;
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metaData(metaData).build();
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metadata(metadata).build();
         ClusterState previousState;
         for (int i = 0; i < numberOfIterations; i++) {
             previousState = clusterState;
-            metaData = buildMetaDataForVersion(metaData, i + 1);
-            clusterState = ClusterState.builder(clusterState).incrementVersion().metaData(metaData).nodes(discoveryNodes).build();
+            metadata = buildMetadataForVersion(metadata, i + 1);
+            clusterState = ClusterState.builder(clusterState).incrementVersion().metadata(metadata).nodes(discoveryNodes).build();
             listeners[i] = publishState(master.action, clusterState, previousState);
         }
 
@@ -494,7 +494,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         // cluster state update - add block
         previousClusterState = clusterState;
         clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder()
-            .addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
+            .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
 
         ClusterState unserializableClusterState = new ClusterState(clusterState.version(), clusterState.stateUUID(),
                                                                    clusterState) {
@@ -539,8 +539,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
         discoveryNodesBuilder.localNodeId(master.discoveryNode.getId()).masterNodeId(master.discoveryNode.getId());
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
-        MetaData metaData = MetaData.EMPTY_META_DATA;
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metaData(metaData).nodes(discoveryNodes).build();
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metadata(metadata).nodes(discoveryNodes).build();
         ClusterState previousState = master.clusterState;
         try {
             publishState(master.action, clusterState, previousState, masterNodes + randomIntBetween(1, 5));
@@ -617,8 +617,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         discoveryNodesBuilder.localNodeId(master.discoveryNode.getId()).masterNodeId(master.discoveryNode.getId());
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
-        MetaData metaData = MetaData.EMPTY_META_DATA;
-        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metaData(metaData).nodes(discoveryNodes).build();
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metadata(metadata).nodes(discoveryNodes).build();
         ClusterState previousState = master.clusterState;
         try {
             publishState(master.action, clusterState, previousState, minMasterNodes);
@@ -794,24 +794,24 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertPublishClusterStateStats("nodeB: B became master", nodeB, 2, 1, 1);
     }
 
-    private MetaData buildMetaDataForVersion(MetaData metaData, long version) {
-        ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.builder(metaData.indices());
-        indices.put("test" + version, IndexMetaData.builder("test" + version)
-                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+    private Metadata buildMetadataForVersion(Metadata metadata, long version) {
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.builder(metadata.indices());
+        indices.put("test" + version, IndexMetadata.builder("test" + version)
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards((int) version).numberOfReplicas(0).build());
-        return MetaData.builder(metaData)
+        return Metadata.builder(metadata)
                 .transientSettings(Settings.builder().put("test", version).build())
                 .indices(indices.build())
                 .build();
     }
 
-    private void assertProperMetaDataForVersion(MetaData metaData, long version) {
+    private void assertProperMetadataForVersion(Metadata metadata, long version) {
         for (long i = 1; i <= version; i++) {
-            assertThat(metaData.index("test" + i), notNullValue());
-            assertThat(metaData.index("test" + i).getNumberOfShards(), equalTo((int) i));
+            assertThat(metadata.index("test" + i), notNullValue());
+            assertThat(metadata.index("test" + i).getNumberOfShards(), equalTo((int) i));
         }
-        assertThat(metaData.index("test" + (version + 1)), nullValue());
-        assertThat(metaData.transientSettings().get("test"), equalTo(Long.toString(version)));
+        assertThat(metadata.index("test" + (version + 1)), nullValue());
+        assertThat(metadata.transientSettings().get("test"), equalTo(Long.toString(version)));
     }
 
     public void publishStateAndWait(PublishClusterStateAction action, ClusterState state,

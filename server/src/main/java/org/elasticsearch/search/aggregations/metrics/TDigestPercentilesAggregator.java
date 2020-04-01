@@ -40,8 +40,8 @@ class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggregator 
                                     boolean keyed,
                                     DocValueFormat formatter,
                                     List<PipelineAggregator> pipelineAggregators,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, valuesSource, context, parent, percents, compression, keyed, formatter, pipelineAggregators, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, valuesSource, context, parent, percents, compression, keyed, formatter, pipelineAggregators, metadata);
     }
 
     @Override
@@ -50,7 +50,7 @@ class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggregator 
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalTDigestPercentiles(name, keys, state, keyed, formatter, pipelineAggregators(), metaData());
+            return new InternalTDigestPercentiles(name, keys, state, keyed, formatter, pipelineAggregators(), metadata());
         }
     }
 
@@ -67,6 +67,6 @@ class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggregator 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalTDigestPercentiles(name, keys, new TDigestState(compression), keyed,
-            formatter, pipelineAggregators(), metaData());
+            formatter, pipelineAggregators(), metadata());
     }
 }

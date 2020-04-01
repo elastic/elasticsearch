@@ -41,8 +41,8 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
     public ReverseNestedAggregatorFactory(String name, boolean unmapped, ObjectMapper parentObjectMapper,
                                           QueryShardContext queryShardContext, AggregatorFactory parent,
                                           AggregatorFactories.Builder subFactories,
-                                          Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metaData);
+                                          Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metadata);
         this.unmapped = unmapped;
         this.parentObjectMapper = parentObjectMapper;
     }
@@ -52,12 +52,12 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         if (unmapped) {
-            return new Unmapped(name, searchContext, parent, pipelineAggregators, metaData);
+            return new Unmapped(name, searchContext, parent, pipelineAggregators, metadata);
         } else {
             return new ReverseNestedAggregator(name, factories, parentObjectMapper,
-                searchContext, parent, pipelineAggregators, metaData);
+                searchContext, parent, pipelineAggregators, metadata);
         }
     }
 
@@ -67,13 +67,13 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory {
                     SearchContext context,
                     Aggregator parent,
                     List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) throws IOException {
-            super(name, context, parent, pipelineAggregators, metaData);
+                    Map<String, Object> metadata) throws IOException {
+            super(name, context, parent, pipelineAggregators, metadata);
         }
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
-            return new InternalReverseNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+            return new InternalReverseNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metadata());
         }
     }
 }

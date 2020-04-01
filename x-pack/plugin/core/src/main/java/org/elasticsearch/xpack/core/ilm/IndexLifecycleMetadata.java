@@ -10,15 +10,15 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaData.Custom;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackPlugin.XPackMetaDataCustom;
+import org.elasticsearch.xpack.core.XPackPlugin.XPackMetadataCustom;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,7 +31,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
-public class IndexLifecycleMetadata implements XPackMetaDataCustom {
+public class IndexLifecycleMetadata implements XPackMetadataCustom {
     public static final String TYPE = "index_lifecycle";
     public static final ParseField OPERATION_MODE_FIELD = new ParseField("operation_mode");
     public static final ParseField POLICIES_FIELD = new ParseField("policies");
@@ -115,8 +115,8 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.ALL_CONTEXTS;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.ALL_CONTEXTS;
     }
 
     @Override
@@ -142,7 +142,7 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
         return Strings.toString(this, true, true);
     }
 
-    public static class IndexLifecycleMetadataDiff implements NamedDiff<MetaData.Custom> {
+    public static class IndexLifecycleMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, LifecyclePolicyMetadata>> policies;
         final OperationMode operationMode;
@@ -159,7 +159,7 @@ public class IndexLifecycleMetadata implements XPackMetaDataCustom {
         }
 
         @Override
-        public MetaData.Custom apply(MetaData.Custom part) {
+        public Metadata.Custom apply(Metadata.Custom part) {
             TreeMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(
                     policies.apply(((IndexLifecycleMetadata) part).policyMetadatas));
             return new IndexLifecycleMetadata(newPolicies, this.operationMode);

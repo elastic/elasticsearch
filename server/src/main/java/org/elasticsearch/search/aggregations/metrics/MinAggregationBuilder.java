@@ -50,13 +50,13 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
-    protected MinAggregationBuilder(MinAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected MinAggregationBuilder(MinAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new MinAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new MinAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -74,7 +74,7 @@ public class MinAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     @Override
     protected MinAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
                                               AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new MinAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new MinAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

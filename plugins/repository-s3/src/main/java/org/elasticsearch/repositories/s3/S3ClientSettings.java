@@ -21,7 +21,7 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -179,10 +179,10 @@ final class S3ClientSettings {
     /**
      * Overrides the settings in this instance with settings found in repository metadata.
      *
-     * @param metadata RepositoryMetaData
+     * @param metadata RepositoryMetadata
      * @return S3ClientSettings
      */
-    S3ClientSettings refine(RepositoryMetaData metadata) {
+    S3ClientSettings refine(RepositoryMetadata metadata) {
         final Settings repoSettings = metadata.settings();
         // Normalize settings to placeholder client settings prefix so that we can use the affix settings directly
         final Settings normalizedSettings =

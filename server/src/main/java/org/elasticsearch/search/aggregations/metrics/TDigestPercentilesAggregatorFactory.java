@@ -42,8 +42,8 @@ class TDigestPercentilesAggregatorFactory
 
     TDigestPercentilesAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, double[] percents,
                                         double compression, boolean keyed, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                        AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                        AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.percents = percents;
         this.compression = compression;
         this.keyed = keyed;
@@ -53,9 +53,9 @@ class TDigestPercentilesAggregatorFactory
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new TDigestPercentilesAggregator(name, null, searchContext, parent, percents, compression, keyed, config.format(),
-                pipelineAggregators, metaData);
+                pipelineAggregators, metadata);
     }
 
     @Override
@@ -64,9 +64,9 @@ class TDigestPercentilesAggregatorFactory
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new TDigestPercentilesAggregator(name, valuesSource, searchContext, parent, percents, compression, keyed, config.format(),
-                pipelineAggregators, metaData);
+                pipelineAggregators, metadata);
     }
 
 }

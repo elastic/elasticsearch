@@ -44,8 +44,8 @@ public class InternalParentTests extends InternalSingleBucketAggregationTestCase
 
     @Override
     protected InternalParent createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalParent(name, docCount, aggregations, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalParent(name, docCount, aggregations, pipelineAggregators, metadata);
     }
 
     @Override

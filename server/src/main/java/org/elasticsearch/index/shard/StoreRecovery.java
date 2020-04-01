@@ -34,8 +34,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.UUIDs;
@@ -103,7 +103,7 @@ final class StoreRecovery {
         }
     }
 
-    void recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer, IndexShard indexShard,
+    void recoverFromLocalShards(BiConsumer<String, MappingMetadata> mappingUpdateConsumer, IndexShard indexShard,
                                 List<LocalShardSnapshot> shards, ActionListener<Boolean> listener) {
         if (canRecover(indexShard)) {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
@@ -115,16 +115,16 @@ final class StoreRecovery {
             if (indices.size() > 1) {
                 throw new IllegalArgumentException("can't add shards from more than one index");
             }
-            IndexMetaData sourceMetaData = shards.get(0).getIndexMetaData();
-            for (ObjectObjectCursor<String, MappingMetaData> mapping : sourceMetaData.getMappings()) {
+            IndexMetadata sourceMetadata = shards.get(0).getIndexMetadata();
+            for (ObjectObjectCursor<String, MappingMetadata> mapping : sourceMetadata.getMappings()) {
                 mappingUpdateConsumer.accept(mapping.key, mapping.value);
             }
-            indexShard.mapperService().merge(sourceMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
+            indexShard.mapperService().merge(sourceMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             // now that the mapping is merged we can validate the index sort configuration.
             Sort indexSort = indexShard.getIndexSort();
             final boolean hasNested = indexShard.mapperService().hasNested();
-            final boolean isSplit = sourceMetaData.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
-            assert isSplit == false || sourceMetaData.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1) : "for split we require a " +
+            final boolean isSplit = sourceMetadata.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
+            assert isSplit == false || sourceMetadata.getCreationVersion().onOrAfter(Version.V_6_0_0_alpha1) : "for split we require a " +
                 "single type but the index is created before 6.0.0";
             ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
                 logger.debug("starting recovery from local shards {}", shards);
@@ -135,7 +135,7 @@ final class StoreRecovery {
                     final long maxUnsafeAutoIdTimestamp =
                         shards.stream().mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp).max().getAsLong();
                     addIndices(indexShard.recoveryState().getIndex(), directory, indexSort, sources, maxSeqNo, maxUnsafeAutoIdTimestamp,
-                        indexShard.indexSettings().getIndexMetaData(), indexShard.shardId().id(), isSplit, hasNested);
+                        indexShard.indexSettings().getIndexMetadata(), indexShard.shardId().id(), isSplit, hasNested);
                     internalRecoverFromStore(indexShard);
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
@@ -152,7 +152,7 @@ final class StoreRecovery {
     }
 
     void addIndices(final RecoveryState.Index indexRecoveryStats, final Directory target, final Sort indexSort, final Directory[] sources,
-            final long maxSeqNo, final long maxUnsafeAutoIdTimestamp, IndexMetaData indexMetaData, int shardId, boolean split,
+            final long maxSeqNo, final long maxUnsafeAutoIdTimestamp, IndexMetadata indexMetadata, int shardId, boolean split,
             boolean hasNested) throws IOException {
 
         assert sources.length > 0;
@@ -176,7 +176,7 @@ final class StoreRecovery {
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(hardLinkOrCopyTarget, indexRecoveryStats), iwc)) {
             writer.addIndexes(sources);
             if (split) {
-                writer.deleteDocuments(new ShardSplittingQuery(indexMetaData, shardId, hasNested));
+                writer.deleteDocuments(new ShardSplittingQuery(indexMetadata, shardId, hasNested));
             }
             /*
              * We set the maximum sequence number and the local checkpoint on the target to the maximum of the maximum sequence numbers on
@@ -490,11 +490,11 @@ final class StoreRecovery {
             if (shardId.getIndexName().equals(indexId.getName())) {
                 snapshotShardId = shardId;
             } else {
-                snapshotShardId = new ShardId(indexId.getName(), IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
+                snapshotShardId = new ShardId(indexId.getName(), IndexMetadata.INDEX_UUID_NA_VALUE, shardId.id());
             }
             final StepListener<IndexId> indexIdListener = new StepListener<>();
             // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
-            if (indexId.getId().equals(IndexMetaData.INDEX_UUID_NA_VALUE)) {
+            if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
                 // BwC path, running against an old version master that did not add the IndexId to the recovery source
                 repository.getRepositoryData(ActionListener.map(
                     indexIdListener, repositoryData -> repositoryData.resolveIndexId(indexId.getName())));

@@ -27,9 +27,9 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
     StringStatsAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.Bytes> config,
                                  Boolean showDistribution,
                                  QueryShardContext queryShardContext,
-                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData)
+                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata)
                                     throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.showDistribution = showDistribution;
     }
 
@@ -37,9 +37,9 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new StringStatsAggregator(name, showDistribution,null, config.format(), searchContext, parent,
-                                         pipelineAggregators, metaData);
+                                         pipelineAggregators, metadata);
     }
 
     @Override
@@ -48,9 +48,9 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesS
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         return new StringStatsAggregator(name, showDistribution, valuesSource, config.format(), searchContext, parent,
-                                         pipelineAggregators, metaData);
+                                         pipelineAggregators, metadata);
     }
 
 }

@@ -370,7 +370,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
         for (int id = 0; id < numDocs; id++) {
             SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) response.getResults().get(id);
-            assertThat(result.getIngestDocument().getMetadata().get(IngestDocument.MetaData.ID), equalTo(Integer.toString(id)));
+            assertThat(result.getIngestDocument().getMetadata().get(IngestDocument.Metadata.ID), equalTo(Integer.toString(id)));
             assertThat(result.getIngestDocument().getSourceAndMetadata().get("processed"), is(true));
         }
     }

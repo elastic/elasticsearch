@@ -52,13 +52,13 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         super(name, CoreValuesSourceType.ANY, targetValueType);
     }
 
-    protected MissingAggregationBuilder(MissingAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected MissingAggregationBuilder(MissingAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new MissingAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new MissingAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -88,14 +88,14 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Va
                                 ValuesSourceConfig<ValuesSource> config,
                                 AggregatorFactory parent,
                                 Builder subFactoriesBuilder) throws IOException {
-        return new MissingAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new MissingAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
-    
+
     @Override
     public String getType() {
         return NAME;

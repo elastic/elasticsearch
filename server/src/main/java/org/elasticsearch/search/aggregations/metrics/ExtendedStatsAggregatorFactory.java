@@ -44,8 +44,8 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory<Value
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.sigma = sigma;
     }
 
@@ -53,9 +53,9 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory<Value
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new ExtendedStatsAggregator(name, null, config.format(), searchContext,
-            parent, sigma, pipelineAggregators, metaData);
+            parent, sigma, pipelineAggregators, metadata);
     }
 
     @Override
@@ -64,8 +64,8 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory<Value
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new ExtendedStatsAggregator(name, valuesSource, config.format(), searchContext,
-            parent, sigma, pipelineAggregators, metaData);
+            parent, sigma, pipelineAggregators, metadata);
     }
 }

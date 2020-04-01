@@ -23,8 +23,8 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -74,7 +74,7 @@ import java.util.function.UnaryOperator;
 public abstract class Plugin implements Closeable {
 
     /**
-     * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link MetaData.Custom}; see
+     * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link Metadata.Custom}; see
      * also {@link ClusterState.FeatureAware}.
      *
      * @return a feature set represented by this plugin, or the empty optional if the plugin does not expose cluster state or metadata
@@ -182,11 +182,11 @@ public abstract class Plugin implements Closeable {
      * The order of the template upgrader calls is undefined and can change between runs so, it is expected that
      * plugins will modify only templates owned by them to avoid conflicts.
      * <p>
-     * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetaData} map.
-     * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetaData}
+     * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetadata} map.
+     * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetadata}
      *                               cannot be upgraded
      */
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return UnaryOperator.identity();
     }
 

@@ -36,8 +36,8 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     protected final double value;
 
     InternalSimpleValue(String name, double value, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.format = formatter;
         this.value = value;
     }

@@ -9,18 +9,45 @@ your application to Elasticsearch 7.6.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming[7.6.0]
-
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+[discrete]
+[[breaking_76_security_changes]]
+=== Security changes
+
+[discrete]
+==== {es} API key privileges
+
+If you use an API key to create another API key (sometimes called a
+_derived key_), its behavior is impacted by the fix for
+https://www.elastic.co/community/security[CVE-2020-7009].
+
+When you make a request to create API keys, you can specify an expiration and
+privileges for the API key. Previously, when you created a derived key, it had
+no privileges. This behavior disregarded any privileges that you specified in
+the {ref}/security-api-create-api-key.html[create API key API].
+
+As of 7.6.2, this behavior changes. To create derived keys with no privileges,
+you must explicitly specify an empty role descriptor. For example:
+
+[source,js]
+----
+...
+"role_descriptors": { 
+    "no-privilege": {
+    }
+}
+...
+----
+// NOTCONSOLE
 
 //end::notable-breaking-changes[]
 
 [discrete]
 [[breaking_76_search_changes]]
-=== Search Changes
+=== Search changes
 
 [discrete]
 ==== Deprecation of sparse vector fields

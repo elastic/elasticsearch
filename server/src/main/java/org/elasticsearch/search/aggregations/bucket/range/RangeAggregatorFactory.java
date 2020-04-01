@@ -34,8 +34,8 @@ public class RangeAggregatorFactory extends AbstractRangeAggregatorFactory<Range
 
     public RangeAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, Range[] ranges, boolean keyed,
                                   Factory<?, ?> rangeFactory, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                  AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                  AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+        super(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
 }

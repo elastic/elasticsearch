@@ -136,15 +136,15 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     protected AutoDateHistogramAggregationBuilder(AutoDateHistogramAggregationBuilder clone, Builder factoriesBuilder,
-            Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+            Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.numBuckets = clone.numBuckets;
         this.minimumIntervalExpression = clone.minimumIntervalExpression;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new AutoDateHistogramAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new AutoDateHistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -200,7 +200,7 @@ public class AutoDateHistogramAggregationBuilder
         }
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, queryShardContext, parent,
             subFactoriesBuilder,
-            metaData);
+            metadata);
     }
 
     static Rounding createRounding(Rounding.DateTimeUnit interval, ZoneId timeZone) {

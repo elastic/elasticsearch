@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.vectors;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -63,10 +63,10 @@ public class VectorsFeatureSet implements XPackFeatureSet {
         int avgDenseVectorDims = 0;
 
         if (vectorsAvailable && vectorsEnabled && clusterService.state() != null) {
-            for (IndexMetaData indexMetaData : clusterService.state().metaData()) {
-                MappingMetaData mappingMetaData = indexMetaData.mapping();
-                if (mappingMetaData != null) {
-                    Map<String, Object> mappings = mappingMetaData.getSourceAsMap();
+            for (IndexMetadata indexMetadata : clusterService.state().metadata()) {
+                MappingMetadata mappingMetadata = indexMetadata.mapping();
+                if (mappingMetadata != null) {
+                    Map<String, Object> mappings = mappingMetadata.getSourceAsMap();
                     if (mappings.containsKey("properties")) {
                         @SuppressWarnings("unchecked") Map<String, Map<String, Object>> fieldMappings =
                             (Map<String, Map<String, Object>>) mappings.get("properties");

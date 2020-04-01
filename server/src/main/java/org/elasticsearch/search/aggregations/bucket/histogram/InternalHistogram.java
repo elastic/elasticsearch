@@ -206,8 +206,8 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
     InternalHistogram(String name, List<Bucket> buckets, BucketOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo,
             DocValueFormat formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.buckets = buckets;
         this.order = order;
         assert (minDocCount == 0) == (emptyBucketInfo != null);
@@ -266,7 +266,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
     @Override
     public InternalHistogram create(List<Bucket> buckets) {
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators(), metaData);
+        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators(), metadata);
     }
 
     @Override
@@ -440,7 +440,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             }
         }
         return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators(),
-                getMetaData());
+                getMetadata());
     }
 
     @Override
@@ -482,7 +482,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
         buckets2 = Collections.unmodifiableList(buckets2);
         return new InternalHistogram(name, buckets2, order, minDocCount, emptyBucketInfo, format,
-                keyed, pipelineAggregators(), getMetaData());
+                keyed, pipelineAggregators(), getMetadata());
     }
 
     @Override

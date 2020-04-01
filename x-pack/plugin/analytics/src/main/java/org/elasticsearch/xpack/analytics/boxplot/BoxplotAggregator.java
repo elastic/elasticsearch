@@ -38,8 +38,8 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
 
     BoxplotAggregator(String name, ValuesSource valuesSource, DocValueFormat formatter, double compression,
                       SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                      Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                      Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         this.format = formatter;
         this.compression = compression;
@@ -130,7 +130,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalBoxplot(name, state, format, pipelineAggregators(), metaData());
+            return new InternalBoxplot(name, state, format, pipelineAggregators(), metadata());
         }
     }
 
@@ -143,7 +143,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalBoxplot(name, new TDigestState(compression), format, pipelineAggregators(), metaData());
+        return new InternalBoxplot(name, new TDigestState(compression), format, pipelineAggregators(), metadata());
     }
 
     @Override

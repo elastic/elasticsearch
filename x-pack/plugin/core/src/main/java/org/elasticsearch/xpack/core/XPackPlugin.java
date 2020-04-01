@@ -18,7 +18,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,7 +40,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.LicensesMetaData;
+import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -64,10 +64,10 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
-import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -214,11 +214,11 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     }
 
     private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
-        final MetaData metaData = clusterState.metaData();
-        return metaData.custom(LicensesMetaData.TYPE) != null ||
-            metaData.custom(MlMetadata.TYPE) != null ||
-            metaData.custom(WatcherMetaData.TYPE) != null ||
-            clusterState.custom(TokenMetaData.TYPE) != null;
+        final Metadata metadata = clusterState.metadata();
+        return metadata.custom(LicensesMetadata.TYPE) != null ||
+            metadata.custom(MlMetadata.TYPE) != null ||
+            metadata.custom(WatcherMetadata.TYPE) != null ||
+            clusterState.custom(TokenMetadata.TYPE) != null;
     }
 
     @Override
@@ -347,7 +347,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
 
     }
 
-    public interface XPackMetaDataCustom extends MetaData.Custom {
+    public interface XPackMetadataCustom extends Metadata.Custom {
 
         @Override
         default Optional<String> getRequiredFeature() {

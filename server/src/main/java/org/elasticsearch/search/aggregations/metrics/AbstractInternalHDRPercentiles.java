@@ -43,8 +43,8 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
             List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
@@ -113,11 +113,11 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             }
             merged.add(percentiles.state);
         }
-        return createReduced(getName(), keys, merged, keyed, pipelineAggregators(), getMetaData());
+        return createReduced(getName(), keys, merged, keyed, pipelineAggregators(), getMetadata());
     }
 
     protected abstract AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata);
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

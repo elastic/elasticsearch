@@ -52,7 +52,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -1258,7 +1258,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
         try {
             // `*` is in the list of the default_field => leniency set to true
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                     STRING_FIELD_NAME, "*", STRING_FIELD_NAME_2).build())
             );
@@ -1267,7 +1267,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             assertQueryWithAllFieldsWildcard(query);
 
 
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                     STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
             );
@@ -1282,7 +1282,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             assertEquals(expected, query);
         } finally {
             // Reset the default value
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index",
                     context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
             );
@@ -1453,7 +1453,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testCrossFields() throws Exception {
         final QueryShardContext context = createShardContext();
-        context.getIndexSettings().updateIndexMetaData(
+        context.getIndexSettings().updateIndexMetadata(
             newIndexMeta("index", context.getIndexSettings().getSettings(),
                 Settings.builder().putList("index.query.default_field",
                     STRING_FIELD_NAME, STRING_FIELD_NAME_2).build())
@@ -1481,7 +1481,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             assertEquals(expected, query);
         } finally {
             // Reset the default value
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index",
                     context.getIndexSettings().getSettings(),
                     Settings.builder().putList("index.query.default_field", "*").build())
@@ -1559,11 +1559,11 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(expected, query);
     }
 
-    private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
+    private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)
             .build();
-        return IndexMetaData.builder(name).settings(build).build();
+        return IndexMetadata.builder(name).settings(build).build();
     }
 
     private void assertQueryWithAllFieldsWildcard(Query query) {

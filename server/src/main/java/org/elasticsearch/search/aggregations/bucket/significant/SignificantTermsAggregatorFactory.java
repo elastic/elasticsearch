@@ -85,8 +85,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                              QueryShardContext queryShardContext,
                                              AggregatorFactory parent,
                                              AggregatorFactories.Builder subFactoriesBuilder,
-                                             Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                             Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
 
         if (!config.unmapped()) {
             this.fieldType = config.fieldContext().fieldType();
@@ -165,10 +165,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), pipelineAggregators, metaData);
-        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {
+                bucketCountThresholds.getMinDocCount(), pipelineAggregators, metadata);
+        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -182,7 +182,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
@@ -226,7 +226,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
 
             return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, searchContext, parent,
-                    significanceHeuristic, this, pipelineAggregators, metaData);
+                    significanceHeuristic, this, pipelineAggregators, metadata);
         }
 
         if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -246,7 +246,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
             return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
                     bucketCountThresholds, searchContext, parent, significanceHeuristic, this, longFilter, pipelineAggregators,
-                    metaData);
+                    metadata);
         }
 
         throw new AggregationExecutionException("significant_terms aggregation cannot be applied to field ["
@@ -269,11 +269,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               SignificanceHeuristic significanceHeuristic,
                               SignificantTermsAggregatorFactory termsAggregatorFactory,
                               List<PipelineAggregator> pipelineAggregators,
-                              Map<String, Object> metaData) throws IOException {
+                              Map<String, Object> metadata) throws IOException {
 
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
                 return new SignificantStringTermsAggregator(name, factories, valuesSource, format, bucketCountThresholds, filter,
-                        aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
+                        aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metadata);
 
             }
 
@@ -292,7 +292,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               SignificanceHeuristic significanceHeuristic,
                               SignificantTermsAggregatorFactory termsAggregatorFactory,
                               List<PipelineAggregator> pipelineAggregators,
-                              Map<String, Object> metaData) throws IOException {
+                              Map<String, Object> metadata) throws IOException {
 
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 boolean remapGlobalOrd = true;
@@ -310,7 +310,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
                         aggregationContext, parent, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, pipelineAggregators,
-                        metaData);
+                        metadata);
 
             }
         };
@@ -344,7 +344,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                    SignificanceHeuristic significanceHeuristic,
                                    SignificantTermsAggregatorFactory termsAggregatorFactory,
                                    List<PipelineAggregator> pipelineAggregators,
-                                   Map<String, Object> metaData) throws IOException;
+                                   Map<String, Object> metadata) throws IOException;
 
         @Override
         public String toString() {

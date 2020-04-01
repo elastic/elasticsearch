@@ -22,8 +22,8 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -99,15 +99,15 @@ public class DestinationIndexTests extends ESTestCase {
             .when(client).execute(eq(CreateIndexAction.INSTANCE), createIndexRequestCaptor.capture(), any());
 
         Settings index1Settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
 
         Settings index2Settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build();
 
         ArgumentCaptor<GetSettingsRequest> getSettingsRequestCaptor = ArgumentCaptor.forClass(GetSettingsRequest.class);
@@ -138,15 +138,15 @@ public class DestinationIndexTests extends ESTestCase {
         aliasToNestedFieldProperties.put("path", "outer-field.inner-field");
         indexProperties.put(ALIAS_TO_NESTED_FIELD, aliasToNestedFieldProperties);
         Map<String, Object> indexMappings = Collections.singletonMap("properties", indexProperties);
-        MappingMetaData index1MappingMetaData = new MappingMetaData("_doc", indexMappings);
-        MappingMetaData index2MappingMetaData = new MappingMetaData("_doc", indexMappings);
+        MappingMetadata index1MappingMetadata = new MappingMetadata("_doc", indexMappings);
+        MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", indexMappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
-        index1MappingsMap.put("_doc", index1MappingMetaData);
-        ImmutableOpenMap.Builder<String, MappingMetaData> index2MappingsMap = ImmutableOpenMap.builder();
-        index2MappingsMap.put("_doc", index2MappingMetaData);
+        ImmutableOpenMap.Builder<String, MappingMetadata> index1MappingsMap = ImmutableOpenMap.builder();
+        index1MappingsMap.put("_doc", index1MappingMetadata);
+        ImmutableOpenMap.Builder<String, MappingMetadata> index2MappingsMap = ImmutableOpenMap.builder();
+        index2MappingsMap.put("_doc", index2MappingMetadata);
 
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
         mappings.put("index_1", index1MappingsMap.build());
         mappings.put("index_2", index2MappingsMap.build());
 
@@ -235,11 +235,11 @@ public class DestinationIndexTests extends ESTestCase {
 
         GetSettingsResponse getSettingsResponse = new GetSettingsResponse(ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
-        MappingMetaData index1MappingMetaData =
-            new MappingMetaData("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping")));
-        ImmutableOpenMap.Builder<String, MappingMetaData> index1MappingsMap = ImmutableOpenMap.builder();
-        index1MappingsMap.put("_doc", index1MappingMetaData);
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
+        MappingMetadata index1MappingMetadata =
+            new MappingMetadata("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping")));
+        ImmutableOpenMap.Builder<String, MappingMetadata> index1MappingsMap = ImmutableOpenMap.builder();
+        index1MappingsMap.put("_doc", index1MappingMetadata);
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
         mappings.put("index_1", index1MappingsMap.build());
         GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
 
@@ -276,10 +276,10 @@ public class DestinationIndexTests extends ESTestCase {
         aliasToNestedFieldProperties.put("path", "outer-field.inner-field");
         properties.put(ALIAS_TO_NESTED_FIELD, aliasToNestedFieldProperties);
 
-        MappingMetaData indexMappingMetaData = new MappingMetaData("_doc", Collections.singletonMap("properties", properties));
-        ImmutableOpenMap.Builder<String, MappingMetaData> indexMappingsMap = ImmutableOpenMap.builder();
-        indexMappingsMap.put("_doc", indexMappingMetaData);
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
+        MappingMetadata indexMappingMetadata = new MappingMetadata("_doc", Collections.singletonMap("properties", properties));
+        ImmutableOpenMap.Builder<String, MappingMetadata> indexMappingsMap = ImmutableOpenMap.builder();
+        indexMappingsMap.put("_doc", indexMappingMetadata);
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
         mappings.put(DEST_INDEX, indexMappingsMap.build());
         GetIndexResponse getIndexResponse =
             new GetIndexResponse(
@@ -349,11 +349,11 @@ public class DestinationIndexTests extends ESTestCase {
     public void testUpdateMappingsToDestIndex_ResultsFieldsExistsInSourceIndex() throws IOException {
         DataFrameAnalyticsConfig config = createConfig(new OutlierDetection.Builder().build());
 
-        MappingMetaData indexMappingMetaData =
-            new MappingMetaData("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping")));
-        ImmutableOpenMap.Builder<String, MappingMetaData> indexMappingsMap = ImmutableOpenMap.builder();
-        indexMappingsMap.put("_doc", indexMappingMetaData);
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
+        MappingMetadata indexMappingMetadata =
+            new MappingMetadata("_doc", Collections.singletonMap("properties", Collections.singletonMap("ml", "some-mapping")));
+        ImmutableOpenMap.Builder<String, MappingMetadata> indexMappingsMap = ImmutableOpenMap.builder();
+        indexMappingsMap.put("_doc", indexMappingMetadata);
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
         mappings.put(DEST_INDEX, indexMappingsMap.build());
         GetIndexResponse getIndexResponse =
             new GetIndexResponse(

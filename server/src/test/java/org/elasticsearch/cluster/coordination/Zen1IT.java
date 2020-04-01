@@ -29,7 +29,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Allocation;
@@ -163,8 +163,8 @@ public class Zen1IT extends ESIntegTestCase {
         createIndex("test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, zen1NodeCount + zen2NodeCount + randomIntBetween(0, 2)) // causes rebalancing
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, zen1NodeCount + zen2NodeCount + randomIntBetween(0, 2)) // causes rebalancing
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build());
         ensureGreen("test");
 
@@ -212,8 +212,8 @@ public class Zen1IT extends ESIntegTestCase {
         createIndex("test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build());
         ensureGreen("test");
 
@@ -245,8 +245,8 @@ public class Zen1IT extends ESIntegTestCase {
         createIndex("test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build());
         ensureGreen("test");
 
@@ -285,8 +285,8 @@ public class Zen1IT extends ESIntegTestCase {
         createIndex("test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, nodeCount > 1 ? 1 : 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, nodeCount > 1 ? 1 : 0)
                 .build());
         ensureGreen("test");
 
@@ -379,7 +379,7 @@ public class Zen1IT extends ESIntegTestCase {
             assertFalse(clusterState.get().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
         });
 
-        final Settings clusterSettings = clusterState.get().metaData().settings();
+        final Settings clusterSettings = clusterState.get().metadata().settings();
         assertTrue(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.exists(clusterSettings));
         assertThat(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.get(clusterSettings), equalTo(Allocation.NONE));
     }

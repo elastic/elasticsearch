@@ -50,8 +50,8 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         super(name, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
-    public AvgAggregationBuilder(AvgAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    public AvgAggregationBuilder(AvgAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     /**
@@ -62,8 +62,8 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new AvgAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new AvgAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -74,7 +74,7 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     @Override
     protected AvgAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
                                               AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new AvgAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new AvgAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

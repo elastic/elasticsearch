@@ -43,8 +43,8 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSou
                                 QueryShardContext queryShardContext,
                                 AggregatorFactory parent,
                                 AggregatorFactories.Builder subFactoriesBuilder,
-                                Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.wrapLongitude = wrapLongitude;
     }
 
@@ -52,8 +52,8 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSou
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new GeoBoundsAggregator(name, searchContext, parent, null, wrapLongitude, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new GeoBoundsAggregator(name, searchContext, parent, null, wrapLongitude, pipelineAggregators, metadata);
     }
 
     @Override
@@ -62,7 +62,7 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSou
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new GeoBoundsAggregator(name, searchContext, parent, valuesSource, wrapLongitude, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new GeoBoundsAggregator(name, searchContext, parent, valuesSource, wrapLongitude, pipelineAggregators, metadata);
     }
 }

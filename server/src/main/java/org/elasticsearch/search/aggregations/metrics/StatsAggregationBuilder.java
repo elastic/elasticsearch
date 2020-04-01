@@ -42,7 +42,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     public static final String NAME = "stats";
 
     public static final ObjectParser<StatsAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, StatsAggregationBuilder::new); 
+            ObjectParser.fromBuilder(NAME, StatsAggregationBuilder::new);
     static {
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
     }
@@ -52,13 +52,13 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     }
 
     protected StatsAggregationBuilder(StatsAggregationBuilder clone,
-                                      Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                      Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new StatsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new StatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -76,7 +76,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     @Override
     protected StatsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
                                                 AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new StatsAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new StatsAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

@@ -66,7 +66,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.ArrayList;
@@ -208,7 +208,7 @@ public class IndicesModule extends AbstractModule {
     /**
      * Returns a set containing all of the builtin metadata fields
      */
-    public static Set<String> getBuiltInMetaDataFields() {
+    public static Set<String> getBuiltInMetadataFields() {
         return builtInMetadataMappers.keySet();
     }
 
@@ -248,7 +248,7 @@ public class IndicesModule extends AbstractModule {
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(SyncedFlushService.class).asEagerSingleton();
-        bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
+        bind(TransportNodesListShardStoreMetadata.class).asEagerSingleton();
         bind(GlobalCheckpointSyncAction.class).asEagerSingleton();
         bind(TransportResyncReplicationAction.class).asEagerSingleton();
         bind(PrimaryReplicaSyncer.class).asEagerSingleton();

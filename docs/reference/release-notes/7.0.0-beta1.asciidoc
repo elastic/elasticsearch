@@ -514,7 +514,7 @@ Features/Ingest::
 * ingest: support default pipelines + bulk upserts {pull}36618[#36618] (issue: {issue}36219[#36219])
 
 Features/Java High Level REST Client::
-* Update IndexTemplateMetaData to allow unknown fields {pull}38448[#38448] (issue: {issue}36938[#36938])
+* Update IndexTemplateMetadata to allow unknown fields {pull}38448[#38448] (issue: {issue}36938[#36938])
 * `if_seq_no` and `if_primary_term` parameters aren't wired correctly in REST Client's CRUD API {pull}38411[#38411]
 * Update Rollup Caps to allow unknown fields {pull}38339[#38339] (issue: {issue}36938[#36938])
 * Fix ILM explain response to allow unknown fields {pull}38054[#38054] (issue: {issue}36938[#36938])

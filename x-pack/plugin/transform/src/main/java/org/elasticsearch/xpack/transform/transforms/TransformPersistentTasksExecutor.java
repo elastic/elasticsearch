@@ -26,7 +26,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -89,7 +89,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     @Override
-    public PersistentTasksCustomMetaData.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
+    public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
             String reason = "Not starting transform ["
@@ -99,7 +99,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 + String.join(",", unavailableIndices)
                 + "]";
             logger.debug(reason);
-            return new PersistentTasksCustomMetaData.Assignment(null, reason);
+            return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
 
         // see gh#48019 disable assignment if any node is using 7.2 or 7.3
@@ -109,7 +109,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 + "], "
                 + "because cluster contains nodes with version older than 7.4.0";
             logger.debug(reason);
-            return new PersistentTasksCustomMetaData.Assignment(null, reason);
+            return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
 
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
@@ -135,10 +135,10 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 + "]";
 
             logger.debug(reason);
-            return new PersistentTasksCustomMetaData.Assignment(null, reason);
+            return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
 
-        return new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
+        return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
     }
 
     public static boolean nodeCanRunThisTransformPre77(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
@@ -432,7 +432,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         String type,
         String action,
         TaskId parentTaskId,
-        PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> persistentTask,
+        PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> persistentTask,
         Map<String, String> headers
     ) {
         return new TransformTask(

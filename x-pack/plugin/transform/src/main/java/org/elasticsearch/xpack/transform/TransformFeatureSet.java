@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
@@ -109,13 +109,13 @@ public class TransformFeatureSet implements XPackFeatureSet {
             return;
         }
 
-        PersistentTasksCustomMetaData taskMetadata = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(clusterService.state());
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> transformTasks = taskMetadata == null
+        PersistentTasksCustomMetadata taskMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterService.state());
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = taskMetadata == null
             ? Collections.emptyList()
             : taskMetadata.findTasks(TransformTaskParams.NAME, (t) -> true);
         final int taskCount = transformTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
-        for (PersistentTasksCustomMetaData.PersistentTask<?> transformTask : transformTasks) {
+        for (PersistentTasksCustomMetadata.PersistentTask<?> transformTask : transformTasks) {
             TransformState state = (TransformState) transformTask.getState();
             transformsCountByState.merge(state.getTaskState().value(), 1L, Long::sum);
         }

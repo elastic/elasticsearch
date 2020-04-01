@@ -16,8 +16,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -100,16 +100,16 @@ public class ElasticsearchMappings {
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) throws IOException {
         List<String> indicesToUpdate = new ArrayList<>();
 
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> currentMapping = state.metadata().findMappings(concreteIndices,
                 new String[0], MapperPlugin.NOOP_FIELD_FILTER);
 
         for (String index : concreteIndices) {
-            ImmutableOpenMap<String, MappingMetaData> innerMap = currentMapping.get(index);
+            ImmutableOpenMap<String, MappingMetadata> innerMap = currentMapping.get(index);
             if (innerMap != null) {
-                MappingMetaData metaData = innerMap.valuesIt().next();
+                MappingMetadata metadata = innerMap.valuesIt().next();
                 try {
                     @SuppressWarnings("unchecked")
-                    Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");
+                    Map<String, Object> meta = (Map<String, Object>) metadata.sourceAsMap().get("_meta");
                     if (meta != null) {
                         String versionString = (String) meta.get("version");
                         if (versionString == null) {
@@ -148,13 +148,13 @@ public class ElasticsearchMappings {
     public static void addDocMappingIfMissing(String alias,
                                               CheckedFunction<String, String, IOException> mappingSupplier,
                                               Client client, ClusterState state, ActionListener<Boolean> listener) {
-        IndexAbstraction indexAbstraction = state.metaData().getIndicesLookup().get(alias);
+        IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(alias);
         if (indexAbstraction == null) {
             // The index has never been created yet
             listener.onResponse(true);
             return;
         }
-        String[] concreteIndices = indexAbstraction.getIndices().stream().map(IndexMetaData::getIndex).map(Index::getName)
+        String[] concreteIndices = indexAbstraction.getIndices().stream().map(IndexMetadata::getIndex).map(Index::getName)
             .toArray(String[]::new);
 
         String[] indicesThatRequireAnUpdate;
@@ -167,8 +167,8 @@ public class ElasticsearchMappings {
 
         if (indicesThatRequireAnUpdate.length > 0) {
             // Use the mapping type of the first index in the update
-            IndexMetaData indexMetaData = state.metaData().index(indicesThatRequireAnUpdate[0]);
-            String mappingType = indexMetaData.mapping().type();
+            IndexMetadata indexMetadata = state.metadata().index(indicesThatRequireAnUpdate[0]);
+            String mappingType = indexMetadata.mapping().type();
 
             try {
                 String mapping = mappingSupplier.apply(mappingType);

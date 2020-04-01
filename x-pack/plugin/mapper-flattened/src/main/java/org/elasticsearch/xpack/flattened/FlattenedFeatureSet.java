@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.flattened;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -57,11 +57,11 @@ public class FlattenedFeatureSet implements XPackFeatureSet {
     public void usage(ActionListener<Usage> listener) {
         int fieldCount = 0;
         if (available() && enabled() && clusterService.state() != null) {
-            for (IndexMetaData indexMetaData : clusterService.state().metaData()) {
-                MappingMetaData mappingMetaData = indexMetaData.mapping();
+            for (IndexMetadata indexMetadata : clusterService.state().metadata()) {
+                MappingMetadata mappingMetadata = indexMetadata.mapping();
 
-                if (mappingMetaData != null) {
-                    Map<String, Object> mappings = mappingMetaData.getSourceAsMap();
+                if (mappingMetadata != null) {
+                    Map<String, Object> mappings = mappingMetadata.getSourceAsMap();
 
                     if (mappings.containsKey("properties")) {
                         @SuppressWarnings("unchecked")

@@ -59,8 +59,8 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
         super(name, ValueType.NUMERIC);
     }
 
-    public WeightedAvgAggregationBuilder(WeightedAvgAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    public WeightedAvgAggregationBuilder(WeightedAvgAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     public WeightedAvgAggregationBuilder value(MultiValuesSourceFieldConfig valueConfig) {
@@ -83,8 +83,8 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new WeightedAvgAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new WeightedAvgAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -103,7 +103,7 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
                                                                     DocValueFormat format,
                                                                     AggregatorFactory parent,
                                                                     Builder subFactoriesBuilder) throws IOException {
-        return new WeightedAvgAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new WeightedAvgAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

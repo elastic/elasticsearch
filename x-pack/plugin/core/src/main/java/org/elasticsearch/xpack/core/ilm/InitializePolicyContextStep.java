@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
@@ -31,43 +31,43 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
 
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetaData indexMetaData = clusterState.getMetaData().index(index);
-        if (indexMetaData == null) {
+        IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+        if (indexMetadata == null) {
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
             // Index must have been since deleted, ignore it
             return clusterState;
         }
 
-        IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(indexMetaData);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
         LifecycleExecutionState lifecycleState;
         try {
-            lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
+            lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
             if (lifecycleState.getLifecycleDate() != null) {
                 return clusterState;
             }
 
-            if (shouldParseIndexName(indexMetaData.getSettings())) {
+            if (shouldParseIndexName(indexMetadata.getSettings())) {
                 long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
-                indexMetadataBuilder.settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                indexMetadataBuilder.settingsVersion(indexMetadata.getSettingsVersion() + 1)
                     .settings(Settings.builder()
-                        .put(indexMetaData.getSettings())
+                        .put(indexMetadata.getSettings())
                         .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
                         .build()
                     );
             }
         } catch (Exception e) {
-            String policy = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+            String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
             throw new InitializePolicyException(policy, index.getName(), e);
         }
 
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
 
         LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
-        newCustomData.setIndexCreationDate(indexMetaData.getCreationDate());
+        newCustomData.setIndexCreationDate(indexMetadata.getCreationDate());
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
 
-        newClusterStateBuilder.metaData(
-            MetaData.builder(clusterState.getMetaData()).put(indexMetadataBuilder)
+        newClusterStateBuilder.metadata(
+            Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder)
         );
         return newClusterStateBuilder.build();
     }

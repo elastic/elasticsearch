@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
@@ -55,10 +55,10 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request("close-failed-job-2")).actionGet();
         assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.CLOSED);
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertEquals(1, tasks.taskMap().size());
         // now just double check that the first job is still opened:
-        PersistentTasksCustomMetaData.PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId("close-failed-job-1"));
+        PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId("close-failed-job-1"));
         assertEquals(JobState.OPENED, ((JobTaskState) task.getState()).getState());
     }
 
@@ -187,8 +187,8 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
                 assertBusy(() -> {
                     for (Client client : clients()) {
-                        PersistentTasksCustomMetaData tasks = client.admin().cluster().prepareState().get().getState()
-                                .getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                        PersistentTasksCustomMetadata tasks = client.admin().cluster().prepareState().get().getState()
+                                .getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                         assertEquals(MlTasks.getJobState(job.getId(), tasks), JobState.OPENED);
                     }
                 });

@@ -33,10 +33,8 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.DocValueBits;
-import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -54,6 +52,14 @@ import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
 
+/**
+ * Note on subclassing ValuesSources: Generally, direct subclasses of ValuesSource should also be abstract, representing types.  These
+ * subclasses are free to add new methods specific to that type (e.g. {@link Numeric#isFloatingPoint()}).  Subclasses of these should, in
+ * turn, be concrete and implement specific ways of reading the given values (e.g.  script and field based sources).  It is also possible
+ * to see sub-sub-classes of ValuesSource that act as wrappers on other concrete values sources to add functionality, such as the
+ * anonymous subclasses returned from  {@link MissingValues} or the GeoPoint to Numeric conversion logic in
+ * {@link org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource}
+ */
 public abstract class ValuesSource {
 
     /**
@@ -565,39 +571,4 @@ public abstract class ValuesSource {
             }
         }
     }
-
-    public abstract static class Histogram extends ValuesSource {
-
-        public abstract HistogramValues getHistogramValues(LeafReaderContext context) throws IOException;
-
-        public static class Fielddata extends Histogram {
-
-            protected final IndexHistogramFieldData indexFieldData;
-
-            public Fielddata(IndexHistogramFieldData indexFieldData) {
-                this.indexFieldData = indexFieldData;
-            }
-
-            @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
-                return indexFieldData.load(context).getBytesValues();
-            }
-
-            @Override
-            public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-                HistogramValues values = getHistogramValues(context);
-                return new DocValueBits() {
-                    @Override
-                    public boolean advanceExact(int doc) throws IOException {
-                        return values.advanceExact(doc);
-                    }
-                };
-            }
-
-            public HistogramValues getHistogramValues(LeafReaderContext context) throws IOException {
-                return indexFieldData.load(context).getHistogramValues();
-            }
-        }
-    }
-
 }

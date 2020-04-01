@@ -121,12 +121,4 @@ public class ENumeric extends AExpression {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        if (radix != 10) {
-            return singleLineToString(value, radix);
-        }
-        return singleLineToString(value);
-    }
 }

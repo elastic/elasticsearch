@@ -72,9 +72,9 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                                  long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Range valuesSource,
                                  DocValueFormat formatter, SearchContext aggregationContext,
                                  Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                 Map<String, Object> metaData) throws IOException {
+                                 Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, aggregationContext, parent, pipelineAggregators, metadata);
         this.rounding = rounding;
         this.shardRounding = shardRounding;
         this.order = order;
@@ -170,7 +170,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
                 : null;
         return new InternalDateHistogram(name, buckets, order, minDocCount, rounding.offset(), emptyBucketInfo, formatter, keyed,
-                pipelineAggregators(), metaData());
+                pipelineAggregators(), metadata());
     }
 
     @Override
@@ -179,7 +179,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
                 : null;
         return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
-                keyed, pipelineAggregators(), metaData());
+                keyed, pipelineAggregators(), metadata());
     }
 
     @Override

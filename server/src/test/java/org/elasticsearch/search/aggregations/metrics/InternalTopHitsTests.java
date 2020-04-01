@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -85,7 +86,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     }
 
     @Override
-    protected InternalTopHits createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalTopHits createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         int from = 0;
         int requestedSize = between(1, 40);
         int actualSize = between(0, requestedSize);
@@ -113,7 +114,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             } else {
                 scoreDocs[i] = new ScoreDoc(docId, score);
             }
-            hits[i] = new SearchHit(docId, Integer.toString(i), searchHitFields);
+            hits[i] = new SearchHit(docId, Integer.toString(i), searchHitFields, Collections.emptyMap());
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);
@@ -129,7 +130,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
         TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore);
 
-        return new InternalTopHits(name, from, requestedSize, topDocsAndMaxScore, searchHits, pipelineAggregators, metaData);
+        return new InternalTopHits(name, from, requestedSize, topDocsAndMaxScore, searchHits, pipelineAggregators, metadata);
     }
 
     /**
@@ -329,7 +330,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         TopDocsAndMaxScore topDocs = instance.getTopDocs();
         SearchHits searchHits = instance.getHits();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -349,16 +350,16 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             searchHits = new SearchHits(searchHits.getHits(), totalHits, searchHits.getMaxScore() + randomFloat());
             break;
         case 5:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalTopHits(name, from, size, topDocs, searchHits, pipelineAggregators, metaData);
+        return new InternalTopHits(name, from, size, topDocs, searchHits, pipelineAggregators, metadata);
     }
 }

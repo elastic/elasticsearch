@@ -4,7 +4,9 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.autoscaling;
+package org.elasticsearch.xpack.autoscaling.decision;
+
+import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
 import java.util.List;
 

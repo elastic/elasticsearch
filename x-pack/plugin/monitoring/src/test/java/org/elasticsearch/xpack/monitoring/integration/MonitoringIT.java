@@ -59,6 +59,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.THREAD_POOL;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -400,7 +401,9 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertBusy(() -> {
             try {
                 // now wait until Monitoring has actually stopped
-                final NodesStatsResponse response = client().admin().cluster().prepareNodesStats().clear().setThreadPool(true).get();
+                final NodesStatsResponse response = client().admin().cluster().prepareNodesStats().clear()
+                    .addMetric(THREAD_POOL.metricName())
+                    .get();
 
                 for (final NodeStats nodeStats : response.getNodes()) {
                     boolean foundBulkThreads = false;

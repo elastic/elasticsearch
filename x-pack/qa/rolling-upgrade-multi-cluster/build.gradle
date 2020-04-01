@@ -32,7 +32,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 
-  tasks.withType(RestTestRunnerTask).matching { it.name.startsWith(baseName) }.each {
+  tasks.withType(RestTestRunnerTask).matching { it.name.startsWith(baseName) }.all {
     useCluster testClusters."${baseName}-leader"
     useCluster testClusters."${baseName}-follower"
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')

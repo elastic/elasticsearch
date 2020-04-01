@@ -71,6 +71,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
 
         @Override
         public ActionRequestValidationException validate() {
+            // TODO: validate that the policy deciders are non-empty
             return null;
         }
 

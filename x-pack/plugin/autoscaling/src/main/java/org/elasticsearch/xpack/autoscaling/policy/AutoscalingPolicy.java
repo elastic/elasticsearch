@@ -69,6 +69,7 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
 
     public AutoscalingPolicy(final String name, final SortedMap<String, AutoscalingDecider> deciders) {
         this.name = Objects.requireNonNull(name);
+        // TODO: validate that the policy deciders are non-empty
         this.deciders = Objects.requireNonNull(deciders);
     }
 

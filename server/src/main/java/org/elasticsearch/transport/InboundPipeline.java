@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 public class InboundPipeline implements Releasable {
@@ -48,15 +50,16 @@ public class InboundPipeline implements Releasable {
     private boolean isClosed = false;
 
     public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler, LongSupplier relativeTimeInMillis,
+                           CircuitBreaker circuitBreaker, Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
                            BiConsumer<TcpChannel, InboundMessage> messageHandler,
                            BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
-        this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler), new InboundAggregator(), messageHandler,
-            errorHandler);
+        this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler),
+            new InboundAggregator(circuitBreaker, registryFunction),    messageHandler, errorHandler);
     }
 
-    private InboundPipeline(StatsTracker statsTracker, LongSupplier relativeTimeInMillis, InboundDecoder decoder,
-                            InboundAggregator aggregator, BiConsumer<TcpChannel, InboundMessage> messageHandler,
-                            BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
+    public InboundPipeline(StatsTracker statsTracker, LongSupplier relativeTimeInMillis, InboundDecoder decoder,
+                           InboundAggregator aggregator, BiConsumer<TcpChannel, InboundMessage> messageHandler,
+                           BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
         this.relativeTimeInMillis = relativeTimeInMillis;
         this.statsTracker = statsTracker;
         this.decoder = decoder;

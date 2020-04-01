@@ -21,7 +21,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.lease.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 public class InboundAggregator implements Releasable {
@@ -44,8 +44,15 @@ public class InboundAggregator implements Releasable {
     private boolean canTripBreaker = true;
     private boolean isClosed = false;
 
-    public InboundAggregator() {
-        this(new NoopCircuitBreaker("replace"), s -> true);
+    public InboundAggregator(CircuitBreaker circuitBreaker, Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction) {
+        this(circuitBreaker, (Predicate<String>) actionName -> {
+            final RequestHandlerRegistry<TransportRequest> reg = registryFunction.apply(actionName);
+            if (reg == null) {
+                throw new ActionNotFoundTransportException(actionName);
+            } else {
+                return reg.canTripCircuitBreaker();
+            }
+        });
     }
 
     public InboundAggregator(CircuitBreaker circuitBreaker, Predicate<String> requestCanTripBreaker) {

@@ -27,11 +27,13 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.InboundHandler;
 import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.Transports;
 
@@ -55,8 +57,10 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     Netty4MessageChannelHandler(PageCacheRecycler recycler, Netty4Transport transport) {
         this.transport = transport;
         final ThreadPool threadPool = transport.getThreadPool();
+        final CircuitBreaker breaker = transport.getInflightBreaker();
+        final InboundHandler inboundHandler = transport.getInboundHandler();
         this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
-            transport::inboundMessage, transport::inboundDecodeException);
+            breaker, inboundHandler::getRequestHandler, transport::inboundMessage, transport::inboundDecodeException);
     }
 
     @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -39,6 +40,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -82,10 +84,11 @@ public class InboundPipelineTests extends ESTestCase {
             actual.add(new Tuple<>(actualData, tuple.v2()));
         };
 
-        final PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, statsTracker, recycler, millisSupplier, messageHandler,
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        final InboundAggregator aggregator = new InboundAggregator(new NoopCircuitBreaker("test"), (Predicate<String>) action -> true);
+        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler,
             errorHandler);
         final FakeTcpChannel channel = new FakeTcpChannel();
 
@@ -184,12 +187,13 @@ public class InboundPipelineTests extends ESTestCase {
     }
 
     public void testEnsureBodyIsNotPrematurelyReleased() throws IOException {
-        final PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
         BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler = (c, e) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, statsTracker, recycler, millisSupplier, messageHandler,
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        final InboundAggregator aggregator = new InboundAggregator(new NoopCircuitBreaker("test"), (Predicate<String>) action -> true);
+        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler,
             errorHandler);
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {

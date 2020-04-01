@@ -114,6 +114,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final PageCacheRecycler pageCacheRecycler;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
+    private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
@@ -137,6 +138,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.version = version;
         this.threadPool = threadPool;
         this.pageCacheRecycler = pageCacheRecycler;
+        this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
@@ -163,6 +165,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     public ThreadPool getThreadPool() {
         return threadPool;
+    }
+
+    public CircuitBreaker getInflightBreaker() {
+        return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+    }
+
+    public InboundHandler getInboundHandler() {
+        return inboundHandler;
     }
 
     @Override

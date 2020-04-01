@@ -71,7 +71,7 @@ public class InboundHandler {
     }
 
     @SuppressWarnings("unchecked")
-    final <T extends TransportRequest> RequestHandlerRegistry<T> getRequestHandler(String action) {
+    public final <T extends TransportRequest> RequestHandlerRegistry<T> getRequestHandler(String action) {
         return (RequestHandlerRegistry<T>) requestHandlers.get(action);
     }
 
@@ -171,8 +171,8 @@ public class InboundHandler {
                     final int nextByte = stream.read();
                     // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
                     if (nextByte != -1) {
-                        throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
-                            + "], available [" + stream.available() + "]; resetting");
+                        throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
+                            + action + "], available [" + stream.available() + "]; resetting");
                     }
                     try {
                         threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));

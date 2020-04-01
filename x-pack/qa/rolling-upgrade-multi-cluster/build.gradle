@@ -78,7 +78,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       systemProperty 'tests.rest.upgrade_state', 'all'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#twoThirdsUpgradedTest"
-      println "task :${baseName}#${kind}#upgradedClusterTest depends on ${baseName}#${kind}#twoThirdsUpgradedTest"
       ext.kindExt = kind
     }
   }

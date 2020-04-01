@@ -37,7 +37,8 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         ClusterHealthStatus color = randomColor();
-        return new WaitForIndexColorStep(stepKey, nextStepKey, color);
+        String indexPrefix = randomAlphaOfLengthBetween(1, 10);
+        return new WaitForIndexColorStep(stepKey, nextStepKey, color, indexPrefix);
     }
 
     @Override
@@ -45,6 +46,8 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         ClusterHealthStatus color = instance.getColor(), newColor = randomColor();
+        String indexPrefix = instance.getIndexNamePrefix();
+
         while (color.equals(newColor)) {
             newColor = randomColor();
         }
@@ -59,14 +62,17 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             case 2:
                 color = newColor;
                 break;
+            case 3:
+                indexPrefix = randomAlphaOfLengthBetween(1, 10);
+                break;
         }
 
-        return new WaitForIndexColorStep(key, nextKey, color);
+        return new WaitForIndexColorStep(key, nextKey, color, indexPrefix);
     }
 
     @Override
     protected WaitForIndexColorStep copyInstance(WaitForIndexColorStep instance) {
-        return new WaitForIndexColorStep(instance.getKey(), instance.getNextStepKey(), instance.getColor());
+        return new WaitForIndexColorStep(instance.getKey(), instance.getNextStepKey(), instance.getColor(), instance.getIndexNamePrefix());
     }
 
     public void testConditionMetForGreen() {

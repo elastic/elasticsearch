@@ -336,27 +336,27 @@ Closure commonDebConfig(boolean oss, boolean jdk, String architecture) {
   }
 }
 
-task buildAarch64Deb(type: Deb) {
+tasks.register('buildAarch64Deb', Deb) {
   configure(commonDebConfig(false, true, 'aarch64'))
 }
 
-task buildDeb(type: Deb) {
+tasks.register('buildDeb', Deb) {
   configure(commonDebConfig(false, true, 'x64'))
 }
 
-task buildAarch64OssDeb(type: Deb) {
+tasks.register('buildAarch64OssDeb', Deb) {
   configure(commonDebConfig(true, true, 'aarch64'))
 }
 
-task buildOssDeb(type: Deb) {
+tasks.register('buildOssDeb', Deb) {
   configure(commonDebConfig(true, true, 'x64'))
 }
 
-task buildNoJdkDeb(type: Deb) {
+tasks.register('buildNoJdkDeb', Deb) {
   configure(commonDebConfig(false, false, 'x64'))
 }
 
-task buildOssNoJdkDeb(type: Deb) {
+tasks.register('buildOssNoJdkDeb', Deb) {
   configure(commonDebConfig(true, false, 'x64'))
 }
 
@@ -389,27 +389,27 @@ Closure commonRpmConfig(boolean oss, boolean jdk, String architecture) {
   }
 }
 
-task buildAarch64Rpm(type: Rpm) {
+tasks.register('buildAarch64Rpm', Rpm) {
   configure(commonRpmConfig(false, true, 'aarch64'))
 }
 
-task buildRpm(type: Rpm) {
+tasks.register('buildRpm', Rpm) {
   configure(commonRpmConfig(false, true, 'x64'))
 }
 
-task buildAarch64OssRpm(type: Rpm) {
+tasks.register('buildAarch64OssRpm', Rpm) {
   configure(commonRpmConfig(true, true, 'aarch64'))
 }
 
-task buildOssRpm(type: Rpm) {
+tasks.register('buildOssRpm', Rpm) {
   configure(commonRpmConfig(true, true, 'x64'))
 }
 
-task buildNoJdkRpm(type: Rpm) {
+tasks.register('buildNoJdkRpm', Rpm) {
   configure(commonRpmConfig(false, false, 'x64'))
 }
 
-task buildOssNoJdkRpm(type: Rpm) {
+tasks.register('buildOssNoJdkRpm', Rpm) {
   configure(commonRpmConfig(true, false, 'x64'))
 }
 
@@ -425,7 +425,7 @@ subprojects {
   apply plugin: 'distribution'
 
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
-  ext.buildDist = parent.tasks.getByName(buildTask)
+  ext.buildDist = parent.tasks.named(buildTask)
   artifacts {
     'default' buildDist
   }
@@ -441,7 +441,7 @@ subprojects {
       assert project.name.contains('rpm')
       packageExtractionDir = new File(extractionDir, 'rpm-extracted')
     }
-    task checkExtraction(type: LoggedExec) {
+    tasks.register('checkExtraction', LoggedExec) {
       dependsOn buildDist
       doFirst {
         project.delete(extractionDir)
@@ -535,7 +535,7 @@ subprojects {
     }
     check.dependsOn checkNotice
 
-    task checkLicenseMetadata(type: LoggedExec) {
+    tasks.register('checkLicenseMetadata', LoggedExec) {
       dependsOn buildDist, checkExtraction
     }
     check.dependsOn checkLicenseMetadata

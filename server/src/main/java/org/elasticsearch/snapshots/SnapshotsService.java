@@ -727,9 +727,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // 2. Snapshots in state INIT that the previous master failed to start
                     // 3. Snapshots in any other state that have all their shard tasks completed
                     snapshotsInProgress.entries().stream().filter(
-                        entry -> entry.state().completed()
+                        entry -> endingSnapshots.contains(entry.snapshot()) == false && (entry.state().completed()
                             || initializingSnapshots.contains(entry.snapshot()) == false
-                               && (entry.state() == State.INIT || completed(entry.shards().values()))
+                               && (entry.state() == State.INIT || completed(entry.shards().values())))
                     ).forEach(entry -> endSnapshot(entry, event.state().metadata()));
                 }
                 if (newMaster) {

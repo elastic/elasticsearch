@@ -57,20 +57,36 @@ startsWith(<source>, <substring>)
 *Parameters*
 
 `<source>`::
++
+--
 (Required, string or `null`)
 Source string. If `null`, the function returns `null`.
-+
-If using a field as the argument, this parameter only supports the
-<<keyword,`keyword`>> and <<constant-keyword,`constant_keyword`>> field
-datatypes. Fields containing array values use the first array item only.
+
+If using a field as the argument, this parameter only supports the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+Fields containing array values use the first array item only.
+--
 
 `<substring>`::
++
+--
 (Required, string or `null`)
 Substring to search for. If `null`, the function returns `null`.
-+
-If using a field as the argument, this parameter only supports the
-<<keyword,`keyword`>> and <<constant-keyword,`constant_keyword`>> field
-datatypes.
+
+If using a field as the argument, this parameter only supports the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
 
 *Returns:* boolean or `null`
 ====

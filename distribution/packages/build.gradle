@@ -453,7 +453,7 @@ subprojects {
     if (project.name.contains('deb')) {
       checkExtraction {
         onlyIf dpkgExists
-        commandLine 'dpkg-deb', '-x', "${-> buildDist.outputs.files.filter(debFilter).singleFile}", packageExtractionDir
+        commandLine 'dpkg-deb', '-x', "${-> buildDist.get()outputs.files.filter(debFilter).singleFile}", packageExtractionDir
       }
     } else {
       assert project.name.contains('rpm')
@@ -472,7 +472,7 @@ subprojects {
           '--relocate',
           "/=${packageExtractionDir}",
           '-i',
-          "${-> buildDist.outputs.files.singleFile}"
+          "${-> buildDist.get().outputs.files.singleFile}"
       }
     }
 
@@ -543,7 +543,7 @@ subprojects {
       checkLicenseMetadata { LoggedExec exec ->
         onlyIf dpkgExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
-        exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.outputs.files.filter(debFilter).singleFile}"
+        exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
         exec.standardOutput = output
         doLast {
           String expectedLicense
@@ -579,7 +579,7 @@ subprojects {
       checkLicenseMetadata { LoggedExec exec ->
         onlyIf rpmExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
-        exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.outputs.files.singleFile}"
+        exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.get().outputs.files.singleFile}"
         exec.standardOutput = output
         doLast {
           String license = output.toString('UTF-8')
@@ -590,7 +590,7 @@ subprojects {
             expectedLicense = "Elastic License"
           }
           if (license != expectedLicense) {
-            throw new GradleException("expected license [${expectedLicense}] for [${-> buildDist.outputs.files.singleFile}] but was [${license}]")
+            throw new GradleException("expected license [${expectedLicense}] for [${-> buildDist.get().outputs.files.singleFile}] but was [${license}]")
           }
         }
       }

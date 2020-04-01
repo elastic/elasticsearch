@@ -248,13 +248,13 @@ subprojects {
   if (project.name.contains('tar')) {
     checkExtraction.configure {
       onlyIf tarExists
-      commandLine 'tar', '-xvzf', "${-> buildDist.outputs.files.singleFile}", '-C', archiveExtractionDir
+      commandLine 'tar', '-xvzf', "${-> buildDist.get().outputs.files.singleFile}", '-C', archiveExtractionDir
     }
   } else {
     assert project.name.contains('zip')
     checkExtraction.configure {
       onlyIf unzipExists
-      commandLine 'unzip', "${-> buildDist.outputs.files.singleFile}", '-d', archiveExtractionDir
+      commandLine 'unzip', "${-> buildDist.get().outputs.files.singleFile}", '-d', archiveExtractionDir
     }
   }
 

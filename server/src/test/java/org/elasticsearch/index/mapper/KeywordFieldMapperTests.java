@@ -389,7 +389,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
-    
+
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()

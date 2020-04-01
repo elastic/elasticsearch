@@ -26,8 +26,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -420,17 +420,17 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     /**
      * Returns the filter associated with listed filtering aliases.
      * <p>
-     * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
+     * The list of filtering aliases should be obtained by calling Metadata.filteringAliases.
      * Returns {@code null} if no filtering is required.</p>
      */
     public static QueryBuilder parseAliasFilter(CheckedFunction<byte[], QueryBuilder, IOException> filterParser,
-                                                IndexMetaData metaData, String... aliasNames) {
+                                                IndexMetadata metadata, String... aliasNames) {
         if (aliasNames == null || aliasNames.length == 0) {
             return null;
         }
-        Index index = metaData.getIndex();
-        ImmutableOpenMap<String, AliasMetaData> aliases = metaData.getAliases();
-        Function<AliasMetaData, QueryBuilder> parserFunction = (alias) -> {
+        Index index = metadata.getIndex();
+        ImmutableOpenMap<String, AliasMetadata> aliases = metadata.getAliases();
+        Function<AliasMetadata, QueryBuilder> parserFunction = (alias) -> {
             if (alias.filter() == null) {
                 return null;
             }
@@ -441,7 +441,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             }
         };
         if (aliasNames.length == 1) {
-            AliasMetaData alias = aliases.get(aliasNames[0]);
+            AliasMetadata alias = aliases.get(aliasNames[0]);
             if (alias == null) {
                 // This shouldn't happen unless alias disappeared after filteringAliases was called.
                 throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
@@ -451,7 +451,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             // we need to bench here a bit, to see maybe it makes sense to use OrFilter
             BoolQueryBuilder combined = new BoolQueryBuilder();
             for (String aliasName : aliasNames) {
-                AliasMetaData alias = aliases.get(aliasName);
+                AliasMetadata alias = aliases.get(aliasName);
                 if (alias == null) {
                     // This shouldn't happen unless alias disappeared after filteringAliases was called.
                     throw new InvalidAliasNameException(index, aliasNames[0],

@@ -59,14 +59,14 @@ public class ExtendedStatsAggregationBuilder
     }
 
     protected ExtendedStatsAggregationBuilder(ExtendedStatsAggregationBuilder clone,
-                                              Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                              Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.sigma = clone.sigma;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new ExtendedStatsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new ExtendedStatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -102,7 +102,7 @@ public class ExtendedStatsAggregationBuilder
     @Override
     protected ExtendedStatsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                         AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new ExtendedStatsAggregatorFactory(name, config, sigma, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new ExtendedStatsAggregatorFactory(name, config, sigma, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

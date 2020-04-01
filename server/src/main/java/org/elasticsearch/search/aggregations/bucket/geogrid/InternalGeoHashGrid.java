@@ -34,8 +34,8 @@ import java.util.Map;
 public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBucket> {
 
     InternalGeoHashGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, requiredSize, buckets, pipelineAggregators, metaData);
+                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, requiredSize, buckets, pipelineAggregators, metadata);
     }
 
     public InternalGeoHashGrid(StreamInput in) throws IOException {
@@ -44,7 +44,7 @@ public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBuck
 
     @Override
     public InternalGeoGrid create(List<InternalGeoGridBucket> buckets) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, pipelineAggregators(), metaData);
+        return new InternalGeoHashGrid(name, requiredSize, buckets, pipelineAggregators(), metadata);
     }
 
     @Override
@@ -53,8 +53,8 @@ public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBuck
     }
 
     @Override
-    InternalGeoGrid create(String name, int requiredSize, List buckets, List list, Map metaData) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, list, metaData);
+    InternalGeoGrid create(String name, int requiredSize, List buckets, List list, Map metadata) {
+        return new InternalGeoHashGrid(name, requiredSize, buckets, list, metadata);
     }
 
     @Override

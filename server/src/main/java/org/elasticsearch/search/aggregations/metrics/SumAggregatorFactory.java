@@ -46,8 +46,8 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
                             QueryShardContext queryShardContext,
                             AggregatorFactory parent,
                             AggregatorFactories.Builder subFactoriesBuilder,
-                            Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                            Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
@@ -60,8 +60,8 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         DocValueFormat formatter,
                                         SearchContext context,
                                         Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-                    return new SumAggregator(name, (Numeric) valuesSource, formatter, context, parent, pipelineAggregators, metaData);
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+                    return new SumAggregator(name, (Numeric) valuesSource, formatter, context, parent, pipelineAggregators, metadata);
                 }
             });
     }
@@ -70,9 +70,9 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData)
+                                            Map<String, Object> metadata)
             throws IOException {
-        return new SumAggregator(name, null, config.format(), searchContext, parent, pipelineAggregators, metaData);
+        return new SumAggregator(name, null, config.format(), searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
@@ -81,7 +81,7 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             SumAggregationBuilder.NAME);
 
@@ -90,6 +90,6 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent,
-            pipelineAggregators, metaData);
+            pipelineAggregators, metadata);
     }
 }

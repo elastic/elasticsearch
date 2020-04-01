@@ -132,8 +132,8 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     }
 
     AbstractPercentilesAggregationBuilder(AbstractPercentilesAggregationBuilder<T> clone,
-                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.percentilesConfig = clone.percentilesConfig;
         this.keyed = clone.keyed;
         this.values = clone.values;

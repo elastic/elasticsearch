@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -116,7 +116,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ClusterService.USER_DEFINED_META_DATA,
+                ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         clusterService = new ClusterService(settings, clusterSettings, tp);
         ingestService = new IngestService(clusterService, tp, null, null,
@@ -256,7 +256,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);
 
         return ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .build();
     }
 

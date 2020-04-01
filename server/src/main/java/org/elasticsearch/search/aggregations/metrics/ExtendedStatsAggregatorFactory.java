@@ -48,8 +48,8 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.sigma = sigma;
     }
 
@@ -63,9 +63,9 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new ExtendedStatsAggregator(name, null, config.format(), searchContext,
-            parent, sigma, pipelineAggregators, metaData);
+            parent, sigma, pipelineAggregators, metadata);
     }
 
     @Override
@@ -74,7 +74,7 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             ExtendedStatsAggregationBuilder.NAME);
 
@@ -83,6 +83,6 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((ExtendedStatsAggregatorProvider) aggregatorSupplier).build(name, (Numeric) valuesSource, config.format(), searchContext,
-            parent, sigma, pipelineAggregators, metaData);
+            parent, sigma, pipelineAggregators, metadata);
     }
 }

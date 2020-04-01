@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.List;
 
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.INDICES;
 import static org.elasticsearch.client.Requests.nodesInfoRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -101,7 +102,7 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         assertThat(response.getNodesMap().get(server2NodeId).getTotalIndexingBuffer().getBytes(), greaterThan(0L));
 
         // again, using only the indices flag
-        response = client().admin().cluster().prepareNodesInfo().clear().setIndices(true).execute().actionGet();
+        response = client().admin().cluster().prepareNodesInfo().clear().addMetric(INDICES.metricName()).execute().actionGet();
         assertThat(response.getNodes().size(), is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertNotNull(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer());

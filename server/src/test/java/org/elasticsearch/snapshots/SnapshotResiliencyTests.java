@@ -698,6 +698,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final TestClusterNodes.TestClusterNode masterNode =
             testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
         final AtomicBoolean createdSnapshot = new AtomicBoolean();
+        final AtomicBoolean deletedSnapshot = new AtomicBoolean();
         final AdminClient masterAdminClient = masterNode.client.admin();
 
         final StepListener<ClusterStateResponse> clusterStateResponseStepListener = new StepListener<>();
@@ -725,8 +726,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             testClusterNodes.randomDataNodeSafe().client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
                                 .execute(ActionListener.wrap(() -> {
                                     createdSnapshot.set(true);
-                                    testClusterNodes.randomDataNodeSafe().client.admin().cluster().deleteSnapshot(
-                                        new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
+                                    testClusterNodes.randomDataNodeSafe().client.admin().cluster()
+                                        .prepareDeleteSnapshot(repoName, snapshotName).execute(
+                                            ActionListener.wrap(() -> deletedSnapshot.set(true)));
                                 }));
                             scheduleNow(
                                 () -> testClusterNodes.randomMasterNodeSafe().client.admin().cluster().reroute(
@@ -741,7 +743,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         });
 
         runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
-            if (createdSnapshot.get() == false) {
+            if (createdSnapshot.get() == false || deletedSnapshot.get() == false) {
                 return false;
             }
             final SnapshotsInProgress snapshotsInProgress = master.clusterService.state().custom(SnapshotsInProgress.TYPE);

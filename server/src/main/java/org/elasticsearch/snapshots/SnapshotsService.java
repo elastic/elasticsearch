@@ -1151,7 +1151,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         clusterService.submitStateUpdateTask("init snapshot delete [" + repositoryName + "][" + snapshotName + "]",
             new ClusterStateUpdateTask() {
 
-                boolean inProgress;
+                SnapshotsInProgress.Entry inProgress;
 
                 boolean bwCMode;
 
@@ -1161,16 +1161,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (bwCMode) {
                         return currentState;
                     }
-                    Optional<SnapshotsInProgress.Entry> matchedInProgress = currentSnapshots(
-                        clusterService.state().custom(SnapshotsInProgress.TYPE), repositoryName, Collections.emptyList()).stream()
+                    List<SnapshotsInProgress.Entry> snapshots =
+                        currentSnapshots(currentState.custom(SnapshotsInProgress.TYPE), repositoryName, Collections.emptyList());
+                    Optional<SnapshotsInProgress.Entry> matchedInProgress = snapshots.stream()
                         .filter(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName)).findFirst();
                     final SnapshotDeletionsInProgress.Entry newDelete;
                     if (matchedInProgress.isPresent()) {
-                        inProgress = true;
                         final SnapshotsInProgress.Entry snapshotInProgress = matchedInProgress.get();
+                        inProgress = snapshotInProgress;
                         newDelete = new SnapshotDeletionsInProgress.Entry(snapshotInProgress.snapshot(),
                             threadPool.absoluteTimeInMillis(), snapshotInProgress.repositoryStateId() + 1L);
                     } else {
+                        // This snapshot is not running - delete
+                        if (snapshots.isEmpty() == false) {
+                            // However other snapshots are running - cannot continue
+                            throw new ConcurrentSnapshotExecutionException(
+                                snapshots.get(0).snapshot(), "another snapshot is currently running cannot delete");
+                        }
                         newDelete = new SnapshotDeletionsInProgress.Entry(repositoryName, snapshotName, threadPool.absoluteTimeInMillis());
                     }
                     final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
@@ -1196,7 +1203,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     if (bwCMode) {
                         deleteSnapshotsLegacy(repositoryName, snapshotName, listener, immediatePriority);
-                    } else if (inProgress == false) {
+                    } else if (inProgress == null) {
                         threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
                             final Repository repository = repositoriesService.repository(repositoryName);
                             repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
@@ -1207,6 +1214,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     deleteCompletedSnapshotStep(repositoryName, snapshotId, repositoryData.getGenId(), listener));
                             }, listener::onFailure));
                         }));
+                    } else {
+                        final Snapshot snapshot = inProgress.snapshot();
+                        addListener(snapshot, ActionListener.wrap(snapshotInfo -> deleteSnapshotFromRepository(
+                            snapshot, listener, inProgress.repositoryStateId() + 1,
+                            newState.nodes().getMinNodeVersion()), listener::onFailure));
                     }
                 }
             });
@@ -1221,7 +1233,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 boolean changed = false;
                 final List<SnapshotDeletionsInProgress.Entry> newEntries = new ArrayList<>();
                 for (SnapshotDeletionsInProgress.Entry entry : existingDeletions.getEntries()) {
-                    if (entry.repository().equals(repositoryName) && entry.getSnapshotIds().contains(snapshot)) {
+                    if (entry.matches(new Snapshot(repositoryName, snapshot))) {
                         newEntries.add(new SnapshotDeletionsInProgress.Entry(entry, repositoryGen));
                         changed = true;
                     } else {

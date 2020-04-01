@@ -75,7 +75,8 @@ public class AutoscalingMetadata implements Metadata.Custom {
         final int size = in.readVInt();
         final SortedMap<String, AutoscalingPolicyMetadata> policies = new TreeMap<>();
         for (int i = 0; i < size; i++) {
-            policies.put(in.readString(), new AutoscalingPolicyMetadata(in));
+            final AutoscalingPolicyMetadata policyMetadata = new AutoscalingPolicyMetadata(in);
+            policies.put(policyMetadata.policy().name(), policyMetadata);
         }
         this.policies = policies;
     }
@@ -84,7 +85,6 @@ public class AutoscalingMetadata implements Metadata.Custom {
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeVInt(policies.size());
         for (final Map.Entry<String, AutoscalingPolicyMetadata> policy : policies.entrySet()) {
-            out.writeString(policy.getKey());
             policy.getValue().writeTo(out);
         }
     }

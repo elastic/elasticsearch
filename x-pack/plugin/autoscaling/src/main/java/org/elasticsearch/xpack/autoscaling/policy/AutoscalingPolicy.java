@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> implements Diffable<AutoscalingPolicy>, ToXContentObject {
@@ -73,13 +74,17 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
 
     public AutoscalingPolicy(final StreamInput in) throws IOException {
         name = in.readString();
-        deciders = new TreeMap<>(in.readMap(StreamInput::readString, i -> i.readNamedWriteable(AutoscalingDecider.class)));
+        deciders = new TreeMap<>(
+            in.readNamedWriteableList(AutoscalingDecider.class)
+                .stream()
+                .collect(Collectors.toMap(AutoscalingDecider::name, Function.identity()))
+        );
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeMap(deciders, StreamOutput::writeString, StreamOutput::writeNamedWriteable);
+        out.writeNamedWriteableList(deciders.values().stream().collect(Collectors.toUnmodifiableList()));
     }
 
     @Override

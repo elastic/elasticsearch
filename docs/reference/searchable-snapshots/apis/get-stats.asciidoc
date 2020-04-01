@@ -43,7 +43,7 @@ statistics must be retrieved.
 ////
 [source,console]
 -----------------------------------
-PUT /my_docs
+PUT /docs
 {
     "settings" : {
         "index.number_of_shards" : 1,
@@ -57,12 +57,11 @@ PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
     "indices": "docs"
 }
 
-DELETE /my_docs
+DELETE /docs
 
-PUT /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
+POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
 {
-  "index": "my_docs",
-  "renamed_index": "docs"
+  "index": "docs"
 }
 -----------------------------------
 // TEST[setup:setup-repository]
@@ -74,4 +73,4 @@ Retrieves the statistics of the index `docs`:
 --------------------------------------------------
 GET /docs/_searchable_snapshots/stats
 --------------------------------------------------
-// TESTRESPONSE
+// TEST[continued]

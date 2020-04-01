@@ -95,8 +95,10 @@ PUT /my_docs
 PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
 {
     "include_global_state": false,
-    "indices": "docs"
+    "indices": "my_docs"
 }
+
+DELETE /my_docs
 -----------------------------------
 // TEST[setup:setup-repository]
 ////
@@ -106,20 +108,19 @@ in the `my_repository` as a new index `docs`:
 
 [source,console]
 --------------------------------------------------
-PUT /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true <1>
+POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
 {
-  "index": "my_docs", <2>
-  "renamed_index": "docs", <3>
-  "index_settings": { <4>
+  "index": "my_docs", <1>
+  "renamed_index": "docs", <2>
+  "index_settings": { <3>
     "index.number_of_replicas": 0
   },
-  "ignored_index_settings": [ "index.refresh_interval" ] <5>
+  "ignored_index_settings": [ "index.refresh_interval" ] <4>
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TEST[continued]
 
-<1> Wait for the operation to be completed before returning
-<2> The name of the index in the snapshot to mount
-<3> The name of the index to create
-<4> Any index settings to add to the new index
-<5> List of indices to ignore when mounting the snapshotted index
+<1> The name of the index in the snapshot to mount
+<2> The name of the index to create
+<3> Any index settings to add to the new index
+<4> List of indices to ignore when mounting the snapshotted index

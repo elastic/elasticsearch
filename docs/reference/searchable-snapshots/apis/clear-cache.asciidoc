@@ -43,7 +43,7 @@ searchable snapshots cache must be cleared.
 ////
 [source,console]
 -----------------------------------
-PUT /my_docs
+PUT /docs
 {
     "settings" : {
         "index.number_of_shards" : 1,
@@ -57,12 +57,11 @@ PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
     "indices": "docs"
 }
 
-DELETE /my_docs
+DELETE /docs
 
-PUT /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
+POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
 {
-  "index": "my_docs",
-  "renamed_index": "docs"
+  "index": "docs"
 }
 -----------------------------------
 // TEST[setup:setup-repository]
@@ -74,4 +73,4 @@ Clears the cache of the index `docs`:
 --------------------------------------------------
 POST /docs/_searchable_snapshots/cache/clear
 --------------------------------------------------
-// TESTRESPONSE
+// TEST[continued]

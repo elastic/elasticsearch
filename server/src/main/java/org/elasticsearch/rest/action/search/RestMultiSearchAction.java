@@ -42,7 +42,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -96,7 +95,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
      *                     allowing the same parsing logic to work in v7 and v8.
      *                     It takes a string - field name, returns a boolean - if the field was "type or types"
      */
-    public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex, Function<String,Boolean> typeConsumer
+    public static MultiSearchRequest parseRequest(RestRequest restRequest,
+                                                  boolean allowExplicitIndex,
+                                                  Function<String,Boolean> typeConsumer
         /*TODO rename to unexpected field consumer?*/) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
@@ -140,8 +141,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
     /**
      * Parses a multi-line {@link RestRequest} body, instantiating a {@link SearchRequest} for each line and applying the given consumer.
      */
-    public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
-            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer, Function<String,Boolean> typeConsumer) throws IOException {
+    public static void parseMultiLineRequest(RestRequest request,
+                                             IndicesOptions indicesOptions,
+                                             boolean allowExplicitIndex,
+                                             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+                                             Function<String, Boolean> typeConsumer) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String searchType = request.param("search_type");

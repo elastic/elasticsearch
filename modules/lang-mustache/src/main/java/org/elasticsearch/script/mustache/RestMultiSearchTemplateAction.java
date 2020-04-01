@@ -89,7 +89,9 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
      *                     allowing the same parsing logic to work in v7 and v8.
      *                     It takes a string - field name, returns a boolean - if the field was "type or types"
      */
-    public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex, Function<String,Boolean> typeConsumer) throws IOException {
+    public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest,
+                                                          boolean allowExplicitIndex,
+                                                          Function<String,Boolean> typeConsumer) throws IOException {
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.compat.FakeCompatRestRequestBuilder;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchActionV7;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() throws IOException {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+        RestRequest request = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/some_type/_update_by_query")
             .build();
         dispatchRequest(request);
@@ -57,7 +57,7 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
     }
 
     public void testParseEmpty() throws IOException {
-        UpdateByQueryRequest request = action.buildRequest(new FakeRestRequest.Builder(new NamedXContentRegistry(emptyList())).build());
+        UpdateByQueryRequest request = action.buildRequest(new FakeCompatRestRequestBuilder(new NamedXContentRegistry(emptyList())).build());
         // assertEquals(AbstractBulkByScrollRequest.SIZE_ALL_MATCHES, request.getSize());
         assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE, request.getSearchRequest().source().size());
     }

@@ -37,7 +37,12 @@ public class RestMultiTermVectorsActionV7 extends RestMultiTermVectorsAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/{type}/_mtermvectors"), new Route(POST, "/{index}/{type}/_mtermvectors"));
+        return List.of(new Route(GET, "/_mtermvectors"),
+            new Route(POST, "/_mtermvectors"),
+            new Route(GET, "/{index}/_mtermvectors"),
+            new Route(POST, "/{index}/_mtermvectors"),
+            new Route(GET, "/{index}/{type}/_mtermvectors"),
+            new Route(POST, "/{index}/{type}/_mtermvectors"));
     }
 
     @Override

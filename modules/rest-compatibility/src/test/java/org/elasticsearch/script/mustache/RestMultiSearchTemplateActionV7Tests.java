@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.compat.FakeCompatRestRequestBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
@@ -39,7 +39,7 @@ public class RestMultiSearchTemplateActionV7Tests extends RestActionTestCase {
         String content = "{ \"index\": \"some_index\" } \n" + "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+        RestRequest request = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/some_index/some_type/_msearch/template")
             .withContent(bytesContent, XContentType.JSON)
             .build();
@@ -52,7 +52,7 @@ public class RestMultiSearchTemplateActionV7Tests extends RestActionTestCase {
         String content = "{ \"index\": \"some_index\", \"type\": \"some_type\" } \n" + "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/some_index/_msearch/template")
+        RestRequest request = new FakeCompatRestRequestBuilder(xContentRegistry()).withPath("/some_index/_msearch/template")
             .withContent(bytesContent, XContentType.JSON)
             .build();
 

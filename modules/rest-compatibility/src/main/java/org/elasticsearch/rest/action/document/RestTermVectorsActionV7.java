@@ -38,6 +38,10 @@ public class RestTermVectorsActionV7 extends RestTermVectorsAction {
     @Override
     public List<Route> routes() {
         return List.of(
+            new Route(GET, "/{index}/_termvectors"),
+            new Route(POST, "/{index}/_termvectors"),
+            new Route(GET, "/{index}/_termvectors/{id}"),
+            new Route(POST, "/{index}/_termvectors/{id}"),
             // Deprecated typed endpoints.
             new Route(GET, "/{index}/{type}/_termvectors"),
             new Route(POST, "/{index}/{type}/_termvectors"),

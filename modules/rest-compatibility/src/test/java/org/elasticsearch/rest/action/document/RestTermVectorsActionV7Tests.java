@@ -19,13 +19,13 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.compat.FakeCompatRestRequestBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
@@ -35,11 +35,11 @@ public class RestTermVectorsActionV7Tests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestMultiTermVectorsActionV7());
+        controller().registerHandler(new RestTermVectorsActionV7());
     }
 
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
+        RestRequest request = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(Method.POST)
             .withPath("/some_index/some_type/some_id/_termvectors")
             .build();
 
@@ -50,7 +50,7 @@ public class RestTermVectorsActionV7Tests extends RestActionTestCase {
     public void testTypeInBody() throws IOException {
         XContentBuilder content = XContentFactory.jsonBuilder().startObject().field("_type", "some_type").field("_id", 1).endObject();
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.GET)
+        RestRequest request = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(Method.GET)
             .withPath("/some_index/_termvectors/some_id")
             .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();

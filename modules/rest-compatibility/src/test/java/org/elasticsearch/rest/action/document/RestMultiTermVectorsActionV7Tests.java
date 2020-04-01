@@ -19,13 +19,13 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.compat.FakeCompatRestRequestBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
@@ -37,11 +37,11 @@ public class RestMultiTermVectorsActionV7Tests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestMultiTermVectorsAction());
+        controller().registerHandler(new RestMultiTermVectorsActionV7());
     }
 
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.POST)
+        RestRequest request = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(Method.POST)
             .withPath("/some_index/some_type/_mtermvectors")
             .build();
 
@@ -53,7 +53,7 @@ public class RestMultiTermVectorsActionV7Tests extends RestActionTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.GET)
+        RestRequest request = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(Method.GET)
             .withPath("/some_index/_mtermvectors")
             .withParams(params)
             .build();
@@ -73,7 +73,7 @@ public class RestMultiTermVectorsActionV7Tests extends RestActionTestCase {
             .endArray()
             .endObject();
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(Method.GET)
+        RestRequest request = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(Method.GET)
             .withPath("/some_index/_mtermvectors")
             .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();

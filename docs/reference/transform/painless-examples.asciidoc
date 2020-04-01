@@ -14,6 +14,8 @@ more about the Painless scripting language in the
 * <<painless-time-features>>
 * <<painless-group-by>>
 * <<painless-bucket-script>>
+* <<painless-count-http>>
+* <<painless-compare>>
 
 NOTE: While the context of the following examples is the {transform} use case, 
 the Painless scripts in the snippets below can be used in other {es} search 
@@ -399,3 +401,68 @@ by each shard and assigns the different response types to the appropriate
 properties of the `counts` object; error responses to the error counts, success 
 responses to the success counts, and other responses to the other counts. 
 Finally, returns the `counts` array with the response counts.
+
+
+[discrete]
+[[painless-compare]]
+==== Comparing indices by using scripted metric aggregations
+
+This example shows how to compare two 
+
+[source,console]
+--------------------------------------------------
+POST _transform/_preview
+{
+  "id" : "index_compare",
+  "source" : { <1>
+    "index" : [
+      "index1",
+      "index2"
+    ],
+    "query" : {
+      "match_all" : { }
+    }
+  },
+  "dest" : { <2>
+    "index" : "compare"
+  },
+  "pivot" : {
+    "group_by" : {
+      "unique-id" : {
+        "terms" : {
+          "field" : "<unique-id-field>" <3>
+        }
+      }
+    },
+    "aggregations" : {
+      "compare" : { <4>
+        "scripted_metric" : {
+          "init_script" : "", <5>
+          "map_script" : "state.doc = new HashMap(params['_source'])", <6>
+          "combine_script" : "return state", <7>
+          "reduce_script" : """ <8>
+            if (states.size() != 2) {
+              return "count_mismatch"
+            }
+            if (states.get(0).equals(states.get(1))) {
+              return "match"
+            } else {
+              return "mismatch"
+            }
+            """
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1>
+<2>
+<3>
+<4>
+<5>
+<6>
+<7>
+<8>

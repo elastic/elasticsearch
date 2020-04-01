@@ -40,7 +40,7 @@ import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
 import static java.sql.Types.TINYINT;
 import static java.time.ZoneOffset.UTC;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.logResultSetMetadata;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.logResultSetMetaData;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.resultSetCurrentData;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
@@ -96,23 +96,23 @@ public class JdbcAssert {
     public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,
             boolean lenientFloatingNumbers) throws SQLException {
         try (ResultSet ex = expected; ResultSet ac = actual) {
-            assertResultSetMetadata(ex, ac, logger, lenientDataType);
+            assertResultSetMetaData(ex, ac, logger, lenientDataType);
             assertResultSetData(ex, ac, logger, lenientDataType, lenientFloatingNumbers);
         }
     }
 
-    public static void assertResultSetMetadata(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
-        assertResultSetMetadata(expected, actual, logger, false);
+    public static void assertResultSetMetaData(ResultSet expected, ResultSet actual, Logger logger) throws SQLException {
+        assertResultSetMetaData(expected, actual, logger, false);
     }
 
-    // metadata doesn't consume a ResultSet thus it shouldn't close it
-    public static void assertResultSetMetadata(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType)
+    // MetaData doesn't consume a ResultSet thus it shouldn't close it
+    public static void assertResultSetMetaData(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType)
             throws SQLException {
         ResultSetMetaData expectedMeta = expected.getMetaData();
         ResultSetMetaData actualMeta = actual.getMetaData();
 
         if (logger != null) {
-            logResultSetMetadata(actual, logger);
+            logResultSetMetaData(actual, logger);
         }
 
         if (expectedMeta.getColumnCount() != actualMeta.getColumnCount()) {
@@ -206,8 +206,8 @@ public class JdbcAssert {
 
     private static void doAssertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,
             boolean lenientFloatingNumbers) throws SQLException {
-        ResultSetMetaData metaData = expected.getMetaData();
-        int columns = metaData.getColumnCount();
+        ResultSetMetaData MetaData = expected.getMetaData();
+        int columns = MetaData.getColumnCount();
 
         long count = 0;
         try {
@@ -219,10 +219,10 @@ public class JdbcAssert {
                 }
 
                 for (int column = 1; column <= columns; column++) {
-                    int type = metaData.getColumnType(column);
+                    int type = MetaData.getColumnType(column);
                     Class<?> expectedColumnClass = null;
                     try {
-                        String columnClassName = metaData.getColumnClassName(column);
+                        String columnClassName = MetaData.getColumnClassName(column);
 
                         // fix for CSV which returns the shortName not fully-qualified name
                         if (columnClassName != null && !columnClassName.contains(".")) {
@@ -253,12 +253,12 @@ public class JdbcAssert {
                     }
 
                     Object expectedObject = expected.getObject(column);
-                    Object actualObject = (lenientDataType && expectedColumnClass != null) 
+                    Object actualObject = (lenientDataType && expectedColumnClass != null)
                             ? actual.getObject(column, expectedColumnClass)
                             : actual.getObject(column);
 
                     String msg = format(Locale.ROOT, "Different result for column [%s], entry [%d]",
-                        metaData.getColumnName(column), count + 1);
+                        MetaData.getColumnName(column), count + 1);
 
                     // handle nulls first
                     if (expectedObject == null || actualObject == null) {

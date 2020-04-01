@@ -46,10 +46,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -70,7 +70,7 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
@@ -365,10 +365,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get()
             .getHits().getTotalHits().value, equalTo(firstBatchNumDocs)));
-        MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
+        MappingMetadata mappingMetadata = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
             .get("index2");
-        assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("integer"));
-        assertThat(XContentMapValues.extractValue("properties.k", mappingMetaData.sourceAsMap()), nullValue());
+        assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetadata.sourceAsMap()), equalTo("integer"));
+        assertThat(XContentMapValues.extractValue("properties.k", mappingMetadata.sourceAsMap()), nullValue());
 
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
@@ -378,10 +378,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
             equalTo(firstBatchNumDocs + secondBatchNumDocs)));
-        mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
+        mappingMetadata = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
             .get("index2");
-        assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("integer"));
-        assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));
+        assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetadata.sourceAsMap()), equalTo("integer"));
+        assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetadata.sourceAsMap()), equalTo("long"));
         pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), 2);
     }
@@ -389,8 +389,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testNoMappingDefined() throws Exception {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1")
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
         ensureLeaderGreen("index1");
 
@@ -401,10 +401,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(1L)));
         pauseFollow("index2");
 
-        MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
+        MappingMetadata mappingMetadata = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
             .get("index2");
-        assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetaData.sourceAsMap()), equalTo("long"));
-        assertThat(XContentMapValues.extractValue("properties.k", mappingMetaData.sourceAsMap()), nullValue());
+        assertThat(XContentMapValues.extractValue("properties.f.type", mappingMetadata.sourceAsMap()), equalTo("long"));
+        assertThat(XContentMapValues.extractValue("properties.k", mappingMetadata.sourceAsMap()), nullValue());
     }
 
     public void testDoNotAllowPutMappingToFollower() throws Exception {
@@ -457,9 +457,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 followerClient().admin().indices().getAliases(new GetAliasesRequest("follower_alias")).actionGet();
         assertThat(response.getAliases().keys().size(), equalTo(1));
         assertThat(response.getAliases().keys().iterator().next().value, equalTo("follower"));
-        final List<AliasMetaData> aliasMetaData = response.getAliases().get("follower");
-        assertThat(aliasMetaData, hasSize(1));
-        assertThat(aliasMetaData.get(0).alias(), equalTo("follower_alias"));
+        final List<AliasMetadata> aliasMetadata = response.getAliases().get("follower");
+        assertThat(aliasMetadata, hasSize(1));
+        assertThat(aliasMetadata.get(0).alias(), equalTo("follower_alias"));
     }
 
     public void testFollowIndex_backlog() throws Exception {
@@ -646,8 +646,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testCloseLeaderIndex() throws Exception {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1")
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
 
         final PutFollowAction.Request followRequest = putFollow("index1", "index2");
@@ -679,8 +679,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testCloseFollowIndex() throws Exception {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1")
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
 
         final PutFollowAction.Request followRequest = putFollow("index1", "index2");
@@ -707,8 +707,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testDeleteLeaderIndex() throws Exception {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1")
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
 
         final PutFollowAction.Request followRequest = putFollow("index1", "index2");
@@ -747,8 +747,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final String leaderIndex = "test-index";
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex)
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
         ensureLeaderGreen(leaderIndex);
 
@@ -772,8 +772,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testDeleteFollowerIndex() throws Exception {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1")
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
 
         final PutFollowAction.Request followRequest = putFollow("index1", "index2");
@@ -802,8 +802,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testPauseIndex() throws Exception {
         assertAcked(leaderClient().admin().indices().prepareCreate("leader")
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()));
         followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
         assertAcked(followerClient().admin().indices().prepareCreate("regular-index"));
@@ -872,8 +872,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertAcked(leaderClient().admin().indices().prepareCreate("index1")
                 .setWaitForActiveShards(ActiveShardCount.NONE)
                 .setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .build()));
 
             final PutFollowAction.Request followRequest = putFollow("index1", "index2");
@@ -1048,9 +1048,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
             getMappingsRequest.indices("follower");
             GetMappingsResponse getMappingsResponse = followerClient().admin().indices().getMappings(getMappingsRequest).actionGet();
-            MappingMetaData mappingMetaData = getMappingsResponse.getMappings().get("follower");
-            assertThat(XContentMapValues.extractValue("properties.new_field.type", mappingMetaData.sourceAsMap()), equalTo("text"));
-            assertThat(XContentMapValues.extractValue("properties.new_field.analyzer", mappingMetaData.sourceAsMap()),
+            MappingMetadata mappingMetadata = getMappingsResponse.getMappings().get("follower");
+            assertThat(XContentMapValues.extractValue("properties.new_field.type", mappingMetadata.sourceAsMap()), equalTo("text"));
+            assertThat(XContentMapValues.extractValue("properties.new_field.analyzer", mappingMetadata.sourceAsMap()),
                 equalTo("my_analyzer"));
 
             try {
@@ -1072,9 +1072,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final IndexMetaData indexMetaData = currentState.metaData().index("leader");
+                final IndexMetadata indexMetadata = currentState.metadata().index("leader");
                 Settings.Builder settings = Settings.builder()
-                    .put(indexMetaData.getSettings())
+                    .put(indexMetadata.getSettings())
                     .put("index.max_ngram_diff", 2);
                 if (randomBoolean()) {
                     settings.put(PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey(), "private-value");
@@ -1082,11 +1082,11 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 if (randomBoolean()) {
                     settings.put(PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey(), "interval-value");
                 }
-                final MetaData.Builder metadata = MetaData.builder(currentState.metaData())
-                    .put(IndexMetaData.builder(indexMetaData)
-                        .settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                final Metadata.Builder metadata = Metadata.builder(currentState.metadata())
+                    .put(IndexMetadata.builder(indexMetadata)
+                        .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(settings).build(), true);
-                return ClusterState.builder(currentState).metaData(metadata).build();
+                return ClusterState.builder(currentState).metadata(metadata).build();
             }
 
             @Override
@@ -1112,20 +1112,20 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final IndexMetaData indexMetaData = currentState.metaData().index("leader");
-                Settings.Builder settings = Settings.builder().put(indexMetaData.getSettings());
+                final IndexMetadata indexMetadata = currentState.metadata().index("leader");
+                Settings.Builder settings = Settings.builder().put(indexMetadata.getSettings());
                 settings.put(PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey(), "internal-value");
                 settings.put(PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey(), "internal-value");
-                final MetaData.Builder metadata = MetaData.builder(currentState.metaData())
-                    .put(IndexMetaData.builder(indexMetaData)
-                        .settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                final Metadata.Builder metadata = Metadata.builder(currentState.metadata())
+                    .put(IndexMetadata.builder(indexMetadata)
+                        .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(settings).build(), true);
-                return ClusterState.builder(currentState).metaData(metadata).build();
+                return ClusterState.builder(currentState).metadata(metadata).build();
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                settingVersionOnLeader.set(newState.metaData().index("leader").getSettingsVersion());
+                settingVersionOnLeader.set(newState.metadata().index("leader").getSettingsVersion());
                 latch.countDown();
             }
 
@@ -1167,11 +1167,11 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 () -> {
                     // we have to remove the retention leases on the leader shards to ensure the follower falls behind
                     final ClusterStateResponse followerIndexClusterState =
-                            followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices("index2").get();
-                    final String followerUUID = followerIndexClusterState.getState().metaData().index("index2").getIndexUUID();
+                            followerClient().admin().cluster().prepareState().clear().setMetadata(true).setIndices("index2").get();
+                    final String followerUUID = followerIndexClusterState.getState().metadata().index("index2").getIndexUUID();
                     final ClusterStateResponse leaderIndexClusterState =
-                            leaderClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices("index1").get();
-                    final String leaderUUID = leaderIndexClusterState.getState().metaData().index("index1").getIndexUUID();
+                            leaderClient().admin().cluster().prepareState().clear().setMetadata(true).setIndices("index1").get();
+                    final String leaderUUID = leaderIndexClusterState.getState().metadata().index("index1").getIndexUUID();
 
                     final RoutingTable leaderRoutingTable = leaderClient()
                             .admin()
@@ -1370,8 +1370,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 10);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1")
             .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
                 .build()));
 
         final PutFollowAction.Request followRequest = putFollow("index1", "index2");
@@ -1435,8 +1435,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         ClusterService clusterService = getFollowerCluster().getInstance(ClusterService.class, electedMasterNode);
         AtomicBoolean closed = new AtomicBoolean(false);
         clusterService.addListener(event -> {
-            IndexMetaData indexMetaData = event.state().metaData().index(indexName);
-            if (indexMetaData != null  && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+            IndexMetadata indexMetadata = event.state().metadata().index(indexName);
+            if (indexMetadata != null  && indexMetadata.getState() == IndexMetadata.State.CLOSE) {
                 closed.set(true);
             }
         });
@@ -1446,7 +1446,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
         return () -> {
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            final PersistentTasksCustomMetaData taskMetadata = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            final PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             assertNotNull(taskMetadata);
 
             ListTasksRequest listTasksRequest = new ListTasksRequest();
@@ -1458,9 +1458,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             List<TaskInfo> taskInfos = listTasksResponse.getTasks();
             assertThat(taskInfos.size(), equalTo(numberOfPrimaryShards));
-            Collection<PersistentTasksCustomMetaData.PersistentTask<?>> shardFollowTasks =
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks =
                 taskMetadata.findTasks(ShardFollowTask.NAME, Objects::nonNull);
-            for (PersistentTasksCustomMetaData.PersistentTask<?> shardFollowTask : shardFollowTasks) {
+            for (PersistentTasksCustomMetadata.PersistentTask<?> shardFollowTask : shardFollowTasks) {
                 final ShardFollowTask shardFollowTaskParams = (ShardFollowTask) shardFollowTask.getParams();
                 TaskInfo taskInfo = null;
                 String expectedId = "id=" + shardFollowTask.getId();

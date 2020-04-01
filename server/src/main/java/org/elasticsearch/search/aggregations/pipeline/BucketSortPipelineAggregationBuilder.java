@@ -135,8 +135,8 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new BucketSortPipelineAggregator(name, sorts, from, size, gapPolicy, metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new BucketSortPipelineAggregator(name, sorts, from, size, gapPolicy, metadata);
     }
 
     @Override

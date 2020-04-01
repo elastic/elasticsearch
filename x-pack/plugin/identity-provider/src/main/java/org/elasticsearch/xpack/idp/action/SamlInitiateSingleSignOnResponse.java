@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -16,18 +17,25 @@ public class SamlInitiateSingleSignOnResponse extends ActionResponse {
     private String postUrl;
     private String samlResponse;
     private String entityId;
+    private String samlStatus;
+    private String error;
 
     public SamlInitiateSingleSignOnResponse(StreamInput in) throws IOException {
         super(in);
+        this.entityId = in.readString();
         this.postUrl = in.readString();
         this.samlResponse = in.readString();
-        this.entityId = in.readString();
+        this.samlStatus = in.readString();
+        this.error = in.readOptionalString();
     }
 
-    public SamlInitiateSingleSignOnResponse(String postUrl, String samlResponse, String entityId) {
+    public SamlInitiateSingleSignOnResponse(String entityId, String postUrl, String samlResponse, String samlStatus,
+                                            @Nullable String error) {
+        this.entityId = entityId;
         this.postUrl = postUrl;
         this.samlResponse = samlResponse;
-        this.entityId = entityId;
+        this.samlStatus = samlStatus;
+        this.error = error;
     }
 
     public String getPostUrl() {
@@ -42,10 +50,20 @@ public class SamlInitiateSingleSignOnResponse extends ActionResponse {
         return entityId;
     }
 
+    public String getError() {
+        return error;
+    }
+
+    public String getSamlStatus() {
+        return samlStatus;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(entityId);
         out.writeString(postUrl);
         out.writeString(samlResponse);
-        out.writeString(entityId);
+        out.writeString(samlStatus);
+        out.writeOptionalString(error);
     }
 }

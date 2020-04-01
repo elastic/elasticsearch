@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
@@ -51,8 +50,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationBuilder<SignificantTermsAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationBuilder<SignificantTermsAggregationBuilder> {
     public static final String NAME = "significant_terms";
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
@@ -121,8 +119,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     protected SignificantTermsAggregationBuilder(SignificantTermsAggregationBuilder clone,
-                                                 Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                                 Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.bucketCountThresholds = new BucketCountThresholds(clone.bucketCountThresholds);
         this.executionHint = clone.executionHint;
         this.filterBuilder = clone.filterBuilder;
@@ -136,15 +134,15 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected SignificantTermsAggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected SignificantTermsAggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         if (filterBuilder != null) {
             QueryBuilder rewrittenFilter = filterBuilder.rewrite(queryShardContext);
             if (rewrittenFilter != filterBuilder) {
-                SignificantTermsAggregationBuilder rewritten = shallowCopy(factoriesBuilder, metaData);
+                SignificantTermsAggregationBuilder rewritten = shallowCopy(factoriesBuilder, metadata);
                 rewritten.backgroundFilter(rewrittenFilter);
                 return rewritten;
             }
@@ -290,13 +288,18 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
         SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(queryShardContext);
         return new SignificantTermsAggregatorFactory(name, config, includeExclude, executionHint, filterBuilder,
-                bucketCountThresholds, executionHeuristic, queryShardContext, parent, subFactoriesBuilder, metaData);
+                bucketCountThresholds, executionHeuristic, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

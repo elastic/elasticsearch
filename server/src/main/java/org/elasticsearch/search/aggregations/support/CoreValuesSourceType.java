@@ -57,7 +57,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
 
             if ((fieldContext.indexFieldData() instanceof IndexNumericFieldData) == false) {
-                // TODO: Is this the correct exception type here?
                 throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext.field() +
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }
@@ -71,8 +70,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
-            Number missing = docValueFormat.parseDouble(rawMissing.toString(), false, now);
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
+            Number missing = docValueFormat.parseDouble(rawMissing.toString(), false, nowSupplier);
             return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
         }
 
@@ -120,7 +120,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
             final BytesRef missing = docValueFormat.parseBytesRef(rawMissing.toString());
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
                 return MissingValues.replaceMissing((ValuesSource.Bytes.WithOrdinals) valuesSource, missing);
@@ -143,7 +144,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             if (!(fieldContext.indexFieldData() instanceof IndexGeoPointFieldData)) {
-                // TODO: Is this the correct exception type here?
                 throw new IllegalArgumentException("Expected geo_point type on field [" + fieldContext.field() +
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }
@@ -152,7 +152,8 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
             // TODO: also support the structured formats of geo points
             final GeoPoint missing = new GeoPoint(rawMissing.toString());
             return MissingValues.replaceMissing((ValuesSource.GeoPoint) valuesSource, missing);
@@ -166,7 +167,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     RANGE() {
         @Override
         public ValuesSource getEmpty() {
-            // TODO: Is this the correct exception type here?
             throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + this.value());
         }
 
@@ -180,15 +180,15 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             MappedFieldType fieldType = fieldContext.fieldType();
 
             if (fieldType instanceof RangeFieldMapper.RangeFieldType == false) {
-                // TODO: Is this the correct exception type here?
-                throw new IllegalStateException("Asked for range ValuesSource, but field is of type " + fieldType.name());
+                throw new IllegalArgumentException("Asked for range ValuesSource, but field is of type " + fieldType.name());
             }
             RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType) fieldType;
             return new ValuesSource.Range(fieldContext.indexFieldData(), rangeFieldType.rangeType());
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
     },
@@ -209,8 +209,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
-            return BYTES.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
+            return BYTES.replaceMissing(valuesSource, rawMissing, docValueFormat, nowSupplier);
         }
 
         @Override
@@ -235,8 +236,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
-            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
+            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, nowSupplier);
         }
 
         @Override
@@ -266,8 +268,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
-            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, now);
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
+                                           LongSupplier nowSupplier) {
+            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, nowSupplier);
         }
 
         @Override

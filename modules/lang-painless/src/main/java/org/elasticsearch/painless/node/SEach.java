@@ -107,9 +107,4 @@ public class SEach extends AStatement {
         return output;
 
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type, name, expression, block);
-    }
 }

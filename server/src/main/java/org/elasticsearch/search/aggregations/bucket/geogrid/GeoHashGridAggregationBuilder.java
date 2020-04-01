@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,6 +30,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+
+import java.io.IOException;
+import java.util.Map;
 
 public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geohash_grid";
@@ -68,19 +68,19 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
         String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
             GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
             AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metaData) throws IOException {
+            Map<String, Object> metadata) throws IOException {
         return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox,
-            queryShardContext, parent, subFactoriesBuilder, metaData);
+            queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     private GeoHashGridAggregationBuilder(GeoHashGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,
-                                          Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                          Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GeoHashGridAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new GeoHashGridAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override

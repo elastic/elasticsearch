@@ -48,8 +48,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.JVM;
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.THREAD_POOL;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -175,9 +173,7 @@ public class WatcherScheduleEngineBenchmark {
                         public void run() {
                             try {
                                 while (start.get()) {
-                                    NodesStatsResponse response = client.admin().cluster().prepareNodesStats("_master")
-                                        .addMetric(JVM.metricName())
-                                        .get();
+                                    NodesStatsResponse response = client.admin().cluster().prepareNodesStats("_master").setJvm(true).get();
                                     ByteSizeValue heapUsed = response.getNodes().get(0).getJvm().getMem().getHeapUsed();
                                     jvmUsedHeapSpace.inc(heapUsed.getBytes());
                                     Thread.sleep(1000);
@@ -191,7 +187,7 @@ public class WatcherScheduleEngineBenchmark {
                     start.set(false);
                     sampleThread.join();
 
-                    NodesStatsResponse response = client.admin().cluster().prepareNodesStats().addMetric(THREAD_POOL.metricName()).get();
+                    NodesStatsResponse response = client.admin().cluster().prepareNodesStats().setThreadPool(true).get();
                     for (NodeStats nodeStats : response.getNodes()) {
                         for (ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
                             if ("watcher".equals(threadPoolStats.getName())) {

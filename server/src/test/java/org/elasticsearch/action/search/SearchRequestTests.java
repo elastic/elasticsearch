@@ -240,12 +240,12 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testDescriptionForDefault() {
-        assertThat(toDescription(new SearchRequest()), equalTo("indices[], search_type[QUERY_THEN_FETCH], source[]"));
+        assertThat(toDescription(new SearchRequest()), equalTo("indices[], types[], search_type[QUERY_THEN_FETCH], source[]"));
     }
 
     public void testDescriptionIncludesScroll() {
         assertThat(toDescription(new SearchRequest().scroll(TimeValue.timeValueMinutes(5))),
-            equalTo("indices[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]"));
+            equalTo("indices[], types[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]"));
     }
 
     private String toDescription(SearchRequest request) {

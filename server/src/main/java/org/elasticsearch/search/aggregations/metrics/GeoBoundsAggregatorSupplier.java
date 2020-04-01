@@ -34,5 +34,5 @@ public interface GeoBoundsAggregatorSupplier extends AggregatorSupplier {
 
     GeoBoundsAggregator build(String name, SearchContext aggregationContext, Aggregator parent,
                         ValuesSource valuesSource, boolean wrapLongitude, List<PipelineAggregator> pipelineAggregators,
-                        Map<String, Object> metaData) throws IOException;
+                        Map<String, Object> metadata) throws IOException;
 }

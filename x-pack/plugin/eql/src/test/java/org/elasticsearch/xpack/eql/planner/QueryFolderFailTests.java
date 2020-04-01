@@ -24,4 +24,28 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("Found 1 problem\nline 1:35: Comparisons against variables are not (currently) supported; " +
             "offender [parent_process_name] in [process_name in (parent_process_name, \"SYSTEM\")]", msg);
     }
+
+    public void testLengthFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> plan("process where length(plain_text) > 0"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [length(plain_text)] cannot operate on field of data type [text]: No keyword/multi-field "
+                + "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
+    public void testEndsWithFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> plan("process where endsWith(plain_text, \"foo\") == true"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [endsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
+                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
+    public void testStartsWithFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> plan("process where startsWith(plain_text, \"foo\") == true"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [startsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
+                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
 }

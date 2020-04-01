@@ -67,9 +67,9 @@ public class NumericHistogramAggregator extends BucketsAggregator {
                                BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
                                @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
                                SearchContext context, Aggregator parent,
-                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metadata);
         if (interval <= 0) {
             throw new IllegalArgumentException("interval must be positive, got: " + interval);
         }
@@ -151,7 +151,7 @@ public class NumericHistogramAggregator extends BucketsAggregator {
             emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
         }
         return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, pipelineAggregators(),
-                metaData());
+                metadata());
     }
 
     @Override
@@ -161,7 +161,7 @@ public class NumericHistogramAggregator extends BucketsAggregator {
             emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
         }
         return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed,
-                pipelineAggregators(), metaData());
+                pipelineAggregators(), metadata());
     }
 
     @Override

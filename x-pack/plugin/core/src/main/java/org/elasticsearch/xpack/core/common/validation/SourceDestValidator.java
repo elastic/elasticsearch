@@ -34,7 +34,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.validateIndexOrAliasName;
 
 /**
  * Validation of source indexes and destination index.

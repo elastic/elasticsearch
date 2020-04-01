@@ -53,8 +53,8 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         super(name);
     }
 
-    protected MaxAggregationBuilder(MaxAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected MaxAggregationBuilder(MaxAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
@@ -63,8 +63,8 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new MaxAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new MaxAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -82,7 +82,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     @Override
     protected MaxAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                               AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new MaxAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new MaxAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

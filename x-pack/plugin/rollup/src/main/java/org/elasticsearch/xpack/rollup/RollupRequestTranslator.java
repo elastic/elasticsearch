@@ -226,7 +226,7 @@ public class RollupRequestTranslator {
             rolledDateHisto.minDocCount(source.minDocCount());
             rolledDateHisto.order(source.order());
             rolledDateHisto.field(RollupField.formatFieldName(source, RollupField.TIMESTAMP));
-            rolledDateHisto.setMetaData(source.getMetaData());
+            rolledDateHisto.setMetadata(source.getMetadata());
             return rolledDateHisto;
         });
     }
@@ -255,7 +255,7 @@ public class RollupRequestTranslator {
             rolledHisto.minDocCount(source.minDocCount());
             rolledHisto.order(source.order());
             rolledHisto.field(RollupField.formatFieldName(source, RollupField.VALUE));
-            rolledHisto.setMetaData(source.getMetaData());
+            rolledHisto.setMetadata(source.getMetadata());
             return rolledHisto;
         });
     }

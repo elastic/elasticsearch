@@ -87,7 +87,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         boolean keyed = instance.keyed;
         DocValueFormat formatter = instance.formatter();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 4)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -109,16 +109,16 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
             keyed = keyed == false;
             break;
         case 4:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalTDigestPercentileRanks(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
+        return new InternalTDigestPercentileRanks(name, percents, state, keyed, formatter, pipelineAggregators, metadata);
     }
 }

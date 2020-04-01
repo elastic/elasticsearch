@@ -29,7 +29,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -110,8 +110,8 @@ public class ShardInfoIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("idx").setSettings(
                 Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfPrimaryShards)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numCopies - 1))
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfPrimaryShards)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numCopies - 1))
                 .setMapping("_routing", "required=" + routingRequired)
                 .get());
         for (int i = 0; i < numberOfPrimaryShards; i++) {

@@ -85,7 +85,6 @@ public class ToStringFunctionPipe extends Pipe {
             return false;
         }
 
-        ToStringFunctionPipe other = (ToStringFunctionPipe) obj;
-        return Objects.equals(source, other.source);
+        return Objects.equals(source, ((ToStringFunctionPipe) obj).source);
     }
 }

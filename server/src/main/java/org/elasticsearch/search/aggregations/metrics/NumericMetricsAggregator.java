@@ -31,15 +31,15 @@ import java.util.Map;
 public abstract class NumericMetricsAggregator extends MetricsAggregator {
 
     private NumericMetricsAggregator(String name, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
     }
 
     public abstract static class SingleValue extends NumericMetricsAggregator {
 
         protected SingleValue(String name, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            super(name, context, parent, pipelineAggregators, metaData);
+                Map<String, Object> metadata) throws IOException {
+            super(name, context, parent, pipelineAggregators, metadata);
         }
 
         public abstract double metric(long owningBucketOrd);
@@ -57,8 +57,8 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
     public abstract static class MultiValue extends NumericMetricsAggregator {
 
         protected MultiValue(String name, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) throws IOException {
-            super(name, context, parent, pipelineAggregators, metaData);
+                Map<String, Object> metadata) throws IOException {
+            super(name, context, parent, pipelineAggregators, metadata);
         }
 
         public abstract boolean hasMetric(String name);

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -54,9 +54,9 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         RandomScoreFunctionBuilder builder = new RandomScoreFunctionBuilder();
         builder.seed(42);
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        IndexSettings settings = new IndexSettings(IndexMetaData.builder("index").settings(indexSettings).build(), Settings.EMPTY);
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        IndexSettings settings = new IndexSettings(IndexMetadata.builder("index").settings(indexSettings).build(), Settings.EMPTY);
         Mockito.when(context.index()).thenReturn(settings.getIndex());
         Mockito.when(context.getShardId()).thenReturn(0);
         Mockito.when(context.getIndexSettings()).thenReturn(settings);

@@ -35,7 +35,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public abstract class InternalMappedSignificantTerms<
-            A extends InternalMappedSignificantTerms<A, B>, 
+            A extends InternalMappedSignificantTerms<A, B>,
             B extends InternalSignificantTerms.Bucket<B>>
         extends InternalSignificantTerms<A, B> {
 
@@ -47,9 +47,9 @@ public abstract class InternalMappedSignificantTerms<
     protected Map<String, B> bucketMap;
 
     protected InternalMappedSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, DocValueFormat format, long subsetSize, long supersetSize,
+            Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
             SignificanceHeuristic significanceHeuristic, List<B> buckets) {
-        super(name, requiredSize, minDocCount, pipelineAggregators, metaData);
+        super(name, requiredSize, minDocCount, pipelineAggregators, metadata);
         this.format = format;
         this.buckets = buckets;
         this.subsetSize = subsetSize;

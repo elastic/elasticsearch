@@ -63,8 +63,8 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                     ValuesSource.Numeric valuesSource,
                     SearchContext context,
                     Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                    Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             maxes = context.bigArrays().newDoubleArray(1, false);
@@ -146,12 +146,12 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= maxes.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMax(name, maxes.get(bucket), formatter, pipelineAggregators(),  metaData());
+        return new InternalMax(name, maxes.get(bucket), formatter, pipelineAggregators(),  metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, pipelineAggregators(), metaData());
+        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, pipelineAggregators(), metadata());
     }
 
     @Override

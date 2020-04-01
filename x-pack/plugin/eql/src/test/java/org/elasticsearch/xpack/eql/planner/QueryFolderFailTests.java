@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.planner;
 
+import org.elasticsearch.xpack.eql.analysis.VerificationException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
@@ -17,9 +18,34 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
     }
 
     public void testPropertyEquationInClauseFilterUnsupported() {
-        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
+        VerificationException e = expectThrows(VerificationException.class,
                 () -> plan("process where opcode in (1,3) and process_name in (parent_process_name, \"SYSTEM\")"));
         String msg = e.getMessage();
-        assertEquals("Line 1:52: Comparisons against variables are not (currently) supported; offender [parent_process_name] in [==]", msg);
+        assertEquals("Found 1 problem\nline 1:35: Comparisons against variables are not (currently) supported; " +
+            "offender [parent_process_name] in [process_name in (parent_process_name, \"SYSTEM\")]", msg);
+    }
+
+    public void testLengthFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> plan("process where length(plain_text) > 0"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [length(plain_text)] cannot operate on field of data type [text]: No keyword/multi-field "
+                + "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
+    public void testEndsWithFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> plan("process where endsWith(plain_text, \"foo\") == true"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [endsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
+                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
+    public void testStartsWithFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+                () -> plan("process where startsWith(plain_text, \"foo\") == true"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [startsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
+                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 }

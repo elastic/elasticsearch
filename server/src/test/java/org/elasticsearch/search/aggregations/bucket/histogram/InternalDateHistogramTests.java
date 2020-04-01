@@ -81,7 +81,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
     @Override
     protected InternalDateHistogram createTestInstance(String name,
                                                        List<PipelineAggregator> pipelineAggregators,
-                                                       Map<String, Object> metaData,
+                                                       Map<String, Object> metadata,
                                                        InternalAggregations aggregations) {
         int nbBuckets = randomNumberOfBuckets();
         List<InternalDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);
@@ -96,7 +96,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
         return new InternalDateHistogram(name, buckets, order, minDocCount, 0L, emptyBucketInfo, format, keyed,
-            pipelineAggregators, metaData);
+            pipelineAggregators, metadata);
     }
 
     @Override
@@ -164,7 +164,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         long offset = instance.getOffset();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = instance.emptyBucketInfo;
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -185,17 +185,17 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             offset += between(1, 20);
             break;
         case 5:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, pipelineAggregators,
-                metaData);
+                metadata);
     }
 }

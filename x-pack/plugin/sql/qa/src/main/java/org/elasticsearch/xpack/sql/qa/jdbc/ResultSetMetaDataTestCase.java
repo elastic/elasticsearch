@@ -15,10 +15,10 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 
 public class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase {
-    
+
     private final String[] fieldsNames = new String[] {"test_byte", "test_integer", "test_long", "test_short",
             "test_double", "test_float", "test_keyword", "test_boolean", "test_date"};
-    
+
     public void testValidGetObjectCalls() throws Exception {
         ResultSetTestCase.createIndex("test");
         ResultSetTestCase.updateMapping("test", builder -> {
@@ -26,7 +26,7 @@ public class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase {
                 builder.startObject(field).field("type", field.substring(5)).endObject();
             }
         });
-        
+
         String q = "SELECT test_byte, test_integer, test_long, test_short, test_double, test_float, test_keyword, "
                 + "test_boolean, test_date FROM test";
         doWithQuery(q, (r) -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames));
@@ -35,7 +35,7 @@ public class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase {
                 + "test_keyword AS k, test_boolean AS bool, test_date AS dt FROM test";
         doWithQuery(q, (r) -> assertColumnNamesAndLabels(r.getMetaData(), new String[] {"b", "i", "l", "s", "d", "f", "k", "bool", "dt"}));
     }
-    
+
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(query)) {
@@ -46,11 +46,11 @@ public class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase {
             }
         }
     }
-    
-    private void assertColumnNamesAndLabels(ResultSetMetaData metaData, String[] names) throws SQLException {
+
+    private void assertColumnNamesAndLabels(ResultSetMetaData MetaData, String[] names) throws SQLException {
         for(int i = 0; i < fieldsNames.length; i++) {
-            assertEquals(names[i], metaData.getColumnName(i + 1));
-            assertEquals(names[i], metaData.getColumnLabel(i + 1));
+            assertEquals(names[i], MetaData.getColumnName(i + 1));
+            assertEquals(names[i], MetaData.getColumnLabel(i + 1));
         }
     }
 }

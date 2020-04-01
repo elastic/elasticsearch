@@ -47,17 +47,17 @@ public class AliasValidator {
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
      * @throws IllegalArgumentException if the alias is not valid
      */
-    public void validateAlias(Alias alias, String index, MetaData metaData) {
-        validateAlias(alias.name(), index, alias.indexRouting(), metaData::index);
+    public void validateAlias(Alias alias, String index, Metadata metadata) {
+        validateAlias(alias.name(), index, alias.indexRouting(), metadata::index);
     }
 
     /**
-     * Allows to validate an {@link org.elasticsearch.cluster.metadata.AliasMetaData} and make sure
+     * Allows to validate an {@link org.elasticsearch.cluster.metadata.AliasMetadata} and make sure
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
      * @throws IllegalArgumentException if the alias is not valid
      */
-    public void validateAliasMetaData(AliasMetaData aliasMetaData, String index, MetaData metaData) {
-        validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), metaData::index);
+    public void validateAliasMetadata(AliasMetadata aliasMetadata, String index, Metadata metadata) {
+        validateAlias(aliasMetadata.alias(), index, aliasMetadata.indexRouting(), metadata::index);
     }
 
     /**
@@ -81,14 +81,14 @@ public class AliasValidator {
     /**
      * Validate a proposed alias.
      */
-    public void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, IndexMetaData> indexLookup) {
+    public void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, IndexMetadata> indexLookup) {
         validateAliasStandalone(alias, indexRouting);
 
         if (!Strings.hasText(index)) {
             throw new IllegalArgumentException("index name is required");
         }
 
-        IndexMetaData indexNamedSameAsAlias = indexLookup.apply(alias);
+        IndexMetadata indexNamedSameAsAlias = indexLookup.apply(alias);
         if (indexNamedSameAsAlias != null) {
             throw new InvalidAliasNameException(indexNamedSameAsAlias.getIndex(), alias, "an index exists with the same name as the alias");
         }
@@ -98,7 +98,7 @@ public class AliasValidator {
         if (!Strings.hasText(alias)) {
             throw new IllegalArgumentException("alias name is required");
         }
-        MetaDataCreateIndexService.validateIndexOrAliasName(alias, InvalidAliasNameException::new);
+        MetadataCreateIndexService.validateIndexOrAliasName(alias, InvalidAliasNameException::new);
         if (indexRouting != null && indexRouting.indexOf(',') != -1) {
             throw new IllegalArgumentException("alias [" + alias + "] has several index routing values associated with it");
         }

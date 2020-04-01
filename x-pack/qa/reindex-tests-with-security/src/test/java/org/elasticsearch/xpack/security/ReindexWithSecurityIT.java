@@ -46,7 +46,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
 
     @BeforeClass
     public static void findTrustStore( ) throws Exception {
-        final URL resource = ReindexWithSecurityRestApiSpecTests.class.getResource("/ssl/ca.p12");
+        final URL resource = ReindexWithSecurityTestRestApiSpec.class.getResource("/ssl/ca.p12");
         if (resource == null) {
             throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.p12");
         }

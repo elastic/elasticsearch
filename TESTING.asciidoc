@@ -306,14 +306,14 @@ REST tests use the following command:
 
 ---------------------------------------------------------------------------
 ./gradlew :distribution:archives:integ-test-zip:integTestRunner \
- --tests "org.elasticsearch.test.rest.IntegTestZipClientYamlTestSuiteIT"
+ --tests "org.elasticsearch.test.rest.IntegTestZipTestRestApiSpec"
 ---------------------------------------------------------------------------
 
 A specific test case can be run with the following command:
 
 ---------------------------------------------------------------------------
 ./gradlew ':distribution:archives:integ-test-zip:integTestRunner' \
-  --tests "org.elasticsearch.test.rest.IntegTestZipClientYamlTestSuiteIT" \
+  --tests "org.elasticsearch.test.rest.IntegTestZipTestRestApiSpec" \
   -Dtests.method="test {p0=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 
@@ -482,7 +482,7 @@ Use -Dtest.class and -Dtests.method to run a specific bwcTest test.
 For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
 -------------------------------------------------
 ./gradlew :x-pack:qa:rolling-upgrade:v7.7.0#bwcTest \
- -Dtests.class=org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT \
+ -Dtests.class=org.elasticsearch.upgrades.UpgradeClusterTestRestApiSpec\
  -Dtests.method="test {p0=*/40_ml_datafeed_crud/*}"
 -------------------------------------------------
 
@@ -533,15 +533,20 @@ fetching the latest from the remote.
 There are multiple base classes for tests:
 
 * **`ESTestCase`**: The base class of all tests. It is typically extended
-  directly by unit tests.
+  directly by unit tests. Tests that extend this should have a name that ends
+  with `Tests`
 * **`ESSingleNodeTestCase`**: This test case sets up a cluster that has a
-  single node.
+  single node. Tests that extend this should have a name that ends
+  with `Tests`
 * **`ESIntegTestCase`**: An integration test case that creates a cluster that
-  might have multiple nodes.
+  might have multiple nodes.  Tests that extend this should have a name that ends
+  with `IT`
 * **`ESRestTestCase`**: An integration tests that interacts with an external
-  cluster via the REST API. This is used for Java based REST tests.
+  cluster via the REST API. This is used for Java based REST tests.  Tests that
+  extend this should have a name that ends with `IT`
 * **`ESClientYamlSuiteTestCase` **: A subclass of `ESRestTestCase` used to run
-  YAML based REST tests.
+  YAML based REST tests. Tests that extend this should have a name that ends
+  with `TestRestApiSpec`
 
 === Good practices
 

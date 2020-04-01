@@ -33,7 +33,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
     public void setupContext() {
         securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
         licenseState = Mockito.mock(XPackLicenseState.class);
-        when(licenseState.isSecurityAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
     }
 
     public void testProcessor() throws Exception {
@@ -76,7 +76,7 @@ public class SetSecurityUserProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCanConstructorProcessorWithoutSecurityEnabled() throws Exception {
-        when(licenseState.isSecurityAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         SetSecurityUserProcessor.Factory factory = new SetSecurityUserProcessor.Factory(() -> null, () -> licenseState);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");

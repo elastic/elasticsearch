@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -111,7 +111,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         GetRepositoriesResponse::new));
     }
 
-    private void getMultipleReposSnapshotInfo(@Nullable SnapshotsInProgress snapshotsInProgress, List<RepositoryMetaData> repos,
+    private void getMultipleReposSnapshotInfo(@Nullable SnapshotsInProgress snapshotsInProgress, List<RepositoryMetadata> repos,
                                               String[] snapshots, boolean ignoreUnavailable, boolean verbose,
                                               ActionListener<GetSnapshotsResponse> listener) {
         // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
@@ -127,7 +127,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         }), repos.size());
 
         // run concurrently for all repos on GENERIC thread pool
-        for (final RepositoryMetaData repo : repos) {
+        for (final RepositoryMetadata repo : repos) {
             final String repoName = repo.name();
             threadPool.generic().execute(ActionRunnable.wrap(
                 ActionListener.delegateResponse(groupedActionListener, (groupedListener, e) -> {

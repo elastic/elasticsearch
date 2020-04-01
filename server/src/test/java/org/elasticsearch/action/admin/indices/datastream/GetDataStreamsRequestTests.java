@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Re
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -55,7 +55,7 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
         final String dataStreamName = "my-data-stream";
         DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
+            .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
         GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(new String[]{dataStreamName});
         List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
         assertThat(dataStreams.size(), equalTo(1));

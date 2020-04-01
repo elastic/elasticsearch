@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,7 +44,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         clusterService = mock(ClusterService.class);
         ClusterState state = ClusterState.builder(new ClusterName("MlDailyMaintenanceServiceTests"))
-            .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData.builder().build()))
+            .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata.builder().build()))
             .nodes(DiscoveryNodes.builder().build())
             .build();
         when(clusterService.state()).thenReturn(state);

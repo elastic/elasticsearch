@@ -31,9 +31,9 @@ import java.util.Map;
 public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles implements PercentileRanks {
     public static final String NAME = "hdr_percentile_ranks";
 
-    InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metaData);
+    public InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
+                                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metadata);
     }
 
     /**
@@ -70,11 +70,11 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
 
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metadata);
     }
 
-    static double percentileRank(DoubleHistogram state, double value) {
+    public static double percentileRank(DoubleHistogram state, double value) {
         if (state.getTotalCount() == 0) {
             return Double.NaN;
         }

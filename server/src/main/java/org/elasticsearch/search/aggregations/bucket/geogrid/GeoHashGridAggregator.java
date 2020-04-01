@@ -36,20 +36,20 @@ public class GeoHashGridAggregator extends GeoGridAggregator<InternalGeoHashGrid
     GeoHashGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
                           int requiredSize, int shardSize, SearchContext aggregationContext,
                           Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                          Map<String, Object> metaData) throws IOException {
+                          Map<String, Object> metadata) throws IOException {
         super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent,
-            pipelineAggregators, metaData);
+            pipelineAggregators, metadata);
     }
 
     @Override
     InternalGeoHashGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalGeoHashGrid(name, requiredSize, buckets, pipelineAggregators, metaData);
+                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalGeoHashGrid(name, requiredSize, buckets, pipelineAggregators, metadata);
     }
 
     @Override
     public InternalGeoHashGrid buildEmptyAggregation() {
-        return new InternalGeoHashGrid(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
+        return new InternalGeoHashGrid(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metadata());
     }
 
     InternalGeoGridBucket newEmptyBucket() {

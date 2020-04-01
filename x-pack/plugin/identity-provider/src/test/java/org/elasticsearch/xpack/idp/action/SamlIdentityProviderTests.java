@@ -21,14 +21,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
-import org.elasticsearch.xpack.idp.saml.test.IdentityProviderIntegTestCase;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
+import org.elasticsearch.xpack.idp.saml.test.IdentityProviderIntegTestCase;
 import org.opensaml.core.xml.util.XMLObjectSupport;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.core.AuthnRequest;
@@ -61,6 +62,9 @@ import static org.joda.time.DateTime.now;
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0, numDataNodes = 0)
+@TestLogging(value = "org.elasticsearch.xpack.idp.action.TransportPutSamlServiceProviderAction:TRACE," +
+    "org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex:TRACE",
+    reason = "https://github.com/elastic/elasticsearch/issues/54423")
 public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
 
     private final SamlFactory samlFactory = new SamlFactory();
@@ -81,7 +85,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
                 new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
             .addHeader("es-secondary-authorization", "ApiKey " + apiKeyCredentials)
             .build());
-        request.setJsonEntity("{ \"entity_id\": \"" + entityId + "\"}");
+        request.setJsonEntity("{ \"entity_id\": \"" + entityId + "\", \"acs\": \"" + acsUrl + "\" }");
         Response initResponse = getRestClient().performRequest(request);
         ObjectPath objectPath = ObjectPath.createFromResponse(initResponse);
         assertThat(objectPath.evaluate("post_url").toString(), equalTo(acsUrl));
@@ -110,9 +114,9 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
                 new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
             .addHeader("es-secondary-authorization", "ApiKey " + apiKeyCredentials)
             .build());
-        request.setJsonEntity("{ \"entity_id\": \"" + entityId + randomAlphaOfLength(3) + "\"}");
+        request.setJsonEntity("{ \"entity_id\": \"" + entityId + randomAlphaOfLength(3) + "\", \"acs\": \"" + acsUrl + "\" }");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getMessage(), containsString("is not registered with this Identity Provider"));
+        assertThat(e.getMessage(), containsString("is not known to this Identity Provider"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
     }
 
@@ -124,7 +128,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         // Make a request to init an SSO flow with the API Key as secondary authentication
         Request request = new Request("POST", "/_idp/saml/init");
         request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
-        request.setJsonEntity("{ \"entity_id\": \"" + entityId + "\"}");
+        request.setJsonEntity("{ \"entity_id\": \"" + entityId + "\", \"acs\": \"" + acsUrl + "\" }");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(e.getMessage(), containsString("Request is missing secondary authentication"));
     }
@@ -149,6 +153,8 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         Map<String, String> serviceProvider = validateResponseObject.evaluate("service_provider");
         assertThat(serviceProvider, hasKey("entity_id"));
         assertThat(serviceProvider.get("entity_id"), equalTo(entityId));
+        assertThat(serviceProvider, hasKey("acs"));
+        assertThat(serviceProvider.get("acs"), equalTo(authnRequest.getAssertionConsumerServiceURL()));
         assertThat(validateResponseObject.evaluate("force_authn"), equalTo(forceAuthn));
         Map<String, String> authnState = validateResponseObject.evaluate("authn_state");
         assertThat(authnState, hasKey("nameid_format"));
@@ -172,7 +178,11 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             .build());
         XContentBuilder authnStateBuilder = jsonBuilder();
         authnStateBuilder.map(authnState);
-        initRequest.setJsonEntity("{ \"entity_id\":\"" + entityId + "\", \"authn_state\":" + Strings.toString(authnStateBuilder) + "}");
+        initRequest.setJsonEntity("{"
+            + ("\"entity_id\":\"" + entityId + "\",")
+            + ("\"acs\":\"" + serviceProvider.get("acs") + "\",")
+            + ("\"authn_state\":" + Strings.toString(authnStateBuilder))
+            + "}");
         Response initResponse = getRestClient().performRequest(initRequest);
         ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
         assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));
@@ -204,10 +214,11 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         final String query = getQueryString(authnRequest, relayString, false, null);
         validateRequest.setJsonEntity("{\"authn_request_query\":\"" + query + "\"}");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(validateRequest));
-        assertThat(e.getMessage(), containsString("is not registered with this Identity Provider"));
+        assertThat(e.getMessage(), containsString("is not known to this Identity Provider"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54285")
     public void testSpInitiatedSsoFailsForMalformedRequest() throws Exception {
         String acsUrl = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/saml/acs";
         String entityId = SP_ENTITY_ID;

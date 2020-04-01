@@ -70,70 +70,100 @@ public final class TestUtils {
      * Any attempt to read a different blob will throw a {@link FileNotFoundException}
      */
     static BlobContainer singleBlobContainer(final String blobName, final byte[] blobContent) {
-        return new BlobContainer() {
-
+        return new MostlyUnimplementedFakeBlobContainer() {
             @Override
             public InputStream readBlob(String name, long position, long length) throws IOException {
                 if (blobName.equals(name) == false) {
                     throw new FileNotFoundException("Blob not found: " + name);
                 }
-                return Streams.limitStream(new ByteArrayInputStream(blobContent, Math.toIntExact(position), blobContent.length), length);
-            }
-
-            @Override
-            public long readBlobPreferredLength() {
-                return Long.MAX_VALUE;
-            }
-
-            @Override
-            public Map<String, BlobMetaData> listBlobs() {
-                throw unsupportedException();
-            }
-
-            @Override
-            public BlobPath path() {
-                throw unsupportedException();
-            }
-
-            @Override
-            public InputStream readBlob(String blobName) {
-                throw unsupportedException();
-            }
-
-            @Override
-            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
-                throw unsupportedException();
-            }
-
-            @Override
-            public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
-                throw unsupportedException();
-            }
-
-            @Override
-            public DeleteResult delete() {
-                throw unsupportedException();
-            }
-
-            @Override
-            public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
-                throw unsupportedException();
-            }
-
-            @Override
-            public Map<String, BlobContainer> children() {
-                throw unsupportedException();
-            }
-
-            @Override
-            public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) {
-                throw unsupportedException();
-            }
-
-            private UnsupportedOperationException unsupportedException() {
-                assert false : "this operation is not supported and should have not be called";
-                return new UnsupportedOperationException("This operation is not supported");
+                assert position + length <= blobContent.length
+                    : "cannot read [" + position + "-" + (position + length) + "] from array of length [" + blobContent.length + "]";
+                return Streams.limitStream(new ByteArrayInputStream(blobContent, Math.toIntExact(position),
+                    blobContent.length - Math.toIntExact(position)), length);
             }
         };
+    }
+
+    static BlobContainer singleSplitBlobContainer(final String blobName, final byte[] blobContent, final int partSize) {
+        if (partSize >= blobContent.length) {
+            return singleBlobContainer(blobName, blobContent);
+        } else {
+            final String prefix = blobName + ".part";
+            return new MostlyUnimplementedFakeBlobContainer() {
+                @Override
+                public InputStream readBlob(String name, long position, long length) throws IOException {
+                    if (name.startsWith(prefix) == false) {
+                        throw new FileNotFoundException("Blob not found: " + name);
+                    }
+                    assert position + length <= blobContent.length
+                        : "cannot read [" + position + "-" + (position + length) + "] from array part of length [" + partSize + "]";
+                    final int partNumber = Integer.parseInt(name.substring(prefix.length()));
+                    final int positionInBlob = Math.toIntExact(position) + partSize * partNumber;
+                    assert positionInBlob + length <= blobContent.length
+                        : "cannot read [" + positionInBlob + "-" + (positionInBlob + length) + "] from array of length ["
+                        + blobContent.length + "]";
+                    return Streams.limitStream(new ByteArrayInputStream(blobContent,
+                        positionInBlob, blobContent.length - positionInBlob), length);
+                }
+            };
+        }
+    }
+
+    private static class MostlyUnimplementedFakeBlobContainer implements BlobContainer {
+
+        @Override
+        public long readBlobPreferredLength() {
+            return Long.MAX_VALUE;
+        }
+
+        @Override
+        public Map<String, BlobMetaData> listBlobs() {
+            throw unsupportedException();
+        }
+
+        @Override
+        public BlobPath path() {
+            throw unsupportedException();
+        }
+
+        @Override
+        public InputStream readBlob(String blobName) {
+            throw unsupportedException();
+        }
+
+        @Override
+        public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
+            throw unsupportedException();
+        }
+
+        @Override
+        public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
+            throw unsupportedException();
+        }
+
+        @Override
+        public DeleteResult delete() {
+            throw unsupportedException();
+        }
+
+        @Override
+        public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
+            throw unsupportedException();
+        }
+
+        @Override
+        public Map<String, BlobContainer> children() {
+            throw unsupportedException();
+        }
+
+        @Override
+        public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) {
+            throw unsupportedException();
+        }
+
+        private UnsupportedOperationException unsupportedException() {
+            assert false : "this operation is not supported and should have not be called";
+            return new UnsupportedOperationException("This operation is not supported");
+        }
     }
 }

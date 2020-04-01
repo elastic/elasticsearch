@@ -54,10 +54,13 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
                 @Override
                 protected InputStream openSlice(long slice) throws IOException {
                     final long currentPart = startPart + slice;
+                    final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
+                    final long endInPart
+                        = (currentPart == endPart) ? getRelativePositionInPart(position + length) : getLengthOfPart(currentPart);
                     return blobContainer.readBlob(
                         fileInfo.partName(currentPart),
-                        (currentPart == startPart) ? getRelativePositionInPart(position) : 0L,
-                        (currentPart == endPart) ? getRelativePositionInPart(length) : getLengthOfPart(currentPart)
+                        startInPart,
+                        endInPart - startInPart
                     );
                 }
             };

@@ -7,24 +7,22 @@
 package org.elasticsearch.xpack.idp;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
@@ -87,42 +85,13 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         final SamlServiceProviderIndex.DocumentVersion docVersion = createServiceProvider(SP_ENTITY_ID, request);
         checkIndexDoc(docVersion);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
-        Tuple<String, String> idAndRedirect = generateSamlAuthnRequest(REALM_NAME);
-        final String requestId = idAndRedirect.v1();
-        final String query = idAndRedirect.v2().split("\\?")[1];
+        SamlPrepareAuthenticationResponse samlPrepareAuthenticationResponse = generateSamlAuthnRequest(REALM_NAME);
+        final String requestId = samlPrepareAuthenticationResponse.getRequestId();
+        final String query = samlPrepareAuthenticationResponse.getRedirectUrl().split("\\?")[1];
         Map<String, Object> authnState = validateAuthnRequest(SP_ENTITY_ID, query);
         final String samlResponse = generateSamlResponse(SP_ENTITY_ID, SP_ACS, authnState);
         assertThat(samlResponse, containsString("InResponseTo=\"" + requestId + "\""));
         authenticateWithSamlResponse(samlResponse, requestId);
-    }
-
-    private void checkIndexDoc(SamlServiceProviderIndex.DocumentVersion docVersion) throws IOException {
-        final Request request = new Request("GET", SamlServiceProviderIndex.INDEX_NAME + "/_doc/" + docVersion.id);
-        final Response response = adminClient().performRequest(request);
-        final Map<String, Object> map = entityAsMap(response);
-        assertThat(map.get("_index"), equalTo(SamlServiceProviderIndex.INDEX_NAME));
-        assertThat(map.get("_id"), equalTo(docVersion.id));
-        assertThat(asLong(map.get("_seq_no")), equalTo(docVersion.seqNo));
-        assertThat(asLong(map.get("_primary_term")), equalTo(docVersion.primaryTerm));
-    }
-
-    private SamlServiceProviderIndex.DocumentVersion createServiceProvider(String entityId, Map<String, Object> body) throws IOException {
-        final Request request =
-            new Request("PUT", "/_idp/saml/sp/" + encode(entityId) + "?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue());
-        final String entity = Strings.toString(JsonXContent.contentBuilder().map(body));
-        request.setJsonEntity(entity);
-        final Response response = client().performRequest(request);
-        final Map<String, Object> map = entityAsMap(response);
-        assertThat(ObjectPath.eval("service_provider.entity_id", map), equalTo(entityId));
-        assertThat(ObjectPath.eval("service_provider.enabled", map), equalTo(true));
-
-        final Object docId = ObjectPath.eval("document._id", map);
-        final Object seqNo = ObjectPath.eval("document._seq_no", map);
-        final Object primaryTerm = ObjectPath.eval("document._primary_term", map);
-        assertThat(docId, instanceOf(String.class));
-        assertThat(seqNo, instanceOf(Number.class));
-        assertThat(primaryTerm, instanceOf(Number.class));
-        return new SamlServiceProviderIndex.DocumentVersion((String) docId, asLong(primaryTerm), asLong(seqNo));
     }
 
     private Map<String, Object> validateAuthnRequest(String entityId, String authnRequestQuery) throws Exception {
@@ -136,7 +105,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         return ObjectPath.eval("authn_state", map);
     }
 
-    private Tuple<String, String> generateSamlAuthnRequest(String realmName) throws Exception {
+    private SamlPrepareAuthenticationResponse generateSamlAuthnRequest(String realmName) throws Exception {
         final Request request = new Request("POST", "/_security/saml/prepare");
         request.setJsonEntity("{\"realm\":\"" + realmName + "\"}");
         try (RestClient kibanaClient = restClientAsKibana()) {
@@ -145,17 +114,17 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
             assertThat(ObjectPath.eval("realm", map), equalTo(realmName));
             assertThat(ObjectPath.eval("id", map), instanceOf(String.class));
             assertThat(ObjectPath.eval("redirect", map), instanceOf(String.class));
-            return new Tuple<>(ObjectPath.eval("id", map), ObjectPath.eval("redirect", map));
+            return new SamlPrepareAuthenticationResponse(realmName, ObjectPath.eval("id", map), ObjectPath.eval("redirect", map));
         }
     }
 
     private String generateSamlResponse(String entityId, String acs, @Nullable Map<String, Object> authnState) throws Exception {
         final Request request = new Request("POST", "/_idp/saml/init");
         if (authnState != null && authnState.isEmpty() == false) {
-            request.setJsonEntity("{\"entity_id\":\"" + entityId + "\", " +
-                "\"authn_state\":"+ Strings.toString(JsonXContent.contentBuilder().map(authnState)) + "}");
+            request.setJsonEntity("{\"entity_id\":\"" + entityId + "\", \"acs\":\"" + acs + "\"," +
+                "\"authn_state\":" + Strings.toString(JsonXContent.contentBuilder().map(authnState)) + "}");
         } else {
-            request.setJsonEntity("{\"entity_id\":\"" + entityId + "\"}");
+            request.setJsonEntity("{\"entity_id\":\"" + entityId + "\", \"acs\":\"" + acs + "\"}");
         }
         request.setOptions(RequestOptions.DEFAULT.toBuilder()
             .addHeader("es-secondary-authorization", basicAuthHeaderValue("idp_user",
@@ -202,26 +171,6 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
             assertThat(ObjectPath.eval("metadata.saml_roles", authMap), hasSize(1));
             assertThat(ObjectPath.eval("metadata.saml_roles", authMap), contains("viewer"));
         }
-    }
-
-    private String encode(String param) {
-        return URLEncoder.encode(param, StandardCharsets.UTF_8);
-    }
-
-    private Long asLong(Object val) {
-        if (val == null) {
-            return null;
-        }
-        if (val instanceof Long) {
-            return (Long) val;
-        }
-        if (val instanceof Number) {
-            return ((Number) val).longValue();
-        }
-        if (val instanceof String) {
-            return Long.parseLong((String) val);
-        }
-        throw new IllegalArgumentException("Value [" + val + "] of type [" + val.getClass() + "] is not a Long");
     }
 
     private RestClient restClientWithToken(String accessToken) throws IOException {

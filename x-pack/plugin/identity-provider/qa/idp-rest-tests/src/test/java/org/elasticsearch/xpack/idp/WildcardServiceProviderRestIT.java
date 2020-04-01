@@ -16,8 +16,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -111,10 +109,6 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent()).map(body)) {
             return BytesReference.bytes(builder).utf8ToString();
         }
-    }
-
-    private String encode(String param) {
-        return URLEncoder.encode(param, StandardCharsets.UTF_8);
     }
 
 }

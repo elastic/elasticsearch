@@ -24,8 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -196,7 +196,7 @@ class S3Repository extends BlobStoreRepository {
 
     private final String cannedACL;
 
-    private final RepositoryMetaData repositoryMetaData;
+    private final RepositoryMetadata repositoryMetadata;
 
     /**
      * Time period to delay repository operations by after finalizing or deleting a snapshot.
@@ -208,14 +208,14 @@ class S3Repository extends BlobStoreRepository {
      * Constructs an s3 backed repository
      */
     S3Repository(
-            final RepositoryMetaData metadata,
+            final RepositoryMetadata metadata,
             final NamedXContentRegistry namedXContentRegistry,
             final S3Service service,
             final ClusterService clusterService) {
         super(metadata, COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry, clusterService);
         this.service = service;
 
-        this.repositoryMetaData = metadata;
+        this.repositoryMetadata = metadata;
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
@@ -271,13 +271,13 @@ class S3Repository extends BlobStoreRepository {
     @Override
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure, int totalShards,
                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                 MetaData clusterMetaData, Map<String, Object> userMetadata, Version repositoryMetaVersion,
+                                 Metadata clusterMetadata, Map<String, Object> userMetadata, Version repositoryMetaVersion,
                                  ActionListener<SnapshotInfo> listener) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
             listener = delayedListener(listener);
         }
         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, clusterMetaData, userMetadata, repositoryMetaVersion, listener);
+            includeGlobalState, clusterMetadata, userMetadata, repositoryMetaVersion, listener);
     }
 
     @Override
@@ -329,7 +329,7 @@ class S3Repository extends BlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, repositoryMetaData);
+        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, repositoryMetadata);
     }
 
     // only use for testing

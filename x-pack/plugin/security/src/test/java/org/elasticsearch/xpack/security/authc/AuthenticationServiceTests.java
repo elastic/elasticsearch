@@ -25,7 +25,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -1550,6 +1550,6 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus, IndexMetaData.State.OPEN);
+            Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN);
     }
 }

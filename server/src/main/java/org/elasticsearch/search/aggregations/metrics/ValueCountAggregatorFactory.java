@@ -36,16 +36,16 @@ import java.util.Map;
 class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     ValueCountAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new ValueCountAggregator(name, null, searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new ValueCountAggregator(name, null, searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
@@ -54,7 +54,7 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSo
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new ValueCountAggregator(name, valuesSource, searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new ValueCountAggregator(name, valuesSource, searchContext, parent, pipelineAggregators, metadata);
     }
 }

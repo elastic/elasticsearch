@@ -58,7 +58,7 @@ public class SLMFeatureSet implements XPackFeatureSet {
     public void usage(ActionListener<Usage> listener) {
         final ClusterState state = clusterService.state();
         boolean available = licenseState.isIndexLifecycleAllowed();
-        final SnapshotLifecycleMetadata slmMeta = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        final SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(available, enabled,
             slmMeta == null ? null : slmMeta.getStats());
         listener.onResponse(usage);

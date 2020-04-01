@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -449,7 +449,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             jobListener.onResponse(
                     new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
             return Void.TYPE;
-        }).when(jobManager).expandJobs(eq(MetaData.ALL), eq(true), any());
+        }).when(jobManager).expandJobs(eq(Metadata.ALL), eq(true), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -86,12 +86,12 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
         runRepeatedlyWhileChangingMaster(() -> {
             final String node = randomFrom(internalCluster().getNodeNames());
             final long metadataVersion
-                = internalCluster().getInstance(ClusterService.class, node).getClusterApplierService().state().metaData().version();
-            final long waitForMetaDataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
+                = internalCluster().getInstance(ClusterService.class, node).getClusterApplierService().state().metadata().version();
+            final long waitForMetadataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
             final ClusterStateRequestBuilder clusterStateRequestBuilder = client(node).admin().cluster().prepareState()
-                .clear().setNodes(true).setMetaData(true)
+                .clear().setNodes(true).setMetadata(true)
                 .setMasterNodeTimeout(TimeValue.timeValueMillis(100)).setWaitForTimeOut(TimeValue.timeValueMillis(100))
-                .setWaitForMetaDataVersion(waitForMetaDataVersion);
+                .setWaitForMetadataVersion(waitForMetadataVersion);
             final ClusterStateResponse clusterStateResponse;
             try {
                 clusterStateResponse = clusterStateRequestBuilder.get();
@@ -101,7 +101,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             if (clusterStateResponse.isWaitForTimedOut() == false) {
                 final ClusterState state = clusterStateResponse.getState();
                 assertNotNull("should always contain a master node", state.nodes().getMasterNodeId());
-                assertThat("waited for metadata version", state.metaData().version(), greaterThanOrEqualTo(waitForMetaDataVersion));
+                assertThat("waited for metadata version", state.metadata().version(), greaterThanOrEqualTo(waitForMetadataVersion));
             }
         });
     }
@@ -110,16 +110,16 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
         runRepeatedlyWhileChangingMaster(() -> {
             final String node = randomFrom(internalCluster().getNodeNames());
             final long metadataVersion
-                = internalCluster().getInstance(ClusterService.class, node).getClusterApplierService().state().metaData().version();
-            final long waitForMetaDataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
+                = internalCluster().getInstance(ClusterService.class, node).getClusterApplierService().state().metadata().version();
+            final long waitForMetadataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
             final ClusterStateResponse clusterStateResponse = client(node).admin().cluster()
-                .prepareState().clear().setLocal(true).setMetaData(true).setWaitForMetaDataVersion(waitForMetaDataVersion)
+                .prepareState().clear().setLocal(true).setMetadata(true).setWaitForMetadataVersion(waitForMetadataVersion)
                 .setMasterNodeTimeout(TimeValue.timeValueMillis(100)).setWaitForTimeOut(TimeValue.timeValueMillis(100))
                 .get();
             if (clusterStateResponse.isWaitForTimedOut() == false) {
-                final MetaData metaData = clusterStateResponse.getState().metaData();
-                assertThat("waited for metadata version " + waitForMetaDataVersion + " with node " + node,
-                    metaData.version(), greaterThanOrEqualTo(waitForMetaDataVersion));
+                final Metadata metadata = clusterStateResponse.getState().metadata();
+                assertThat("waited for metadata version " + waitForMetadataVersion + " with node " + node,
+                    metadata.version(), greaterThanOrEqualTo(waitForMetadataVersion));
             }
         });
     }
@@ -127,7 +127,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
     public void runRepeatedlyWhileChangingMaster(Runnable runnable) throws Exception {
         internalCluster().startNodes(3);
 
-        assertBusy(() -> assertThat(client().admin().cluster().prepareState().clear().setMetaData(true)
+        assertBusy(() -> assertThat(client().admin().cluster().prepareState().clear().setMetadata(true)
             .get().getState().getLastCommittedConfiguration().getNodeIds().stream()
             .filter(n -> ClusterBootstrapService.isBootstrapPlaceholder(n) == false).collect(Collectors.toSet()), hasSize(3)));
 

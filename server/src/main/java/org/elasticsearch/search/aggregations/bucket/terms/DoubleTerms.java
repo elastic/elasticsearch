@@ -102,9 +102,9 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     }
 
     public DoubleTerms(String name, BucketOrder order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
+            Map<String, Object> metadata, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
-        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format, shardSize, showTermDocCountError,
+        super(name, order, requiredSize, minDocCount, pipelineAggregators, metadata, format, shardSize, showTermDocCountError,
                 otherDocCount, buckets, docCountError);
     }
 
@@ -122,7 +122,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
 
     @Override
     public DoubleTerms create(List<Bucket> buckets) {
-        return new DoubleTerms(name, order, requiredSize, minDocCount, this.pipelineAggregators(), metaData, format, shardSize,
+        return new DoubleTerms(name, order, requiredSize, minDocCount, this.pipelineAggregators(), metadata, format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -134,7 +134,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
 
     @Override
     protected DoubleTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
-        return new DoubleTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), getMetaData(), format,
+        return new DoubleTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), getMetadata(), format,
                 shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 

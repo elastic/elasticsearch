@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -82,7 +82,7 @@ public class TransportUpdateDatafeedAction extends
         final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
 
         // Check datafeed is stopped
-        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (MlTasks.getDatafeedTask(request.getUpdate().getId(), tasks) != null) {
             listener.onFailure(ExceptionsHelper.conflictStatusException(
                     Messages.getMessage(Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE,

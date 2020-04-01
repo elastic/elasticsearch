@@ -87,7 +87,7 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
                                                                      AggregatorFactory parent,
                                                                      Builder subFactoriesBuilder) throws IOException {
         return new PercentileRanksAggregatorFactory(name, config, values, configOrDefault(), keyed, queryShardContext,
-                    parent, subFactoriesBuilder, metaData);
+                    parent, subFactoriesBuilder, metadata);
     }
 
     @Override

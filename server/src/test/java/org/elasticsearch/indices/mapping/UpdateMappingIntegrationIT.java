@@ -26,7 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -54,10 +54,10 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.containsString;
@@ -243,7 +243,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
                         assertThat(response.isAcknowledged(), equalTo(true));
                         GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
-                        ImmutableOpenMap<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
+                        ImmutableOpenMap<String, MappingMetadata> mappings = getMappingResponse.getMappings().get(indexName);
                         assertThat(mappings.containsKey(typeName), equalTo(true));
                         assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(),
                             Matchers.hasItem(fieldName));
@@ -316,12 +316,12 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
      */
     private void assertMappingOnMaster(final String index, final String type, final String... fieldNames) {
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
+        ImmutableOpenMap<String, MappingMetadata> mappings = response.getMappings().get(index);
         assertThat(mappings, notNullValue());
-        MappingMetaData mappingMetaData = mappings.get(type);
-        assertThat(mappingMetaData, notNullValue());
+        MappingMetadata mappingMetadata = mappings.get(type);
+        assertThat(mappingMetadata, notNullValue());
 
-        Map<String, Object> mappingSource = mappingMetaData.getSourceAsMap();
+        Map<String, Object> mappingSource = mappingMetadata.getSourceAsMap();
         assertFalse(mappingSource.isEmpty());
         assertTrue(mappingSource.containsKey("properties"));
 
@@ -330,7 +330,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             if (fieldName.indexOf('.') != -1) {
                 fieldName = fieldName.replace(".", ".properties.");
             }
-            assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetaData.source().string(),
+            assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetadata.source().string(),
                 XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
         }
     }

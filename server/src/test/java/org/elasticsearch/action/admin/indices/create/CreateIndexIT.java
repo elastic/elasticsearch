@@ -29,9 +29,9 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,7 +50,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
@@ -68,7 +68,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testCreationDateGivenFails() {
         try {
-            prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4L)).get();
+            prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, 4L)).get();
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("unknown setting [index.creation_date] please check that any required plugins are installed, or check the " +
@@ -83,12 +83,12 @@ public class CreateIndexIT extends ESIntegTestCase {
         ClusterStateResponse response = client().admin().cluster().prepareState().get();
         ClusterState state = response.getState();
         assertThat(state, notNullValue());
-        MetaData metadata = state.getMetaData();
+        Metadata metadata = state.getMetadata();
         assertThat(metadata, notNullValue());
-        ImmutableOpenMap<String, IndexMetaData> indices = metadata.getIndices();
+        ImmutableOpenMap<String, IndexMetadata> indices = metadata.getIndices();
         assertThat(indices, notNullValue());
         assertThat(indices.size(), equalTo(1));
-        IndexMetaData index = indices.get("test");
+        IndexMetadata index = indices.get("test");
         assertThat(index, notNullValue());
         assertThat(index.getCreationDate(), allOf(lessThanOrEqualTo(timeAfterRequest), greaterThanOrEqualTo(timeBeforeRequest)));
     }
@@ -132,10 +132,10 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        ImmutableOpenMap<String, MappingMetadata> mappings = response.mappings().get("test");
         assertNotNull(mappings);
 
-        MappingMetaData metadata = mappings.get("_doc");
+        MappingMetadata metadata = mappings.get("_doc");
         assertNotNull(metadata);
         assertFalse(metadata.sourceAsMap().isEmpty());
     }
@@ -146,10 +146,10 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        ImmutableOpenMap<String, MappingMetadata> mappings = response.mappings().get("test");
         assertNotNull(mappings);
 
-        MappingMetaData metadata = mappings.get("_doc");
+        MappingMetadata metadata = mappings.get("_doc");
         assertNotNull(metadata);
         assertTrue(metadata.sourceAsMap().isEmpty());
     }
@@ -170,10 +170,10 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
+        ImmutableOpenMap<String, MappingMetadata> mappings = response.mappings().get("test");
         assertNotNull(mappings);
 
-        MappingMetaData metadata = mappings.get("_doc");
+        MappingMetadata metadata = mappings.get("_doc");
         assertNotNull(metadata);
         assertTrue(metadata.sourceAsMap().isEmpty());
     }
@@ -182,7 +182,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         int value = randomIntBetween(-10, 0);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, value)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, value)
                     .build())
             .get();
             fail("should have thrown an exception about the primary shard count");
@@ -192,7 +192,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         value = randomIntBetween(-10, -1);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, value)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, value)
                     .build())
                     .get();
             fail("should have thrown an exception about the replica shard count");
@@ -212,9 +212,9 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateIndexWithMetadataBlocks() {
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_METADATA, true)));
-        assertBlocked(client().admin().indices().prepareGetSettings("test"), IndexMetaData.INDEX_METADATA_BLOCK);
-        disableIndexBlock("test", IndexMetaData.SETTING_BLOCKS_METADATA);
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true)));
+        assertBlocked(client().admin().indices().prepareGetSettings("test"), IndexMetadata.INDEX_METADATA_BLOCK);
+        disableIndexBlock("test", IndexMetadata.SETTING_BLOCKS_METADATA);
     }
 
     public void testUnknownSettingFails() {
@@ -234,7 +234,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         int value = randomIntBetween(-10, 0);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), value)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS.substring(IndexMetadata.INDEX_SETTING_PREFIX.length()), value)
                 .build())
                 .get();
             fail("should have thrown an exception about the shard count");
@@ -244,7 +244,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         value = randomIntBetween(-10, -1);
         try {
             prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetaData.INDEX_SETTING_PREFIX.length()), value)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetadata.INDEX_SETTING_PREFIX.length()), value)
                 .build())
                 .get();
             fail("should have thrown an exception about the shard count");
@@ -333,8 +333,8 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testFailureToCreateIndexCleansUpIndicesService() {
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
             .build();
         assertAcked(client().admin().indices().prepareCreate("test-idx-1")
             .setSettings(settings)
@@ -353,14 +353,14 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     /**
-     * This test ensures that index creation adheres to the {@link IndexMetaData#SETTING_WAIT_FOR_ACTIVE_SHARDS}.
+     * This test ensures that index creation adheres to the {@link IndexMetadata#SETTING_WAIT_FOR_ACTIVE_SHARDS}.
      */
     public void testDefaultWaitForActiveShardsUsesIndexSetting() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
                                 .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas))
-                                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
+                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
                                 .build();
         assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
 

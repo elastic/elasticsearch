@@ -14,7 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -122,7 +122,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             return;
         }
 
-        final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
+        final IndexMetadata followerIndexMetadata = state.getMetadata().index(request.getFollowerIndex());
         if (followerIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
             return;
@@ -151,7 +151,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     }
 
     /**
-     * Performs validation on the provided leader and follow {@link IndexMetaData} instances and then
+     * Performs validation on the provided leader and follow {@link IndexMetadata} instances and then
      * creates a persistent task for each leader primary shard. This persistent tasks track changes in the leader
      * shard and replicate these changes to a follower shard.
      *
@@ -163,8 +163,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     void start(
             ResumeFollowAction.Request request,
             String clusterNameAlias,
-            IndexMetaData leaderIndexMetadata,
-            IndexMetaData followIndexMetadata,
+            IndexMetadata leaderIndexMetadata,
+            IndexMetadata followIndexMetadata,
             String[] leaderIndexHistoryUUIDs,
             ActionListener<AcknowledgedResponse> listener) throws IOException {
 
@@ -186,8 +186,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
 
     static void validate(
             final ResumeFollowAction.Request request,
-            final IndexMetaData leaderIndex,
-            final IndexMetaData followIndex,
+            final IndexMetadata leaderIndex,
+            final IndexMetadata followIndex,
             final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
         FollowParameters parameters = request.getParameters();
@@ -230,7 +230,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             throw new IllegalArgumentException("leader index number_of_routing_shards [" + leaderIndex.getRoutingNumShards() +
                     "] does not match with the number_of_routing_shards of the follow index [" + followIndex.getRoutingNumShards() + "]");
         }
-        if (leaderIndex.getState() != IndexMetaData.State.OPEN || followIndex.getState() != IndexMetaData.State.OPEN) {
+        if (leaderIndex.getState() != IndexMetadata.State.OPEN || followIndex.getState() != IndexMetadata.State.OPEN) {
             throw new IllegalArgumentException("leader and follow index must be open");
         }
         if (CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(followIndex.getSettings()) == false) {
@@ -254,8 +254,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         int shardId,
         String clusterAliasName,
         FollowParameters parameters,
-        IndexMetaData leaderIndexMetadata,
-        IndexMetaData followIndexMetadata,
+        IndexMetadata leaderIndexMetadata,
+        IndexMetadata followIndexMetadata,
         Map<String, String> filteredHeaders
     ) {
         int maxReadRequestOperationCount;
@@ -335,8 +335,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         );
     }
 
-    static String[] extractLeaderShardHistoryUUIDs(Map<String, String> ccrIndexMetaData) {
-        String historyUUIDs = ccrIndexMetaData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
+    static String[] extractLeaderShardHistoryUUIDs(Map<String, String> ccrIndexMetadata) {
+        String historyUUIDs = ccrIndexMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
         if (historyUUIDs == null) {
             throw new IllegalArgumentException("leader index shard UUIDs are missing");
         }
@@ -356,19 +356,19 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
 
     static {
         final Set<Setting<?>> nonReplicatedSettings = new HashSet<>();
-        nonReplicatedSettings.add(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING);
-        nonReplicatedSettings.add(IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING);
-        nonReplicatedSettings.add(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
-        nonReplicatedSettings.add(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING);
-        nonReplicatedSettings.add(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING);
-        nonReplicatedSettings.add(IndexMetaData.INDEX_READ_ONLY_SETTING);
-        nonReplicatedSettings.add(IndexMetaData.INDEX_BLOCKS_READ_SETTING);
-        nonReplicatedSettings.add(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING);
-        nonReplicatedSettings.add(IndexMetaData.INDEX_BLOCKS_METADATA_SETTING);
-        nonReplicatedSettings.add(IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING);
-        nonReplicatedSettings.add(IndexMetaData.INDEX_PRIORITY_SETTING);
-        nonReplicatedSettings.add(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS);
-        nonReplicatedSettings.add(IndexMetaData.INDEX_HIDDEN_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_READ_ONLY_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_BLOCKS_READ_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_BLOCKS_METADATA_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_PRIORITY_SETTING);
+        nonReplicatedSettings.add(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS);
+        nonReplicatedSettings.add(IndexMetadata.INDEX_HIDDEN_SETTING);
 
         nonReplicatedSettings.add(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING);
         nonReplicatedSettings.add(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING);
@@ -455,15 +455,15 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         settings.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());
         // soft deletes setting is checked manually
         settings.remove(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey());
-        settings.remove(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey());
-        settings.remove(IndexMetaData.SETTING_INDEX_UUID);
-        settings.remove(IndexMetaData.SETTING_INDEX_PROVIDED_NAME);
-        settings.remove(IndexMetaData.SETTING_CREATION_DATE);
+        settings.remove(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
+        settings.remove(IndexMetadata.SETTING_INDEX_UUID);
+        settings.remove(IndexMetadata.SETTING_INDEX_PROVIDED_NAME);
+        settings.remove(IndexMetadata.SETTING_CREATION_DATE);
 
         // Follower index may be upgraded, while the leader index hasn't been upgraded, so it is expected
         // that these settings are different:
-        settings.remove(IndexMetaData.SETTING_VERSION_UPGRADED);
-        settings.remove(IndexMetaData.SETTING_VERSION_UPGRADED_STRING);
+        settings.remove(IndexMetadata.SETTING_VERSION_UPGRADED);
+        settings.remove(IndexMetadata.SETTING_VERSION_UPGRADED_STRING);
 
         Iterator<String> iterator = settings.keys().iterator();
         while (iterator.hasNext()) {

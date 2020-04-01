@@ -3,8 +3,11 @@
   - skip:
       version: " - 7.7.99"
       reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
       indices.put_index_template:
         name: test
         body:
@@ -32,8 +35,11 @@
   - skip:
       version: " - 7.7.99"
       reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*, test2-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
       indices.put_index_template:
         name: test
         body:
@@ -69,8 +75,11 @@
   - skip:
       version: " - 7.7.99"
       reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "index template [test2] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test2] will take precedence during new index creation"
       indices.put_index_template:
         name: test2
         body:

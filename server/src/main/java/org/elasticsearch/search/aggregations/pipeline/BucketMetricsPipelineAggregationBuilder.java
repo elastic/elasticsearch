@@ -100,7 +100,7 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
     }
 
     @Override
-    protected abstract PipelineAggregator createInternal(Map<String, Object> metaData);
+    protected abstract PipelineAggregator createInternal(Map<String, Object> metadata);
 
     @Override
     protected void validate(ValidationContext context) {

@@ -571,7 +571,7 @@ Discovery-Plugins::
 
 Distributed::
 * [Close Index API] Mark shard copy as stale if needed during shard verification {pull}36755[#36755]
-* [Close Index API] Refactor MetaDataIndexStateService {pull}36354[#36354] (issue: {issue}36249[#36249])
+* [Close Index API] Refactor MetadataIndexStateService {pull}36354[#36354] (issue: {issue}36249[#36249])
 * [Close Index API] Add TransportShardCloseAction for pre-closing verifications {pull}36249[#36249]
 * TransportResyncReplicationAction should not honour blocks {pull}35795[#35795] (issues: {issue}35332[#35332], {issue}35597[#35597])
 * Expose all permits acquisition in IndexShard and TransportReplicationAction {pull}35540[#35540] (issue: {issue}33888[#33888])
@@ -1076,7 +1076,7 @@ ZenDiscovery::
 * PersistedState interface implementation {pull}35819[#35819]
 * Support rolling upgrades from Zen1 {pull}35737[#35737]
 * Add lag detector {pull}35685[#35685]
-* Move ClusterState fields to be persisted to ClusterState.MetaData {pull}35625[#35625]
+* Move ClusterState fields to be persisted to ClusterState.Metadata {pull}35625[#35625]
 * Introduce ClusterBootstrapService {pull}35488[#35488]
 * Introduce vote withdrawal {pull}35446[#35446]
 * Add basic Zen1 transport-level BWC {pull}35443[#35443]
@@ -1251,7 +1251,7 @@ Features/Ingest::
 
 Features/Java High Level REST Client::
 * Drop extra level from user parser {pull}34932[#34932]
-* Update IndexTemplateMetaData to allow unknown fields {pull}38448[#38448] (issue: {issue}36938[#36938])
+* Update IndexTemplateMetadata to allow unknown fields {pull}38448[#38448] (issue: {issue}36938[#36938])
 * `if_seq_no` and `if_primary_term` parameters aren't wired correctly in REST Client's CRUD API {pull}38411[#38411]
 * Update Rollup Caps to allow unknown fields {pull}38339[#38339] (issue: {issue}36938[#36938])
 * Fix ILM explain response to allow unknown fields {pull}38054[#38054] (issue: {issue}36938[#36938])

@@ -9,7 +9,7 @@ import com.amazonaws.services.s3.internal.Constants;
 import joptsimple.OptionSet;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class S3CleanupTests extends AbstractCleanupTests {
 
     @Override
-    protected void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetaData> blobs)
+    protected void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetadata> blobs)
             throws Exception {
         assertBusy(() -> super.assertBlobsByPrefix(repository, path, prefix, blobs), 10, TimeUnit.MINUTES);
     }

@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -248,13 +248,13 @@ public class AuthorizationService {
                     }, listener::onFailure, requestInfo, requestId, authzInfo), threadContext);
             authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener);
         } else if (IndexPrivilege.ACTION_MATCHER.test(action)) {
-            final MetaData metaData = clusterService.state().metaData();
+            final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<List<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener ->
-                authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metaData.getIndicesLookup(),
+                authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metadata.getIndicesLookup(),
                     authzIndicesListener));
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>((resolvedIndicesListener) -> {
                 authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
-                    resolveIndexNames(request, metaData, authorizedIndices, resolvedIndicesListener);
+                    resolveIndexNames(request, metadata, authorizedIndices, resolvedIndicesListener);
                 }, e -> {
                     auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
                     if (e instanceof IndexNotFoundException) {
@@ -265,9 +265,9 @@ public class AuthorizationService {
                 }));
             });
             authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier,
-                metaData.getIndicesLookup(), wrapPreservingContext(new AuthorizationResultListener<>(result ->
+                metadata.getIndicesLookup(), wrapPreservingContext(new AuthorizationResultListener<>(result ->
                     handleIndexActionAuthorizationResult(result, requestInfo, requestId, authzInfo, authzEngine, authorizedIndicesSupplier,
-                        resolvedIndicesAsyncSupplier, metaData, listener),
+                        resolvedIndicesAsyncSupplier, metadata, listener),
                     listener::onFailure, requestInfo, requestId, authzInfo), threadContext));
         } else {
             logger.warn("denying access as action [{}] is not an index or cluster action", action);
@@ -281,7 +281,7 @@ public class AuthorizationService {
                                                       final AuthorizationEngine authzEngine,
                                                       final AsyncSupplier<List<String>> authorizedIndicesSupplier,
                                                       final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
-                                                      final MetaData metaData,
+                                                      final Metadata metadata,
                                                       final ActionListener<Void> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
@@ -309,7 +309,7 @@ public class AuthorizationService {
                             ril.onResponse(withAliases);
                         }, ril::onFailure));
                     },
-                    metaData.getIndicesLookup(),
+                    metadata.getIndicesLookup(),
                     wrapPreservingContext(new AuthorizationResultListener<>(
                         authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
                         listener::onFailure, aliasesRequestInfo, requestId, authzInfo), threadContext));
@@ -318,7 +318,7 @@ public class AuthorizationService {
             // if this is performing multiple actions on the index, then check each of those actions.
             assert request instanceof BulkShardRequest
                 : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
-            authorizeBulkItems(requestInfo, authzInfo, authzEngine, resolvedIndicesAsyncSupplier, authorizedIndicesSupplier, metaData,
+            authorizeBulkItems(requestInfo, authzInfo, authzEngine, resolvedIndicesAsyncSupplier, authorizedIndicesSupplier, metadata,
                     requestId,
                     wrapPreservingContext(
                             ActionListener.wrap(ignore -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
@@ -450,7 +450,7 @@ public class AuthorizationService {
     private void authorizeBulkItems(RequestInfo requestInfo, AuthorizationInfo authzInfo,
                                     AuthorizationEngine authzEngine, AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
                                     AsyncSupplier<List<String>> authorizedIndicesSupplier,
-                                    MetaData metaData, String requestId, ActionListener<Void> listener) {
+                                    Metadata metadata, String requestId, ActionListener<Void> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
         final BulkShardRequest request = (BulkShardRequest) requestInfo.getRequest();
         // Maps original-index -> expanded-index-name (expands date-math, but not aliases)
@@ -465,7 +465,7 @@ public class AuthorizationService {
                 for (BulkItemRequest item : request.items()) {
                     String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
                         final ResolvedIndices resolvedIndices =
-                            indicesAndAliasesResolver.resolveIndicesAndAliases(item.request(), metaData, authorizedIndices);
+                            indicesAndAliasesResolver.resolveIndicesAndAliases(item.request(), metadata, authorizedIndices);
                         if (resolvedIndices.getRemote().size() != 0) {
                             throw illegalArgument("Bulk item should not write to remote indices, but request writes to "
                                 + String.join(",", resolvedIndices.getRemote()));
@@ -530,7 +530,7 @@ public class AuthorizationService {
                         new RequestInfo(requestInfo.getAuthentication(), requestInfo.getRequest(), bulkItemAction);
                     authzEngine.authorizeIndexAction(bulkItemInfo, authzInfo,
                         ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
-                        metaData.getIndicesLookup(), ActionListener.wrap(indexAuthorizationResult ->
+                        metadata.getIndicesLookup(), ActionListener.wrap(indexAuthorizationResult ->
                                 groupedActionListener.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult)),
                             groupedActionListener::onFailure));
                 });
@@ -558,9 +558,9 @@ public class AuthorizationService {
         throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
     }
 
-    private void resolveIndexNames(TransportRequest request, MetaData metaData, List<String> authorizedIndices,
+    private void resolveIndexNames(TransportRequest request, Metadata metadata, List<String> authorizedIndices,
                                    ActionListener<ResolvedIndices> listener) {
-        listener.onResponse(indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices));
+        listener.onResponse(indicesAndAliasesResolver.resolve(request, metadata, authorizedIndices));
     }
 
     private void putTransientIfNonExisting(String key, Object value) {

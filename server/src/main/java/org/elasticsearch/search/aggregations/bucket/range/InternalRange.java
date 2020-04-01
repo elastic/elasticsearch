@@ -203,8 +203,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @SuppressWarnings("unchecked")
         public R create(String name, List<B> ranges, DocValueFormat format, boolean keyed, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) {
-            return (R) new InternalRange<B, R>(name, ranges, format, keyed, pipelineAggregators, metaData);
+                Map<String, Object> metadata) {
+            return (R) new InternalRange<B, R>(name, ranges, format, keyed, pipelineAggregators, metadata);
         }
 
         @SuppressWarnings("unchecked")
@@ -216,7 +216,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         @SuppressWarnings("unchecked")
         public R create(List<B> ranges, R prototype) {
             return (R) new InternalRange<B, R>(prototype.name, ranges, prototype.format, prototype.keyed, prototype.pipelineAggregators(),
-                    prototype.metaData);
+                    prototype.metadata);
         }
 
         @SuppressWarnings("unchecked")
@@ -232,8 +232,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     public InternalRange(String name, List<B> ranges, DocValueFormat format, boolean keyed,
             List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.ranges = ranges;
         this.format = format;
         this.keyed = keyed;
@@ -313,7 +313,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < this.ranges.size(); ++i) {
             ranges.add((B) reduceBucket(rangeList[i], reduceContext));
         }
-        return getFactory().create(name, ranges, format, keyed, pipelineAggregators(), getMetaData());
+        return getFactory().create(name, ranges, format, keyed, pipelineAggregators(), getMetadata());
     }
 
     @Override

@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -308,12 +308,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
             try {
                 templates.put(
                     TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
-                    TransformInternalIndex.getIndexTemplateMetaData()
+                    TransformInternalIndex.getIndexTemplateMetadata()
                 );
             } catch (IOException e) {
                 logger.error("Error creating transform index template", e);
@@ -322,7 +322,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 // Template upgraders are only ever called on the master nodes, so we can use the current node version as the compatibility
                 // version here because we can be sure that this node, if elected master, will be compatible with itself.
                 templates.put(TransformInternalIndexConstants.AUDIT_INDEX,
-                    TransformInternalIndex.getAuditIndexTemplateMetaData(Version.CURRENT));
+                    TransformInternalIndex.getAuditIndexTemplateMetadata(Version.CURRENT));
             } catch (IOException e) {
                 logger.warn("Error creating transform audit index", e);
             }

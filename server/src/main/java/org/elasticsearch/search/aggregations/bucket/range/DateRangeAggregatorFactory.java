@@ -38,8 +38,8 @@ public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<R
                                         QueryShardContext queryShardContext,
                                         AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metaData) throws IOException {
-        super(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                        Map<String, Object> metadata) throws IOException {
+        super(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
 }

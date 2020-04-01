@@ -63,7 +63,6 @@ public class PreVoteCollector {
         this.updateMaxTermSeen = updateMaxTermSeen;
         this.electionStrategy = electionStrategy;
 
-        // TODO does this need to be on the generic threadpool or can it use SAME?
         transportService.registerRequestHandler(REQUEST_PRE_VOTE_ACTION_NAME, Names.GENERIC, false, false,
             PreVoteRequest::new,
             (request, channel, task) -> channel.sendResponse(handlePreVoteRequest(request)));
@@ -184,7 +183,7 @@ public class PreVoteCollector {
 
             if (response.getLastAcceptedTerm() > clusterState.term()
                 || (response.getLastAcceptedTerm() == clusterState.term()
-                && response.getLastAcceptedVersion() > clusterState.getVersionOrMetaDataVersion())) {
+                && response.getLastAcceptedVersion() > clusterState.getVersionOrMetadataVersion())) {
                 logger.debug("{} ignoring {} from {} as it is fresher", this, response, sender);
                 return;
             }

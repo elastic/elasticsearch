@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -197,11 +197,11 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
                 if (snapshots != null && snapshots.entries().size() > 0) {
                     final SnapshotsInProgress.Entry snapshotEntry = snapshots.entries().get(0);
                     if (snapshotEntry.state() == SnapshotsInProgress.State.SUCCESS) {
-                        final RepositoriesMetaData repoMeta =
-                            event.state().metaData().custom(RepositoriesMetaData.TYPE);
-                        final RepositoryMetaData metaData = repoMeta.repository("test-repo");
-                        if (metaData.generation() == metaData.pendingGeneration()
-                            && metaData.generation() > snapshotEntry.repositoryStateId()) {
+                        final RepositoriesMetadata repoMeta =
+                            event.state().metadata().custom(RepositoriesMetadata.TYPE);
+                        final RepositoryMetadata metadata = repoMeta.repository("test-repo");
+                        if (metadata.generation() == metadata.pendingGeneration()
+                            && metadata.generation() > snapshotEntry.repositoryStateId()) {
                             logger.info("--> starting disruption");
                             networkDisruption.startDisrupting();
                             clusterService.removeListener(this);

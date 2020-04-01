@@ -163,8 +163,8 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
 
         final long interval = randomNonNegativeLong();
         final List<MonitoringDoc> documents = new ArrayList<>(collector.doCollect(node, interval, clusterState));
-        verify(clusterState).metaData();
-        verify(metaData).clusterUUID();
+        verify(clusterState).metadata();
+        verify(metadata).clusterUUID();
 
         assertThat(documents, hasSize(executingPolicies.size() + coordinatorStats.size()));
 

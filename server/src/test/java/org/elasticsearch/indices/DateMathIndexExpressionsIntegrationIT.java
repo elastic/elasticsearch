@@ -27,7 +27,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
@@ -50,9 +50,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         createIndex(index1, index2, index3);
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(index1, index2, index3).get();
-        assertEquals(index1, getSettingsResponse.getSetting(index1, IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals(index2, getSettingsResponse.getSetting(index2, IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals(index3, getSettingsResponse.getSetting(index3, IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
+        assertEquals(index1, getSettingsResponse.getSetting(index1, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+        assertEquals(index2, getSettingsResponse.getSetting(index2, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+        assertEquals(index3, getSettingsResponse.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
 
 
         String dateMathExp1 = "<.marvel-{now/d}>";
@@ -145,14 +145,14 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
 
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(index1, index2, index3).get();
-        assertEquals(dateMathExp1, getSettingsResponse.getSetting(index1, IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals(dateMathExp2, getSettingsResponse.getSetting(index2, IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
-        assertEquals(dateMathExp3, getSettingsResponse.getSetting(index3, IndexMetaData.SETTING_INDEX_PROVIDED_NAME));
+        assertEquals(dateMathExp1, getSettingsResponse.getSetting(index1, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+        assertEquals(dateMathExp2, getSettingsResponse.getSetting(index2, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
+        assertEquals(dateMathExp3, getSettingsResponse.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
 
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.metaData().index(index1), notNullValue());
-        assertThat(clusterState.metaData().index(index2), notNullValue());
-        assertThat(clusterState.metaData().index(index3), notNullValue());
+        assertThat(clusterState.metadata().index(index1), notNullValue());
+        assertThat(clusterState.metadata().index(index2), notNullValue());
+        assertThat(clusterState.metadata().index(index3), notNullValue());
     }
 
 }

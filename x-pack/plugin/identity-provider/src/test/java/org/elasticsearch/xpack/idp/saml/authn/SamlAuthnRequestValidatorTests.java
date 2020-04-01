@@ -83,7 +83,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         SamlValidateAuthnRequestResponse response = future.actionGet();
         assertThat(response.isForceAuthn(), equalTo(false));
         assertThat(response.getSpEntityId(), equalTo("https://sp1.kibana.org"));
-        assertThat(response.getAuthnState().size(), equalTo(4));
+        assertThat(response.getAuthnState().size(), equalTo(2));
         assertThat(response.getAuthnState().get("authn_request_id"), equalTo(authnRequest.getID()));
         assertThat(response.getAuthnState().get("nameid_format"), equalTo(TRANSIENT));
     }
@@ -98,7 +98,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         SamlValidateAuthnRequestResponse response = future.actionGet();
         assertThat(response.isForceAuthn(), equalTo(false));
         assertThat(response.getSpEntityId(), equalTo("https://sp2.kibana.org"));
-        assertThat(response.getAuthnState().size(), equalTo(4));
+        assertThat(response.getAuthnState().size(), equalTo(2));
         assertThat(response.getAuthnState().get("authn_request_id"), equalTo(authnRequest.getID()));
         assertThat(response.getAuthnState().get("nameid_format"), equalTo(PERSISTENT));
     }
@@ -112,7 +112,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         SamlValidateAuthnRequestResponse response = future.actionGet();
         assertThat(response.isForceAuthn(), equalTo(false));
         assertThat(response.getSpEntityId(), equalTo("https://sp2.kibana.org"));
-        assertThat(response.getAuthnState().size(), equalTo(4));
+        assertThat(response.getAuthnState().size(), equalTo(2));
         assertThat(response.getAuthnState().get("authn_request_id"), equalTo(authnRequest.getID()));
         assertThat(response.getAuthnState().get("nameid_format"), equalTo(PERSISTENT));
     }
@@ -126,7 +126,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         SamlValidateAuthnRequestResponse response = future.actionGet();
         assertThat(response.isForceAuthn(), equalTo(false));
         assertThat(response.getSpEntityId(), equalTo("https://sp1.kibana.org"));
-        assertThat(response.getAuthnState().size(), equalTo(4));
+        assertThat(response.getAuthnState().size(), equalTo(2));
         assertThat(response.getAuthnState().get("authn_request_id"), equalTo(authnRequest.getID()));
         assertThat(response.getAuthnState().get("nameid_format"), equalTo(TRANSIENT));
     }

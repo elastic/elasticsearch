@@ -23,8 +23,8 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponseTests;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponseTests;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -48,8 +48,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 
 public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexResponse> {
@@ -76,8 +76,8 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
     @Override
     protected GetIndexResponse createTestInstance() {
         String[] indices = generateRandomStringArray(5, 5, false, false);
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
@@ -87,13 +87,13 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
             int typeCount = rarely() ? 0 : 1;
             mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, true));
 
-            List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
+            List<AliasMetadata> aliasMetadataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
             for (int i=0; i<aliasesNum; i++) {
-                aliasMetaDataList.add(GetAliasesResponseTests.createAliasMetaData());
+                aliasMetadataList.add(GetAliasesResponseTests.createAliasMetadata());
             }
-            CollectionUtil.timSort(aliasMetaDataList, Comparator.comparing(AliasMetaData::alias));
-            aliases.put(index, Collections.unmodifiableList(aliasMetaDataList));
+            CollectionUtil.timSort(aliasMetadataList, Comparator.comparing(AliasMetadata::alias));
+            aliases.put(index, Collections.unmodifiableList(aliasMetadataList));
 
             Settings.Builder builder = Settings.builder();
             builder.put(RandomCreateIndexGenerator.randomIndexSettings());
@@ -116,22 +116,22 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
             f.contains(".aliases");
     }
 
-    private static ImmutableOpenMap<String, List<AliasMetaData>> getTestAliases(String indexName) {
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
-        List<AliasMetaData> indexAliases = new ArrayList<>();
-        indexAliases.add(new AliasMetaData.Builder("alias1").routing("r1").build());
-        indexAliases.add(new AliasMetaData.Builder("alias2").filter("{\"term\": {\"year\": 2016}}").build());
+    private static ImmutableOpenMap<String, List<AliasMetadata>> getTestAliases(String indexName) {
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
+        List<AliasMetadata> indexAliases = new ArrayList<>();
+        indexAliases.add(new AliasMetadata.Builder("alias1").routing("r1").build());
+        indexAliases.add(new AliasMetadata.Builder("alias2").filter("{\"term\": {\"year\": 2016}}").build());
         aliases.put(indexName, Collections.unmodifiableList(indexAliases));
         return aliases.build();
     }
 
-    private static ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> getTestMappings(String indexName) {
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, MappingMetaData> indexMappings = ImmutableOpenMap.builder();
+    private static ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> getTestMappings(String indexName) {
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> mappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetadata> indexMappings = ImmutableOpenMap.builder();
         try {
             indexMappings.put(
                 "doc",
-                new MappingMetaData("doc",
+                new MappingMetadata("doc",
                     Collections.singletonMap("field_1", Collections.singletonMap("type", "string"))
                 )
             );

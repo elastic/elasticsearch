@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -127,19 +127,19 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         goodMappingBuilder.endObject();
 
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metaData(MetaData.builder()
-                .put(IndexTemplateMetaData.builder(tooManyFieldsTemplate)
+            .metadata(Metadata.builder()
+                .put(IndexTemplateMetadata.builder(tooManyFieldsTemplate)
                     .patterns(Collections.singletonList(randomAlphaOfLength(5)))
                     .putMapping("_doc", Strings.toString(badMappingBuilder))
                     .build())
-                .put(IndexTemplateMetaData.builder(tooManyFieldsWithDefaultFieldsTemplate)
+                .put(IndexTemplateMetadata.builder(tooManyFieldsWithDefaultFieldsTemplate)
                     .patterns(Collections.singletonList(randomAlphaOfLength(5)))
                     .putMapping("_doc", Strings.toString(badMappingBuilder))
                     .settings(Settings.builder()
                         .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(),
                             Collections.singletonList(randomAlphaOfLength(5)).toString()))
                     .build())
-                .put(IndexTemplateMetaData.builder(goodTemplateName)
+                .put(IndexTemplateMetadata.builder(goodTemplateName)
                     .patterns(Collections.singletonList(randomAlphaOfLength(5)))
                     .putMapping("_doc", Strings.toString(goodMappingBuilder))
                     .build())
@@ -212,8 +212,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
     private void assertFieldNamesEnabledTemplate(XContentBuilder templateBuilder, boolean expectIssue) throws IOException {
         String badTemplateName = randomAlphaOfLength(5);
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
-            .metaData(MetaData.builder()
-                .put(IndexTemplateMetaData.builder(badTemplateName)
+            .metadata(Metadata.builder()
+                .put(IndexTemplateMetadata.builder(badTemplateName)
                     .patterns(Collections.singletonList(randomAlphaOfLength(5)))
                     .putMapping("_doc", Strings.toString(templateBuilder))
                     .build())
@@ -240,13 +240,13 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
     public void testPollIntervalTooLow() {
         {
             final String tooLowInterval = randomTimeValue(1, 999, "ms", "micros", "nanos");
-            MetaData badMetaDtata = MetaData.builder()
+            Metadata badMetaDtata = Metadata.builder()
                 .persistentSettings(Settings.builder()
                     .put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), tooLowInterval)
                     .build())
                 .build();
             ClusterState badState = ClusterState.builder(new ClusterName("test"))
-                .metaData(badMetaDtata)
+                .metadata(badMetaDtata)
                 .build();
 
             DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -262,13 +262,13 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         // Test that other values are ok
         {
             final String okInterval = randomTimeValue(1, 9999, "d", "h", "s");
-            MetaData okMetaData = MetaData.builder()
+            Metadata okMetadata = Metadata.builder()
                 .persistentSettings(Settings.builder()
                     .put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), okInterval)
                     .build())
                 .build();
             ClusterState okState = ClusterState.builder(new ClusterName("test"))
-                .metaData(okMetaData)
+                .metadata(okMetadata)
                 .build();
             List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(okState));
             assertThat(noIssues, Matchers.hasSize(0));

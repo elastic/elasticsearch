@@ -21,7 +21,7 @@ package org.elasticsearch.indices.exists.types;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -32,9 +32,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
@@ -98,10 +98,10 @@ public class TypesExistsIT extends ESIntegTestCase {
 
         // Request is blocked
         try {
-            enableIndexBlock("ro", IndexMetaData.SETTING_BLOCKS_METADATA);
+            enableIndexBlock("ro", IndexMetadata.SETTING_BLOCKS_METADATA);
             assertBlocked(client().admin().indices().prepareTypesExists("ro").setTypes("type1"));
         } finally {
-            disableIndexBlock("ro", IndexMetaData.SETTING_BLOCKS_METADATA);
+            disableIndexBlock("ro", IndexMetadata.SETTING_BLOCKS_METADATA);
         }
     }
 }

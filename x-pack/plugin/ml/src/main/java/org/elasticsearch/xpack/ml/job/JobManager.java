@@ -14,7 +14,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -170,7 +170,7 @@ public class JobManager {
 
     /**
      * Get the jobs that match the given {@code expression}.
-     * Note that when the {@code jobId} is {@link MetaData#ALL} all jobs are returned.
+     * Note that when the {@code jobId} is {@link Metadata#ALL} all jobs are returned.
      *
      * @param expression   the jobId or an expression matching jobIds
      * @param allowNoJobs  if {@code false}, an error is thrown when no job matches the {@code jobId}
@@ -478,13 +478,13 @@ public class JobManager {
     }
 
     private boolean isJobOpen(ClusterState clusterState, String jobId) {
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
     }
 
     private Set<String> openJobIds(ClusterState clusterState) {
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.openJobIds(persistentTasks);
     }
 

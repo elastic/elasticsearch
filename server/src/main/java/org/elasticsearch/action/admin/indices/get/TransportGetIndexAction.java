@@ -27,10 +27,10 @@ import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -86,8 +86,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     @Override
     protected void doMasterOperation(final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
                                      final ActionListener<GetIndexResponse> listener) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsResult = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, List<AliasMetaData>> aliasesResult = ImmutableOpenMap.of();
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsResult = ImmutableOpenMap.of();
+        ImmutableOpenMap<String, List<AliasMetadata>> aliasesResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
         Feature[] features = request.features();
@@ -99,7 +99,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             case MAPPINGS:
                     if (!doneMappings) {
                         try {
-                            mappingsResult = state.metaData().findMappings(concreteIndices, request.types(),
+                            mappingsResult = state.metadata().findMappings(concreteIndices, request.types(),
                                     indicesService.getFieldFilter());
                             doneMappings = true;
                         } catch (IOException e) {
@@ -110,7 +110,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     break;
             case ALIASES:
                     if (!doneAliases) {
-                        aliasesResult = state.metaData().findAllAliases(concreteIndices);
+                        aliasesResult = state.metadata().findAllAliases(concreteIndices);
                         doneAliases = true;
                     }
                     break;
@@ -119,9 +119,9 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                         ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
                         ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
                         for (String index : concreteIndices) {
-                            Settings indexSettings = state.metaData().index(index).getSettings();
+                            Settings indexSettings = state.metadata().index(index).getSettings();
                             if (request.humanReadable()) {
-                                indexSettings = IndexMetaData.addHumanReadableSettings(indexSettings);
+                                indexSettings = IndexMetadata.addHumanReadableSettings(indexSettings);
                             }
                             settingsMapBuilder.put(index, indexSettings);
                             if (request.includeDefaults()) {

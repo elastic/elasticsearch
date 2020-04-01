@@ -21,8 +21,8 @@ package org.elasticsearch.client.indices;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.GetAliasesResponseTests;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -72,8 +72,8 @@ public class GetIndexResponseTests extends ESTestCase {
 
     private static GetIndexResponse createTestInstance() {
         String[] indices = generateRandomStringArray(5, 5, false, false);
-        Map<String, MappingMetaData> mappings = new HashMap<>();
-        Map<String, List<AliasMetaData>> aliases = new HashMap<>();
+        Map<String, MappingMetadata> mappings = new HashMap<>();
+        Map<String, List<AliasMetadata>> aliases = new HashMap<>();
         Map<String, Settings> settings = new HashMap<>();
         Map<String, Settings> defaultSettings = new HashMap<>();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
@@ -81,13 +81,13 @@ public class GetIndexResponseTests extends ESTestCase {
         for (String index: indices) {
             mappings.put(index, createMappingsForIndex());
 
-            List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
+            List<AliasMetadata> aliasMetadataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
             for (int i=0; i<aliasesNum; i++) {
-                aliasMetaDataList.add(GetAliasesResponseTests.createAliasMetaData());
+                aliasMetadataList.add(GetAliasesResponseTests.createAliasMetadata());
             }
-            CollectionUtil.timSort(aliasMetaDataList, Comparator.comparing(AliasMetaData::alias));
-            aliases.put(index, Collections.unmodifiableList(aliasMetaDataList));
+            CollectionUtil.timSort(aliasMetadataList, Comparator.comparing(AliasMetadata::alias));
+            aliases.put(index, Collections.unmodifiableList(aliasMetadataList));
 
             Settings.Builder builder = Settings.builder();
             builder.put(RandomCreateIndexGenerator.randomIndexSettings());
@@ -100,11 +100,11 @@ public class GetIndexResponseTests extends ESTestCase {
         return new GetIndexResponse(indices, mappings, aliases, settings, defaultSettings);
     }
 
-    private static MappingMetaData createMappingsForIndex() {
+    private static MappingMetadata createMappingsForIndex() {
         int typeCount = rarely() ? 0 : 1;
-        MappingMetaData mmd;
+        MappingMetadata mmd;
         try {
-            mmd = new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
+            mmd = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -118,7 +118,7 @@ public class GetIndexResponseTests extends ESTestCase {
 
                 try {
                     String typeName = MapperService.SINGLE_MAPPING_NAME;
-                    mmd = new MappingMetaData(typeName, mappings);
+                    mmd = new MappingMetadata(typeName, mappings);
                 } catch (IOException e) {
                     fail("shouldn't have failed " + e);
                 }
@@ -162,15 +162,15 @@ public class GetIndexResponseTests extends ESTestCase {
 
     private static void toXContent(GetIndexResponse response, XContentBuilder builder) throws IOException {
         // first we need to repackage from GetIndexResponse to org.elasticsearch.action.admin.indices.get.GetIndexResponse
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> allMappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
 
-        Map<String, MappingMetaData> indexMappings = response.getMappings();
+        Map<String, MappingMetadata> indexMappings = response.getMappings();
         for (String index : response.getIndices()) {
-            MappingMetaData mmd = indexMappings.get(index);
-            ImmutableOpenMap.Builder<String, MappingMetaData> typedMappings = ImmutableOpenMap.builder();
+            MappingMetadata mmd = indexMappings.get(index);
+            ImmutableOpenMap.Builder<String, MappingMetadata> typedMappings = ImmutableOpenMap.builder();
             if (mmd != null) {
                 typedMappings.put(MapperService.SINGLE_MAPPING_NAME, mmd);
             }

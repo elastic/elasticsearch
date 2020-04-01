@@ -67,7 +67,7 @@ public class TransportGetIndexTemplateV2Action
     @Override
     protected void masterOperation(GetIndexTemplateV2Action.Request request, ClusterState state,
                                    ActionListener<GetIndexTemplateV2Action.Response> listener) {
-        Map<String, IndexTemplateV2> allTemplates = state.metaData().templatesV2();
+        Map<String, IndexTemplateV2> allTemplates = state.metadata().templatesV2();
 
         // If we did not ask for a specific name, then we return all templates
         if (request.names().length == 0) {

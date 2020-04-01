@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -60,11 +60,11 @@ public class CCRFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        MetaData metaData = clusterService.state().metaData();
+        Metadata metadata = clusterService.state().metadata();
 
         int numberOfFollowerIndices = 0;
         long lastFollowerIndexCreationDate = 0L;
-        for (IndexMetaData imd : metaData) {
+        for (IndexMetadata imd : metadata) {
             if (imd.getCustomData("ccr") != null) {
                 numberOfFollowerIndices++;
                 if (lastFollowerIndexCreationDate < imd.getCreationDate()) {
@@ -72,7 +72,7 @@ public class CCRFeatureSet implements XPackFeatureSet {
                 }
             }
         }
-        AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = metadata.custom(AutoFollowMetadata.TYPE);
         int numberOfAutoFollowPatterns = autoFollowMetadata != null ? autoFollowMetadata.getPatterns().size() : 0;
 
         Long lastFollowTimeInMillis;

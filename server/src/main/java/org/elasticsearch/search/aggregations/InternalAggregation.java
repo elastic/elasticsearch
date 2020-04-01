@@ -144,7 +144,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     protected final String name;
 
-    protected final Map<String, Object> metaData;
+    protected final Map<String, Object> metadata;
 
     private final List<PipelineAggregator> pipelineAggregators;
 
@@ -153,10 +153,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      *
      * @param name The name of the aggregation.
      */
-    protected InternalAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         this.name = name;
         this.pipelineAggregators = pipelineAggregators;
-        this.metaData = metaData;
+        this.metadata = metadata;
     }
 
     /**
@@ -164,7 +164,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      */
     protected InternalAggregation(StreamInput in) throws IOException {
         name = in.readString();
-        metaData = in.readMap();
+        metadata = in.readMap();
         if (in.getVersion().before(Version.V_7_8_0)) {
             pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class);
         } else {
@@ -175,7 +175,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeGenericValue(metaData);
+        out.writeGenericValue(metadata);
         if (out.getVersion().before(Version.V_7_8_0)) {
             out.writeNamedWriteableList(pipelineAggregators);
         }
@@ -274,8 +274,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     @Override
-    public Map<String, Object> getMetaData() {
-        return metaData;
+    public Map<String, Object> getMetadata() {
+        return metadata;
     }
 
     public List<PipelineAggregator> pipelineAggregators() {
@@ -295,9 +295,9 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         } else {
             builder.startObject(getName());
         }
-        if (this.metaData != null) {
+        if (this.metadata != null) {
             builder.field(CommonFields.META.getPreferredName());
-            builder.map(this.metaData);
+            builder.map(this.metadata);
         }
         doXContentBody(builder, params);
         builder.endObject();
@@ -308,7 +308,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, metaData, pipelineAggregators);
+        return Objects.hash(name, metadata, pipelineAggregators);
     }
 
     @Override
@@ -321,7 +321,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         InternalAggregation other = (InternalAggregation) obj;
         return Objects.equals(name, other.name) &&
                 Objects.equals(pipelineAggregators, other.pipelineAggregators) &&
-                Objects.equals(metaData, other.metaData);
+                Objects.equals(metadata, other.metadata);
     }
 
     @Override

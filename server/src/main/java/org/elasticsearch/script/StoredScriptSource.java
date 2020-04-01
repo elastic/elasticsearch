@@ -192,7 +192,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * }
      *
      * The above format requires the lang to be specified using the deprecated stored script namespace
-     * (as a url parameter during a put request).  See {@link ScriptMetaData} for more information about
+     * (as a url parameter during a put request).  See {@link ScriptMetadata} for more information about
      * the stored script namespaces.
      *
      * The complex script format using the new stored script namespace
@@ -314,7 +314,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     }
 
     /**
-     * Required for {@link ScriptMetaData.ScriptMetadataDiff}.  Uses
+     * Required for {@link ScriptMetadata.ScriptMetadataDiff}.  Uses
      * the {@link StoredScriptSource#StoredScriptSource(StreamInput)}
      * constructor.
      */

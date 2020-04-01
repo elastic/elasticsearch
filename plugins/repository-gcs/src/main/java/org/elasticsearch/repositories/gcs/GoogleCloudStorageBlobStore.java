@@ -34,12 +34,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.internal.io.Streams;
 
@@ -117,7 +117,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param path base path of the blobs to list
      * @return a map of blob names and their metadata
      */
-    Map<String, BlobMetaData> listBlobs(String path) throws IOException {
+    Map<String, BlobMetadata> listBlobs(String path) throws IOException {
         return listBlobsByPrefix(path, "");
     }
 
@@ -130,16 +130,16 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param prefix prefix of the blobs to list.
      * @return a map of blob names and their metadata.
      */
-    Map<String, BlobMetaData> listBlobsByPrefix(String path, String prefix) throws IOException {
+    Map<String, BlobMetadata> listBlobsByPrefix(String path, String prefix) throws IOException {
         final String pathPrefix = buildKey(path, prefix);
-        final MapBuilder<String, BlobMetaData> mapBuilder = MapBuilder.newMapBuilder();
+        final MapBuilder<String, BlobMetadata> mapBuilder = MapBuilder.newMapBuilder();
         SocketAccess.doPrivilegedVoidIOException(
             () -> client().get(bucketName).list(BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix)).iterateAll().forEach(
                 blob -> {
                     assert blob.getName().startsWith(path);
                     if (blob.isDirectory() == false) {
                         final String suffixName = blob.getName().substring(path.length());
-                        mapBuilder.put(suffixName, new PlainBlobMetaData(suffixName, blob.getSize()));
+                        mapBuilder.put(suffixName, new PlainBlobMetadata(suffixName, blob.getSize()));
                     }
                 }));
         return mapBuilder.immutableMap();

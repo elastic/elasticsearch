@@ -45,8 +45,8 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
             super(name, valuesSourceType, targetValueType);
         }
 
-        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-            super(clone, factoriesBuilder, metaData);
+        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
                 throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
                     + getType() + "] cannot accept sub-aggregations");
@@ -100,8 +100,8 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<VS, AB> clone,
-                                             Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                             Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.valuesSourceType = clone.valuesSourceType;
         this.targetValueType = clone.targetValueType;
         this.field = clone.field;

@@ -32,8 +32,8 @@ import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateExceptio
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.coordination.ValidateJoinRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -85,10 +85,10 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAllocations;
 import static org.elasticsearch.cluster.service.MasterServiceTests.discoveryState;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
@@ -395,17 +395,17 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler
                 (() -> localNode, JoinTaskExecutor.addBuiltInJoinValidators(Collections.emptyList()));
             final boolean incompatible = randomBoolean();
-            IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
+            IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(Settings.builder()
                 .put(SETTING_VERSION_CREATED,
                     incompatible ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
                         : VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
                 .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
-                .state(IndexMetaData.State.OPEN)
+                .state(IndexMetadata.State.OPEN)
                 .build();
-            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetaData.getIndex());
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
             RoutingTable.Builder routing = new RoutingTable.Builder();
-            routing.addAsNew(indexMetaData);
+            routing.addAsNew(indexMetadata);
             final ShardId shardId = new ShardId("test", "_na_", 0);
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
 
@@ -414,8 +414,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "getting there")));
             indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
             IndexRoutingTable indexRoutingTable = indexRoutingTableBuilder.build();
-            IndexMetaData updatedIndexMetaData = updateActiveAllocations(indexRoutingTable, indexMetaData);
-            stateBuilder.metaData(MetaData.builder().put(updatedIndexMetaData, false).generateClusterUuidIfNeeded())
+            IndexMetadata updatedIndexMetadata = updateActiveAllocations(indexRoutingTable, indexMetadata);
+            stateBuilder.metadata(Metadata.builder().put(updatedIndexMetadata, false).generateClusterUuidIfNeeded())
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build());
             if (incompatible) {
                 IllegalStateException ex = expectThrows(IllegalStateException.class, () ->

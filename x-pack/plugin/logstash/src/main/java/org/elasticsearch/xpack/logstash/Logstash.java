@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.logstash;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -42,7 +42,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
         return modules;
     }
 
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
             templates.keySet().removeIf(OLD_LOGSTASH_INDEX_NAME::equals);
             TemplateUtils.loadTemplateIntoMap(

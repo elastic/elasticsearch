@@ -21,7 +21,7 @@ package org.elasticsearch.snapshots;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -49,23 +49,23 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(MetaDataFilteringPlugin.class);
+        return Collections.singleton(MetadataFilteringPlugin.class);
     }
 
-    public void testFilteredRepoMetaDataIsUsed() {
+    public void testFilteredRepoMetadataIsUsed() {
         final String masterName = internalCluster().getMasterName();
         final String repoName = "test-repo";
-        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType(MetaDataFilteringPlugin.TYPE).setSettings(
+        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType(MetadataFilteringPlugin.TYPE).setSettings(
             Settings.builder().put("location", randomRepoPath())
-                .put(MetaDataFilteringPlugin.MASTER_SETTING_VALUE, masterName)));
+                .put(MetadataFilteringPlugin.MASTER_SETTING_VALUE, masterName)));
         createIndex("test-idx");
         final SnapshotInfo snapshotInfo = client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
             .setWaitForCompletion(true).get().getSnapshotInfo();
-        assertThat(snapshotInfo.userMetadata(), is(Collections.singletonMap(MetaDataFilteringPlugin.MOCK_FILTERED_META, masterName)));
+        assertThat(snapshotInfo.userMetadata(), is(Collections.singletonMap(MetadataFilteringPlugin.MOCK_FILTERED_META, masterName)));
     }
 
     // Mock plugin that stores the name of the master node that started a snapshot in each snapshot's metadata
-    public static final class MetaDataFilteringPlugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
+    public static final class MetadataFilteringPlugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
 
         private static final String MOCK_FILTERED_META = "mock_filtered_meta";
 
@@ -86,11 +86,11 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                     @Override
                     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                                 boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
+                                                 boolean includeGlobalState, Metadata clusterMetadata, Map<String, Object> userMetadata,
                                                  Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
                         super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures,
-                            repositoryStateId, includeGlobalState, clusterMetaData, userMetadata, repositoryMetaVersion, listener);
+                            repositoryStateId, includeGlobalState, clusterMetadata, userMetadata, repositoryMetaVersion, listener);
                     }
 
                     @Override

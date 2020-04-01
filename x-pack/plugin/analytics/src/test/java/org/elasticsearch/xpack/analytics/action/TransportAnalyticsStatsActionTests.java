@@ -9,7 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,7 +50,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
 
 
         ClusterState clusterState = mock(ClusterState.class);
-        when(clusterState.getMetaData()).thenReturn(MetaData.EMPTY_META_DATA);
+        when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
 
         return new TransportAnalyticsStatsAction(transportService, clusterService, threadPool,
@@ -58,7 +58,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
     }
 
     public void test() throws IOException {
-        AnalyticsUsage.Item item = randomFrom(AnalyticsUsage.Item.values()); 
+        AnalyticsUsage.Item item = randomFrom(AnalyticsUsage.Item.values());
         AnalyticsUsage realUsage = new AnalyticsUsage();
         AnalyticsUsage emptyUsage = new AnalyticsUsage();
         ContextParser<Void, Void> parser = realUsage.track(item, (p, c) -> c);

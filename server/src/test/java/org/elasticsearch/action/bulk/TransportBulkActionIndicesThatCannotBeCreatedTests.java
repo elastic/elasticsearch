@@ -27,7 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -107,7 +107,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             BulkRequest bulkRequest, Function<String, Boolean> shouldAutoCreate) {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterState state = mock(ClusterState.class);
-        when(state.getMetaData()).thenReturn(MetaData.EMPTY_META_DATA);
+        when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(state);
         DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(state.getNodes()).thenReturn(discoveryNodes);

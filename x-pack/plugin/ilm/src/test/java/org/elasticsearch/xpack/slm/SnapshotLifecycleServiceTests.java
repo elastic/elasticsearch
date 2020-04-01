@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.slm;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -66,11 +66,11 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
         assertThat(e.getMessage(), containsString("no such repository [repo]"));
 
-        RepositoryMetaData repo = new RepositoryMetaData("repo", "fs", Settings.EMPTY);
-        RepositoriesMetaData repoMeta = new RepositoriesMetaData(Collections.singletonList(repo));
+        RepositoryMetadata repo = new RepositoryMetadata("repo", "fs", Settings.EMPTY);
+        RepositoriesMetadata repoMeta = new RepositoriesMetadata(Collections.singletonList(repo));
         ClusterState stateWithRepo = ClusterState.builder(state)
-            .metaData(MetaData.builder()
-            .putCustom(RepositoriesMetaData.TYPE, repoMeta))
+            .metadata(Metadata.builder()
+            .putCustom(RepositoriesMetadata.TYPE, repoMeta))
             .build();
 
         SnapshotLifecycleService.validateRepositoryExists("repo", stateWithRepo);
@@ -100,9 +100,9 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
              SnapshotLifecycleService sls = new SnapshotLifecycleService(Settings.EMPTY,
                  () -> new FakeSnapshotTask(e -> logger.info("triggered")), clusterService, clock)) {
-    
+
             sls.offMaster();
-    
+
             SnapshotLifecyclePolicyMetadata newPolicy = SnapshotLifecyclePolicyMetadata.builder()
                 .setPolicy(createPolicy("foo", "*/1 * * * * ?"))
                 .setHeaders(Collections.emptyMap())
@@ -115,27 +115,27 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                 createState(new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING, new SnapshotLifecycleStats()));
             ClusterState state =
                 createState(new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats()));
-    
+
             sls.clusterChanged(new ClusterChangedEvent("1", state, emptyState));
-    
+
             // Since the service does not think it is master, it should not be triggered or scheduled
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
-    
+
             sls.onMaster();
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("initial-1")));
-    
+
             state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.STOPPING, new SnapshotLifecycleStats()));
             sls.clusterChanged(new ClusterChangedEvent("2", state, emptyState));
-    
+
             // Since the service is stopping, jobs should have been cancelled
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
-    
+
             state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.STOPPED, new SnapshotLifecycleStats()));
             sls.clusterChanged(new ClusterChangedEvent("3", state, emptyState));
-    
+
             // Since the service is stopped, jobs should have been cancelled
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
-    
+
             // No jobs should be scheduled when service is closed
             state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats()));
             sls.close();
@@ -336,11 +336,11 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     }
 
     public ClusterState createState(SnapshotLifecycleMetadata snapMeta) {
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .putCustom(SnapshotLifecycleMetadata.TYPE, snapMeta)
             .build();
         return ClusterState.builder(new ClusterName("cluster"))
-            .metaData(metaData)
+            .metadata(metadata)
             .build();
     }
 

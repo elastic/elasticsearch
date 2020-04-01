@@ -36,16 +36,16 @@ import java.util.Map;
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected MissingAggregator createUnmapped(SearchContext searchContext,
                                                 Aggregator parent,
                                                 List<PipelineAggregator> pipelineAggregators,
-                                                Map<String, Object> metaData) throws IOException {
-        return new MissingAggregator(name, factories, null, searchContext, parent, pipelineAggregators, metaData);
+                                                Map<String, Object> metadata) throws IOException {
+        return new MissingAggregator(name, factories, null, searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
@@ -54,8 +54,8 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory<Valu
                                                     Aggregator parent,
                                                     boolean collectsFromSingleBucket,
                                                     List<PipelineAggregator> pipelineAggregators,
-                                                    Map<String, Object> metaData) throws IOException {
-        return new MissingAggregator(name, factories, valuesSource, searchContext, parent, pipelineAggregators, metaData);
+                                                    Map<String, Object> metadata) throws IOException {
+        return new MissingAggregator(name, factories, valuesSource, searchContext, parent, pipelineAggregators, metadata);
     }
 
 }

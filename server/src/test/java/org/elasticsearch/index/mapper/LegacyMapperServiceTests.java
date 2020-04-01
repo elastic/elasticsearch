@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -40,9 +40,9 @@ public class LegacyMapperServiceTests extends ESSingleNodeTestCase {
         return false;
     }
 
-    public void testIndexMetaDataUpdateDoesNotLoseDefaultMapper() throws IOException {
+    public void testIndexMetadataUpdateDoesNotLoseDefaultMapper() throws IOException {
         final IndexService indexService =
-                createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0).build());
+                createIndex("test", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0).build());
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {
@@ -60,7 +60,7 @@ public class LegacyMapperServiceTests extends ESSingleNodeTestCase {
             client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(builder).get();
         }
         assertNotNull(indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING));
-        final Settings zeroReplicasSettings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        final Settings zeroReplicasSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(zeroReplicasSettings).get();
         /*
          * This assertion is a guard against a previous bug that would lose the default mapper when applying a metadata update that did not
@@ -70,7 +70,7 @@ public class LegacyMapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultMappingIsDeprecatedOn6() throws IOException {
-        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0).build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0).build();
         final String mapping;
         try (XContentBuilder defaultMapping = XContentFactory.jsonBuilder()) {
             defaultMapping.startObject();

@@ -9,9 +9,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -68,7 +68,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         mapping.field("enabled", false);
         mapping.endObject().endObject();
 
-        MetaData metadata = MetaData.builder().put(IndexMetaData.builder("test")
+        Metadata metadata = Metadata.builder().put(IndexMetadata.builder("test")
             .putMapping("testUnderscoreAll", Strings.toString(mapping))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
@@ -77,7 +77,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
 
         DiscoveryNode discoveryNode = DiscoveryNode.createLocal(Settings.EMPTY,
             new TransportAddress(TransportAddress.META_ADDRESS, 9300), "test");
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(metadata).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         List<DatafeedConfig> datafeeds = Collections.singletonList(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"));
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false,
@@ -91,7 +91,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             Collections.unmodifiableList(Arrays.asList(
                 (s) -> clusterIssueFound ? foundIssue : null
             ));
-        List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks =
+        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
                 (idx) -> indexIssueFound ? foundIssue : null
             ));

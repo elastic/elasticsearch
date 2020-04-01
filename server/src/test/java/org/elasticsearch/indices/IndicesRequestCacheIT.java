@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -101,8 +101,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5).put("index.number_of_routing_shards", 5)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get());
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put("index.number_of_routing_shards", 5)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get());
         indexRandom(true, client.prepareIndex("index", "type", "1").setRouting("1").setSource("s", "2016-03-19"),
                 client.prepareIndex("index", "type", "2").setRouting("1").setSource("s", "2016-03-20"),
                 client.prepareIndex("index", "type", "3").setRouting("1").setSource("s", "2016-03-21"),
@@ -153,7 +153,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get());
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get());
         indexRandom(true, client.prepareIndex("index", "type", "1").setSource("s", "2016-03-19"),
                 client.prepareIndex("index", "type", "2").setSource("s", "2016-03-20"),
                 client.prepareIndex("index", "type", "3").setSource("s", "2016-03-21"),
@@ -197,7 +197,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "d", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get());
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get());
         indexRandom(true, client.prepareIndex("index", "type", "1").setSource("d", "2014-01-01T00:00:00"),
                 client.prepareIndex("index", "type", "2").setSource("d", "2014-02-01T00:00:00"),
                 client.prepareIndex("index", "type", "3").setSource("d", "2014-03-01T00:00:00"),
@@ -250,7 +250,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testQueryRewriteDatesWithNow() throws Exception {
         Client client = client();
         Settings settings = Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
         assertAcked(client.admin().indices().prepareCreate("index-1").addMapping("type", "d", "type=date")
                 .setSettings(settings).get());
         assertAcked(client.admin().indices().prepareCreate("index-2").addMapping("type", "d", "type=date")
@@ -323,8 +323,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testCanCache() throws Exception {
         Client client = client();
         Settings settings = Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
         assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
                 .setSettings(settings)
                 .get());
@@ -397,7 +397,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testCacheWithFilteredAlias() {
         Client client = client();
         Settings settings = Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
         assertAcked(client.admin().indices().prepareCreate("index").addMapping("type", "created_at", "type=date")
             .setSettings(settings)
             .addAlias(new Alias("last_week").filter(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")))
@@ -443,8 +443,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setSettings(
                     Settings.builder()
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 )
                 .get()
         );

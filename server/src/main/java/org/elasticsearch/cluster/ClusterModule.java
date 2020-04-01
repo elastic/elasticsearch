@@ -27,14 +27,14 @@ import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateV2Metadata;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.MetaDataMappingService;
-import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.MetadataMappingService;
+import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -71,10 +71,10 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
-import org.elasticsearch.script.ScriptMetaData;
+import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 
@@ -127,24 +127,24 @@ public class ClusterModule extends AbstractModule {
         registerClusterCustom(entries, RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress::new,
             RepositoryCleanupInProgress::readDiffFrom);
         // Metadata
-        registerMetaDataCustom(entries, RepositoriesMetaData.TYPE, RepositoriesMetaData::new, RepositoriesMetaData::readDiffFrom);
-        registerMetaDataCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
-        registerMetaDataCustom(entries, ScriptMetaData.TYPE, ScriptMetaData::new, ScriptMetaData::readDiffFrom);
-        registerMetaDataCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
-        registerMetaDataCustom(entries, PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData::new,
-            PersistentTasksCustomMetaData::readDiffFrom);
-        registerMetaDataCustom(entries, ComponentTemplateMetadata.TYPE, ComponentTemplateMetadata::new,
+        registerMetadataCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
+        registerMetadataCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
+        registerMetadataCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
+        registerMetadataCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
+        registerMetadataCustom(entries, PersistentTasksCustomMetadata.TYPE, PersistentTasksCustomMetadata::new,
+            PersistentTasksCustomMetadata::readDiffFrom);
+        registerMetadataCustom(entries, ComponentTemplateMetadata.TYPE, ComponentTemplateMetadata::new,
             ComponentTemplateMetadata::readDiffFrom);
-        registerMetaDataCustom(entries, IndexTemplateV2Metadata.TYPE, IndexTemplateV2Metadata::new,
+        registerMetadataCustom(entries, IndexTemplateV2Metadata.TYPE, IndexTemplateV2Metadata::new,
             IndexTemplateV2Metadata::readDiffFrom);
-        registerMetaDataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
+        registerMetadataCustom(entries, DataStreamMetadata.TYPE, DataStreamMetadata::new, DataStreamMetadata::readDiffFrom);
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
     }
 
     static final Set<String> PRE_6_3_METADATA_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
-        IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetaData.TYPE, ScriptMetaData.TYPE));
+        IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetadata.TYPE, ScriptMetadata.TYPE));
 
     static final Set<String> PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST = Collections.unmodifiableSet(Sets.newHashSet(
         RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE));
@@ -163,33 +163,33 @@ public class ClusterModule extends AbstractModule {
                 builder.removeCustom(name);
             }
         });
-        final MetaData.Builder metaBuilder = MetaData.builder(clusterState.metaData());
-        clusterState.metaData().customs().keysIt().forEachRemaining(name -> {
+        final Metadata.Builder metaBuilder = Metadata.builder(clusterState.metadata());
+        clusterState.metadata().customs().keysIt().forEachRemaining(name -> {
             if (PRE_6_3_METADATA_CUSTOMS_WHITE_LIST.contains(name) == false) {
                 metaBuilder.removeCustom(name);
             }
         });
-        return builder.metaData(metaBuilder).build();
+        return builder.metadata(metaBuilder).build();
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXWriteables() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
         // Metadata
-        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(RepositoriesMetaData.TYPE),
-            RepositoriesMetaData::fromXContent));
-        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IngestMetadata.TYPE),
+        entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(RepositoriesMetadata.TYPE),
+            RepositoriesMetadata::fromXContent));
+        entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IngestMetadata.TYPE),
             IngestMetadata::fromXContent));
-        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(ScriptMetaData.TYPE),
-            ScriptMetaData::fromXContent));
-        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexGraveyard.TYPE),
+        entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(ScriptMetadata.TYPE),
+            ScriptMetadata::fromXContent));
+        entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IndexGraveyard.TYPE),
             IndexGraveyard::fromXContent));
-        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksCustomMetaData.TYPE),
-            PersistentTasksCustomMetaData::fromXContent));
-        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(ComponentTemplateMetadata.TYPE),
+        entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(PersistentTasksCustomMetadata.TYPE),
+            PersistentTasksCustomMetadata::fromXContent));
+        entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(ComponentTemplateMetadata.TYPE),
             ComponentTemplateMetadata::fromXContent));
-        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexTemplateV2Metadata.TYPE),
+        entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IndexTemplateV2Metadata.TYPE),
             IndexTemplateV2Metadata::fromXContent));
-        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(DataStreamMetadata.TYPE),
+        entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(DataStreamMetadata.TYPE),
             DataStreamMetadata::fromXContent));
         return entries;
     }
@@ -199,9 +199,9 @@ public class ClusterModule extends AbstractModule {
         registerCustom(entries, ClusterState.Custom.class, name, reader, diffReader);
     }
 
-    private static <T extends MetaData.Custom> void registerMetaDataCustom(List<Entry> entries, String name, Reader<? extends T> reader,
+    private static <T extends Metadata.Custom> void registerMetadataCustom(List<Entry> entries, String name, Reader<? extends T> reader,
                                                                        Reader<NamedDiff> diffReader) {
-        registerCustom(entries, MetaData.Custom.class, name, reader, diffReader);
+        registerCustom(entries, Metadata.Custom.class, name, reader, diffReader);
     }
 
     private static <T extends NamedWriteable> void registerCustom(List<Entry> entries, Class<T> category, String name,
@@ -282,12 +282,12 @@ public class ClusterModule extends AbstractModule {
         bind(AllocationService.class).toInstance(allocationService);
         bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
-        bind(MetaDataDeleteIndexService.class).asEagerSingleton();
-        bind(MetaDataIndexStateService.class).asEagerSingleton();
-        bind(MetaDataMappingService.class).asEagerSingleton();
-        bind(MetaDataIndexAliasesService.class).asEagerSingleton();
-        bind(MetaDataUpdateSettingsService.class).asEagerSingleton();
-        bind(MetaDataIndexTemplateService.class).asEagerSingleton();
+        bind(MetadataDeleteIndexService.class).asEagerSingleton();
+        bind(MetadataIndexStateService.class).asEagerSingleton();
+        bind(MetadataMappingService.class).asEagerSingleton();
+        bind(MetadataIndexAliasesService.class).asEagerSingleton();
+        bind(MetadataUpdateSettingsService.class).asEagerSingleton();
+        bind(MetadataIndexTemplateService.class).asEagerSingleton();
         bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);
         bind(DelayedAllocationService.class).asEagerSingleton();
         bind(ShardStateAction.class).asEagerSingleton();

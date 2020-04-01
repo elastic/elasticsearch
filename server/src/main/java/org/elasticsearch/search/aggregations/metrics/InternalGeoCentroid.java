@@ -55,8 +55,8 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
-            pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         assert (centroid == null) == (count == 0);
         this.centroid = centroid;
         assert count >= 0;
@@ -132,7 +132,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
             }
         }
         final GeoPoint result = (Double.isNaN(lonSum)) ? null : new GeoPoint(latSum/totalCount, lonSum/totalCount);
-        return new InternalGeoCentroid(name, result, totalCount, pipelineAggregators(), getMetaData());
+        return new InternalGeoCentroid(name, result, totalCount, pipelineAggregators(), getMetadata());
     }
 
     @Override

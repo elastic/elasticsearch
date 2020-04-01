@@ -43,8 +43,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
@@ -176,7 +176,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         isolateAllNodes.stopDisrupting();
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        if (state.metaData().hasIndex("test") == false) {
+        if (state.metadata().hasIndex("test") == false) {
             fail("index 'test' was lost. current cluster state: " + state);
         }
 

@@ -26,7 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
@@ -73,7 +73,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.CURRENT);
         return Settings.builder()
                 .put(super.createTestIndexSettings())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build();
     }
 

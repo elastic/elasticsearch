@@ -22,7 +22,7 @@ package org.elasticsearch.indices.mapping;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -61,7 +61,7 @@ public class LegacyUpdateMappingIntegrationIT extends ESIntegTestCase {
                     .admin()
                     .indices()
                     .prepareCreate("test")
-                    .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0).build())
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_6_3_0).build())
                     .addMapping(MapperService.DEFAULT_MAPPING, defaultMapping)
                     .get();
         }

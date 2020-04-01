@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -65,16 +65,16 @@ public class ClusterDeprecationChecks {
     }
 
     static DeprecationIssue checkTemplatesWithTooManyFields(ClusterState state) {
-        Integer maxClauseCount = INDICES_MAX_CLAUSE_COUNT_SETTING.get(state.getMetaData().settings());
+        Integer maxClauseCount = INDICES_MAX_CLAUSE_COUNT_SETTING.get(state.getMetadata().settings());
         List<String> templatesOverLimit = new ArrayList<>();
-        state.getMetaData().getTemplates().forEach((templateCursor) -> {
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
             AtomicInteger maxFields = new AtomicInteger(0);
             String templateName = templateCursor.key;
             boolean defaultFieldSet = templateCursor.value.settings().get(IndexSettings.DEFAULT_FIELD_SETTING.getKey()) != null;
             templateCursor.value.getMappings().forEach((mappingCursor) -> {
-                MappingMetaData mappingMetaData = new MappingMetaData(mappingCursor.value);
-                if (mappingMetaData != null && defaultFieldSet == false) {
-                    maxFields.set(IndexDeprecationChecks.countFieldsRecursively(mappingMetaData.type(), mappingMetaData.sourceAsMap()));
+                MappingMetadata mappingMetadata = new MappingMetadata(mappingCursor.value);
+                if (mappingMetadata != null && defaultFieldSet == false) {
+                    maxFields.set(IndexDeprecationChecks.countFieldsRecursively(mappingMetadata.type(), mappingMetadata.sourceAsMap()));
                 }
                 if (maxFields.get() > maxClauseCount) {
                     templatesOverLimit.add(templateName);
@@ -102,12 +102,12 @@ public class ClusterDeprecationChecks {
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkTemplatesWithFieldNamesDisabled(ClusterState state) {
         Set<String> templatesContainingFieldNames = new HashSet<>();
-        state.getMetaData().getTemplates().forEach((templateCursor) -> {
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
             String templateName = templateCursor.key;
             templateCursor.value.getMappings().forEach((mappingCursor) -> {
                 String type = mappingCursor.key;
                 // there should be the type name at this level, but there was a bug where mappings could be stored without a type (#45120)
-                // to make sure, we try to detect this like we try to do in MappingMetaData#sourceAsMap()
+                // to make sure, we try to detect this like we try to do in MappingMetadata#sourceAsMap()
                 Map<String, Object> mapping = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), true).v2();
                 if (mapping.size() == 1 && mapping.containsKey(type)) {
                     // the type name is the root value, reduce it
@@ -143,7 +143,7 @@ public class ClusterDeprecationChecks {
     }
 
     static DeprecationIssue checkPollIntervalTooLow(ClusterState state) {
-        String pollIntervalString = state.metaData().settings().get(LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
+        String pollIntervalString = state.metadata().settings().get(LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
         if (Strings.isNullOrEmpty(pollIntervalString)) {
             return null;
         }

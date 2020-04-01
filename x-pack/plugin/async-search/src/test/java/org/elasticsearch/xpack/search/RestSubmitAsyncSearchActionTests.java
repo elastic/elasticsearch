@@ -72,10 +72,10 @@ public class RestSubmitAsyncSearchActionTests extends ESTestCase {
             dispatchRequest(submitAsyncRestRequest);
             SubmitAsyncSearchRequest submitRequest = (SubmitAsyncSearchRequest) lastCapturedRequest;
             assertEquals(TimeValue.timeValueSeconds(1), submitRequest.getWaitForCompletionTimeout());
-            assertEquals(false, submitRequest.isKeepOnCompletion());
+            assertFalse(submitRequest.isKeepOnCompletion());
             assertEquals(TimeValue.timeValueDays(5), submitRequest.getKeepAlive());
             // check parameters we implicitly set in the SubmitAsyncSearchRequest ctor
-            assertEquals(false, submitRequest.getSearchRequest().isCcsMinimizeRoundtrips());
+            assertFalse(submitRequest.getSearchRequest().isCcsMinimizeRoundtrips());
             assertEquals(5, submitRequest.getSearchRequest().getBatchedReduceSize());
             assertEquals(true, submitRequest.getSearchRequest().requestCache());
             assertEquals(1, submitRequest.getSearchRequest().getPreFilterShardSize().intValue());
@@ -92,8 +92,8 @@ public class RestSubmitAsyncSearchActionTests extends ESTestCase {
         boolean requestCache = randomBoolean();
         doTestParameter("request_cache", Boolean.toString(requestCache), requestCache,
                 r -> r.getSearchRequest().requestCache());
-        Integer batchReduceSize = randomIntBetween(2, 50);
-        doTestParameter("batched_reduce_size", Integer.toString(batchReduceSize), batchReduceSize,
+        int batchedReduceSize = randomIntBetween(2, 50);
+        doTestParameter("batched_reduce_size", Integer.toString(batchedReduceSize), batchedReduceSize,
                 r -> r.getSearchRequest().getBatchedReduceSize());
     }
 

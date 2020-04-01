@@ -78,9 +78,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public DocValueFormat getFormatter(String format, ZoneId tz) {
-            if (tz != null) {
-                throw new IllegalArgumentException("TimeZone cannot be applied to Numeric Value Type formatter");
-            }
+            /* TODO: this silently ignores a timezone argument, whereas NumberFieldType#docValueFormat throws if given a time zone.
+                     Before we can solve this, we need to resolve https://github.com/elastic/elasticsearch/issues/47469 which deals
+                     with the fact that the same formatter is used for input and output values.  We want to support a use case in SQL
+                     (and elsewhere) that allows for passing a long value milliseconds since epoch into date aggregations.  In that case,
+                     the timezone is sensible as part of the bucket key format.
+             */
             if (format == null) {
                 return DocValueFormat.RAW;
             } else {

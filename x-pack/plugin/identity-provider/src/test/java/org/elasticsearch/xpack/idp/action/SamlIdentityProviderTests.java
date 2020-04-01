@@ -154,15 +154,11 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         assertThat(serviceProvider, hasKey("entity_id"));
         assertThat(serviceProvider.get("entity_id"), equalTo(entityId));
         assertThat(serviceProvider, hasKey("acs"));
-        assertThat(serviceProvider.get("acs"), equalTo(authnRequest.getAssertionConsumerServiceURL()));
+        assertThat(serviceProvider.get("acs"), equalTo(acsUrl));
         assertThat(validateResponseObject.evaluate("force_authn"), equalTo(forceAuthn));
         Map<String, String> authnState = validateResponseObject.evaluate("authn_state");
         assertThat(authnState, hasKey("nameid_format"));
         assertThat(authnState.get("nameid_format"), equalTo(nameIdFormat));
-        assertThat(authnState, hasKey("entity_id"));
-        assertThat(authnState.get("entity_id"), equalTo(entityId));
-        assertThat(authnState, hasKey("acs_url"));
-        assertThat(authnState.get("acs_url"), equalTo(acsUrl));
         assertThat(authnState, hasKey("authn_request_id"));
         final String expectedInResponeTo = authnState.get("authn_request_id");
 
@@ -196,6 +192,62 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         assertThat(sp, hasKey("entity_id"));
         assertThat(sp.get("entity_id"), equalTo(entityId));
         assertContainsAttributeWithValue(body, "principal", SAMPLE_IDPUSER_NAME);
+    }
+
+    public void testSpInitiatedSsoFailsForUserWithNoAccess() throws Exception {
+        String acsUrl = "https://" + randomAlphaOfLength(12) + ".elastic-cloud.com/saml/acs";
+        String entityId = SP_ENTITY_ID;
+        registerServiceProvider(entityId, acsUrl);
+        ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
+        // Validate incoming authentication request
+        Request validateRequest = new Request("POST", "/_idp/saml/validate");
+        validateRequest.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
+        final String nameIdFormat = TRANSIENT;
+        final String relayString = randomBoolean() ? randomAlphaOfLength(8) : null;
+        final boolean forceAuthn = true;
+        final AuthnRequest authnRequest = buildAuthnRequest(entityId, new URL(acsUrl),
+            new URL("https://idp.org/sso/redirect"), nameIdFormat, forceAuthn);
+        final String query = getQueryString(authnRequest, relayString, false, null);
+        validateRequest.setJsonEntity("{\"authn_request_query\":\"" + query + "\"}");
+        Response validateResponse = getRestClient().performRequest(validateRequest);
+        ObjectPath validateResponseObject = ObjectPath.createFromResponse(validateResponse);
+        Map<String, String> serviceProvider = validateResponseObject.evaluate("service_provider");
+        assertThat(serviceProvider, hasKey("entity_id"));
+        assertThat(serviceProvider.get("entity_id"), equalTo(entityId));
+        assertThat(serviceProvider, hasKey("acs"));
+        assertThat(serviceProvider.get("acs"), equalTo(acsUrl));
+        assertThat(validateResponseObject.evaluate("force_authn"), equalTo(forceAuthn));
+        Map<String, String> authnState = validateResponseObject.evaluate("authn_state");
+        assertThat(authnState, hasKey("nameid_format"));
+        assertThat(authnState.get("nameid_format"), equalTo(nameIdFormat));
+        assertThat(authnState, hasKey("authn_request_id"));
+        final String expectedInResponeTo = authnState.get("authn_request_id");
+
+        // User login a.k.a exchange the user credentials for an API Key - user can authenticate but shouldn't have access this SP
+        final String apiKeyCredentials = getApiKeyFromCredentials(SAMPLE_USER_NAME,
+            new SecureString(SAMPLE_USER_PASSWORD.toCharArray()));
+        // Make a request to init an SSO flow with the API Key as secondary authentication
+        Request initRequest = new Request("POST", "/_idp/saml/init");
+        initRequest.setOptions(RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", basicAuthHeaderValue(CONSOLE_USER_NAME,
+                new SecureString(CONSOLE_USER_PASSWORD.toCharArray())))
+            .addHeader("es-secondary-authorization", "ApiKey " + apiKeyCredentials)
+            .build());
+        XContentBuilder authnStateBuilder = jsonBuilder();
+        authnStateBuilder.map(authnState);
+        initRequest.setJsonEntity("{ \"entity_id\":\"" + entityId + "\", \"acs\":\"" + acsUrl + "\"," +
+            "\"authn_state\":" + Strings.toString(authnStateBuilder) + "}");
+        Response initResponse = getRestClient().performRequest(initRequest);
+        ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
+        assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));
+        final String body = initResponseObject.evaluate("saml_response").toString();
+        assertThat(body, containsString("<saml2p:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Requester\"/>"));
+        assertThat(body, containsString("InResponseTo=\"" + expectedInResponeTo + "\""));
+        Map<String, String> sp = initResponseObject.evaluate("service_provider");
+        assertThat(sp, hasKey("entity_id"));
+        assertThat(sp.get("entity_id"), equalTo(entityId));
+        assertThat(initResponseObject.evaluate("error"),
+            equalTo("User [" + SAMPLE_USER_NAME + "] is not permitted to access service [" + entityId + "]"));
     }
 
     public void testSpInitiatedSsoFailsForUnknownSp() throws Exception {

@@ -96,7 +96,7 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
 
         final Map<String, Object> map = entityAsMap(response);
         assertThat(map, notNullValue());
-        assertThat(map.keySet(), containsInAnyOrder("post_url", "saml_response", "service_provider"));
+        assertThat(map.keySet(), containsInAnyOrder("post_url", "saml_response", "saml_status", "service_provider", "error"));
         assertThat(map.get("post_url"), equalTo(acs));
         assertThat(map.get("saml_response"), instanceOf(String.class));
 

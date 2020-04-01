@@ -554,7 +554,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
 
         try (CacheService ignored = cacheService;
              SearchableSnapshotDirectory directory =
-                 new SearchableSnapshotDirectory(blobContainer, snapshot, snapshotId, indexId, shardId, indexSettings,
+                 new SearchableSnapshotDirectory(() -> blobContainer, () -> snapshot, snapshotId, indexId, shardId, indexSettings,
                      statsCurrentTimeNanos, cacheService, createTempDir()) {
                      @Override
                      protected IndexInputStats createIndexInputStats(long fileLength) {

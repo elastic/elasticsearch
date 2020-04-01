@@ -174,7 +174,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertTrue(steps.get(7) instanceof CopyExecutionStateStep);
         assertThat(steps.get(7).getKey(), equalTo(expectedEighthKey));
         assertThat(steps.get(7).getNextStepKey(), equalTo(expectedNinthKey));
-        assertThat(((CopyExecutionStateStep) steps.get(7)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+        assertThat(((CopyExecutionStateStep) steps.get(7)).getTargetIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
 
         assertTrue(steps.get(8) instanceof ShrinkSetAliasStep);
         assertThat(steps.get(8).getKey(), equalTo(expectedNinthKey));

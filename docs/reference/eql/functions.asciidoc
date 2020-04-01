@@ -8,8 +8,89 @@ experimental::[]
 
 {es} supports the following EQL functions:
 
+* <<eql-fn-endswith>>
 * <<eql-fn-startswith>>
 * <<eql-fn-substring>>
+
+[discrete]
+[[eql-fn-endswith]]
+=== `endsWith`
+
+Returns `true` if a source string ends with a provided substring. Matching is
+case insensitive.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+endsWith("regsvr32.exe", ".exe")          // returns true
+endsWith("regsvr32.exe", ".EXE")          // returns true
+endsWith("regsvr32.exe", ".dll")          // returns false
+endsWith("", "")                          // returns true
+
+// file.name = "regsvr32.exe"
+endsWith(file.name, ".exe")               // returns true
+endsWith(file.name, ".dll")               // returns false
+
+// file.extension = ".exe"
+endsWith("regsvr32.exe", file.extension)  // returns true
+endsWith("ntdll.dll", file.name)          // returns false
+
+// file.name = [ "ntdll.dll", "regsvr32.exe" ]
+endsWith(file.name, ".dll")               // returns true
+endsWith(file.name, ".exe")               // returns false
+
+// null handling
+endsWith("regsvr32.exe", null)            // returns null
+endsWith("", null)                        // returns null 
+endsWith(null, ".exe")                    // returns null
+endsWith(null, null)                      // returns null
+----
+
+*Syntax*
+
+[source,txt]
+----
+endsWith(<source>, <substring>)
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter only supports the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+Fields containing array values use the first array item only.
+--
+
+`<substring>`::
++
+--
+(Required, string or `null`)
+Substring to search for. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter only supports the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+*Returns:* boolean or `null`
+====
 
 [discrete]
 [[eql-fn-startswith]]

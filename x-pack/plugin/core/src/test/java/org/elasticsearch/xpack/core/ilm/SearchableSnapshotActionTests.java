@@ -38,19 +38,21 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         StepKey expectedFirstStep = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey expectedSecondStep = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
         StepKey expectedThirdStep = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
-        StepKey expectedFourthStep = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
-        StepKey expectedFifthStep = new StepKey(phase, NAME, OnAsyncWaitBranchingStep.NAME);
-        StepKey expectedSixthStep = new StepKey(phase, NAME, MountSnapshotStep.NAME);
-        StepKey expectedSeventhStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
-        StepKey expectedEighthStep = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
-        StepKey expectedNinthStep = new StepKey(phase, NAME, CopySettingsStep.NAME);
-        StepKey expectedTenthStep = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
+        StepKey expectedFourthStep = new StepKey(phase, NAME, StoreSnapshotRepositoryGenerationStep.NAME);
+        StepKey expectedFifthStep = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
+        StepKey expectedSixthStep = new StepKey(phase, NAME, WaitForRepositoryGenerationChangeStep.NAME);
+        StepKey expectedSeventhStep = new StepKey(phase, NAME, OnAsyncWaitBranchingStep.NAME);
+        StepKey expectedEighthStep = new StepKey(phase, NAME, MountSnapshotStep.NAME);
+        StepKey expectedNinthStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
+        StepKey expectedTenthStep = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
+        StepKey expectedEleventhStep = new StepKey(phase, NAME, CopySettingsStep.NAME);
+        StepKey expectedTwelveStep = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
 
         SearchableSnapshotAction action = createTestInstance();
         StepKey nextStepKey = new StepKey(phase, randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(1, 5));
 
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
-        assertThat(steps.size(), is(10));
+        assertThat(steps.size(), is(12));
 
         assertThat(steps.get(0).getKey(), is(expectedFirstStep));
         assertThat(steps.get(1).getKey(), is(expectedSecondStep));
@@ -62,9 +64,11 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         assertThat(steps.get(7).getKey(), is(expectedEighthStep));
         assertThat(steps.get(8).getKey(), is(expectedNinthStep));
         assertThat(steps.get(9).getKey(), is(expectedTenthStep));
+        assertThat(steps.get(10).getKey(), is(expectedEleventhStep));
+        assertThat(steps.get(11).getKey(), is(expectedTwelveStep));
 
-        OnAsyncWaitBranchingStep branchStep = (OnAsyncWaitBranchingStep) steps.get(4);
-        assertThat(branchStep.getNextStepKeyFulfilledWaitAction(), is(expectedSixthStep));
+        OnAsyncWaitBranchingStep branchStep = (OnAsyncWaitBranchingStep) steps.get(6);
+        assertThat(branchStep.getNextStepKeyFulfilledWaitAction(), is(expectedEighthStep));
         assertThat(branchStep.getNextStepKeyUnfulfilledWaitAction(), is(expectedThirdStep));
     }
 

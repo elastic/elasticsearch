@@ -74,7 +74,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey generateSnapshotNameKey = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
         StepKey cleanSnapshotKey = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
+        StepKey storeRepoGenKey = new StepKey(phase, NAME, StoreSnapshotRepositoryGenerationStep.NAME);
         StepKey createSnapshotKey = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
+        StepKey waitForRepoGenChangeKey = new StepKey(phase, NAME, WaitForRepositoryGenerationChangeStep.NAME);
         StepKey verifySnapshotStatusBranchingKey = new StepKey(phase, NAME, OnAsyncWaitBranchingStep.NAME);
         StepKey mountSnapshotKey = new StepKey(phase, NAME, MountSnapshotStep.NAME);
         StepKey waitForGreenRestoredIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
@@ -86,8 +88,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
             client);
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(generateSnapshotNameKey, cleanSnapshotKey,
             snapshotRepository);
-        CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
-        CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, verifySnapshotStatusBranchingKey, client);
+        CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, storeRepoGenKey, client);
+        StoreSnapshotRepositoryGenerationStep storeRepoGenStep = new StoreSnapshotRepositoryGenerationStep(storeRepoGenKey,
+            createSnapshotKey, snapshotRepository);
+        CreateSnapshotStep createSnapshotStep = new CreateSnapshotStep(createSnapshotKey, waitForRepoGenChangeKey, client);
+        WaitForRepositoryGenerationChangeStep waitForRepoGenChangeStep =
+            new WaitForRepositoryGenerationChangeStep(waitForRepoGenChangeKey, verifySnapshotStatusBranchingKey);
         OnAsyncWaitBranchingStep onAsyncWaitBranchingStep = new OnAsyncWaitBranchingStep(verifySnapshotStatusBranchingKey,
             cleanSnapshotKey, mountSnapshotKey, client, getCheckSnapshotStatusAsyncAction());
         MountSnapshotStep mountSnapshotStep = new MountSnapshotStep(mountSnapshotKey, waitForGreenRestoredIndexKey,
@@ -105,9 +111,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         SwapAliasesAndDeleteSourceIndexStep swapAliasesAndDeleteSourceIndexStep = new SwapAliasesAndDeleteSourceIndexStep(swapAliasesKey,
             null, client, RESTORED_INDEX_PREFIX);
 
-        return Arrays.asList(waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep, createSnapshotStep,
-            onAsyncWaitBranchingStep, mountSnapshotStep, waitForGreenIndexHealthStep, copyMetadataStep, copySettingsStep,
-            swapAliasesAndDeleteSourceIndexStep);
+        return Arrays.asList(waitForNoFollowersStep, generateSnapshotNameStep, cleanupSnapshotStep, storeRepoGenStep, createSnapshotStep,
+            waitForRepoGenChangeStep, onAsyncWaitBranchingStep, mountSnapshotStep, waitForGreenIndexHealthStep, copyMetadataStep,
+            copySettingsStep, swapAliasesAndDeleteSourceIndexStep);
     }
 
     /**

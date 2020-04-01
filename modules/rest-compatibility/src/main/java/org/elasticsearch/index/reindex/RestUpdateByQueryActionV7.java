@@ -19,5 +19,29 @@
 
 package org.elasticsearch.index.reindex;
 
-public class RestUpdateByQueryActionV7 {
+import org.elasticsearch.Version;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.rest.RestRequest;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
+public class RestUpdateByQueryActionV7 extends RestUpdateByQueryAction {
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/{index}/{type}/_update_by_query"));
+    }
+
+    @Override
+    public String compatibleWithVersion() {
+        return String.valueOf(Version.V_7_0_0.major);
+    }
+
+    @Override
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        request.param("type");
+        return super.prepareRequest(request, client);
+    }
 }

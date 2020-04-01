@@ -16,52 +16,51 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.rest.compat.version7.search;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
+package org.elasticsearch.rest.action.document;
+
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.script.mustache.RestMultiSearchTemplateActionV7;
+import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 
-public class RestMultiSearchTemplateActionV7Tests extends RestActionTestCase {
+public class RestTermVectorsActionV7Tests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestMultiSearchTemplateActionV7(Settings.EMPTY));
+        controller().registerHandler(new RestMultiTermVectorsActionV7());
     }
 
     public void testTypeInPath() {
-        String content = "{ \"index\": \"some_index\" } \n" +
-            "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
-        BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
-
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index/some_type/_msearch/template")
-            .withContent(bytesContent, XContentType.JSON)
+            .withMethod(Method.POST)
+            .withPath("/some_index/some_type/some_id/_termvectors")
             .build();
 
         dispatchRequest(request);
-        assertWarnings(RestMultiSearchTemplateActionV7.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(RestTermVectorsActionV7.TYPES_DEPRECATION_MESSAGE);
     }
 
-    public void testTypeInBody() {
-        String content = "{ \"index\": \"some_index\", \"type\": \"some_type\" } \n" +
-            "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
-        BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
+    public void testTypeInBody() throws IOException {
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+            .field("_type", "some_type")
+            .field("_id", 1)
+            .endObject();
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("/some_index/_msearch/template")
-            .withContent(bytesContent, XContentType.JSON)
+            .withMethod(Method.GET)
+            .withPath("/some_index/_termvectors/some_id")
+            .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();
 
         dispatchRequest(request);
-        assertWarnings(RestMultiSearchTemplateActionV7.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(RestTermVectorsActionV7.TYPES_DEPRECATION_MESSAGE);
     }
 }

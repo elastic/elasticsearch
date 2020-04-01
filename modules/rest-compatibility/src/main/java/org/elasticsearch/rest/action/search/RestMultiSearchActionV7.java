@@ -63,6 +63,7 @@ public class RestMultiSearchActionV7 extends RestMultiSearchAction {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        request.param("type");
         TypeConsumer typeConsumer = new TypeConsumer(request);
 
         MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, typeConsumer);

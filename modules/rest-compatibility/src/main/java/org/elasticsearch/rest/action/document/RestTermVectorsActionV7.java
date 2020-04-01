@@ -17,12 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.script.mustache;
+package org.elasticsearch.rest.action.document;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.script.mustache.RestSearchTemplateAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,14 +31,20 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestSearchTemplateActionV7 extends RestSearchTemplateAction {
+public class RestTermVectorsActionV7 extends RestTermVectorsAction {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestTermVectorsAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
+        "Specifying types in term vector requests is deprecated.";
 
     @Override
     public List<Route> routes() {
         return List.of(
             // Deprecated typed endpoints.
-            new Route(GET, "/{index}/{type}/_search/template"),
-            new Route(POST, "/{index}/{type}/_search/template")
+            new Route(GET, "/{index}/{type}/_termvectors"),
+            new Route(POST, "/{index}/{type}/_termvectors"),
+            new Route(GET, "/{index}/{type}/{id}/_termvectors"),
+            new Route(POST, "/{index}/{type}/{id}/_termvectors")
         );
     }
 
@@ -47,8 +54,11 @@ public class RestSearchTemplateActionV7 extends RestSearchTemplateAction {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        request.param("type");
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.hasParam("type")) {
+            request.param("type");
+            deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
         return super.prepareRequest(request, client);
     }
 }

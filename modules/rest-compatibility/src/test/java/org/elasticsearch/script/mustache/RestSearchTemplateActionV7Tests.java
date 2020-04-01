@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,8 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.elasticsearch.rest.compat.version7.search;
+package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchActionV7;
@@ -28,17 +27,17 @@ import org.junit.Before;
 import java.util.HashMap;
 import java.util.Map;
 
-public class RestSearchActionV7Tests extends RestActionTestCase {
+public class RestSearchTemplateActionV7Tests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestSearchActionV7());
+        controller().registerHandler(new RestSearchTemplateActionV7());
     }
 
     public void testTypeInPath() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index/some_type/_search")
+            .withPath("/some_index/some_type/_search/template")
             .build();
 
         dispatchRequest(request);
@@ -51,7 +50,7 @@ public class RestSearchActionV7Tests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index/_search")
+            .withPath("/some_index/_search/template")
             .withParams(params)
             .build();
 

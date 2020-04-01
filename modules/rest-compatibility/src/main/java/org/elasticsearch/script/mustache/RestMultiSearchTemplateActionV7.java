@@ -73,6 +73,8 @@ public class RestMultiSearchTemplateActionV7 extends RestMultiSearchTemplateActi
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        request.param("type");
+
         TypeConsumer typeConsumer = new TypeConsumer(request);
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex, typeConsumer);
         if (typeConsumer.hasTypes()) {

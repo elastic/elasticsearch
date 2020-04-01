@@ -40,7 +40,8 @@ public class RestSearchActionV7 extends RestSearchAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/{type}/_search"), new Route(POST, "/{index}/{type}/_search"));
+        return List.of(new Route(GET, "/{index}/{type}/_search"),
+            new Route(POST, "/{index}/{type}/_search"));
     }
 
     @Override

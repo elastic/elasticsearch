@@ -95,7 +95,7 @@ public final class TestUtils {
                     if (name.startsWith(prefix) == false) {
                         throw new FileNotFoundException("Blob not found: " + name);
                     }
-                    assert position + length <= blobContent.length
+                    assert position + length <= partSize
                         : "cannot read [" + position + "-" + (position + length) + "] from array part of length [" + partSize + "]";
                     final int partNumber = Integer.parseInt(name.substring(prefix.length()));
                     final int positionInBlob = Math.toIntExact(position) + partSize * partNumber;

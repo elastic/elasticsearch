@@ -29,22 +29,23 @@ configuration details and cardinality estimates for the fields it references.
 `analysis_config` component of the body of this API, see <<put-analysisconfig,`analysis_config`>>.
 
 `max_bucket_cardinality`::
-(Optional, object) Estimates of the highest cardinality in a single bucket
+(Required^\*^, object) Estimates of the highest cardinality in a single bucket
 that will be observed for influencer fields over the time period that the job
 analyzes data. To produce a good answer, values must be provided for
 all influencer fields. It does not matter if values are provided for fields
-that are not listed as `influencers`. If there are no `influencers` then
-`max_bucket_cardinality` can be omitted from the request.
+that are not listed as `influencers`. +
+^*^If there are no `influencers` then `max_bucket_cardinality` can be omitted 
+from the request.
 
 `overall_cardinality`::
-(Optional, object) Estimates of the cardinality that will be observed for
-fields over the whole time period that the job analyzes data. To produce
-a good answer, values must be provided for fields referenced in the
-`by_field_name`, `over_field_name` and `partition_field_name` of any
-detectors. It does not matter if values are provided for other fields.
-If no detectors have a `by_field_name`, `over_field_name` or
-`partition_field_name` then `overall_cardinality` can be omitted
-from the request.
+(Required^\*^, object) Estimates of the cardinality that will be observed for
+fields over the whole time period that the job analyzes data. To produce a good 
+answer, values must be provided for fields referenced in the `by_field_name`, 
+`over_field_name` and `partition_field_name` of any detectors. It does not 
+matter if values are provided for other fields. +
+^*^If no detectors have a `by_field_name`, `over_field_name` or 
+`partition_field_name` then `overall_cardinality` can be omitted from the 
+request.
 
 [[ml-estimate-model-memory-example]]
 ==== {api-examples-title}
@@ -82,6 +83,6 @@ The estimate returns the following result:
 [source,console-result]
 ----
 {
-  "model_memory_estimate": "45mb"
+  "model_memory_estimate": "21mb"
 }
 ----

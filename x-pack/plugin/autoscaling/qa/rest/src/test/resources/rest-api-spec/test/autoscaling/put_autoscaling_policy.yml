@@ -1,0 +1,21 @@
+---
+"Test put autoscaling decision":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: hot
+        body:
+          policy:
+            deciders:
+              always: {}
+
+  - match: { "acknowledged": true }
+
+  - do:
+      catch: bad_request
+      autoscaling.put_autoscaling_policy:
+        name: hot
+        body:
+          policy:
+            deciders:
+              does_not_exist: {}
+

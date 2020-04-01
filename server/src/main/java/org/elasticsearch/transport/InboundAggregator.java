@@ -88,14 +88,6 @@ public class InboundAggregator implements Releasable {
         }
     }
 
-    public Header cancelAggregation() {
-        ensureOpen();
-        assert isAggregating();
-        final Header header = this.currentHeader;
-        closeCurrentAggregation();
-        return header;
-    }
-
     public InboundMessage finishAggregation() throws IOException {
         ensureOpen();
         final ReleasableBytesReference releasableContent;
@@ -191,6 +183,7 @@ public class InboundAggregator implements Releasable {
         assert currentHeader.needsToReadVariableHeader() == false;
         assert currentHeader.isRequest();
         if (currentHeader.isHandshake()) {
+            canTripBreaker = false;
             return;
         }
 
@@ -208,7 +201,6 @@ public class InboundAggregator implements Releasable {
         }
         assert header.needsToReadVariableHeader() == false;
 
-        boolean canTripBreaker = this.canTripBreaker;
         if (canTripBreaker) {
             try {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(contentLength, "<transport_request>");

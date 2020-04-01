@@ -108,6 +108,8 @@ public class InboundHandler {
             if (header.isRequest()) {
                 handleRequest(channel, header, message);
             } else {
+                // Responses do not support short circuiting currently
+                assert message.isShortCircuit() == false;
                 final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
                 assertRemoteVersion(streamInput, header.getVersion());
                 final TransportResponseHandler<?> handler;
@@ -171,11 +173,7 @@ public class InboundHandler {
                         throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
                             + action + "], available [" + stream.available() + "]; resetting");
                     }
-                    try {
-                        threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));
-                    } catch (Exception e) {
-                        sendErrorResponse(action, transportChannel, message.getException());
-                    }
+                    threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));
                 }
             } catch (Exception e) {
                 sendErrorResponse(action, transportChannel, message.getException());

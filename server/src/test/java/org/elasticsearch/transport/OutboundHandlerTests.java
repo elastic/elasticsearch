@@ -82,9 +82,7 @@ public class OutboundHandlerTests extends ESTestCase {
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }
-            }, (c, t) -> {
-            throw new AssertionError(t.v2());
-        });
+            });
     }
 
     @After

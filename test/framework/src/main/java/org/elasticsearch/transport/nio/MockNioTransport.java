@@ -282,7 +282,7 @@ public class MockNioTransport extends TcpTransport {
             final Version version = transport.getVersion();
             final StatsTracker statsTracker = transport.getStatsTracker();
             this.pipeline = new InboundPipeline(version, statsTracker, recycler, threadPool::relativeTimeInMillis, breaker,
-                inboundHandler::getRequestHandler, transport::inboundMessage, transport::inboundDecodeException);
+                inboundHandler::getRequestHandler, transport::inboundMessage);
         }
 
         @Override

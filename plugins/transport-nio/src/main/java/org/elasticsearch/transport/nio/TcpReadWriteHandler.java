@@ -48,7 +48,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
         final CircuitBreaker breaker = transport.getInflightBreaker();
         final InboundHandler inboundHandler = transport.getInboundHandler();
         this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
-            breaker, inboundHandler::getRequestHandler, transport::inboundMessage, transport::inboundDecodeException);
+            breaker, inboundHandler::getRequestHandler, transport::inboundMessage);
     }
 
     @Override

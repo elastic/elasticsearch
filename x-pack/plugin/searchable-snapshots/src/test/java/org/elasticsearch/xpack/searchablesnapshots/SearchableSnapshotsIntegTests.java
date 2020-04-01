@@ -5,15 +5,16 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -26,9 +27,9 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
@@ -112,6 +113,9 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
             .setTrackTotalHits(true).setQuery(matchQuery("foo", "bar")).get().getHits().getTotalHits();
         logger.info("--> [{}] in total, of which [{}] match the query", originalAllHits, originalBarHits);
 
+        expectThrows(ResourceNotFoundException.class, "Searchable snapshot stats on a non snapshot searchable index should fail",
+            () -> client().execute(SearchableSnapshotsStatsAction.INSTANCE, new SearchableSnapshotsStatsRequest()).actionGet());
+
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(fsRepoName, snapshotName)
             .setWaitForCompletion(true).get();
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
@@ -154,29 +158,11 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         assertTrue(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.exists(settings));
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
-
-        final SearchableSnapshotsStatsRequest request = new SearchableSnapshotsStatsRequest(restoredIndexName);
-        final ActionFuture<SearchableSnapshotsStatsResponse> future =  client().execute(SearchableSnapshotsStatsAction.INSTANCE, request);
-        if (cacheEnabled) {
-            final SearchableSnapshotsStatsResponse statsResponse = future.actionGet();
-            assertThat(statsResponse.getStats(), hasSize(getNumShards(restoredIndexName).totalNumShards));
-            for (SearchableSnapshotShardStats stats : statsResponse.getStats()) {
-                assertThat(stats.getShardRouting().getIndexName(), equalTo(restoredIndexName));
-                assertThat(stats.getStats().size(), greaterThan(0));
-                for (SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : stats.getStats()) {
-                    for (String ext : nonCachedExtensions) {
-                        if (indexInputStats.getFileName().endsWith(ext)) {
-                            assertEquals(indexInputStats.getFileName(), 0, indexInputStats.getOpenCount());
-                        }
-                    }
-                }
-            }
-        } else {
-            expectThrows(ResourceNotFoundException.class, future::actionGet);
-        }
+        assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
         internalCluster().fullRestart();
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+        assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
         internalCluster().ensureAtLeastNumDataNodes(2);
 
@@ -192,6 +178,7 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
             .setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+        assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
     }
 
     private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {
@@ -237,6 +224,45 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
             logger.info("--> thread #{} has [{}] hits in total, of which [{}] match the query", i, allTotalHits, barTotalHits);
             assertThat(allTotalHits, equalTo(originalAllHits));
             assertThat(barTotalHits, equalTo(originalBarHits));
+        }
+    }
+
+    private void assertSearchableSnapshotStats(String indexName, boolean cacheEnabled, List<String> nonCachedExtensions) {
+        final SearchableSnapshotsStatsResponse statsResponse = client().execute(SearchableSnapshotsStatsAction.INSTANCE,
+            new SearchableSnapshotsStatsRequest(indexName)).actionGet();
+        final NumShards restoredNumShards = getNumShards(indexName);
+        assertThat(statsResponse.getStats(), hasSize(restoredNumShards.totalNumShards));
+
+        for (SearchableSnapshotShardStats stats : statsResponse.getStats()) {
+            final ShardRouting shardRouting = stats.getShardRouting();
+            assertThat(stats.getShardRouting().getIndexName(), equalTo(indexName));
+            if (shardRouting.started()) {
+                assertThat("Expecting stats to exist for at least 1 Lucene file", stats.getStats().size(), greaterThan(0));
+                for (SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : stats.getStats()) {
+                    final String fileName = indexInputStats.getFileName();
+                    assertThat("Unexpected open count for " + fileName + " of shard " + shardRouting,
+                        indexInputStats.getOpenCount(), greaterThan(0L));
+                    assertThat("Unexpected close count for " + fileName + " of shard " + shardRouting,
+                        indexInputStats.getCloseCount(), lessThanOrEqualTo(indexInputStats.getOpenCount()));
+                    assertThat("Unexpected file length for " + fileName + " of shard " + shardRouting,
+                        indexInputStats.getFileLength(), greaterThan(0L));
+
+                    if (cacheEnabled == false || nonCachedExtensions.contains(IndexFileNames.getExtension(fileName))) {
+                        assertThat("Expected at least 1 optimized or direct read for " + fileName + " of shard " + shardRouting,
+                            Math.max(indexInputStats.getOptimizedBytesRead().getCount(), indexInputStats.getDirectBytesRead().getCount()),
+                            greaterThan(0L));
+                        assertThat("Expected no cache read or write for " + fileName + " of shard " + shardRouting,
+                            Math.max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
+                            equalTo(0L));
+                    } else {
+                        assertThat("Expected at least 1 cache read or write for " + fileName + " of shard " + shardRouting,
+                            Math.max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
+                            greaterThan(0L));
+                        assertThat("Expected no optimized read for " + fileName + " of shard " + shardRouting,
+                            indexInputStats.getOptimizedBytesRead().getCount(), equalTo(0L));
+                    }
+                }
+            }
         }
     }
 }

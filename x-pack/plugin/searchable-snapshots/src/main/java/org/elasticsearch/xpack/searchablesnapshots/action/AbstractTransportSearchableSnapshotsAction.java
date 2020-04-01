@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
 public abstract class AbstractTransportSearchableSnapshotsAction
@@ -76,9 +75,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction
             if (indexMetaData != null) {
                 Settings indexSettings = indexMetaData.getSettings();
                 if (INDEX_STORE_TYPE_SETTING.get(indexSettings).equals(SNAPSHOT_DIRECTORY_FACTORY_KEY)) {
-                    if (SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings)) {
-                        searchableSnapshotIndices.add(concreteIndex);
-                    }
+                    searchableSnapshotIndices.add(concreteIndex);
                 }
             }
         }

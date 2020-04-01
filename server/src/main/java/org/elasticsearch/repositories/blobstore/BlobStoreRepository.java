@@ -355,13 +355,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Don't use generation from the delete task if we already found a generation for an in progress snapshot.
             // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet
             // exist
-            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && deletionsInProgress != null) {
+            if (bestGenerationFromCS == RepositoryData.UNKNOWN_REPO_GEN && deletionsInProgress != null) {
                 bestGenerationFromCS = bestGeneration(deletionsInProgress.getEntries());
             }
             final RepositoryCleanupInProgress cleanupInProgress = state.custom(RepositoryCleanupInProgress.TYPE);
-            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && cleanupInProgress != null) {
+            if (bestGenerationFromCS == RepositoryData.UNKNOWN_REPO_GEN && cleanupInProgress != null) {
                 bestGenerationFromCS = bestGeneration(cleanupInProgress.entries());
             }
+            bestGenerationFromCS = Math.max(RepositoryData.EMPTY_REPO_GEN, bestGenerationFromCS);
             final long finalBestGen = Math.max(bestGenerationFromCS, metadata.generation());
             latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
         } else {
@@ -378,7 +379,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final String repoName = metadata.name();
         assert operations.size() <= 1 : "Assumed one or no operations but received " + operations;
         return operations.stream().filter(e -> e.repository().equals(repoName)).mapToLong(RepositoryOperation::repositoryStateId)
-            .max().orElse(RepositoryData.EMPTY_REPO_GEN);
+            .max().orElse(RepositoryData.UNKNOWN_REPO_GEN);
     }
 
     public ThreadPool threadPool() {

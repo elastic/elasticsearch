@@ -191,6 +191,14 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             this.repositoryStateId = repositoryStateId;
         }
 
+        public Entry(Entry entry, long repositoryStateId) {
+            this.snapshotIds = entry.snapshotIds;
+            this.repo = entry.repo;
+            this.pattern = entry.pattern;
+            this.startTime = entry.startTime;
+            this.repositoryStateId = repositoryStateId;
+        }
+
         public Entry(StreamInput in) throws IOException {
             if (in.getVersion().onOrAfter(SnapshotsService.TWO_STEP_DELETE_VERSION)) {
                 this.repo = in.readString();

@@ -1148,41 +1148,89 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public void deleteSnapshot(final String repositoryName, final String snapshotName, final ActionListener<Void> listener,
                                final boolean immediatePriority) {
-        clusterService.submitStateUpdateTask("D", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("init snapshot delete [" + repositoryName + "][" + snapshotName + "]",
+            new ClusterStateUpdateTask() {
 
-            boolean inProgress;
+                boolean inProgress;
 
-            boolean bwCMode;
+                boolean bwCMode;
 
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    bwCMode = currentState.nodes().getMinNodeVersion().before(TWO_STEP_DELETE_VERSION);
+                    if (bwCMode) {
+                        return currentState;
+                    }
+                    Optional<SnapshotsInProgress.Entry> matchedInProgress = currentSnapshots(
+                        clusterService.state().custom(SnapshotsInProgress.TYPE), repositoryName, Collections.emptyList()).stream()
+                        .filter(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName)).findFirst();
+                    final SnapshotDeletionsInProgress.Entry newDelete;
+                    if (matchedInProgress.isPresent()) {
+                        inProgress = true;
+                        final SnapshotsInProgress.Entry snapshotInProgress = matchedInProgress.get();
+                        newDelete = new SnapshotDeletionsInProgress.Entry(snapshotInProgress.snapshot(),
+                            threadPool.absoluteTimeInMillis(), snapshotInProgress.repositoryStateId() + 1L);
+                    } else {
+                        newDelete = new SnapshotDeletionsInProgress.Entry(repositoryName, snapshotName, threadPool.absoluteTimeInMillis());
+                    }
+                    final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+                    final SnapshotDeletionsInProgress newDeletions;
+                    if (deletionsInProgress == null) {
+                        newDeletions = new SnapshotDeletionsInProgress(Collections.singletonList(newDelete));
+                    } else {
+                        if (deletionsInProgress.hasDeletionsInProgress()) {
+                            throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
+                                "cannot delete - another snapshot is currently being deleted in [" + deletionsInProgress + "]");
+                        }
+                        newDeletions = deletionsInProgress.withAddedEntry(newDelete);
+                    }
+                    return ClusterState.builder(currentState).putCustom(SnapshotDeletionsInProgress.TYPE, newDeletions).build();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    if (bwCMode) {
+                        deleteSnapshotsLegacy(repositoryName, snapshotName, listener, immediatePriority);
+                    } else if (inProgress == false) {
+                        threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
+                            final Repository repository = repositoriesService.repository(repositoryName);
+                            repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
+                                repositoryData.getSnapshotIds()
+                                    .stream()
+                                    .filter(s -> s.getName().equals(snapshotName))
+                                    .findFirst().ifPresent(snapshotId ->
+                                    deleteCompletedSnapshotStep(repositoryName, snapshotId, repositoryData.getGenId(), listener));
+                            }, listener::onFailure));
+                        }));
+                    }
+                }
+            });
+    }
+
+    private void deleteCompletedSnapshotStep(String repositoryName, SnapshotId snapshot, long repositoryGen,
+                                             ActionListener<Void> listener) {
+        clusterService.submitStateUpdateTask("delete snapshot [" + snapshot + "] step 2", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                Optional<SnapshotsInProgress.Entry> matchedInProgress = currentSnapshots(
-                    clusterService.state().custom(SnapshotsInProgress.TYPE), repositoryName, Collections.emptyList()).stream()
-                    .filter(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName)).findFirst();
-                if (matchedInProgress.isPresent()) {
-                    inProgress = true;
-                    deleteSnapshot(matchedInProgress.get().snapshot(), listener,
-                        matchedInProgress.get().repositoryStateId() + 1L, immediatePriority);
-                    return currentState;
-                }
-                bwCMode = currentState.nodes().getMinNodeVersion().before(TWO_STEP_DELETE_VERSION);
-                if (bwCMode) {
-                    return currentState;
-                }
-                final SnapshotDeletionsInProgress.Entry newDelete =
-                    new SnapshotDeletionsInProgress.Entry(repositoryName, snapshotName, threadPool.absoluteTimeInMillis());
-                final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
-                final SnapshotDeletionsInProgress newDeletions;
-                if (deletionsInProgress == null) {
-                    newDeletions = new SnapshotDeletionsInProgress(Collections.singletonList(newDelete));
-                } else {
-                    if (deletionsInProgress.hasDeletionsInProgress()) {
-                        throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
-                            "cannot delete - another snapshot is currently being deleted in [" + deletionsInProgress + "]");
+                final SnapshotDeletionsInProgress existingDeletions = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+                boolean changed = false;
+                final List<SnapshotDeletionsInProgress.Entry> newEntries = new ArrayList<>();
+                for (SnapshotDeletionsInProgress.Entry entry : existingDeletions.getEntries()) {
+                    if (entry.repository().equals(repositoryName) && entry.getSnapshotIds().contains(snapshot)) {
+                        newEntries.add(new SnapshotDeletionsInProgress.Entry(entry, repositoryGen));
+                        changed = true;
+                    } else {
+                        newEntries.add(entry);
                     }
-                    newDeletions = deletionsInProgress.withAddedEntry(newDelete);
                 }
-                return ClusterState.builder(currentState).putCustom(SnapshotDeletionsInProgress.TYPE, newDeletions).build();
+                assert changed : "Did not find initialized deletion for snapshot [" + snapshot + "]";
+                return ClusterState.builder(currentState)
+                    .putCustom(SnapshotDeletionsInProgress.TYPE, new SnapshotDeletionsInProgress(newEntries)).build();
             }
 
             @Override
@@ -1192,24 +1240,43 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (inProgress == false) {
-                    threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
-                        final Repository repository = repositoriesService.repository(repositoryName);
-                        repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
-                            Optional<SnapshotId> matchedEntry = repositoryData.getSnapshotIds()
-                                .stream()
-                                .filter(s -> s.getName().equals(snapshotName))
-                                .findFirst();
-                            if (matchedEntry.isPresent()) {
-                                deleteSnapshot(new Snapshot(repositoryName, matchedEntry.get()), listener,
-                                    repositoryData.getGenId(), immediatePriority);
-                            }
-                        }, listener::onFailure));
-                    }));
-                }
+                deleteSnapshotFromRepository(new Snapshot(repositoryName, snapshot), listener, repositoryGen,
+                    newState.nodes().getMinNodeVersion());
             }
         });
     }
+
+    /**
+     * BwC snapshot delete path if nodes older than {@link #TWO_STEP_DELETE_VERSION} are found in the cluster
+     */
+    private void deleteSnapshotsLegacy(final String repositoryName, final String snapshotName, final ActionListener<Void> listener,
+                                       final boolean immediatePriority) {
+        // First, look for the snapshot in the repository
+        final Repository repository = repositoriesService.repository(repositoryName);
+        repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
+            Optional<SnapshotId> matchedEntry = repositoryData.getSnapshotIds()
+                .stream()
+                .filter(s -> s.getName().equals(snapshotName))
+                .findFirst();
+            // if nothing found by the same name, then look in the cluster state for current in progress snapshots
+            long repoGenId = repositoryData.getGenId();
+            if (matchedEntry.isPresent() == false) {
+                Optional<SnapshotsInProgress.Entry> matchedInProgress = currentSnapshots(
+                    clusterService.state().custom(SnapshotsInProgress.TYPE), repositoryName, Collections.emptyList()).stream()
+                    .filter(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName)).findFirst();
+                if (matchedInProgress.isPresent()) {
+                    matchedEntry = matchedInProgress.map(s -> s.snapshot().getSnapshotId());
+                    // Derive repository generation if a snapshot is in progress because it will increment the generation when it finishes
+                    repoGenId = matchedInProgress.get().repositoryStateId() + 1L;
+                }
+            }
+            if (matchedEntry.isPresent() == false) {
+                throw new SnapshotMissingException(repositoryName, snapshotName);
+            }
+            deleteSnapshot(new Snapshot(repositoryName, matchedEntry.get()), listener, repoGenId, immediatePriority);
+        }, listener::onFailure));
+    }
+
 
     /**
      * Deletes snapshot from repository.
@@ -1256,7 +1323,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     }
                 }
-                final boolean bwCMode = currentState.nodes().getMinNodeVersion().before(TWO_STEP_DELETE_VERSION);
                 ClusterState.Builder clusterStateBuilder = ClusterState.builder(currentState);
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 SnapshotsInProgress.Entry snapshotEntry = snapshots != null ? snapshots.snapshot(snapshot) : null;
@@ -1273,12 +1339,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         repositoryStateId
                     );
                     if (deletionsInProgress != null) {
-                        if (bwCMode) {
-                            deletionsInProgress = deletionsInProgress.withAddedEntry(entry);
-                        } else {
-                            // TODO: Multi-delete support
-                            deletionsInProgress = SnapshotDeletionsInProgress.newInstance(entry);
-                        }
+                        deletionsInProgress = deletionsInProgress.withAddedEntry(entry);
                     } else {
                         deletionsInProgress = SnapshotDeletionsInProgress.newInstance(entry);
                     }
@@ -1335,8 +1396,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     SnapshotsInProgress.Entry newSnapshot = new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure);
                     clusterStateBuilder.putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(newSnapshot));
-                    clusterStateBuilder.putCustom(
-                        SnapshotDeletionsInProgress.TYPE, new SnapshotDeletionsInProgress(Collections.emptyList()));
                 }
                 return clusterStateBuilder.build();
             }

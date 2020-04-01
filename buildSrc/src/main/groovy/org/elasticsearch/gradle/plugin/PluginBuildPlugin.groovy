@@ -127,7 +127,7 @@ class PluginBuildPlugin implements Plugin<Project> {
                     baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
                     baseClass 'org.elasticsearch.test.ESSingleNodeTestCase'
                 }
-                TestRestApiSpec {
+                RestTestsYaml {
                     baseClass "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase"
                 }
             }

@@ -306,14 +306,14 @@ REST tests use the following command:
 
 ---------------------------------------------------------------------------
 ./gradlew :distribution:archives:integ-test-zip:integTestRunner \
- --tests "org.elasticsearch.test.rest.IntegTestZipTestRestApiSpec"
+ --tests "org.elasticsearch.test.rest.IntegTestZipRestTestsYaml"
 ---------------------------------------------------------------------------
 
 A specific test case can be run with the following command:
 
 ---------------------------------------------------------------------------
 ./gradlew ':distribution:archives:integ-test-zip:integTestRunner' \
-  --tests "org.elasticsearch.test.rest.IntegTestZipTestRestApiSpec" \
+  --tests "org.elasticsearch.test.rest.IntegTestZipRestTestsYaml" \
   -Dtests.method="test {p0=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 
@@ -482,7 +482,7 @@ Use -Dtest.class and -Dtests.method to run a specific bwcTest test.
 For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
 -------------------------------------------------
 ./gradlew :x-pack:qa:rolling-upgrade:v7.7.0#bwcTest \
- -Dtests.class=org.elasticsearch.upgrades.UpgradeClusterTestRestApiSpec\
+ -Dtests.class=org.elasticsearch.upgrades.UpgradeClusterRestTestsYaml\
  -Dtests.method="test {p0=*/40_ml_datafeed_crud/*}"
 -------------------------------------------------
 
@@ -546,7 +546,7 @@ There are multiple base classes for tests:
   extend this should have a name that ends with `IT`
 * **`ESClientYamlSuiteTestCase` **: A subclass of `ESRestTestCase` used to run
   YAML based REST tests. Tests that extend this should have a name that ends
-  with `TestRestApiSpec`
+  with `RestTestsYaml`
 
 === Good practices
 

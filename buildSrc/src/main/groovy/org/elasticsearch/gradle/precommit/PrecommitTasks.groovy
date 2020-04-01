@@ -117,7 +117,7 @@ class PrecommitTasks {
                     baseClass 'org.elasticsearch.test.ESSingleNodeTestCase'
                     baseClass "org.elasticsearch.test.rest.ESRestTestCase" //TODO: move this to RestTests suffix and re-name all tests
                 }
-                TestRestApiSpec {
+                RestTestsYaml {
                     baseClass "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase"
                 }
             }

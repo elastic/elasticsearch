@@ -47,7 +47,7 @@ public class RestIntegTestTask extends DefaultTask {
             .getByName(TestClustersPlugin.EXTENSION_NAME);
         ElasticsearchCluster cluster = testClusters.create(name);
         runner.useCluster(cluster);
-        runner.include("**/*IT.class", "**/*TestRestApiSpec.class");
+        runner.include("**/*IT.class", "**/*RestTestsYaml.class");
         runner.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString());
         if (System.getProperty(TESTS_REST_CLUSTER) == null) {
             if (System.getProperty(TESTS_CLUSTER) != null || System.getProperty(TESTS_CLUSTER_NAME) != null) {

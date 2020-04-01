@@ -166,7 +166,7 @@ processTestResources {
 task integTest(type: Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
-  include '**/*TestRestApiSpec.class'
+  include '**/*RestTestsYaml.class'
 }
 
 check.dependsOn integTest

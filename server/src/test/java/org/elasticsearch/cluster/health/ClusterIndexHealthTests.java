@@ -20,7 +20,7 @@ package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -47,31 +47,31 @@ public class ClusterIndexHealthTests extends AbstractSerializingTestCase<Cluster
         RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
         int numberOfShards = randomInt(3) + 1;
         int numberOfReplicas = randomInt(4);
-        IndexMetaData indexMetaData = IndexMetaData.builder("test1").settings(settings(Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder("test1").settings(settings(Version.CURRENT))
                 .numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas).build();
         RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
-        IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetaData, counter);
+        IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetadata, counter);
 
-        ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
-        assertIndexHealth(indexHealth, counter, indexMetaData);
+        ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable);
+        assertIndexHealth(indexHealth, counter, indexMetadata);
     }
 
     private void assertIndexHealth(ClusterIndexHealth indexHealth, RoutingTableGenerator.ShardCounter counter,
-                                   IndexMetaData indexMetaData) {
+                                   IndexMetadata indexMetadata) {
         assertThat(indexHealth.getStatus(), equalTo(counter.status()));
-        assertThat(indexHealth.getNumberOfShards(), equalTo(indexMetaData.getNumberOfShards()));
-        assertThat(indexHealth.getNumberOfReplicas(), equalTo(indexMetaData.getNumberOfReplicas()));
+        assertThat(indexHealth.getNumberOfShards(), equalTo(indexMetadata.getNumberOfShards()));
+        assertThat(indexHealth.getNumberOfReplicas(), equalTo(indexMetadata.getNumberOfReplicas()));
         assertThat(indexHealth.getActiveShards(), equalTo(counter.active));
         assertThat(indexHealth.getRelocatingShards(), equalTo(counter.relocating));
         assertThat(indexHealth.getInitializingShards(), equalTo(counter.initializing));
         assertThat(indexHealth.getUnassignedShards(), equalTo(counter.unassigned));
-        assertThat(indexHealth.getShards().size(), equalTo(indexMetaData.getNumberOfShards()));
+        assertThat(indexHealth.getShards().size(), equalTo(indexMetadata.getNumberOfShards()));
         int totalShards = 0;
         for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
             totalShards += shardHealth.getActiveShards() + shardHealth.getInitializingShards() + shardHealth.getUnassignedShards();
         }
 
-        assertThat(totalShards, equalTo(indexMetaData.getNumberOfShards() * (1 + indexMetaData.getNumberOfReplicas())));
+        assertThat(totalShards, equalTo(indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas())));
     }
 
     @Override

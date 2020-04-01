@@ -62,7 +62,8 @@ public class InboundHandlerTests extends ESTestCase {
         TransportHandshaker handshaker = new TransportHandshaker(new ClusterName("cluster-name"), version, threadPool, (n, c, r, v) -> {
         }, (v, c, r, r_id) -> { });
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
-        OutboundHandler outboundHandler = new OutboundHandler("node", version, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
+        OutboundHandler outboundHandler = new OutboundHandler("node", version, new StatsTracker(), threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE);
         final NoneCircuitBreakerService breaker = new NoneCircuitBreakerService();
         handler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, breaker, handshaker, keepAlive);
     }
@@ -80,8 +81,6 @@ public class InboundHandlerTests extends ESTestCase {
         handler.registerRequestHandler(registry);
 
         handler.inboundMessage(channel, new InboundMessage(null, true));
-        assertEquals(1, handler.getReadBytes().count());
-        assertEquals(6, handler.getReadBytes().sum());
         if (channel.isServerChannel()) {
             BytesReference ping = channel.getMessageCaptor().get();
             assertEquals('E', ping.get(0));

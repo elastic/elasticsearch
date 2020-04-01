@@ -34,8 +34,8 @@ public class InternalStatsBucketTests extends InternalStatsTests {
 
     @Override
     protected InternalStatsBucket createInstance(String name, long count, double sum, double min, double max,
-            DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalStatsBucket(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
+            DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalStatsBucket(name, count, sum, min, max, formatter, pipelineAggregators, metadata);
     }
 
     @Override

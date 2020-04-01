@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -157,7 +157,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     }
 
     private void logDeprecatedPermission(RoleDescriptor roleDescriptor) {
-        final SortedMap<String, IndexAbstraction> aliasOrIndexMap = clusterService.state().metaData().getIndicesLookup();
+        final SortedMap<String, IndexAbstraction> aliasOrIndexMap = clusterService.state().metadata().getIndicesLookup();
         final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();
         // sort answer by alias for tests
         final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
@@ -187,7 +187,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivilegeNames).getAutomaton();
             final SortedSet<String> inferiorIndexNames = new TreeSet<>();
             // check if the alias grants superiors privileges than the indices it points to
-            for (IndexMetaData indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
+            for (IndexMetadata indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
                 final String indexName = indexMetadata.getIndex().getName();
                 final Set<String> indexPrivileges = privilegesByIndexMap.get(indexName);
                 // null iff the index does not have *any* privilege

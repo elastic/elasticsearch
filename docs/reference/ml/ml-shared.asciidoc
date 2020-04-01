@@ -444,32 +444,46 @@ end::data-description[]
 tag::data-frame-analytics[]
 An array of {dfanalytics-job} resources, which are sorted by the `id` value in 
 ascending order.
-
++
+.Properties of {dfanalytics-job} resources
+[%collapsible%open]
+====
 `analysis`:::
 (object) The type of analysis that is performed on the `source`.
 
+//Begin analyzed_fields
 `analyzed_fields`:::
 (object) Contains `includes` and/or `excludes` patterns that select which fields 
 are included in the analysis.
-
-`analyzed_fields`.`excludes`:::
++
+.Properties of `analyzed_fields`
+[%collapsible%open]
+=====
+`excludes`:::
 (Optional, array) An array of strings that defines the fields that are excluded 
 from the analysis.
     
-`analyzed_fields`.`includes`:::
+`includes`:::
 (Optional, array) An array of strings that defines the fields that are included 
 in the analysis.
-
+=====
+//End analyzed_fields
+//Begin dest
 `dest`:::
 (string) The destination configuration of the analysis.
-
-`dest`.`index`:::
++
+.Properties of `dest`
+[%collapsible%open]
+=====
+`index`:::
 (string) The _destination index_ that stores the results of the 
 {dfanalytics-job}.
 
-`dest`.`results_field`:::
+`results_field`:::
 (string) The name of the field that stores the results of the analysis. Defaults 
 to `ml`.
+=====
+//End dest
 
 `id`:::
 (string) The unique identifier of the {dfanalytics-job}.
@@ -480,34 +494,374 @@ to `ml`.
 `source`:::
 (object) The configuration of how the analysis data is sourced. It has an 
 `index` parameter and optionally a `query` and a `_source`.
-  
-`source`.`index`:::
++
+.Properties of `source`
+[%collapsible%open]
+=====
+`index`:::
 (array) Index or indices on which to perform the analysis. It can be a single 
 index or index pattern as well as an array of indices or patterns.
     
-`source`.`query`:::
+`query`:::
 (object) The query that has been specified for the {dfanalytics-job}. The {es} 
 query domain-specific language (<<query-dsl,DSL>>). This value corresponds to 
 the query object in an {es} search POST body. By default, this property has the 
 following value: `{"match_all": {}}`.
 
-`source`.`_source`:::
+`_source`:::
 (object) Contains the specified `includes` and/or `excludes` patterns that 
 select which fields are present in the destination. Fields that are excluded 
 cannot be included in the analysis.
-
-`source`.`_source`.`excludes`:::
++
+.Properties of `_source`
+[%collapsible%open]
+======
+`excludes`:::
 (array) An array of strings that defines the fields that are excluded from the 
 destination.
         
-`source`.`_source`.`includes`:::
+`includes`:::
 (array) An array of strings that defines the fields that are included in the 
 destination.
+======
+//End of _source
+=====
+//End source
+====
 end::data-frame-analytics[]
 
 tag::data-frame-analytics-stats[]
 An array of statistics objects for {dfanalytics-jobs}, which are
 sorted by the `id` value in ascending order.
+
+//Begin analysis_stats
+`analysis_stats`::
+(object)
+An object containing statistical data about the analysis.
++
+.Properties of `analysis_stats`
+[%collapsible%open]
+====
+//Begin classification_stats
+`classification_stats`:::
+(object)
+An object containing statistical data about the {classanalysis}.
++
+.Properties of `classification_stats`
+[%collapsible%open]
+=====
+//Begin class_hyperparameters
+`hyperparameters`::::
+(object)
+An object containing the parameters of the {classanalysis}.
++
+.Properties of `hyperparameters`
+[%collapsible%open]
+======
+tag::dfas-alpha[]
+`alpha`::::
+(double)
+Regularization factor to penalize deeper trees when training decision trees.
+end::dfas-alpha[]
+
+`class_assignment_objective`::::
+(string)
+Defines whether class assignment maximizes the accuracy or the minimum recall 
+metric. Possible values are `maximize_accuracy` and `maximize_minimum_recall`.
+
+tag::dfas-downsample-factor[]
+`downsample_factor`::::
+(double)
+The value of the downsample factor.
+end::dfas-downsample-factor[]
+
+tag::dfas-eta[]
+`eta`::::
+(double)
+The value of the eta hyperparameter.
+end::dfas-eta[]
+
+tag::dfas-eta-growth[]
+`eta_growth_rate_per_tree`::::
+(double)
+Specifies the rate at which the `eta` increases for each new tree that is added to the 
+forest. For example, a rate of `1.05` increases `eta` by 5%.
+end::dfas-eta-growth[]
+
+tag::dfas-feature-bag-fraction[]
+`feature_bag_fraction`::::
+(double)
+The fraction of features that is used when selecting a random bag for each 
+candidate split.
+end::dfas-feature-bag-fraction[]
+
+tag::dfas-gamma[]
+`gamma`::::
+(double)
+Regularization factor to penalize trees with large numbers of nodes.
+end::dfas-gamma[]
+
+tag::dfas-lambda[]
+`lambda`::::
+(double)
+Regularization factor to penalize large leaf weights.
+end::dfas-lambda[]
+
+tag::dfas-max-attempts[]
+`max_attempts_to_add_tree`::::
+(integer)
+If the algorithm fails to determine a non-trivial tree (more than a single 
+leaf), this parameter determines how many of such consecutive failures are 
+tolerated. Once the number of attempts exceeds the threshold, the forest 
+training stops.
+end::dfas-max-attempts[]
+
+tag::dfas-max-optimization-rounds[]
+`max_optimization_rounds_per_hyperparameter`::::
+(integer)
+A multiplier responsible for determining the maximum number of 
+hyperparameter optimization steps in the Bayesian optimization procedure. 
+The maximum number of steps is determined based on the number of undefined hyperparameters 
+times the maximum optimization rounds per hyperparameter.
+end::dfas-max-optimization-rounds[]
+
+tag::dfas-max-trees[]
+`max_trees`::::
+(integer)
+The maximum number of trees in the forest.
+end::dfas-max-trees[]
+
+tag::dfas-num-folds[]
+`num_folds`::::
+(integer)
+The maximum number of folds for the cross-validation procedure.
+end::dfas-num-folds[]
+
+tag::dfas-num-splits[]
+`num_splits_per_feature`::::
+(integer)
+Determines the maximum number of splits for every feature that can occur in a 
+decision tree when the tree is trained.
+end::dfas-num-splits[]
+
+tag::dfas-soft-limit[]
+`soft_tree_depth_limit`::::
+(double)
+Tree depth limit is used for calculating the tree depth penalty. This is a soft 
+limit, it can be exceeded.
+end::dfas-soft-limit[]
+
+tag::dfas-soft-tolerance[]
+`soft_tree_depth_tolerance`::::
+(double)
+Tree depth tolerance is used for calculating the tree depth penalty. This is a 
+soft limit, it can be exceeded.
+end::dfas-soft-tolerance[]
+======
+//End class_hyperparameters
+
+tag::dfas-iteration[]
+`iteration`::::
+(integer)
+The number of iterations on the analysis.
+end::dfas-iteration[]
+
+tag::dfas-timestamp[]
+`timestamp`::::
+(date)
+The timestamp when the statistics were reported in milliseconds since the epoch.
+end::dfas-timestamp[]
+
+//Begin class_timing_stats
+tag::dfas-timing-stats[]
+`timing_stats`::::
+(object)
+An object containing time statistics about the {dfanalytics-job}.
+end::dfas-timing-stats[]
++
+.Properties of `timing_stats`
+[%collapsible%open]
+======
+tag::dfas-timing-stats-elapsed[]
+`elapsed_time`::::
+(integer)
+Runtime of the analysis in milliseconds.
+end::dfas-timing-stats-elapsed[]
+
+tag::dfas-timing-stats-iteration[]
+`iteration_time`::::
+(integer)
+Runtime of the latest iteration of the analysis in milliseconds.
+end::dfas-timing-stats-iteration[]
+======
+//End class_timing_stats
+
+//Begin class_validation_loss
+tag::dfas-validation-loss[]
+`validation_loss`::::
+(object)
+An object containing information about validation loss.
+end::dfas-validation-loss[]
++
+.Properties of `validation_loss`
+[%collapsible%open]
+======
+tag::dfas-validation-loss-type[]
+`loss_type`::::
+(string)
+The type of the loss metric. For example, `binomial_logistic`.
+end::dfas-validation-loss-type[]
+
+tag::dfas-validation-loss-fold[]
+`fold_values`::::
+(array of strings)
+Validation loss values for every added decision tree during the forest growing 
+procedure.
+end::dfas-validation-loss-fold[]
+======
+//End class_validation_loss
+=====
+//End classification_stats
+
+//Begin outlier_detection_stats
+`outlier_detection_stats`:::
+(object)
+An object containing statistical data about the {oldetection} job.
++
+.Properties of `outlier_detection_stats`
+[%collapsible%open]
+=====
+//Begin parameters
+`parameters`::::
+(object)
+The list of job parameters specified by the user or determined by algorithmic 
+heuristics.
++
+.Properties of `parameters`
+[%collapsible%open]
+======
+`compute_feature_influence`::::
+(boolean)
+If true, feature influence calculation is enabled.
+
+`feature_influence_threshold`::::
+(double)
+The minimum {olscore} that a document needs to have to calculate its feature 
+influence score.
+
+`method`::::
+(string)
+The method that {oldetection} uses. Possible values are `lof`, `ldof`, 
+`distance_kth_nn`, `distance_knn`, and `ensemble`.
+
+`n_neighbors`::::
+(integer)
+The value for how many nearest neighbors each method of {oldetection} uses to 
+calculate its outlier score.
+
+`outlier_fraction`::::
+(double)
+The proportion of the data set that is assumed to be outlying prior to 
+{oldetection}.
+
+`standardization_enabled`::::
+(boolean)
+If true, then the following operation is performed on the columns before 
+computing {olscores}: (x_i - mean(x_i)) / sd(x_i).
+======
+//End parameters
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timestamp]
+
+//Begin od_timing_stats
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats]
++
+.Property of `timing_stats`
+[%collapsible%open]
+======
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
+======
+//End od_timing_stats
+=====
+//End outlier_detection_stats
+
+//Begin regression_stats
+`regression_stats`:::
+(object)
+An object containing statistical data about the {reganalysis}.
++
+.Properties of `regression_stats`
+[%collapsible%open]
+=====
+//Begin reg_hyperparameters
+`hyperparameters`::::
+(object)
+An object containing the parameters of the {reganalysis}.
++
+.Properties of `hyperparameters`
+[%collapsible%open]
+======
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-feature-bag-fraction]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-gamma]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-lambda]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-attempts]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-max-trees]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-num-folds]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-num-splits]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
+======
+//End reg_hyperparameters
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-iteration]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timestamp]
+
+//Begin reg_timing_stats
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats]
++
+.Propertis of `timing_stats`
+[%collapsible%open]
+======
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-elapsed]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-timing-stats-iteration]
+======
+//End reg_timing_stats
+
+//Begin reg_validation_loss
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss]
++
+.Properties of `validation_loss`
+[%collapsible%open]
+======
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-type]
+
+include::{docdir}/ml/ml-shared.asciidoc[tag=dfas-validation-loss-fold]
+======
+//End reg_validation_loss
+=====
+//End regression_stats
+====
+//End analysis_stats
 
 `assignment_explanation`:::
 (string)
@@ -642,16 +996,20 @@ A description of the job.
 end::description-dfa[]
 
 tag::dest[]
-The destination configuration, consisting of `index` and 
-optionally `results_field` (`ml` by default).
-
-  `index`:::
-    (Required, string) Defines the _destination index_ to store the results of 
-    the {dfanalytics-job}.
+The destination configuration, consisting of `index` and optionally
+`results_field` (`ml` by default).
++
+.Properties of `dest`
+[%collapsible%open]
+====
+`index`:::
+(Required, string) Defines the _destination index_ to store the results of the
+{dfanalytics-job}.
   
-  `results_field`:::
-    (Optional, string) Defines the name of the field in which to store the 
-    results of the analysis. Default to `ml`.
+`results_field`:::
+(Optional, string) Defines the name of the field in which to store the results
+of the analysis. Defaults to `ml`.
+====
 end::dest[]
 
 tag::detector-description[]
@@ -717,14 +1075,11 @@ end::feature-influence-threshold[]
 
 tag::field-selection[]
 An array of objects that explain selection for each field, sorted by 
-the field names. Each object in the array has the following properties:
-
-`name`:::
-(string) The field name.
-
-`mapping_types`:::
-(string) The mapping types of the field.
-
+the field names.
++
+.Properties of `field_selection` objects
+[%collapsible%open]
+====
 `is_included`:::
 (boolean) Whether the field is selected to be included in the analysis.
 
@@ -735,8 +1090,15 @@ the field names. Each object in the array has the following properties:
 (string) The feature type of this field for the analysis. May be `categorical` 
 or `numerical`.
 
+`mapping_types`:::
+(string) The mapping types of the field.
+
+`name`:::
+(string) The field name.
+
 `reason`:::
 (string) The reason a field is not selected to be included in the analysis.
+====
 end::field-selection[]
 
 tag::filter[]
@@ -964,18 +1326,21 @@ allowed to contain. The maximum value is 2000.
 end::max-trees[]
 
 tag::memory-estimation[]
-An object containing the memory estimates. The object has the 
-following properties:
-
-`expected_memory_without_disk`:::
-(string) Estimated memory usage under the assumption that the whole 
-{dfanalytics} should happen in memory (i.e. without overflowing to disk).
-
+An object containing the memory estimates.
++
+.Properties of `memory_estimation`
+[%collapsible%open]
+====
 `expected_memory_with_disk`:::
 (string) Estimated memory usage under the assumption that overflowing to disk is 
 allowed during {dfanalytics}. `expected_memory_with_disk` is usually smaller 
 than `expected_memory_without_disk` as using disk allows to limit the main 
 memory needed to perform {dfanalytics}.
+
+`expected_memory_without_disk`:::
+(string) Estimated memory usage under the assumption that the whole 
+{dfanalytics} should happen in memory (i.e. without overflowing to disk).
+====
 end::memory-estimation[]
 
 tag::method[]
@@ -1320,38 +1685,44 @@ Identifier for the model snapshot.
 end::snapshot-id[]
 
 tag::source-put-dfa[]
-The configuration of how to source the analysis data. It requires an 
-`index`. Optionally, `query` and `_source` may be specified.
-
-`index`:::
-  (Required, string or array) Index or indices on which to perform the 
-  analysis. It can be a single index or index pattern as well as an array of 
-  indices or patterns.
+The configuration of how to source the analysis data. It requires an `index`.
+Optionally, `query` and `_source` may be specified.
 +
---
+.Properties of `source`
+[%collapsible%open]
+====
+`index`:::
+(Required, string or array) Index or indices on which to perform the analysis.
+It can be a single index or index pattern as well as an array of indices or
+patterns.
++
 WARNING: If your source indices contain documents with the same IDs, only the 
 document that is indexed last appears in the destination index.
---
-  
+
 `query`:::
-  (Optional, object) The {es} query domain-specific language 
-  (<<query-dsl,DSL>>). This value corresponds to the query object in an {es} 
-  search POST body. All the options that are supported by {es} can be used, 
-  as this object is passed verbatim to {es}. By default, this property has 
-  the following value: `{"match_all": {}}`.
+(Optional, object) The {es} query domain-specific language (<<query-dsl,DSL>>).
+This value corresponds to the query object in an {es} search POST body. All the
+options that are supported by {es} can be used, as this object is passed
+verbatim to {es}. By default, this property has the following value:
+`{"match_all": {}}`.
 
 `_source`:::
-  (Optional, object) Specify `includes` and/or `excludes` patterns to select
-  which fields will be present in the destination. Fields that are excluded
-  cannot be included in the analysis.
-      
-    `includes`::::
-      (array) An array of strings that defines the fields that will be 
-      included in the destination.
+(Optional, object) Specify `includes` and/or `excludes` patterns to select which
+fields will be present in the destination. Fields that are excluded cannot be
+included in the analysis.
++
+.Properties of `_source`
+[%collapsible%open]
+=====
+`includes`::::
+(array) An array of strings that defines the fields that will be included in the
+destination.
         
-    `excludes`::::
-      (array) An array of strings that defines the fields that will be 
-      excluded from the destination.
+`excludes`::::
+(array) An array of strings that defines the fields that will be excluded from
+the destination.
+=====
+====
 end::source-put-dfa[]
 
 tag::sparse-bucket-count[]
@@ -1483,32 +1854,27 @@ end::total-partition-field-count[]
 tag::trained-model-configs[]
 An array of trained model resources, which are sorted by the `model_id` value in 
 ascending order.
-
-`model_id`:::
-(string)
-Idetifier for the trained model.
-
++
+.Properties of trained model resources
+[%collapsible%open]
+====
 `created_by`:::
 (string)
 Information on the creator of the trained model.
-
-`version`:::
-(string)
-The {es} version number in which the trained model was created.
 
 `create_time`:::
 (<<time-units,time units>>)
 The time when the trained model was created.
 
-`tags`:::
-(string)
-A comma delimited string of tags. A {infer} model can have many tags, or none.
-
-`metadata`:::
+`default_field_map` :::
 (object)
-An object containing metadata about the trained model. For example, models 
-created by {dfanalytics} contain an `analysis_config` and an `input`
-object.
+A string to string object that contains the default field map to use
+when inferring against the model. For example, data frame analytics
+may train the model on a specific multi-field `foo.keyword`.
+The analytics job would then supply a default field map entry for
+`"foo" : "foo.keyword"`.
++
+Any field map described in the inference configuration takes precedence.
 
 `estimated_heap_memory_usage_bytes`:::
 (integer)
@@ -1522,16 +1888,23 @@ The estimated number of operations to use the trained model.
 (string)
 The license level of the trained model.
 
-`default_field_map` :::
+`metadata`:::
 (object)
-A string to string object that contains the default field map to use
-when inferring against the model. For example, data frame analytics
-may train the model on a specific multi-field `foo.keyword`.
-The analytics job would then supply a default field map entry for
-`"foo" : "foo.keyword"`.
+An object containing metadata about the trained model. For example, models 
+created by {dfanalytics} contain `analysis_config` and `input` objects.
 
-Any field map described in the inference configuration takes precedence.
+`model_id`:::
+(string)
+Idetifier for the trained model.
 
+`tags`:::
+(string)
+A comma delimited string of tags. A {infer} model can have many tags, or none.
+
+`version`:::
+(string)
+The {es} version number in which the trained model was created.
+====
 end::trained-model-configs[]
 
 tag::training-percent[]

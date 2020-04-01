@@ -20,7 +20,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -76,7 +76,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
         logger.debug("Get stats for job [{}]", request.getJobId());
 
         ClusterState state = clusterService.state();
-        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         // If there are deleted configs, but the task is still around, we probably want to return the tasks in the stats call
         jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), true, tasks, true, ActionListener.wrap(
                 expandedIds -> {
@@ -110,13 +110,13 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
                                  ActionListener<QueryPage<JobStats>> listener) {
         String jobId = task.getJobId();
         ClusterState state = clusterService.state();
-        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> stats = processManager.getStatistics(task);
         if (stats.isPresent()) {
             DataCounts dataCounts = stats.get().v1();
             ModelSizeStats modelSizeStats = stats.get().v2().v1();
             TimingStats timingStats = stats.get().v2().v2();
-            PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
+            PersistentTasksCustomMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
             DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
             JobState jobState = MlTasks.getJobState(jobId, tasks);
             String assignmentExplanation = pTask.getAssignment().getExplanation();
@@ -144,14 +144,14 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
 
         AtomicInteger counter = new AtomicInteger(closedJobIds.size());
         AtomicArray<GetJobsStatsAction.Response.JobStats> jobStats = new AtomicArray<>(closedJobIds.size());
-        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         for (int i = 0; i < closedJobIds.size(); i++) {
             int slot = i;
             String jobId = closedJobIds.get(i);
             gatherForecastStats(jobId, forecastStats -> {
                 gatherDataCountsModelSizeStatsAndTimingStats(jobId, (dataCounts, modelSizeStats, timingStats) -> {
                     JobState jobState = MlTasks.getJobState(jobId, tasks);
-                    PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
+                    PersistentTasksCustomMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
                     String assignmentExplanation = null;
                     if (pTask != null) {
                         assignmentExplanation = pTask.getAssignment().getExplanation();

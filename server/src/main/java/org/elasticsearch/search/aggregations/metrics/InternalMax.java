@@ -34,8 +34,8 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
     private final double max;
 
     public InternalMax(String name, double max, DocValueFormat formatter,
-                       List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                       List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.format = formatter;
         this.max = max;
     }
@@ -76,7 +76,7 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : aggregations) {
             max = Math.max(max, ((InternalMax) aggregation).max);
         }
-        return new InternalMax(name, max, format, pipelineAggregators(), getMetaData());
+        return new InternalMax(name, max, format, pipelineAggregators(), getMetadata());
     }
 
     @Override

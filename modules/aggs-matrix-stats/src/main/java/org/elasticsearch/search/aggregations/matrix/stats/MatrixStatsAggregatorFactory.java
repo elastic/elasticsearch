@@ -45,8 +45,8 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, configs, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, configs, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.multiValueMode = multiValueMode;
     }
 
@@ -54,9 +54,9 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData)
+                                            Map<String, Object> metadata)
         throws IOException {
-        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, pipelineAggregators, metaData);
+        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, pipelineAggregators, metadata);
     }
 
     @Override
@@ -65,7 +65,7 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         Map<String, ValuesSource.Numeric> typedValuesSources = new HashMap<>(valuesSources.size());
         for (Map.Entry<String, ValuesSource> entry : valuesSources.entrySet()) {
             if (entry.getValue() instanceof ValuesSource.Numeric == false) {
@@ -75,6 +75,6 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
             // TODO: There must be a better option than this.
             typedValuesSources.put(entry.getKey(), (ValuesSource.Numeric) entry.getValue());
         }
-        return new MatrixStatsAggregator(name, typedValuesSources, searchContext, parent, multiValueMode, pipelineAggregators, metaData);
+        return new MatrixStatsAggregator(name, typedValuesSources, searchContext, parent, multiValueMode, pipelineAggregators, metadata);
     }
 }

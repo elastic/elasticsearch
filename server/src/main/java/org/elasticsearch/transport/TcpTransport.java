@@ -103,6 +103,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
     private static final long THIRTY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.3);
 
+    final StatsTracker statsTracker = new StatsTracker();
+
     // this limit is per-address
     private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
 
@@ -139,7 +141,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        this.outboundHandler = new OutboundHandler(nodeName, version, threadPool, bigArrays);
+        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, bigArrays);
         this.handshaker = new TransportHandshaker(ClusterName.CLUSTER_NAME_SETTING.get(settings), version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
@@ -153,6 +155,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     public Version getVersion() {
         return version;
+    }
+
+    public StatsTracker getStatsTracker() {
+        return statsTracker;
+    }
+
+    public ThreadPool getThreadPool() {
+        return threadPool;
     }
 
     @Override
@@ -676,9 +686,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     public void inboundDecodeException(TcpChannel channel, Tuple<Header, Exception> tuple) {
-        // Need to call inbound handler to mark bytes received. This should eventually be unnecessary as the
-        // stats marking will move into the pipeline.
-        inboundHandler.handleDecodeException(channel, tuple.v1());
         onException(channel, tuple.v2());
     }
 
@@ -827,10 +834,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public final TransportStats getStats() {
-        MeanMetric transmittedBytes = outboundHandler.getTransmittedBytes();
-        MeanMetric readBytes = inboundHandler.getReadBytes();
-        return new TransportStats(acceptedChannels.size(), readBytes.count(), readBytes.sum(), transmittedBytes.count(),
-            transmittedBytes.sum());
+        final MeanMetric writeBytesMetric = statsTracker.getWriteBytes();
+        final long bytesWritten = statsTracker.getBytesWritten();
+        final long messagesSent = statsTracker.getMessagesSent();
+        final long messagesReceived = statsTracker.getMessagesReceived();
+        final long bytesRead = statsTracker.getBytesRead();
+        return new TransportStats(acceptedChannels.size(), messagesReceived, bytesRead, messagesSent, bytesWritten);
     }
 
     /**

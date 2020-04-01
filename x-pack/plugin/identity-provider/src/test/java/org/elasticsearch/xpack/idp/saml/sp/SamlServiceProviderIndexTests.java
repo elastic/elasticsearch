@@ -15,8 +15,8 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -90,7 +90,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertFalse("Template should not have been installed a second time", installTemplate());
 
         // Index should not exist yet
-        assertThat(clusterService.state().metaData().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
+        assertThat(clusterService.state().metadata().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
 
         for (int i = 0; i < count; i++) {
             final SamlServiceProviderDocument doc = randomDocument(i);
@@ -98,11 +98,11 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
             documents.add(doc);
         }
 
-        final IndexMetaData indexMetaData = clusterService.state().metaData().index(SamlServiceProviderIndex.INDEX_NAME);
-        assertThat(indexMetaData, notNullValue());
-        assertThat(indexMetaData.getSettings().get("index.format"), equalTo("1"));
-        assertThat(indexMetaData.getAliases().size(), equalTo(1));
-        assertThat(indexMetaData.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
+        final IndexMetadata indexMetadata = clusterService.state().metadata().index(SamlServiceProviderIndex.INDEX_NAME);
+        assertThat(indexMetadata, notNullValue());
+        assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
+        assertThat(indexMetadata.getAliases().size(), equalTo(1));
+        assertThat(indexMetadata.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
         refresh();
 
@@ -138,17 +138,17 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         final String customIndexName = SamlServiceProviderIndex.INDEX_NAME + "-test";
         client().admin().indices().create(new CreateIndexRequest(customIndexName)).actionGet();
 
-        final IndexMetaData indexMetaData = clusterService.state().metaData().index(customIndexName);
-        assertThat(indexMetaData, notNullValue());
-        assertThat(indexMetaData.getSettings().get("index.format"), equalTo("1"));
-        assertThat(indexMetaData.getAliases().size(), equalTo(1));
-        assertThat(indexMetaData.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
+        final IndexMetadata indexMetadata = clusterService.state().metadata().index(customIndexName);
+        assertThat(indexMetadata, notNullValue());
+        assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
+        assertThat(indexMetadata.getAliases().size(), equalTo(1));
+        assertThat(indexMetadata.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
         SamlServiceProviderDocument document = randomDocument(1);
         writeDocument(document);
 
         // Index should not exist because we created an alternate index, and the alias points to that.
-        assertThat(clusterService.state().metaData().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
+        assertThat(clusterService.state().metadata().index(SamlServiceProviderIndex.INDEX_NAME), nullValue());
 
         refresh();
 
@@ -166,7 +166,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
         ensureGreen(indexName);
 
-        IndexTemplateMetaData templateMeta = clusterService.state().metaData().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
+        IndexTemplateMetadata templateMeta = clusterService.state().metadata().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
 
         assertBusy(() -> assertThat("template should have been installed", templateMeta, notNullValue()));
 
@@ -181,7 +181,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
         assertThat(readDocument(doc.docId), equalTo(doc));
 
-        IndexTemplateMetaData templateMeta = clusterService.state().metaData().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
+        IndexTemplateMetadata templateMeta = clusterService.state().metadata().templates().get(SamlServiceProviderIndex.TEMPLATE_NAME);
         assertThat("template should have been installed", templateMeta, notNullValue());
 
         final PlainActionFuture<Boolean> installTemplate = new PlainActionFuture<>();

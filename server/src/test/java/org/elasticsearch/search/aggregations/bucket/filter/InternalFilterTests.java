@@ -31,8 +31,8 @@ import java.util.Map;
 public class InternalFilterTests extends InternalSingleBucketAggregationTestCase<InternalFilter> {
     @Override
     protected InternalFilter createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalFilter(name, docCount, aggregations, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalFilter(name, docCount, aggregations, pipelineAggregators, metadata);
     }
 
     @Override

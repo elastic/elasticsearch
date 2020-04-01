@@ -19,7 +19,7 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -161,16 +161,16 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
      *
      * @throws IllegalStateException if the given index settings doesn't contain a value for the key
-     *         {@value IndexMetaData#SETTING_VERSION_CREATED}
+     *         {@value IndexMetadata#SETTING_VERSION_CREATED}
      */
     public static Version indexCreated(Settings indexSettings) {
-        final Version indexVersion = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
+        final Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
         if (indexVersion == V_EMPTY) {
             final String message = String.format(
                     Locale.ROOT,
                     "[%s] is not present in the index settings for index with UUID [%s]",
-                    IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(),
-                    indexSettings.get(IndexMetaData.SETTING_INDEX_UUID));
+                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                    indexSettings.get(IndexMetadata.SETTING_INDEX_UUID));
             throw new IllegalStateException(message);
         }
         return indexVersion;

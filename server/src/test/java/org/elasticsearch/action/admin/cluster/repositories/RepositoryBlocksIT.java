@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.repositories;
 
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -45,7 +45,7 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
             assertBlocked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                     .setType("fs")
                     .setVerify(false)
-                    .setSettings(Settings.builder().put("location",  randomRepoPath())), MetaData.CLUSTER_READ_ONLY_BLOCK);
+                    .setSettings(Settings.builder().put("location",  randomRepoPath())), Metadata.CLUSTER_READ_ONLY_BLOCK);
         } finally {
             setClusterReadOnly(false);
         }
@@ -83,7 +83,7 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
         logger.info("-->  deleting a repository is blocked when the cluster is read only");
         try {
             setClusterReadOnly(true);
-            assertBlocked(client().admin().cluster().prepareDeleteRepository("test-repo-blocks"), MetaData.CLUSTER_READ_ONLY_BLOCK);
+            assertBlocked(client().admin().cluster().prepareDeleteRepository("test-repo-blocks"), Metadata.CLUSTER_READ_ONLY_BLOCK);
         } finally {
             setClusterReadOnly(false);
         }

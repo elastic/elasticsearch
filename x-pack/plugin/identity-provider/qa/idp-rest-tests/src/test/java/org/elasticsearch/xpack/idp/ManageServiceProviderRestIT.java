@@ -53,9 +53,9 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
         final DocumentVersion docVersion = createServiceProvider(entityId, request);
         checkIndexDoc(docVersion);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
-        getMetaData(entityId);
+        getMetadata(entityId);
         deleteServiceProvider(entityId, docVersion);
-        expectThrows(ResponseException.class, () -> getMetaData(entityId));
+        expectThrows(ResponseException.class, () -> getMetadata(entityId));
         expectThrows(ResponseException.class, () -> deleteServiceProvider(entityId, docVersion));
     }
 
@@ -106,7 +106,7 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
         assertThat(ObjectPath.eval("service_provider.entity_id", map), equalTo(entityId));
     }
 
-    private void getMetaData(String entityId) throws IOException {
+    private void getMetadata(String entityId) throws IOException {
         final Map<String, Object> map = getAsMap("/_idp/saml/metadata/" + encode(entityId));
         assertThat(map, notNullValue());
         assertThat(map.keySet(), containsInAnyOrder("metadata"));

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -67,15 +67,15 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
     private int numberOfAnnotationsAliases() {
         int count = 0;
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases = client().admin().indices()
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases = client().admin().indices()
             .prepareGetAliases(AnnotationIndex.READ_ALIAS_NAME, AnnotationIndex.WRITE_ALIAS_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get()
             .getAliases();
         if (aliases != null) {
-            for (ObjectObjectCursor<String, List<AliasMetaData>> entry : aliases) {
-                for (AliasMetaData aliasMetaData : entry.value) {
-                    assertThat("Annotations aliases should be hidden but are not: " + aliases, aliasMetaData.isHidden(), is(true));
+            for (ObjectObjectCursor<String, List<AliasMetadata>> entry : aliases) {
+                for (AliasMetadata aliasMetadata : entry.value) {
+                    assertThat("Annotations aliases should be hidden but are not: " + aliases, aliasMetadata.isHidden(), is(true));
                 }
                 count += entry.value.size();
             }

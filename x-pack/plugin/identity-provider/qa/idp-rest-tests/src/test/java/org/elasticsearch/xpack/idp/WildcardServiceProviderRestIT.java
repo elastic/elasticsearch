@@ -40,7 +40,7 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         // From "wildcard_services.json"
         final String entityId = "service:" + owner + ":" + service;
         final String acs = "https://" + service + ".services.example.com/saml/acs";
-        getMetaData(entityId, acs);
+        getMetadata(entityId, acs);
     }
 
     public void testInitSingleSignOnToWildcardServiceProvider() throws Exception {
@@ -76,7 +76,7 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         deleteRole(roleName);
     }
 
-    private void getMetaData(String entityId, String acs) throws IOException {
+    private void getMetadata(String entityId, String acs) throws IOException {
         final Map<String, Object> map = getAsMap("/_idp/saml/metadata/" + encode(entityId) + "?acs=" + encode(acs));
         assertThat(map, notNullValue());
         assertThat(map.keySet(), containsInAnyOrder("metadata"));

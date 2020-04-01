@@ -36,8 +36,8 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     private final long value;
 
     InternalValueCount(String name, long value, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.value = value;
     }
 
@@ -75,7 +75,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
         for (InternalAggregation aggregation : aggregations) {
             valueCount += ((InternalValueCount) aggregation).value;
         }
-        return new InternalValueCount(name, valueCount, pipelineAggregators(), getMetaData());
+        return new InternalValueCount(name, valueCount, pipelineAggregators(), getMetadata());
     }
 
     @Override

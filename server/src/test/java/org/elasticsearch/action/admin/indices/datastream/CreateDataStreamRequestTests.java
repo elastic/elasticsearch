@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction.
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -67,15 +67,15 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
         ClusterState newState = CreateDataStreamAction.TransportAction.createDataStream(cs, req);
-        assertThat(newState.metaData().dataStreams().size(), equalTo(1));
-        assertThat(newState.metaData().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+        assertThat(newState.metadata().dataStreams().size(), equalTo(1));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
     }
 
     public void testCreateDuplicateDataStream() {
         final String dataStreamName = "my-data-stream";
         DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", Collections.emptyList());
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
+            .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
         CreateDataStreamAction.Request req = new CreateDataStreamAction.Request(dataStreamName);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

@@ -127,8 +127,8 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     private transient Map<String, InternalBucket> bucketMap;
 
     public InternalFilters(String name, List<InternalBucket> buckets, boolean keyed, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.buckets = buckets;
         this.keyed = keyed;
     }
@@ -164,7 +164,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
     @Override
     public InternalFilters create(List<InternalBucket> buckets) {
-        return new InternalFilters(this.name, buckets, this.keyed, this.pipelineAggregators(), this.metaData);
+        return new InternalFilters(this.name, buckets, this.keyed, this.pipelineAggregators(), this.metadata);
     }
 
     @Override
@@ -210,7 +210,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
 
         reduceContext.consumeBucketsAndMaybeBreak(bucketsList.size());
         InternalFilters reduced = new InternalFilters(name, new ArrayList<>(bucketsList.size()), keyed, pipelineAggregators(),
-                getMetaData());
+                getMetadata());
         for (List<InternalBucket> sameRangeList : bucketsList) {
             reduced.buckets.add(reduceBucket(sameRangeList, reduceContext));
         }

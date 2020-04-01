@@ -30,8 +30,8 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class SiblingPipelineAggregator extends PipelineAggregator {
-    protected SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
-        super(name, bucketsPaths, metaData);
+    protected SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metadata) {
+        super(name, bucketsPaths, metadata);
     }
 
     /**

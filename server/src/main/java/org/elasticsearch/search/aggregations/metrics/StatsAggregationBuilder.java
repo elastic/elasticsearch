@@ -51,8 +51,8 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     }
 
     protected StatsAggregationBuilder(StatsAggregationBuilder clone,
-                                      Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                      Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
@@ -60,8 +60,8 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new StatsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new StatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -84,7 +84,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     @Override
     protected StatsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                                 AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new StatsAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new StatsAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

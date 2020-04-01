@@ -86,7 +86,7 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
         this.waitForCompletion = waitForCompletion;
     }
 
-    public boolean waitForChildTasks() {
+    public boolean waitForCompletion() {
         return waitForCompletion;
     }
 }

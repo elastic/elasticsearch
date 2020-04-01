@@ -117,7 +117,8 @@ public class CancellableTasksIT extends ESIntegTestCase {
             arrivedLatches.get(req).await();
         }
         TaskId taskId = getMainTaskId();
-        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId).execute();
+        ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
+            .waitForCompletion(true).execute();
         Set<DiscoveryNode> nodesWithOutstandingChildTask = outstandingRequests.stream().map(r -> r.targetNode).collect(Collectors.toSet());
         assertBusy(() -> {
             for (DiscoveryNode node : nodes) {
@@ -184,7 +185,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         assertThat(notFound.getMessage(), equalTo("task [" + taskId + "] is not found"));
     }
 
-    public void testDoNotWaitForChildTasks() throws Exception {
+    public void testDoNotWaitForCompletion() throws Exception {
         Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
         List<ChildRequest> childRequests = setupChildRequests(nodes);
         ActionFuture<MainResponse> mainTaskFuture = client().execute(TransportMainAction.ACTION, new MainRequest(childRequests));
@@ -192,11 +193,10 @@ public class CancellableTasksIT extends ESIntegTestCase {
             arrivedLatches.get(r).await();
         }
         TaskId taskId = getMainTaskId();
-        boolean waitForChildTasks = randomBoolean();
+        boolean waitForCompletion = randomBoolean();
         ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().prepareCancelTasks().setTaskId(taskId)
-            .waitForCompletion(waitForChildTasks)
-            .execute();
-        if (waitForChildTasks) {
+            .waitForCompletion(waitForCompletion).execute();
+        if (waitForCompletion) {
             assertFalse(cancelFuture.isDone());
         } else {
             assertBusy(() -> assertTrue(cancelFuture.isDone()));

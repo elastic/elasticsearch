@@ -30,8 +30,8 @@ class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBackedTDi
                                      boolean keyed,
                                      DocValueFormat formatter,
                                      List<PipelineAggregator> pipelineAggregators,
-                                     Map<String, Object> metaData) throws IOException {
-        super(name, valuesSource, context, parent, percents, compression, keyed, formatter, pipelineAggregators, metaData);
+                                     Map<String, Object> metadata) throws IOException {
+        super(name, valuesSource, context, parent, percents, compression, keyed, formatter, pipelineAggregators, metadata);
     }
 
     @Override
@@ -40,14 +40,14 @@ class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBackedTDi
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalTDigestPercentileRanks(name, keys, state, keyed, formatter, pipelineAggregators(), metaData());
+            return new InternalTDigestPercentileRanks(name, keys, state, keyed, formatter, pipelineAggregators(), metadata());
         }
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalTDigestPercentileRanks(name, keys, new TDigestState(compression), keyed,
-            formatter, pipelineAggregators(), metaData());
+            formatter, pipelineAggregators(), metadata());
     }
 
     @Override

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 
@@ -68,14 +68,14 @@ public class LifecycleExecutionState {
     }
 
     /**
-     * Retrieves the execution state from an {@link IndexMetaData} based on the
+     * Retrieves the execution state from an {@link IndexMetadata} based on the
      * custom metadata.
-     * @param indexMetaData The metadata of the index to retrieve the execution
+     * @param indexMetadata The metadata of the index to retrieve the execution
      *                      state from.
      * @return The execution state of that index.
      */
-    public static LifecycleExecutionState fromIndexMetadata(IndexMetaData indexMetaData) {
-        Map<String, String> customData = indexMetaData.getCustomData(ILM_CUSTOM_METADATA_KEY);
+    public static LifecycleExecutionState fromIndexMetadata(IndexMetadata indexMetadata) {
+        Map<String, String> customData = indexMetadata.getCustomData(ILM_CUSTOM_METADATA_KEY);
         customData = customData == null ? new HashMap<>() : customData;
         return fromCustomMetadata(customData);
     }
@@ -188,7 +188,7 @@ public class LifecycleExecutionState {
 
     /**
      * Converts this object to an immutable map representation for use with
-     * {@link IndexMetaData.Builder#putCustom(String, Map)}.
+     * {@link IndexMetadata.Builder#putCustom(String, Map)}.
      * @return An immutable Map representation of this execution state.
      */
     public Map<String, String> asMap() {

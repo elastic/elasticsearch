@@ -20,7 +20,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -59,8 +59,8 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
         ensureGreen(indexName);
 
         // sometimes test with a closed index
-        final IndexMetaData.State indexState = randomFrom(IndexMetaData.State.OPEN, IndexMetaData.State.CLOSE);
-        if (indexState == IndexMetaData.State.CLOSE) {
+        final IndexMetadata.State indexState = randomFrom(IndexMetadata.State.OPEN, IndexMetadata.State.CLOSE);
+        if (indexState == IndexMetadata.State.CLOSE) {
             CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose(indexName).get();
             assertThat("close index not acked - " + closeIndexResponse, closeIndexResponse.isAcknowledged(), equalTo(true));
             ensureGreen(indexName);
@@ -68,7 +68,7 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
 
         // pick up a data node that contains a random primary shard
         ClusterState state = client(internalCluster().getMasterName()).admin().cluster().prepareState().get().getState();
-        final int numShards = state.metaData().index(indexName).getNumberOfShards();
+        final int numShards = state.metadata().index(indexName).getNumberOfShards();
         final ShardRouting primaryShard = state.routingTable().index(indexName).shard(randomIntBetween(0, numShards - 1)).primaryShard();
         final DiscoveryNode randomNode = state.nodes().resolveNode(primaryShard.currentNodeId());
 
@@ -83,7 +83,7 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
             }
         }
 
-        if (indexState == IndexMetaData.State.CLOSE) {
+        if (indexState == IndexMetadata.State.CLOSE) {
             assertAcked(client().admin().indices().prepareOpen(indexName));
             ensureYellowAndNoInitializingShards(indexName);
         }

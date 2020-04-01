@@ -12,10 +12,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -283,7 +283,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         ClusterState clusterState = mockClusterState(null);
         ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
-        when(clusterChangedEvent.metaDataChanged()).thenReturn(true);
+        when(clusterChangedEvent.metadataChanged()).thenReturn(true);
         when(clusterChangedEvent.state()).thenReturn(clusterState);
 
         listener.clusterChanged(clusterChangedEvent);
@@ -466,22 +466,22 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         DiscoveryNode node3 = new DiscoveryNode("node_3", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
                 new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE)), Version.CURRENT);
 
-        IndexMetaData.Builder indexMetaDataBuilder = createIndexBuilder(Watch.INDEX, 1 ,0);
+        IndexMetadata.Builder indexMetadataBuilder = createIndexBuilder(Watch.INDEX, 1 ,0);
 
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
-                .metaData(MetaData.builder().put(indexMetaDataBuilder))
+                .metadata(Metadata.builder().put(indexMetadataBuilder))
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node1).add(node2).add(node3))
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
                 .build();
 
-        IndexMetaData.Builder newIndexMetaDataBuilder = createIndexBuilder(Watch.INDEX, 1, 1);
+        IndexMetadata.Builder newIndexMetadataBuilder = createIndexBuilder(Watch.INDEX, 1, 1);
 
         ShardRouting replicaShardRouting = TestShardRouting.newShardRouting(shardId, "node3", false, STARTED);
         IndexRoutingTable.Builder newRoutingTable = IndexRoutingTable.builder(index)
                 .addShard(shardRouting)
                 .addShard(replicaShardRouting);
         ClusterState currentState = ClusterState.builder(new ClusterName("my-cluster"))
-                .metaData(MetaData.builder().put(newIndexMetaDataBuilder))
+                .metadata(Metadata.builder().put(newIndexMetadataBuilder))
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node1).add(node2).add(node3))
                 .routingTable(RoutingTable.builder().add(newRoutingTable).build())
                 .build();
@@ -498,19 +498,19 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         Index index = new Index("random-index", "foo");
         ShardId firstShardId = new ShardId(index, 0);
 
-        IndexMetaData.Builder indexMetaDataBuilder = createIndexBuilder("random-index", 2, 1);
+        IndexMetadata.Builder indexMetadataBuilder = createIndexBuilder("random-index", 2, 1);
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
                 .addShard(TestShardRouting.newShardRouting(firstShardId, "node_1", true, STARTED))
                 .addShard(TestShardRouting.newShardRouting(firstShardId, "node_2", false, STARTED));
 
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
-                .metaData(MetaData.builder().put(indexMetaDataBuilder))
+                .metadata(Metadata.builder().put(indexMetadataBuilder))
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node1).add(node2))
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
                 .build();
 
-        IndexMetaData.Builder currentMetaDataBuilder = createIndexBuilder(Watch.INDEX, 2, 1);
+        IndexMetadata.Builder currentMetadataBuilder = createIndexBuilder(Watch.INDEX, 2, 1);
 
         boolean useWatchIndex = randomBoolean();
         String indexName = useWatchIndex ? Watch.INDEX : "other-index-name";
@@ -522,7 +522,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 .addShard(TestShardRouting.newShardRouting(watchShardId, "node_2", false, STARTED));
 
         ClusterState currentState = ClusterState.builder(new ClusterName("my-cluster"))
-                .metaData(MetaData.builder().put(currentMetaDataBuilder))
+                .metadata(Metadata.builder().put(currentMetadataBuilder))
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node1).add(node2))
                 .routingTable(RoutingTable.builder().add(currentRoutingTable).build())
                 .build();
@@ -554,7 +554,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         ShardId firstShardId = new ShardId(index, 0);
         ShardId secondShardId = new ShardId(index, 1);
 
-        IndexMetaData.Builder indexMetaDataBuilder = createIndexBuilder(Watch.INDEX, 2, 1);
+        IndexMetadata.Builder indexMetadataBuilder = createIndexBuilder(Watch.INDEX, 2, 1);
 
         ShardRouting firstShardRoutingPrimary = TestShardRouting.newShardRouting(firstShardId, "node_1", true, STARTED);
         ShardRouting firstShardRoutingReplica = TestShardRouting.newShardRouting(firstShardId, "node_2", false, STARTED);
@@ -567,7 +567,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 .addShard(secondShardRoutingReplica);
 
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
-                .metaData(MetaData.builder().put(indexMetaDataBuilder))
+                .metadata(Metadata.builder().put(indexMetadataBuilder))
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId(localNode)
                         .add(node1).add(node2).add(node3).add(node4))
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
@@ -584,7 +584,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         assertThat(configuration, is(not(INACTIVE)));
 
         // now create a cluster state where node 4 is missing
-        IndexMetaData.Builder newIndexMetaDataBuilder = createIndexBuilder(Watch.INDEX, 2, 1);
+        IndexMetadata.Builder newIndexMetadataBuilder = createIndexBuilder(Watch.INDEX, 2, 1);
 
         IndexRoutingTable.Builder newRoutingTable = IndexRoutingTable.builder(index)
                 .addShard(firstShardRoutingPrimary)
@@ -592,7 +592,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
                 .addShard(secondShardRoutingPrimary);
 
         ClusterState currentState = ClusterState.builder(new ClusterName("my-cluster"))
-                .metaData(MetaData.builder().put(newIndexMetaDataBuilder))
+                .metadata(Metadata.builder().put(newIndexMetadataBuilder))
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId(localNode)
                         .add(node1).add(node2).add(node3).add(node4))
                 .routingTable(RoutingTable.builder().add(newRoutingTable).build())
@@ -618,8 +618,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         // regular cluster state with correct single alias pointing to watches index
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
-                .metaData(MetaData.builder().put(createIndexBuilder("foo", 1, 0)
-                        .putAlias(AliasMetaData.builder(Watch.INDEX))))
+                .metadata(Metadata.builder().put(createIndexBuilder("foo", 1, 0)
+                        .putAlias(AliasMetadata.builder(Watch.INDEX))))
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node1))
                 .routingTable(RoutingTable.builder().add(fooIndexRoutingTable).build())
                 .build();
@@ -627,15 +627,15 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         // index bar pointing to .watches
         Index barIndex = new Index("bar", "someuuid2");
         ShardId barShardId = new ShardId(fooIndex, 0);
-        IndexMetaData.Builder barIndexMetaData = createIndexBuilder("bar", 1, 0).putAlias(AliasMetaData.builder(Watch.INDEX));
+        IndexMetadata.Builder barIndexMetadata = createIndexBuilder("bar", 1, 0).putAlias(AliasMetadata.builder(Watch.INDEX));
         ShardRouting barShardRouting = TestShardRouting.newShardRouting(barShardId, node1.getId(), true, STARTED);
         IndexRoutingTable.Builder barIndexRoutingTable = IndexRoutingTable.builder(barIndex).addShard(barShardRouting);
 
         // cluster state with two indices pointing to the .watches index
         ClusterState currentState = ClusterState.builder(new ClusterName("my-cluster"))
-                .metaData(MetaData.builder().put(createIndexBuilder("foo", 1, 0)
-                        .putAlias(AliasMetaData.builder(Watch.INDEX)))
-                        .put(barIndexMetaData))
+                .metadata(Metadata.builder().put(createIndexBuilder("foo", 1, 0)
+                        .putAlias(AliasMetadata.builder(Watch.INDEX)))
+                        .put(barIndexMetadata))
                 .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
                         .add(node1))
                 .routingTable(RoutingTable.builder()
@@ -681,28 +681,28 @@ public class WatcherIndexingListenerTests extends ESTestCase {
      * create a mock cluster state, the returns the specified index as watch index
      */
     private ClusterState mockClusterState(String watchIndex) {
-        MetaData metaData = mock(MetaData.class);
+        Metadata metadata = mock(Metadata.class);
         if (watchIndex == null) {
-            when(metaData.getIndicesLookup()).thenReturn(Collections.emptySortedMap());
+            when(metadata.getIndicesLookup()).thenReturn(Collections.emptySortedMap());
         } else {
             SortedMap<String, IndexAbstraction> indices = new TreeMap<>();
 
-            IndexMetaData indexMetaData = mock(IndexMetaData.class);
-            when(indexMetaData.getIndex()).thenReturn(new Index(watchIndex, randomAlphaOfLength(10)));
-            indices.put(watchIndex, new IndexAbstraction.Index(indexMetaData));
+            IndexMetadata indexMetadata = mock(IndexMetadata.class);
+            when(indexMetadata.getIndex()).thenReturn(new Index(watchIndex, randomAlphaOfLength(10)));
+            indices.put(watchIndex, new IndexAbstraction.Index(indexMetadata));
 
             // now point the alias, if the watch index is not .watches
             if (watchIndex.equals(Watch.INDEX) == false) {
-                AliasMetaData aliasMetaData = mock(AliasMetaData.class);
-                when(aliasMetaData.alias()).thenReturn(watchIndex);
-                indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetaData, indexMetaData));
+                AliasMetadata aliasMetadata = mock(AliasMetadata.class);
+                when(aliasMetadata.alias()).thenReturn(watchIndex);
+                indices.put(Watch.INDEX, new IndexAbstraction.Alias(aliasMetadata, indexMetadata));
             }
 
-            when(metaData.getIndicesLookup()).thenReturn(indices);
+            when(metadata.getIndicesLookup()).thenReturn(indices);
         }
 
         ClusterState clusterState = mock(ClusterState.class);
-        when(clusterState.metaData()).thenReturn(metaData);
+        when(clusterState.metadata()).thenReturn(metadata);
 
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node_1").masterNodeId("node_1").add(newNode("node_1")).build();
         when(clusterState.nodes()).thenReturn(nodes);
@@ -711,13 +711,13 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         return clusterState;
     }
 
-    private IndexMetaData.Builder createIndexBuilder(String name, int numberOfShards,
+    private IndexMetadata.Builder createIndexBuilder(String name, int numberOfShards,
                                                      int numberOfReplicas) {
-        return IndexMetaData.builder(name)
+        return IndexMetadata.builder(name)
                 .settings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 );
     }
 

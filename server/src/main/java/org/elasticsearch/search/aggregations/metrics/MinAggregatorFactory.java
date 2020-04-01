@@ -51,24 +51,24 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         SearchContext context,
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
-                    return new MinAggregator(name, config, (Numeric) valuesSource, context, parent,  pipelineAggregators, metaData);
+                                        Map<String, Object> metadata) throws IOException {
+                    return new MinAggregator(name, config, (Numeric) valuesSource, context, parent,  pipelineAggregators, metadata);
                 }
             });
     }
 
     MinAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                          AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                         Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                         Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new MinAggregator(name, config, null, searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new MinAggregator(name, config, null, searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
@@ -77,7 +77,7 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             MinAggregationBuilder.NAME);
 
@@ -86,6 +86,6 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((MinMaxAggregatorSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent,
-            pipelineAggregators, metaData);
+            pipelineAggregators, metadata);
     }
 }

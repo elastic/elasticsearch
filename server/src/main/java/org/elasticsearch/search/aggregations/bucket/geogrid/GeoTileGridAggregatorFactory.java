@@ -52,8 +52,8 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     GeoTileGridAggregatorFactory(String name, ValuesSourceConfig config, int precision, int requiredSize,
                                  int shardSize, GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext,
                                  AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                 Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.precision = precision;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -64,10 +64,10 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new InternalGeoTileGrid(name, requiredSize,
-                Collections.emptyList(), pipelineAggregators, metaData);
-        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metaData) {
+                Collections.emptyList(), pipelineAggregators, metadata);
+        return new NonCollectingAggregator(name, searchContext, parent, pipelineAggregators, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -81,7 +81,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config.valueSourceType(), GeoTileGridAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof GeoGridAggregatorSupplier == false) {
@@ -92,17 +92,17 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         return ((GeoGridAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, precision, geoBoundingBox,
-            requiredSize, shardSize, searchContext, parent, pipelineAggregators, metaData);
+            requiredSize, shardSize, searchContext, parent, pipelineAggregators, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
         valuesSourceRegistry.register(GeoTileGridAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, pipelineAggregators, metaData) -> {
+                                         aggregationContext, parent, pipelineAggregators, metadata) -> {
                 CellIdSource cellIdSource = new CellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox,
                     GeoTileUtils::longEncode);
                 return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext,
-                    parent, pipelineAggregators, metaData);
+                    parent, pipelineAggregators, metadata);
             });
     }
 }

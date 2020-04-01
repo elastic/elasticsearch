@@ -46,8 +46,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.isIn;
@@ -146,7 +146,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                     .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").build())
                 .waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
-            assertTrue(state.metaData().hasIndex("index"));
+            assertTrue(state.metadata().hasIndex("index"));
             while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
                 logger.info(state);
                 state = cluster.applyStartedShards(state,
@@ -224,7 +224,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                     .put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").build())
                 .waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
-            assertTrue(state.metaData().hasIndex("index"));
+            assertTrue(state.metadata().hasIndex("index"));
             while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
                 logger.info(state);
                 state = cluster.applyStartedShards(state,
@@ -239,7 +239,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
 
             // use allocation filtering
             state = cluster.updateSettings(state, new UpdateSettingsRequest("index").settings(Settings.builder()
-                .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", oldNode.getName()).build()));
+                .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", oldNode.getName()).build()));
 
             while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
                 logger.info(state);

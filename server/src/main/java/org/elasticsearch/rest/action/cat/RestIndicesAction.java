@@ -36,7 +36,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
@@ -220,8 +220,8 @@ public class RestIndicesAction extends AbstractCatAction {
                     .collect(Collectors.toMap(cursor -> cursor.key, cursor -> cursor.value));
 
                 ClusterStateResponse stateResponse = extractResponse(responses, ClusterStateResponse.class);
-                Map<String, IndexMetaData> indicesStates = StreamSupport.stream(stateResponse.getState().getMetaData().spliterator(), false)
-                    .collect(Collectors.toMap(indexMetaData -> indexMetaData.getIndex().getName(), Function.identity()));
+                Map<String, IndexMetadata> indicesStates = StreamSupport.stream(stateResponse.getState().getMetadata().spliterator(), false)
+                    .collect(Collectors.toMap(indexMetadata -> indexMetadata.getIndex().getName(), Function.identity()));
 
                 ClusterHealthResponse healthResponse = extractResponse(responses, ClusterHealthResponse.class);
                 Map<String, ClusterIndexHealth> indicesHealths = healthResponse.getIndices();
@@ -504,20 +504,20 @@ public class RestIndicesAction extends AbstractCatAction {
                      final Map<String, Settings> indicesSettings,
                      final Map<String, ClusterIndexHealth> indicesHealths,
                      final Map<String, IndexStats> indicesStats,
-                     final Map<String, IndexMetaData> indicesMetaDatas) {
+                     final Map<String, IndexMetadata> indicesMetadatas) {
 
         final String healthParam = request.param("health");
         final Table table = getTableWithHeader(request);
 
         indicesSettings.forEach((indexName, settings) -> {
-            if (indicesMetaDatas.containsKey(indexName) == false) {
+            if (indicesMetadatas.containsKey(indexName) == false) {
                 // the index exists in the Get Indices response but is not present in the cluster state:
                 // it is likely that the index was deleted in the meanwhile, so we ignore it.
                 return;
             }
 
-            final IndexMetaData indexMetaData = indicesMetaDatas.get(indexName);
-            final IndexMetaData.State indexState = indexMetaData.getState();
+            final IndexMetadata indexMetadata = indicesMetadatas.get(indexName);
+            final IndexMetadata.State indexState = indexMetadata.getState();
             final IndexStats indexStats = indicesStats.get(indexName);
             final boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(settings);
 
@@ -549,7 +549,7 @@ public class RestIndicesAction extends AbstractCatAction {
             final CommonStats primaryStats;
             final CommonStats totalStats;
 
-            if (indexStats == null || indexState == IndexMetaData.State.CLOSE) {
+            if (indexStats == null || indexState == IndexMetadata.State.CLOSE) {
                 // TODO: expose docs stats for replicated closed indices
                 primaryStats = new CommonStats();
                 totalStats = new CommonStats();
@@ -561,15 +561,15 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(health);
             table.addCell(indexState.toString().toLowerCase(Locale.ROOT));
             table.addCell(indexName);
-            table.addCell(indexMetaData.getIndexUUID());
+            table.addCell(indexMetadata.getIndexUUID());
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfShards());
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());
 
             table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getCount());
             table.addCell(primaryStats.getDocs() == null ? null : primaryStats.getDocs().getDeleted());
 
-            table.addCell(indexMetaData.getCreationDate());
-            ZonedDateTime creationTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetaData.getCreationDate()), ZoneOffset.UTC);
+            table.addCell(indexMetadata.getCreationDate());
+            ZonedDateTime creationTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(indexMetadata.getCreationDate()), ZoneOffset.UTC);
             table.addCell(STRICT_DATE_TIME_FORMATTER.format(creationTime));
 
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());

@@ -36,6 +36,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalAggregationsTests;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
@@ -78,6 +79,9 @@ public class QuerySearchResultTests extends ESTestCase {
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
         Version version = VersionUtils.randomVersion(random());
+        if (querySearchResult.aggregations() != null && version.before(Version.V_7_8_0)) {
+            querySearchResult.aggregations().get().mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
+        }
         QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, version);
         assertEquals(querySearchResult.getContextId(), deserialized.getContextId());
         assertNull(deserialized.getSearchShardTarget());

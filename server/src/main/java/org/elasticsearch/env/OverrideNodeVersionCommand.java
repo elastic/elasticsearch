@@ -71,22 +71,22 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
         final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
-        final NodeMetaData nodeMetaData = PersistedClusterStateService.nodeMetaData(nodePaths);
-        if (nodeMetaData == null) {
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+        if (nodeMetadata == null) {
             throw new ElasticsearchException(NO_METADATA_MESSAGE);
         }
 
         try {
-            nodeMetaData.upgradeToCurrentVersion();
-            throw new ElasticsearchException("found [" + nodeMetaData + "] which is compatible with current version [" + Version.CURRENT
+            nodeMetadata.upgradeToCurrentVersion();
+            throw new ElasticsearchException("found [" + nodeMetadata + "] which is compatible with current version [" + Version.CURRENT
                 + "], so there is no need to override the version checks");
         } catch (IllegalStateException e) {
             // ok, means the version change is not supported
         }
 
-        confirm(terminal, (nodeMetaData.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE)
-            .replace("V_OLD", nodeMetaData.nodeVersion().toString())
-            .replace("V_NEW", nodeMetaData.nodeVersion().toString())
+        confirm(terminal, (nodeMetadata.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE)
+            .replace("V_OLD", nodeMetadata.nodeVersion().toString())
+            .replace("V_NEW", nodeMetadata.nodeVersion().toString())
             .replace("V_CUR", Version.CURRENT.toString()));
 
         PersistedClusterStateService.overrideVersion(Version.CURRENT, dataPaths);

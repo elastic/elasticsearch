@@ -40,8 +40,8 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     AbstractInternalTDigestPercentiles(String name, double[] keys, TDigestState state, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
@@ -96,11 +96,11 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             }
             merged.add(percentiles.state);
         }
-        return createReduced(getName(), keys, merged, keyed, pipelineAggregators(), getMetaData());
+        return createReduced(getName(), keys, merged, keyed, pipelineAggregators(), getMetadata());
     }
 
     protected abstract AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata);
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

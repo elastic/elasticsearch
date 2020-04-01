@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 /**
@@ -30,7 +30,7 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) {
-        final MetaData currentMeta = currentState.metaData();
+        final Metadata currentMeta = currentState.metadata();
         final SnapshotLifecycleMetadata currentSlmMeta = currentMeta.custom(SnapshotLifecycleMetadata.TYPE);
 
         if (currentSlmMeta == null) {
@@ -42,7 +42,7 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
             currentSlmMeta.getOperationMode(), newMetrics);
 
         return ClusterState.builder(currentState)
-            .metaData(MetaData.builder(currentMeta)
+            .metadata(Metadata.builder(currentMeta)
                 .putCustom(SnapshotLifecycleMetadata.TYPE, newSlmMeta))
             .build();
     }

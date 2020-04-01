@@ -109,8 +109,8 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                     first.nodes().getMasterNodeId(),
                     not(equalTo(second.nodes().getMasterNodeId())));
             assertThat(
-                    first.metaData().clusterUUID(),
-                    not(equalTo(second.metaData().clusterUUID())));
+                    first.metadata().clusterUUID(),
+                    not(equalTo(second.metadata().clusterUUID())));
         }
     }
 

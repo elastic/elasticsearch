@@ -100,16 +100,31 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList((List<InternalAggregation>)aggregations);
         if (out.getVersion().before(Version.V_7_8_0)) {
             if (pipelineTreeForBwcSerialization == null) {
+                out.writeNamedWriteableList(getInternalAggregations());
                 out.writeNamedWriteableList(emptyList());
             } else {
-                out.writeNamedWriteableList(pipelineTreeForBwcSerialization.get().aggregators());
+                PipelineAggregator.PipelineTree pipelineTree = pipelineTreeForBwcSerialization.get();
+                mergePipelineTreeForBWCSerialization(pipelineTree);
+                out.writeNamedWriteableList(getInternalAggregations());
+                out.writeNamedWriteableList(pipelineTree.aggregators());
             }
+        } else {
+            out.writeNamedWriteableList(getInternalAggregations());
         }
+    }
+
+    /**
+     * Merge a {@linkplain PipelineAggregator.PipelineTree} into this
+     * aggregation result tree before serializing to a node older than
+     * 7.8.0.
+     */
+    public void mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree pipelineTree) {
+        getInternalAggregations().stream().forEach(agg -> {
+            agg.mergePipelineTreeForBWCSerialization(pipelineTree.subTree(agg.getName()));
+        });
     }
 
     /**
@@ -133,6 +148,14 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         return pipelineTreeForBwcSerialization.get().aggregators().stream()
                 .map(p -> (SiblingPipelineAggregator) p)
                 .collect(toList());
+    }
+
+    /**
+     * Get the transient pipeline tree used to serialize pipeline aggregators to old nodes.
+     */
+    @Deprecated
+    Supplier<PipelineAggregator.PipelineTree> getPipelineTreeForBwcSerialization() {
+        return pipelineTreeForBwcSerialization;
     }
 
     @SuppressWarnings("unchecked")

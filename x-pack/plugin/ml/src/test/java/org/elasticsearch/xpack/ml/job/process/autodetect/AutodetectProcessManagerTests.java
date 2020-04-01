@@ -10,10 +10,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -85,9 +85,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.elasticsearch.mock.orig.Mockito.doReturn;
 import static org.elasticsearch.mock.orig.Mockito.doThrow;
@@ -116,7 +116,6 @@ import static org.mockito.Mockito.spy;
  */
 public class AutodetectProcessManagerTests extends ESTestCase {
 
-    private Environment environment;
     private Client client;
     private ThreadPool threadPool;
     private AnalysisRegistry analysisRegistry;
@@ -142,14 +141,13 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        environment = TestEnvironment.newEnvironment(settings);
         client = mock(Client.class);
 
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
 
-        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
+        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(TestEnvironment.newEnvironment(settings));
         jobManager = mock(JobManager.class);
         jobResultsProvider = mock(JobResultsProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
@@ -166,24 +164,24 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 new HashSet<>(Arrays.asList(MachineLearning.MAX_OPEN_JOBS_PER_NODE,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        MetaData metaData = MetaData.builder()
-            .indices(ImmutableOpenMap.<String, IndexMetaData>builder()
+        Metadata metadata = Metadata.builder()
+            .indices(ImmutableOpenMap.<String, IndexMetadata>builder()
                 .fPut(
                     AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
-                    IndexMetaData.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001")
+                    IndexMetadata.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001")
                         .settings(
                             Settings.builder()
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                                 .build())
-                        .putAlias(AliasMetaData.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).build())
+                        .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).build())
                         .build())
                 .build())
             .build();
         clusterState = mock(ClusterState.class);
-        when(clusterState.getMetaData()).thenReturn(metaData);
-        when(clusterState.metaData()).thenReturn(metaData);
+        when(clusterState.getMetadata()).thenReturn(metadata);
+        when(clusterState.metadata()).thenReturn(metadata);
         nativeStorageProvider = mock(NativeStorageProvider.class);
 
         doAnswer(invocationOnMock -> {
@@ -707,7 +705,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     }
 
     private AutodetectProcessManager createManager(Settings settings) {
-        return new AutodetectProcessManager(environment, settings,
+        return new AutodetectProcessManager(settings,
             client, threadPool, new NamedXContentRegistry(Collections.emptyList()), auditor, clusterService, jobManager, jobResultsProvider,
             jobResultsPersister, jobDataCountsPersister, annotationPersister, autodetectFactory, normalizerFactory, nativeStorageProvider,
             new IndexNameExpressionResolver());

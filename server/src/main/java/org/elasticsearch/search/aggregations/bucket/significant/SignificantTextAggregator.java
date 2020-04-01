@@ -76,8 +76,8 @@ public class SignificantTextAggregator extends BucketsAggregator {
             BucketCountThresholds bucketCountThresholds, IncludeExclude.StringFilter includeExclude,
             SignificanceHeuristic significanceHeuristic, SignificantTextAggregatorFactory termsAggFactory,
             String fieldName, String [] sourceFieldNames, boolean filterDuplicateText,
-            Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, pipelineAggregators, metadata);
         this.bucketCountThresholds = bucketCountThresholds;
         this.includeExclude = includeExclude;
         this.significanceHeuristic = significanceHeuristic;
@@ -233,7 +233,7 @@ public class SignificantTextAggregator extends BucketsAggregator {
 
         return new SignificantStringTerms( name, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), pipelineAggregators(),
-                metaData(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
+                metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
     }
 
 
@@ -244,7 +244,7 @@ public class SignificantTextAggregator extends BucketsAggregator {
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, 0, supersetSize, significanceHeuristic, emptyList());
+                pipelineAggregators(), metadata(), format, 0, supersetSize, significanceHeuristic, emptyList());
     }
 
     @Override

@@ -33,8 +33,8 @@ import java.util.Map;
  */
 public class InternalGlobal extends InternalSingleBucketAggregation implements Global {
     InternalGlobal(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, docCount, aggregations, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, docCount, aggregations, pipelineAggregators, metadata);
     }
 
     /**
@@ -51,6 +51,6 @@ public class InternalGlobal extends InternalSingleBucketAggregation implements G
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalGlobal(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
+        return new InternalGlobal(name, docCount, subAggregations, pipelineAggregators(), getMetadata());
     }
 }

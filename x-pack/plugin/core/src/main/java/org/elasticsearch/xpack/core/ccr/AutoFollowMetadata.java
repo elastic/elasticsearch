@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ccr;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 /**
  * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
  */
-public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
+public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     public static final String TYPE = "ccr_auto_follow";
 
@@ -107,9 +107,9 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
+    public EnumSet<Metadata.XContentContext> context() {
         // No XContentContext.API, because the headers should not be serialized as part of clusters state api
-        return EnumSet.of(MetaData.XContentContext.SNAPSHOT, MetaData.XContentContext.GATEWAY);
+        return EnumSet.of(Metadata.XContentContext.SNAPSHOT, Metadata.XContentContext.GATEWAY);
     }
 
     @Override

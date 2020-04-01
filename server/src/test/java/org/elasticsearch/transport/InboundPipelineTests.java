@@ -25,7 +25,9 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -34,10 +36,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class InboundPipelineTests extends ESTestCase {
 
@@ -80,10 +83,15 @@ public class InboundPipelineTests extends ESTestCase {
         };
 
         final PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, recycler, messageHandler, errorHandler);
+        final StatsTracker statsTracker = new StatsTracker();
+        final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
+        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, statsTracker, recycler, millisSupplier, messageHandler,
+            errorHandler);
+        final FakeTcpChannel channel = new FakeTcpChannel();
 
         final int iterations = randomIntBetween(100, 500);
         long totalMessages = 0;
+        long bytesReceived = 0;
 
         for (int i = 0; i < iterations; ++i) {
             actual.clear();
@@ -142,7 +150,8 @@ public class InboundPipelineTests extends ESTestCase {
                     final BytesReference slice = networkBytes.slice(currentOffset, bytesToRead);
                     try (ReleasableBytesReference reference = new ReleasableBytesReference(slice, () -> {})) {
                         toRelease.add(reference);
-                        pipeline.handleBytes(mock(TcpChannel.class), reference);
+                        bytesReceived += reference.length();
+                        pipeline.handleBytes(channel, reference);
                         currentOffset += bytesToRead;
                     }
                 }
@@ -168,6 +177,59 @@ public class InboundPipelineTests extends ESTestCase {
                     assertEquals(0, released.refCount());
                 }
             }
+
+            assertEquals(bytesReceived, statsTracker.getBytesRead());
+            assertEquals(totalMessages, statsTracker.getMessagesReceived());
+        }
+    }
+
+    public void testEnsureBodyIsNotPrematurelyReleased() throws IOException {
+        final PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
+        BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
+        BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler = (c, e) -> {};
+        final StatsTracker statsTracker = new StatsTracker();
+        final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
+        final InboundPipeline pipeline = new InboundPipeline(Version.CURRENT, statsTracker, recycler, millisSupplier, messageHandler,
+            errorHandler);
+
+        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+            String actionName = "actionName";
+            final Version version = Version.CURRENT;
+            final String value = randomAlphaOfLength(1000);
+            final boolean isRequest = randomBoolean();
+            final long requestId = randomNonNegativeLong();
+
+            OutboundMessage message;
+            if (isRequest) {
+                message = new OutboundMessage.Request(threadContext, new TestRequest(value),
+                    version, actionName, requestId, false, false);
+            } else {
+                message = new OutboundMessage.Response(threadContext, new TestResponse(value),
+                    version, requestId, false, false);
+            }
+
+            final BytesReference reference = message.serialize(streamOutput);
+            final int fixedHeaderSize = TcpHeader.headerSize(Version.CURRENT);
+            final int variableHeaderSize = reference.getInt(fixedHeaderSize - 4);
+            final int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
+            final AtomicBoolean bodyReleased = new AtomicBoolean(false);
+            for (int i = 0; i < totalHeaderSize - 1; ++i) {
+                try (ReleasableBytesReference slice = ReleasableBytesReference.wrap(reference.slice(i, 1))) {
+                    pipeline.handleBytes(new FakeTcpChannel(), slice);
+                }
+            }
+
+            final Releasable releasable = () -> bodyReleased.set(true);
+            final int from = totalHeaderSize - 1;
+            final BytesReference partHeaderPartBody = reference.slice(from, reference.length() - from - 1);
+            try (ReleasableBytesReference slice = new ReleasableBytesReference(partHeaderPartBody, releasable)) {
+                pipeline.handleBytes(new FakeTcpChannel(), slice);
+            }
+            assertFalse(bodyReleased.get());
+            try (ReleasableBytesReference slice = new ReleasableBytesReference(reference.slice(reference.length() - 1, 1), releasable)) {
+                pipeline.handleBytes(new FakeTcpChannel(), slice);
+            }
+            assertTrue(bodyReleased.get());
         }
     }
 

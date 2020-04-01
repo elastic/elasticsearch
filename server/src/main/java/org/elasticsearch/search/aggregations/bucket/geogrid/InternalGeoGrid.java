@@ -49,8 +49,8 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
     protected final List<InternalGeoGridBucket> buckets;
 
     InternalGeoGrid(String name, int requiredSize, List<InternalGeoGridBucket> buckets, List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                    Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
     }
@@ -73,7 +73,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
     }
 
     abstract InternalGeoGrid create(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                                    List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+                                    List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata);
 
     @Override
     public List<InternalGeoGridBucket> getBuckets() {
@@ -115,7 +115,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
-        return create(getName(), requiredSize, Arrays.asList(list), pipelineAggregators(), getMetaData());
+        return create(getName(), requiredSize, Arrays.asList(list), pipelineAggregators(), getMetadata());
     }
 
     @Override

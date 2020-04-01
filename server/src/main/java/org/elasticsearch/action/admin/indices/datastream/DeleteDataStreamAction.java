@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -152,7 +152,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         static ClusterState removeDataStream(ClusterState currentState, Request request) {
             Set<String> dataStreams = new HashSet<>();
-            for (String dataStreamName : currentState.metaData().dataStreams().keySet()) {
+            for (String dataStreamName : currentState.metadata().dataStreams().keySet()) {
                 if (Regex.simpleMatch(request.name, dataStreamName)) {
                     dataStreams.add(dataStreamName);
                 }
@@ -165,12 +165,12 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
                 }
                 throw new ResourceNotFoundException("data_streams matching [" + request.name + "] not found");
             }
-            MetaData.Builder metaData = MetaData.builder(currentState.metaData());
+            Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             for (String dataStreamName : dataStreams) {
                 logger.info("removing data stream [{}]", dataStreamName);
-                metaData.removeDataStream(dataStreamName);
+                metadata.removeDataStream(dataStreamName);
             }
-            return ClusterState.builder(currentState).metaData(metaData).build();
+            return ClusterState.builder(currentState).metadata(metadata).build();
         }
 
         @Override

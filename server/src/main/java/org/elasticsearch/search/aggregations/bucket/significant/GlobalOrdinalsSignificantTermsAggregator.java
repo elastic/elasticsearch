@@ -63,9 +63,9 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                                                     SignificanceHeuristic significanceHeuristic,
                                                     SignificantTermsAggregatorFactory termsAggFactory,
                                                     List<PipelineAggregator> pipelineAggregators,
-                                                    Map<String, Object> metaData) throws IOException {
+                                                    Map<String, Object> metadata) throws IOException {
         super(name, factories, valuesSource, null, format, bucketCountThresholds, includeExclude, context, parent,
-            forceRemapGlobalOrds, SubAggCollectionMode.BREADTH_FIRST, false, pipelineAggregators, metaData);
+            forceRemapGlobalOrds, SubAggCollectionMode.BREADTH_FIRST, false, pipelineAggregators, metadata);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
         this.numCollectedDocs = 0;
@@ -162,7 +162,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         }
 
         return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
+                pipelineAggregators(), metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
     }
 
     @Override
@@ -172,7 +172,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, numCollectedDocs, supersetSize, significanceHeuristic, emptyList());
+                pipelineAggregators(), metadata(), format, numCollectedDocs, supersetSize, significanceHeuristic, emptyList());
     }
 
     @Override

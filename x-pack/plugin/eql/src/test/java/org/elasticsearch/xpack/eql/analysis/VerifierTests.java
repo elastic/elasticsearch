@@ -131,10 +131,6 @@ public class VerifierTests extends ESTestCase {
 
     // Test the known EQL functions that are not supported
     public void testFunctionVerificationUnknown() {
-        assertEquals("1:25: Unknown function [endsWith]",
-                error("file where opcode=0 and endsWith(file_name, 'loREr.exe')"));
-        assertEquals("1:25: Unknown function [startsWith]",
-                error("file where opcode=0 and startsWith(file_name, 'explORER.EXE')"));
         assertEquals("1:25: Unknown function [stringContains]",
                 error("file where opcode=0 and stringContains('ABCDEFGHIexplorer.exeJKLMNOP', file_name)"));
         assertEquals("1:25: Unknown function [indexOf]",
@@ -296,6 +292,12 @@ public class VerifierTests extends ESTestCase {
                 error(idxr, "foo where date_range_field == ''"));
         assertEquals("1:11: Cannot use field [ip_range_field] with unsupported type [ip_range]",
                 error(idxr, "foo where ip_range_field == ''"));
+    }
+
+    public void testMixedSet() {
+        final IndexResolution idxr = loadIndexResolution("mapping-numeric.json");
+        assertEquals("1:11: 2nd argument of [long_field in (1, 'string')] must be [long], found value ['string'] type [keyword]",
+            error(idxr, "foo where long_field in (1, 'string')"));
     }
 
     public void testObject() {

@@ -51,8 +51,8 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     StatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat format,
                         SearchContext context, Aggregator parent,
-                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
@@ -163,12 +163,12 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             return buildEmptyAggregation();
         }
         return new InternalStats(name, counts.get(bucket), sums.get(bucket), mins.get(bucket),
-                maxes.get(bucket), format, pipelineAggregators(), metaData());
+                maxes.get(bucket), format, pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, format, pipelineAggregators(), metaData());
+        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, format, pipelineAggregators(), metadata());
     }
 
     @Override

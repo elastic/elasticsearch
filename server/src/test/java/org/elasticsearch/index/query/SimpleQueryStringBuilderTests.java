@@ -38,7 +38,7 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -572,7 +572,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
         try {
             // `*` is in the list of the default_field => leniency set to true
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                     STRING_FIELD_NAME, "*", STRING_FIELD_NAME_2).build())
             );
@@ -580,7 +580,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 .toQuery(context);
             assertQueryWithAllFieldsWildcard(query);
 
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                     STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
             );
@@ -595,7 +595,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             assertEquals(expected, query);
         } finally {
             // Reset to the default value
-            context.getIndexSettings().updateIndexMetaData(
+            context.getIndexSettings().updateIndexMetadata(
                 newIndexMeta("index",
                     context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
             );
@@ -754,11 +754,11 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertThat(exc.getMessage(), containsString("negative [boost]"));
     }
 
-    private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
+    private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)
             .build();
-        return IndexMetaData.builder(name).settings(build).build();
+        return IndexMetadata.builder(name).settings(build).build();
     }
 
     private void assertQueryWithAllFieldsWildcard(Query query) {

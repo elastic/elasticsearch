@@ -50,9 +50,9 @@ class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     ValueCountAggregator(String name, ValuesSource valuesSource,
             SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData)
+            Map<String, Object> metadata)
             throws IOException {
-        super(name, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, aggregationContext, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             counts = context.bigArrays().newLongArray(1, true);
@@ -90,12 +90,12 @@ class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalValueCount(name, counts.get(bucket), pipelineAggregators(), metaData());
+        return new InternalValueCount(name, counts.get(bucket), pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0L, pipelineAggregators(), metaData());
+        return new InternalValueCount(name, 0L, pipelineAggregators(), metadata());
     }
 
     @Override

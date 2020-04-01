@@ -148,7 +148,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                     DocumentField hitField = hit.getFields().get(field);
                     if (hitField == null) {
                         hitField = new DocumentField(field, new ArrayList<>(2));
-                        hit.getFields().put(field, hitField);
+                        hit.setField(field, hitField);
                     }
                     final List<Object> values = hitField.getValues();
 

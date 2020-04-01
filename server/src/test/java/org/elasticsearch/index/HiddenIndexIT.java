@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -109,9 +109,9 @@ public class HiddenIndexIT extends ESIntegTestCase {
 
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("a_hidden_index").get();
         assertThat(mappingsResponse.mappings().size(), is(1));
-        MappingMetaData mappingMetaData = mappingsResponse.mappings().get("a_hidden_index");
-        assertNotNull(mappingMetaData);
-        Map<String, Object> propertiesMap = (Map<String, Object>) mappingMetaData.getSourceAsMap().get("properties");
+        MappingMetadata mappingMetadata = mappingsResponse.mappings().get("a_hidden_index");
+        assertNotNull(mappingMetadata);
+        Map<String, Object> propertiesMap = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
         assertNotNull(propertiesMap);
         assertThat(propertiesMap.size(), is(2));
         Map<String, Object> barMap = (Map<String, Object>) propertiesMap.get("bar");

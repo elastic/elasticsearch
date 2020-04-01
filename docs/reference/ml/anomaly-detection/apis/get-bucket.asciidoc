@@ -75,6 +75,7 @@ default, the buckets are sorted by the `timestamp` field.
 `start`::
 (Optional, string) Returns buckets with timestamps after this time.
 
+[role="child_attributes"]
 [[ml-get-bucket-results]]
 ==== {api-response-body-title}
 
@@ -87,49 +88,52 @@ records in the bucket contribute to this score. This value might be updated as
 new data is analyzed.
 
 `bucket_influencers`::
-(array) An array of bucket influencer objects, which have the following
-properties:
-
-`bucket_influencers`.`anomaly_score`:::
+(array) An array of bucket influencer objects.
++
+.Properties of `bucket_influencers`
+[%collapsible%open]
+====
+`anomaly_score`:::
 (number) A normalized score between 0-100, which is calculated for each bucket
 influencer. This score might be updated as newer data is analyzed.
 
-`bucket_influencers`.`bucket_span`:::
-(number) The length of the bucket in seconds. This value matches the `bucket_span`
-that is specified in the job.
+`bucket_span`:::
+(number) The length of the bucket in seconds. This value matches the 
+`bucket_span` that is specified in the job.
 
-`bucket_influencers`.`initial_anomaly_score`:::
+`initial_anomaly_score`:::
 (number) The score between 0-100 for each bucket influencer. This score is the
 initial value that was calculated at the time the bucket was processed.
 
-`bucket_influencers`.`influencer_field_name`:::
+`influencer_field_name`:::
 (string) The field name of the influencer.
 
-`bucket_influencers`.`influencer_field_value`:::
+`influencer_field_value`:::
 (string) The field value of the influencer. 
 
-`bucket_influencers`.`is_interim`:::
+`is_interim`:::
 (boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=is-interim]
 
-`bucket_influencers`.`job_id`:::
+`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-`bucket_influencers`.`probability`:::
+`probability`:::
 (number) The probability that the bucket has this behavior, in the range 0 to 1.
 This value can be held to a high precision of over 300 decimal places, so the
 `anomaly_score` is provided as a human-readable and friendly interpretation of
 this.
 
-`bucket_influencers`.`raw_anomaly_score`:::
+`raw_anomaly_score`:::
 (number) Internal.
 
-`bucket_influencers`.`result_type`:::
+`result_type`:::
 (string) Internal. This value is always set to `bucket_influencer`.
 
-`bucket_influencers`.`timestamp`:::
+`timestamp`:::
 (date) The start time of the bucket for which these results were calculated.
+====
 
 `bucket_span`::
 (number)

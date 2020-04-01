@@ -22,5 +22,9 @@ esplugin {
   classname 'org.elasticsearch.rest.compat.RestCompatPlugin'
 }
 
+dependencies {
+  compile project(':modules:lang-mustache')
+}
+
 integTest.enabled = false
 test.enabled = true

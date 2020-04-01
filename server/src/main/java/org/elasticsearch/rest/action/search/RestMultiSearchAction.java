@@ -88,10 +88,16 @@ public class RestMultiSearchAction extends BaseRestHandler {
     public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
         return parseRequest(restRequest,allowExplicitIndex, key->false);
     }
-        /**
-         * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}
-         */
-    public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex, Function<String,Boolean> typeConsumer) throws IOException {
+
+    /**
+     * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}
+     *
+     * @param typeConsumer - is a function used when parsing a request body. if it contains a types field it will consume it,
+     *                     allowing the same parsing logic to work in v7 and v8.
+     *                     It takes a string - field name, returns a boolean - if the field was "type or types"
+     */
+    public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex, Function<String,Boolean> typeConsumer
+        /*TODO rename to unexpected field consumer?*/) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
         multiRequest.indicesOptions(indicesOptions);

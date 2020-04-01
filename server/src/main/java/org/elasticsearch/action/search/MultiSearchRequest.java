@@ -179,7 +179,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            String searchType,
                                            Boolean ccsMinimizeRoundtrips,
                                            NamedXContentRegistry registry,
-                                           boolean allowExplicitIndex, Function<String, Boolean> typeConsumer) throws IOException {
+                                           boolean allowExplicitIndex,
+                                           Function<String, Boolean> typeConsumer) throws IOException {
         int from = 0;
         byte marker = xContent.streamSeparator();
         while (true) {

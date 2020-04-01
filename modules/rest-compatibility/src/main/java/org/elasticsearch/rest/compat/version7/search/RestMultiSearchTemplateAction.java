@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.script.mustache;
+package org.elasticsearch.rest.compat.version7.search;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +37,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestMultiSearchTemplateAction extends BaseRestHandler {
+public class RestMultiSearchTemplateActionV7 extends RestMultiSearchTemplateActionV7 {
 
     private static final Set<String> RESPONSE_PARAMS;
 

@@ -30,8 +30,8 @@ import java.util.Map;
 
 public class InternalFilter extends InternalSingleBucketAggregation implements Filter {
     InternalFilter(String name, long docCount, InternalAggregations subAggregations, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, docCount, subAggregations, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, docCount, subAggregations, pipelineAggregators, metadata);
     }
 
     /**
@@ -48,6 +48,6 @@ public class InternalFilter extends InternalSingleBucketAggregation implements F
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalFilter(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
+        return new InternalFilter(name, docCount, subAggregations, pipelineAggregators(), getMetadata());
     }
 }

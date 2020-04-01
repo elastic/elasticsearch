@@ -18,9 +18,9 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -114,7 +114,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                 ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                ClusterService.USER_DEFINED_META_DATA,
+                ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
 
@@ -228,9 +228,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsIndex);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = response.getMappings();
+        ImmutableOpenMap<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
-        MappingMetaData typeMappings = indexMappings.get(sharedResultsIndex);
+        MappingMetadata typeMappings = indexMappings.get(sharedResultsIndex);
         assertNotNull("expected " + sharedResultsIndex + " in " + indexMappings, typeMappings);
         Map<String, Object> mappings = typeMappings.getSourceAsMap();
         assertNotNull(mappings);
@@ -349,9 +349,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     private Map<String, Object> getIndexMappingProperties(String index) {
         GetMappingsRequest request = new GetMappingsRequest().indices(index);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = response.getMappings();
+        ImmutableOpenMap<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
-        MappingMetaData typeMappings = indexMappings.get(index);
+        MappingMetadata typeMappings = indexMappings.get(index);
         assertNotNull("expected " + index + " in " + indexMappings, typeMappings);
         Map<String, Object> mappings = typeMappings.getSourceAsMap();
         assertNotNull(mappings);
@@ -371,13 +371,13 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     private Set<String> getAliases(String index) {
         GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest().indices(index)).actionGet();
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases = getAliasesResponse.getAliases();
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases = getAliasesResponse.getAliases();
         assertThat(aliases.containsKey(index), is(true));
-        List<AliasMetaData> aliasMetaDataList = aliases.get(index);
-        for (AliasMetaData aliasMetaData : aliasMetaDataList) {
-            assertThat("Anomalies aliases should be hidden but are not: " + aliases, aliasMetaData.isHidden(), is(true));
+        List<AliasMetadata> aliasMetadataList = aliases.get(index);
+        for (AliasMetadata aliasMetadata : aliasMetadataList) {
+            assertThat("Anomalies aliases should be hidden but are not: " + aliases, aliasMetadata.isHidden(), is(true));
         }
-        return aliasMetaDataList.stream().map(AliasMetaData::alias).collect(Collectors.toSet());
+        return aliasMetadataList.stream().map(AliasMetadata::alias).collect(Collectors.toSet());
     }
 
     private List<Calendar> getCalendars(String jobId) throws Exception {

@@ -43,8 +43,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -234,9 +234,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 case CREATED:
                 case UPDATED:
                     IndexRequest indexRequest = updateResult.action();
-                    IndexMetaData metaData = context.getPrimary().indexSettings().getIndexMetaData();
-                    MappingMetaData mappingMd = metaData.mapping();
-                    indexRequest.process(metaData.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
+                    IndexMetadata metadata = context.getPrimary().indexSettings().getIndexMetadata();
+                    MappingMetadata mappingMd = metadata.mapping();
+                    indexRequest.process(metadata.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
                     context.setRequestToExecute(indexRequest);
                     break;
                 case DELETED:

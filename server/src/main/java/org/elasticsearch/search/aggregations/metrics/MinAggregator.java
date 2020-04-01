@@ -62,13 +62,13 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray mins;
 
     MinAggregator(String name,
-                    ValuesSourceConfig<ValuesSource.Numeric> config,
+                    ValuesSourceConfig config,
                     ValuesSource.Numeric valuesSource,
                     SearchContext context,
                     Aggregator parent,
                     List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                    Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             mins = context.bigArrays().newDoubleArray(1, false);
@@ -149,12 +149,12 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= mins.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMin(name, mins.get(bucket), format, pipelineAggregators(), metaData());
+        return new InternalMin(name, mins.get(bucket), format, pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMin(name, Double.POSITIVE_INFINITY, format, pipelineAggregators(), metaData());
+        return new InternalMin(name, Double.POSITIVE_INFINITY, format, pipelineAggregators(), metadata());
     }
 
     @Override
@@ -172,7 +172,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
      * @param config The config for the values source metric.
      */
     static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
-                                                                ValuesSourceConfig<ValuesSource.Numeric> config) {
+                                                                ValuesSourceConfig config) {
         if (context.query() != null &&
                 context.query().getClass() != MatchAllDocsQuery.class) {
             return null;

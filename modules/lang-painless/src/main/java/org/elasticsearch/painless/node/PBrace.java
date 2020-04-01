@@ -109,9 +109,4 @@ public class PBrace extends AStoreable {
     boolean isDefOptimized() {
         return isDefOptimized;
     }
-
-    @Override
-    public String toString() {
-        return singleLineToString(prefix, index);
-    }
 }

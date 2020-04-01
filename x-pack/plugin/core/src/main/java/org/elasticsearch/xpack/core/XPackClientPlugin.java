@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -20,7 +20,7 @@ import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.license.GetTrialStatusAction;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.LicensesMetaData;
+import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.PostStartBasicAction;
 import org.elasticsearch.license.PostStartTrialAction;
 import org.elasticsearch.license.PutLicenseAction;
@@ -169,7 +169,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
-import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AnyExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExceptExpression;
@@ -205,7 +205,7 @@ import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
 import org.elasticsearch.xpack.core.votingonly.VotingOnlyNodeFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
@@ -415,8 +415,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             // monitoring
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MONITORING, MonitoringFeatureSetUsage::new),
             // security
-            new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetaData.TYPE, TokenMetaData::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetaData.TYPE, TokenMetaData::readDiffFrom),
+            new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetadata.TYPE, TokenMetadata::readDiffFrom),
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
             // security : conditional privileges
             new NamedWriteableRegistry.Entry(ConfigurableClusterPrivilege.class,
@@ -432,12 +432,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             // sql
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SQL, SqlFeatureSetUsage::new),
             // watcher
-            new NamedWriteableRegistry.Entry(MetaData.Custom.class, WatcherMetaData.TYPE, WatcherMetaData::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, WatcherMetaData.TYPE, WatcherMetaData::readDiffFrom),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, WatcherMetadata.TYPE, WatcherMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, WatcherMetadata.TYPE, WatcherMetadata::readDiffFrom),
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.WATCHER, WatcherFeatureSetUsage::new),
             // licensing
-            new NamedWriteableRegistry.Entry(MetaData.Custom.class, LicensesMetaData.TYPE, LicensesMetaData::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetaData.TYPE, LicensesMetaData::readDiffFrom),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, LicensesMetadata.TYPE, LicensesMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetadata.TYPE, LicensesMetadata::readDiffFrom),
             // rollup
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ROLLUP, RollupFeatureSetUsage::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, RollupJob.NAME, RollupJob::new),
@@ -445,9 +445,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, RollupJobStatus.NAME, RollupJobStatus::new),
             // ccr
             new NamedWriteableRegistry.Entry(AutoFollowMetadata.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
-            new NamedWriteableRegistry.Entry(MetaData.Custom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, AutoFollowMetadata.TYPE,
-                in -> AutoFollowMetadata.readDiffFrom(MetaData.Custom.class, AutoFollowMetadata.TYPE, in)),
+                in -> AutoFollowMetadata.readDiffFrom(Metadata.Custom.class, AutoFollowMetadata.TYPE, in)),
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.CCR, CCRInfoTransportAction.Usage::new),
             // ILM
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.INDEX_LIFECYCLE,
@@ -456,10 +456,10 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SNAPSHOT_LIFECYCLE,
                 SLMFeatureSetUsage::new),
             // ILM - Custom Metadata
-            new NamedWriteableRegistry.Entry(MetaData.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, IndexLifecycleMetadata.TYPE,
                 IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new),
-            new NamedWriteableRegistry.Entry(MetaData.Custom.class, SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, SnapshotLifecycleMetadata.TYPE,
                 SnapshotLifecycleMetadata.SnapshotLifecycleMetadataDiff::new),
             // ILM - LifecycleTypes
@@ -499,7 +499,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Arrays.asList(
                 // ML - Custom metadata
-                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("ml"),
+                new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField("ml"),
                         parser -> MlMetadata.LENIENT_PARSER.parse(parser, null).build()),
                 // ML - Persistent action requests
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(MlTasks.DATAFEED_TASK_NAME),
@@ -514,11 +514,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameAnalyticsTaskState.NAME),
                     DataFrameAnalyticsTaskState::fromXContent),
                 // watcher
-                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(WatcherMetaData.TYPE),
-                        WatcherMetaData::fromXContent),
+                new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(WatcherMetadata.TYPE),
+                        WatcherMetadata::fromXContent),
                 // licensing
-                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(LicensesMetaData.TYPE),
-                        LicensesMetaData::fromXContent),
+                new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(LicensesMetadata.TYPE),
+                        LicensesMetadata::fromXContent),
                 //rollup
                 new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(RollupField.TASK_NAME),
                         RollupJob::fromXContent),

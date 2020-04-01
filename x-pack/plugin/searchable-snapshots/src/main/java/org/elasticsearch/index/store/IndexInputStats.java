@@ -13,6 +13,7 @@ import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 
 /**
  * {@link IndexInputStats} records stats for a given {@link CachedBlobContainerIndexInput}.
@@ -24,9 +25,9 @@ public class IndexInputStats {
 
     private final long fileLength;
     private final long seekingThreshold;
+    private final LongSupplier currentTimeNanos;
 
     private final LongAdder opened = new LongAdder();
-    private final LongAdder inner = new LongAdder();
     private final LongAdder closed = new LongAdder();
 
     private final Counter forwardSmallSeeks = new Counter();
@@ -39,25 +40,30 @@ public class IndexInputStats {
     private final Counter nonContiguousReads = new Counter();
 
     private final TimedCounter directBytesRead = new TimedCounter();
+    private final TimedCounter optimizedBytesRead = new TimedCounter();
 
     private final Counter cachedBytesRead = new Counter();
     private final TimedCounter cachedBytesWritten = new TimedCounter();
 
-    public IndexInputStats(long fileLength) {
-        this(fileLength, SEEKING_THRESHOLD.getBytes());
+    public IndexInputStats(long fileLength, LongSupplier currentTimeNanos) {
+        this(fileLength, SEEKING_THRESHOLD.getBytes(), currentTimeNanos);
     }
 
-    public IndexInputStats(long fileLength, long seekingThreshold) {
+    public IndexInputStats(long fileLength, long seekingThreshold, LongSupplier currentTimeNanos) {
         this.fileLength = fileLength;
         this.seekingThreshold = seekingThreshold;
+        this.currentTimeNanos = currentTimeNanos;
+    }
+
+    /**
+     * @return the current time in nanoseconds that should be used to measure statistics.
+     */
+    public long currentTimeNanos() {
+        return currentTimeNanos.getAsLong();
     }
 
     public void incrementOpenCount() {
         opened.increment();
-    }
-
-    public void incrementInnerOpenCount() {
-        inner.increment();
     }
 
     public void incrementCloseCount() {
@@ -74,6 +80,10 @@ public class IndexInputStats {
 
     public void addDirectBytesRead(int bytesRead, long nanoseconds) {
         directBytesRead.add(bytesRead, nanoseconds);
+    }
+
+    public void addOptimizedBytesRead(int bytesRead, long nanoseconds) {
+        optimizedBytesRead.add(bytesRead, nanoseconds);
     }
 
     public void incrementBytesRead(long previousPosition, long currentPosition, int bytesRead) {
@@ -110,10 +120,6 @@ public class IndexInputStats {
         return opened;
     }
 
-    public LongAdder getInnerOpened() {
-        return inner;
-    }
-
     public LongAdder getClosed() {
         return closed;
     }
@@ -144,6 +150,10 @@ public class IndexInputStats {
 
     public TimedCounter getDirectBytesRead() {
         return directBytesRead;
+    }
+
+    public TimedCounter getOptimizedBytesRead() {
+        return optimizedBytesRead;
     }
 
     public Counter getCachedBytesRead() {

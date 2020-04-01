@@ -46,6 +46,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.HTTP;
+import static org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.SETTINGS;
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -94,7 +97,9 @@ public final class ExternalTestCluster extends TestCluster {
         MockTransportClient client = new MockTransportClient(clientSettings, pluginClasses);
         try {
             client.addTransportAddresses(transportAddresses);
-            NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
+            NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear()
+                .addMetrics(SETTINGS.metricName(), HTTP.metricName())
+                .get();
             httpAddresses = new InetSocketAddress[nodeInfos.getNodes().size()];
             this.clusterName = nodeInfos.getClusterName().value();
             int dataNodes = 0;
@@ -158,8 +163,10 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public void ensureEstimatedStats() {
         if (size() > 0) {
-            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
-                    .clear().setBreaker(true).setIndices(true).execute().actionGet();
+            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().clear()
+                .setIndices(true)
+                .addMetric(BREAKER.metricName())
+                .execute().actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
                 assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
                         stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));

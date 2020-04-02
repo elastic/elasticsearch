@@ -36,7 +36,7 @@ public class UserPrivilegeResolver {
         public UserPrivileges(String principal, boolean hasAccess, Set<String> roles) {
             this.principal = Objects.requireNonNull(principal, "principal may not be null");
             if (hasAccess == false && roles.isEmpty() == false) {
-                throw new IllegalArgumentException("a user without access ([" + hasAccess + "]) may not have roles ([" + roles + "])");
+                throw new IllegalArgumentException("a user without access may not have roles ([" + roles + "])");
             }
             this.hasAccess = hasAccess;
             this.roles = Set.copyOf(Objects.requireNonNull(roles, "roles may not be null"));
@@ -86,7 +86,6 @@ public class UserPrivilegeResolver {
             }
             HasPrivilegesRequest request = new HasPrivilegesRequest();
             request.username(username);
-            request.applicationPrivileges();
             request.clusterPrivileges(Strings.EMPTY_ARRAY);
             request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
             request.applicationPrivileges(resourcePrivilege);

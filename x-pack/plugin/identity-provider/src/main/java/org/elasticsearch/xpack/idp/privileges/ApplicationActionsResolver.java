@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.idp.saml.sp.ServiceProviderDefaults;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -77,6 +78,10 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
         // the preload thread stops running, we will still automatically refresh the cache on access.
         final TimeValue preloadInterval = TimeValue.timeValueMillis(cacheTtl.millis() * 2 / 3);
         client.threadPool().scheduleWithFixedDelay(this::loadPrivilegesForDefaultApplication, preloadInterval, ThreadPool.Names.GENERIC);
+    }
+
+    public static Collection<? extends Setting<?>> getSettings() {
+        return List.of(CACHE_SIZE, CACHE_TTL);
     }
 
     @Override

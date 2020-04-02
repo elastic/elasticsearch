@@ -88,10 +88,6 @@ public class InternalAggregationsTests extends ESTestCase {
     }
 
     public static InternalAggregations createTestInstance() throws Exception {
-        return createTestInstance(randomPipelineTree());
-    }
-
-    public static InternalAggregations createTestInstance(PipelineAggregator.PipelineTree pipelineTree) throws Exception {
         List<InternalAggregation> aggsList = new ArrayList<>();
         if (randomBoolean()) {
             StringTermsTests stringTermsTests = new StringTermsTests();
@@ -108,7 +104,7 @@ public class InternalAggregationsTests extends ESTestCase {
             InternalSimpleValueTests simpleValueTests = new InternalSimpleValueTests();
             aggsList.add(simpleValueTests.createTestInstance());
         }
-        return new InternalAggregations(aggsList, () -> pipelineTree);
+        return new InternalAggregations(aggsList);
     }
 
     private static PipelineAggregator.PipelineTree randomPipelineTree() {
@@ -133,9 +129,11 @@ public class InternalAggregationsTests extends ESTestCase {
     }
 
     public void testGetTopLevelPipelineAggregators() throws Exception {
-        PipelineAggregator.PipelineTree pipelineTree = randomPipelineTree();
-        InternalAggregations aggs = createTestInstance(pipelineTree);
-        assertThat(aggs.getTopLevelPipelineAggregators(), equalTo(pipelineTree.aggregators()));
+        InternalAggregations orig = createTestInstance();
+        PipelineAggregator.PipelineTree tree = randomPipelineTree();
+        InternalAggregations withPipelines = new InternalAggregations(orig.copyResults(), () -> tree);
+        assertThat(withPipelines.aggregations, equalTo(orig.aggregations));
+        assertThat(withPipelines.getTopLevelPipelineAggregators(), equalTo(tree.aggregators()));
     }
 
     private void writeToAndReadFrom(InternalAggregations aggregations, int iteration) throws IOException {
@@ -148,14 +146,8 @@ public class InternalAggregationsTests extends ESTestCase {
                 InternalAggregations deserialized = new InternalAggregations(in);
                 assertEquals(aggregations.aggregations, deserialized.aggregations);
                 if (iteration < 2) {
-                    /*
-                     * Add the pipeline tree for bwc serialization just like we
-                     * do when we merge the aggregation. Without that we can't
-                     * properly serialize to older versions.
-                     */
-                    InternalAggregations asThoughReduced = new InternalAggregations(
-                        deserialized.copyResults(), aggregations.getPipelineTreeForBwcSerialization());
-                    writeToAndReadFrom(asThoughReduced, iteration + 1);
+                    //serialize this enough times to make sure that we are able to write again what we read
+                    writeToAndReadFrom(deserialized, iteration + 1);
                 }
             }
         }

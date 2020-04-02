@@ -36,7 +36,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
@@ -148,7 +147,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     protected final Map<String, Object> metadata;
 
     private final List<PipelineAggregator> pipelineAggregators;
-    private List<PipelineAggregator> pipelineAggregatorsForBwcSerialization;
 
     /**
      * Constructs an aggregation result with a given name.
@@ -162,24 +160,15 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
-     * Merge a {@linkplain PipelineAggregator.PipelineTree} into this
-     * aggregation result tree before serializing to a node older than
-     * 7.8.0.
-     */
-    public final void mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree pipelineTree) {
-        pipelineAggregatorsForBwcSerialization = pipelineTree.aggregators();
-        forEachBucket(bucketAggs -> bucketAggs.mergePipelineTreeForBWCSerialization(pipelineTree));
-    }
-
-    /**
      * Read from a stream.
      */
     protected InternalAggregation(StreamInput in) throws IOException {
         name = in.readString();
         metadata = in.readMap();
-        pipelineAggregators = emptyList();
         if (in.getVersion().before(Version.V_7_8_0)) {
-            in.readNamedWriteableList(PipelineAggregator.class);
+            pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class);
+        } else {
+            pipelineAggregators = emptyList();
         }
     }
 
@@ -188,9 +177,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         out.writeString(name);
         out.writeGenericValue(metadata);
         if (out.getVersion().before(Version.V_7_8_0)) {
-            assert pipelineAggregatorsForBwcSerialization != null :
-                "serializing to pre-7.8.0 versions should have called mergePipelineTreeForBWCSerialization";
-            out.writeNamedWriteableList(pipelineAggregatorsForBwcSerialization);
+            out.writeNamedWriteableList(pipelineAggregators);
         }
         doWriteTo(out);
     }
@@ -224,11 +211,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         throw new IllegalStateException(
                 "Aggregation [" + getName() + "] must be a bucket aggregation but was [" + getWriteableName() + "]");
     }
-
-    /**
-     * Run a {@linkplain Consumer} over all buckets in this aggregation.
-     */
-    public void forEachBucket(Consumer<InternalAggregations> consumer) {}
 
     /**
      * Creates the output from all pipeline aggs that this aggregation is associated with.  Should only
@@ -296,21 +278,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         return metadata;
     }
 
-    /**
-     * @deprecated soon to be removed because it is not longer needed
-     */
-    @Deprecated
     public List<PipelineAggregator> pipelineAggregators() {
         return pipelineAggregators;
-    }
-
-    /**
-     * The {@linkplain PipelineAggregator}s sent to older versions of Elasticsearch.
-     * @deprecated only use these for serializing to older Elasticsearch versions
-     */
-    @Deprecated
-    public List<PipelineAggregator> pipelineAggregatorsForBwcSerialization() {
-        return pipelineAggregatorsForBwcSerialization;
     }
 
     @Override

@@ -150,12 +150,12 @@ class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
         // this Aggregator (and its HLL++ counters) is released.
         HyperLogLogPlusPlus copy = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
         copy.merge(0, counts, owningBucketOrdinal);
-        return new InternalCardinality(name, copy, pipelineAggregators(), metadata());
+        return new InternalCardinality(name, copy, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalCardinality(name, null, pipelineAggregators(), metadata());
+        return new InternalCardinality(name, null, metadata());
     }
 
     @Override

@@ -12,8 +12,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -27,7 +25,7 @@ public class DeleteAutoscalingPolicyAction extends ActionType<AcknowledgedRespon
         super(NAME, AcknowledgedResponse::new);
     }
 
-    public static class Request extends AcknowledgedRequest<DeleteAutoscalingPolicyAction.Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<DeleteAutoscalingPolicyAction.Request> {
 
         private final String name;
 
@@ -53,16 +51,6 @@ public class DeleteAutoscalingPolicyAction extends ActionType<AcknowledgedRespon
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            builder.startObject();
-            {
-
-            }
-            builder.endObject();
-            return builder;
         }
 
     }

@@ -181,7 +181,7 @@ public class FiltersAggregator extends BucketsAggregator {
                     bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metadata());
+        return new InternalFilters(name, buckets, keyed, metadata());
     }
 
     @Override
@@ -198,7 +198,7 @@ public class FiltersAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
 
-        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metadata());
+        return new InternalFilters(name, buckets, keyed, metadata());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {

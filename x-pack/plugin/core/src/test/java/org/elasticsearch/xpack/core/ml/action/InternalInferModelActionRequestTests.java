@@ -12,10 +12,12 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
 
@@ -30,6 +32,7 @@ import java.util.stream.Stream;
 public class InternalInferModelActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
 
     @Override
+    @SuppressWarnings("unchecked")
     protected Request createTestInstance() {
         return randomBoolean() ?
             new Request(
@@ -68,14 +71,17 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected Request mutateInstanceForVersion(Request instance, Version version) {
-        if (version.before(Version.V_8_0_0)) {
+        if (version.before(Version.V_7_8_0)) {
             InferenceConfigUpdate update = null;
             if (instance.getUpdate() instanceof ClassificationConfigUpdate) {
-                update = ClassificationConfigUpdate.fromConfig((ClassificationConfig) instance.getUpdate().toConfig());
+                update = ClassificationConfigUpdate.fromConfig(
+                    ClassificationConfigTests.mutateForVersion((ClassificationConfig) instance.getUpdate().toConfig(), version));
             }
             else if (instance.getUpdate() instanceof RegressionConfigUpdate) {
-                update = RegressionConfigUpdate.fromConfig((RegressionConfig) instance.getUpdate().toConfig());
+                update = RegressionConfigUpdate.fromConfig(
+                    RegressionConfigTests.mutateForVersion((RegressionConfig) instance.getUpdate().toConfig(), version));
             }
             else {
                 fail("unknown update type " + instance.getUpdate().getName());

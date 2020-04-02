@@ -27,7 +27,7 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
 
     public void testFromMap() {
         RegressionConfigUpdate expected = new RegressionConfigUpdate("foo", 3);
-        Map<String, Object> config = new HashMap<>(){{
+        Map<String, Object> config = new HashMap<String, Object>(){{
             put(RegressionConfig.RESULTS_FIELD.getPreferredName(), "foo");
             put(RegressionConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), 3);
         }};

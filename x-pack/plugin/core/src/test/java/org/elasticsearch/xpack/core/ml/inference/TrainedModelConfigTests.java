@@ -320,7 +320,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
 
     @Override
     protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, Version version) {
-        if (version.before(Version.V_8_0_0)) {
+        if (version.before(Version.V_7_8_0)) {
             return new TrainedModelConfig.Builder(instance).setInferenceConfig(null).build();
         }
         return instance;

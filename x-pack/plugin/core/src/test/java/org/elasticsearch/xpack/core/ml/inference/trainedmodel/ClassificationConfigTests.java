@@ -25,6 +25,14 @@ public class ClassificationConfigTests extends AbstractBWCSerializationTestCase<
             );
     }
 
+    public static ClassificationConfig mutateForVersion(ClassificationConfig instance, Version version) {
+        ClassificationConfig.Builder builder = new ClassificationConfig.Builder(instance);
+        if (version.before(Version.V_7_7_0)) {
+            builder.setNumTopFeatureImportanceValues(0);
+        }
+        return builder.build();
+    }
+
     @Before
     public void chooseStrictOrLenient() {
         lenient = randomBoolean();
@@ -52,6 +60,6 @@ public class ClassificationConfigTests extends AbstractBWCSerializationTestCase<
 
     @Override
     protected ClassificationConfig mutateInstanceForVersion(ClassificationConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 }

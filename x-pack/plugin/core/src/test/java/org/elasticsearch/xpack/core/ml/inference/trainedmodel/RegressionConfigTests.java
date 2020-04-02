@@ -1,4 +1,4 @@
-/t a*
+/*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
@@ -18,6 +18,14 @@ public class RegressionConfigTests extends AbstractBWCSerializationTestCase<Regr
 
     public static RegressionConfig randomRegressionConfig() {
         return new RegressionConfig(randomBoolean() ? null : randomAlphaOfLength(10));
+    }
+
+    public static RegressionConfig mutateForVersion(RegressionConfig instance, Version version) {
+        RegressionConfig.Builder builder = new RegressionConfig.Builder(instance);
+        if (version.before(Version.V_7_7_0)) {
+            builder.setNumTopFeatureImportanceValues(0);
+        }
+        return builder.build();
     }
 
     @Before
@@ -47,6 +55,6 @@ public class RegressionConfigTests extends AbstractBWCSerializationTestCase<Regr
 
     @Override
     protected RegressionConfig mutateInstanceForVersion(RegressionConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 }

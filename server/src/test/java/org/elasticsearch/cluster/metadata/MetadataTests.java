@@ -43,11 +43,13 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -939,7 +941,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
         final String dataStreamName = "my-data-stream";
-        final String conflictingIndex = dataStreamName + "-00001";
+        final String conflictingIndex = dataStreamName + "-000001";
         Metadata.Builder b = Metadata.builder()
             .put(IndexMetadata.builder(conflictingIndex)
                 .settings(settings(Version.CURRENT))
@@ -951,6 +953,29 @@ public class MetadataTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream [" + dataStreamName +
             "] could create backing indices that conflict with 1 existing index(s) or alias(s) including '" + conflictingIndex + "'"));
+    }
+
+    public void testBuilderForDataStreamWithRandomlyNumberedBackingIndices() {
+        final String dataStreamName = "my-data-stream";
+        final List<Index> backingIndices = new ArrayList<>();
+        final int numBackingIndices = randomIntBetween(2, 5);
+        int lastBackingIndexNum = randomIntBetween(9, 50);
+        Metadata.Builder b = Metadata.builder();
+        for (int k = 1; k <= numBackingIndices; k++) {
+            IndexMetadata im = IndexMetadata.builder(String.format(Locale.ROOT, "%s-%06d", dataStreamName, lastBackingIndexNum))
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            b.put(im, false);
+            backingIndices.add(im.getIndex());
+            lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
+        }
+
+        b.put(new DataStream(dataStreamName, "ts", backingIndices));
+        Metadata metadata = b.build();
+        assertThat(metadata.dataStreams().size(), equalTo(1));
+        assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
     }
 
     public void testSerialization() throws IOException {

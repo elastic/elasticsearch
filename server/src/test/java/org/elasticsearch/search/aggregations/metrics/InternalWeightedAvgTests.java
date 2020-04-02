@@ -19,29 +19,25 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class InternalWeightedAvgTests extends InternalAggregationTestCase<InternalWeightedAvg> {
 
     @Override
-    protected InternalWeightedAvg createTestInstance(
-        String name,
-        List<PipelineAggregator> pipelineAggregators,
-        Map<String, Object> metadata
-    ) {
+    protected InternalWeightedAvg createTestInstance(String name, Map<String, Object> metadata) {
         DocValueFormat formatter = randomNumericDocValueFormat();
         return new InternalWeightedAvg(
             name,
             randomDoubleBetween(0, 100000, true),
             randomDoubleBetween(0, 100000, true),
-            formatter, pipelineAggregators, metadata);
+            formatter, metadata);
     }
 
     @Override
@@ -78,7 +74,6 @@ public class InternalWeightedAvgTests extends InternalAggregationTestCase<Intern
         double sum = instance.getSum();
         double weight = instance.getWeight();
         DocValueFormat formatter = instance.getFormatter();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
@@ -109,6 +104,6 @@ public class InternalWeightedAvgTests extends InternalAggregationTestCase<Intern
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalWeightedAvg(name, sum, weight, formatter, pipelineAggregators, metadata);
+        return new InternalWeightedAvg(name, sum, weight, formatter, metadata);
     }
 }

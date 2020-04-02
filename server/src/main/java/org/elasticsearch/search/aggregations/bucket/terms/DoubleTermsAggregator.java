@@ -65,7 +65,7 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
 
     private static DoubleTerms convertToDouble(LongTerms terms) {
         List<DoubleTerms.Bucket> buckets = terms.buckets.stream().map(DoubleTermsAggregator::convertToDouble).collect(Collectors.toList());
-        return new DoubleTerms(terms.getName(), terms.order, terms.requiredSize, terms.minDocCount, terms.pipelineAggregators(),
+        return new DoubleTerms(terms.getName(), terms.order, terms.requiredSize, terms.minDocCount,
                 terms.getMetadata(), terms.format, terms.shardSize, terms.showTermDocCountError, terms.otherDocCount, buckets,
                 terms.docCountError);
     }

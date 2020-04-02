@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -106,11 +105,10 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         }
     }
 
-    public SignificantStringTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+    public SignificantStringTerms(String name, int requiredSize, long minDocCount,
             Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
             SignificanceHeuristic significanceHeuristic, List<Bucket> buckets) {
-        super(name, requiredSize, minDocCount, pipelineAggregators, metadata, format, subsetSize, supersetSize, significanceHeuristic,
-                buckets);
+        super(name, requiredSize, minDocCount, metadata, format, subsetSize, supersetSize, significanceHeuristic, buckets);
     }
 
     /**
@@ -127,7 +125,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
 
     @Override
     public SignificantStringTerms create(List<SignificantStringTerms.Bucket> buckets) {
-        return new SignificantStringTerms(name, requiredSize, minDocCount, pipelineAggregators(), metadata, format, subsetSize,
+        return new SignificantStringTerms(name, requiredSize, minDocCount, metadata, format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
     }
 
@@ -139,7 +137,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
 
     @Override
     protected SignificantStringTerms create(long subsetSize, long supersetSize, List<Bucket> buckets) {
-        return new SignificantStringTerms(getName(), requiredSize, minDocCount, pipelineAggregators(), getMetadata(), format, subsetSize,
+        return new SignificantStringTerms(getName(), requiredSize, minDocCount, getMetadata(), format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
     }
 

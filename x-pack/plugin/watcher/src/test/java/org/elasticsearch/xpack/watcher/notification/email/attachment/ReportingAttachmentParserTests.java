@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import com.fasterxml.jackson.core.io.JsonEOFException;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,6 +39,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -569,8 +570,8 @@ public class ReportingAttachmentParserTests extends ESTestCase {
     private ClusterService mockClusterService() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings =
-            new ClusterSettings(Settings.EMPTY,
-                ImmutableSet.of(INTERVAL_SETTING, RETRIES_SETTING, REPORT_WARNING_ENABLED_SETTING, REPORT_WARNING_TEXT));
+            new ClusterSettings(Settings.EMPTY, Collections.unmodifiableSet(new HashSet<Setting<?>>(
+            Arrays.asList(INTERVAL_SETTING, RETRIES_SETTING, REPORT_WARNING_ENABLED_SETTING, REPORT_WARNING_TEXT))));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
     }

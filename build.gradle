@@ -45,6 +45,7 @@ apply from: 'gradle/build-scan.gradle'
 apply from: 'gradle/build-complete.gradle'
 apply from: 'gradle/runtime-jdk-provision.gradle'
 apply from: 'gradle/ide.gradle'
+apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
 
 // common maven publishing configuration

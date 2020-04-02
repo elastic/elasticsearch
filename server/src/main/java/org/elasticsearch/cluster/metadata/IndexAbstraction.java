@@ -57,7 +57,7 @@ public interface IndexAbstraction {
 
     /**
      * A write index is a dedicated concrete index, that accepts all the new documents that belong to an index abstraction.
-     *
+     * <p>
      * A write index may also be a regular concrete index of a index abstraction and may therefore also be returned
      * by {@link #getIndices()}. An index abstraction may also not have a dedicated write index.
      *
@@ -88,7 +88,14 @@ public interface IndexAbstraction {
          * An alias typically refers to many concrete indices and
          * may have a write index.
          */
-        ALIAS("alias");
+        ALIAS("alias"),
+
+        /**
+         * An index abstraction that refers to a data stream.
+         * A data stream typically has multiple backing indices, the latest of which
+         * is the target for index requests.
+         */
+        DATA_STREAM("data_stream");
 
         private final String displayName;
 
@@ -182,7 +189,7 @@ public interface IndexAbstraction {
 
         /**
          * Returns the unique alias metadata per concrete index.
-         *
+         * <p>
          * (note that although alias can point to the same concrete indices, each alias reference may have its own routing
          * and filters)
          */
@@ -234,7 +241,7 @@ public interface IndexAbstraction {
 
             // Validate hidden status
             final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = referenceIndexMetadatas.stream()
-                    .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
+                .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
             if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
                 List<String> hiddenOn = groupedByHiddenStatus.get(true).stream()
                     .map(idx -> idx.getIndex().getName()).collect(Collectors.toList());

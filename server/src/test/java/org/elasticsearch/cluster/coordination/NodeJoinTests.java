@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -397,10 +396,17 @@ public class NodeJoinTests extends ESTestCase {
     private void handleStartJoinFrom(DiscoveryNode node, long term) throws Exception {
         final RequestHandlerRegistry<StartJoinRequest> startJoinHandler = (RequestHandlerRegistry<StartJoinRequest>)
             transport.getRequestHandler(JoinHelper.START_JOIN_ACTION_NAME);
-        final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
-        startJoinHandler.processMessageReceived(new StartJoinRequest(node, term), new TestTransportChannel(future));
-        // Will throw exception if failed
-        future.actionGet();
+        startJoinHandler.processMessageReceived(new StartJoinRequest(node, term), new TestTransportChannel(new ActionListener<>() {
+            @Override
+            public void onResponse(TransportResponse transportResponse) {
+
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail();
+            }
+        }));
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(isLocalNodeElectedMaster());
         assertThat(coordinator.getMode(), equalTo(Coordinator.Mode.CANDIDATE));
@@ -410,11 +416,19 @@ public class NodeJoinTests extends ESTestCase {
         final RequestHandlerRegistry<FollowersChecker.FollowerCheckRequest> followerCheckHandler =
             (RequestHandlerRegistry<FollowersChecker.FollowerCheckRequest>)
             transport.getRequestHandler(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME);
-        final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
-        final TestTransportChannel channel = new TestTransportChannel(future);
+        final TestTransportChannel channel = new TestTransportChannel(new ActionListener<>() {
+            @Override
+            public void onResponse(TransportResponse transportResponse) {
+
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail();
+            }
+        });
         followerCheckHandler.processMessageReceived(new FollowersChecker.FollowerCheckRequest(term, node), channel);
         // Will throw exception if failed
-        future.actionGet();
         deterministicTaskQueue.runAllRunnableTasks();
         assertFalse(isLocalNodeElectedMaster());
         assertThat(coordinator.getMode(), equalTo(Coordinator.Mode.FOLLOWER));

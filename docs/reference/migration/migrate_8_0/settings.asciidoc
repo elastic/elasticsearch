@@ -37,3 +37,31 @@ processors. As this leads to more context switches and more threads but without
 an increase in the number of physical CPUs on which to schedule these additional
 threads, the `node.processors` setting is now bounded by the number of available
 processors.
+
+[float]
+[[remove-gateway-expected_nodes]]
+==== The `gateway.expected_nodes` setting have been removed
+
+The `gateway.expected_nodes` setting was deprecated in version 7.7.0, and is
+removed in version 8.0.0. Instead, use `gateway.expected_data_nodes`.
+
+[float]
+[[remove-gateway-expected_master_nodes]]
+==== The `gateway.expected_master_nodes` setting have been removed
+
+The `gateway.expected_master_nodes` setting was deprecated in version 7.7.0, and is
+removed in version 8.0.0. Instead, use `gateway.expected_data_nodes`.
+
+[float]
+[[remove-gateway-recover_after_nodes]]
+==== The `gateway.recover_after_nodes` setting have been removed
+
+The `gateway.recover_after_nodes` setting was deprecated in version 7.7.0, and is
+removed in version 8.0.0. Instead, use `gateway.recover_after_data_nodes`.
+
+[float]
+[[remove-gateway-recover_after_master_nodes]]
+==== The `gateway.recover_after_master_nodes` setting have been removed
+
+The `gateway.recover_after_master_nodes` setting was deprecated in version 7.7.0, and
+is removed in version 8.0.0. Instead, use `gateway.recover_after_data_nodes`.

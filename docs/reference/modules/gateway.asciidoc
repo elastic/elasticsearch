@@ -27,6 +27,16 @@ as long as the following conditions are met:
 
     Recover as long as this many data nodes have joined the cluster.
 
+These settings can be configured in `elasticsearch.yml` as follows:
+
+[source,yaml]
+--------------------------------------------------
+gateway.expected_data_nodes: 3
+gateway.recover_after_time: 600000 <1>
+gateway.recover_after_data_nodes: 3
+--------------------------------------------------
+<1> `gateway.recover_after_time` is set in milliseconds.
+
 NOTE: These settings only take effect on a full cluster restart.
 
 [[modules-gateway-dangling-indices]]

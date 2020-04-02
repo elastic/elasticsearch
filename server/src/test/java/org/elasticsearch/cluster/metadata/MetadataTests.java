@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -542,11 +543,11 @@ public class MetadataTests extends ESTestCase {
                 .put(IndexMetadata.builder("index1")
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .putMapping(FIND_MAPPINGS_TEST_ITEM))
+                    .putMapping(FIND_MAPPINGS_TEST_ITEM, XContentType.JSON))
                 .put(IndexMetadata.builder("index2")
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .putMapping(FIND_MAPPINGS_TEST_ITEM)).build();
+                    .putMapping(FIND_MAPPINGS_TEST_ITEM, XContentType.JSON)).build();
 
         {
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(Strings.EMPTY_ARRAY,
@@ -595,29 +596,20 @@ public class MetadataTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testFindMappingsWithFilters() throws IOException {
-        String mapping = FIND_MAPPINGS_TEST_ITEM;
-        if (randomBoolean()) {
-            Map<String, Object> stringObjectMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, FIND_MAPPINGS_TEST_ITEM, false);
-            Map<String, Object> doc = (Map<String, Object>)stringObjectMap.get("_doc");
-            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-                builder.map(doc);
-                mapping = Strings.toString(builder);
-            }
-        }
 
         Metadata metadata = Metadata.builder()
                 .put(IndexMetadata.builder("index1")
                         .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping(mapping))
+                .putMapping(FIND_MAPPINGS_TEST_ITEM, XContentType.JSON))
                 .put(IndexMetadata.builder("index2")
                         .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping(mapping))
+                        .putMapping(FIND_MAPPINGS_TEST_ITEM, XContentType.JSON))
                 .put(IndexMetadata.builder("index3")
                         .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                        .putMapping(mapping)).build();
+                        .putMapping(FIND_MAPPINGS_TEST_ITEM, XContentType.JSON)).build();
 
         {
             ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
@@ -882,8 +874,7 @@ public class MetadataTests extends ESTestCase {
             "        }\n" +
             "      }\n" +
             "    }\n" +
-            "  }\n" +
-            "}";
+            "  }";
 
     public void testTransientSettingsOverridePersistentSettings() {
         final Setting setting = Setting.simpleString("key");

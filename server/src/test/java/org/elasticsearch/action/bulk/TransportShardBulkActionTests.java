@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -95,7 +96,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     private IndexMetadata indexMetadata() throws IOException {
         return IndexMetadata.builder("index")
             .putMapping("{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" +
-                    "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}")
+                    "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}", XContentType.JSON)
             .settings(idxSettings)
             .primaryTerm(0, 1).build();
     }

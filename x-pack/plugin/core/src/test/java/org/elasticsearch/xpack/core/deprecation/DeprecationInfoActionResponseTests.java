@@ -20,6 +20,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
@@ -68,7 +69,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         mapping.endObject().endObject();
 
         Metadata metadata = Metadata.builder().put(IndexMetadata.builder("test")
-            .putMapping(Strings.toString(mapping))
+            .putMapping(Strings.toString(mapping), XContentType.JSON)
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0))

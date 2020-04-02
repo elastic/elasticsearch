@@ -36,9 +36,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,9 +48,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
@@ -943,10 +943,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return mappings.get(MapperService.SINGLE_MAPPING_NAME);
         }
 
-        public Builder putMapping(String source) {
-            putMapping(new MappingMetadata(MapperService.SINGLE_MAPPING_NAME,
-                XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
-            return this;
+        public Builder putMapping(XContentBuilder builder) throws IOException {
+            return putMapping(new MappingMetadata(new CompressedXContent(BytesReference.bytes(builder)), builder.contentType()));
+        }
+
+        public Builder putMapping(String source, XContentType xContentType) throws IOException {
+            return putMapping(new MappingMetadata(new CompressedXContent(source), xContentType));
         }
 
         public Builder putMapping(MappingMetadata mappingMd) {
@@ -1320,10 +1322,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
                             } else if (token == XContentParser.Token.START_OBJECT) {
-                                String mappingType = currentFieldName;
-                                Map<String, Object> mappingSource =
-                                    MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
-                                builder.putMapping(new MappingMetadata(mappingType, mappingSource));
+                                builder.putMapping(
+                                    new MappingMetadata(new CompressedXContent(XContentHelper.childBytes(parser)), parser.contentType()));
                             } else {
                                 throw new IllegalArgumentException("Unexpected token: " + token);
                             }
@@ -1374,13 +1374,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     if (KEY_MAPPINGS.equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                                builder.putMapping(new MappingMetadata(new CompressedXContent(parser.binaryValue())));
+                                builder.putMapping(new MappingMetadata(new CompressedXContent(parser.binaryValue()), XContentType.JSON));
                             } else {
-                                Map<String, Object> mapping = parser.mapOrdered();
-                                if (mapping.size() == 1) {
-                                    String mappingType = mapping.keySet().iterator().next();
-                                    builder.putMapping(new MappingMetadata(mappingType, mapping));
-                                }
+                                builder.putMapping(new MappingMetadata(
+                                    new CompressedXContent(XContentHelper.childBytes(parser)), parser.contentType()));
                             }
                         }
                     } else if (KEY_PRIMARY_TERMS.equals(currentFieldName)) {

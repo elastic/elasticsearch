@@ -44,7 +44,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
 
             .build();
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .putMapping("{ \"_doc\":{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}}", XContentType.JSON)
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -101,9 +101,9 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
         String expectedResult = noSource ? "" : "{\"bar\":\"bar\"}";
         IndexMetadata metadata = IndexMetadata.builder("test")
-            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\", \"store\": true }, " +
+            .putMapping("{ \"_doc\":{\"properties\": { \"foo\":  { \"type\": \"text\", \"store\": true }, " +
                 "\"bar\":  { \"type\": \"text\"}}, \"_source\": { "
-                + sourceOptions + "}}}")
+                + sourceOptions + "}}}", XContentType.JSON)
             .settings(settings)
             .primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -163,7 +163,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .build();
         IndexMetadata metadata = IndexMetadata.builder("index")
-                .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+                .putMapping("{ \"_doc\":{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}}", XContentType.JSON)
                 .settings(settings)
                 .primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);

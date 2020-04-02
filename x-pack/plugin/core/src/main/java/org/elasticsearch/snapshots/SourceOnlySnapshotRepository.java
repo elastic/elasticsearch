@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -106,7 +107,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             if (mmd != null) {
                 // we don't need to obey any routing here stuff is read-only anyway and get is disabled
                 final String mapping = "{ \"_doc\" : { \"enabled\": false, \"_meta\": " + mmd.source().string() + " } }";
-                indexMetadataBuilder.putMapping(mapping);
+                indexMetadataBuilder.putMapping(mapping, XContentType.JSON);
             }
             indexMetadataBuilder.settings(Settings.builder().put(index.getSettings())
                 .put(SOURCE_ONLY.getKey(), true)

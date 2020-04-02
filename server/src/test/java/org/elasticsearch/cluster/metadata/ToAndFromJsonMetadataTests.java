@@ -27,6 +27,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
@@ -81,7 +82,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         .creationDate(2L)
                         .numberOfShards(1)
                         .numberOfReplicas(2)
-                        .putMapping(MAPPING_SOURCE1)
+                        .putMapping(MAPPING_SOURCE1, XContentType.JSON)
                         .putAlias(newAliasMetadataBuilder("alias1").filter(ALIAS_FILTER1))
                         .putAlias(newAliasMetadataBuilder("alias3").writeIndex(randomBoolean() ? null : randomBoolean()))
                         .putAlias(newAliasMetadataBuilder("alias4").filter(ALIAS_FILTER2)))

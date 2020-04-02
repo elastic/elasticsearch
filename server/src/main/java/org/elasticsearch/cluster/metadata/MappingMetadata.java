@@ -26,9 +26,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentSubParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
@@ -36,8 +40,6 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Mapping configuration for a type.
@@ -58,53 +60,67 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         this.routingRequired = docMapper.routingFieldMapper().required();
     }
 
-    @SuppressWarnings("unchecked")
-    public MappingMetadata(CompressedXContent mapping) {
+    // xcontent is always wrapped in a type object
+    public MappingMetadata(CompressedXContent mapping, XContentType xContentType) {
         this.source = mapping;
-        Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
-        if (mappingMap.size() != 1) {
-            throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
-        }
-        this.type = mappingMap.keySet().iterator().next();
-        this.routingRequired = routingRequired((Map<String, Object>) mappingMap.get(this.type));
-    }
-
-    @SuppressWarnings("unchecked")
-    public MappingMetadata(String type, Map<String, Object> mapping) {
-        this.type = type;
-        try {
-            XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
-            this.source = new CompressedXContent(BytesReference.bytes(mappingBuilder));
-        }
-        catch (IOException e) {
-            throw new UncheckedIOException(e);  // XContent exception, should never happen
-        }
-        Map<String, Object> withoutType = mapping;
-        if (mapping.size() == 1 && mapping.containsKey(type)) {
-            withoutType = (Map<String, Object>) mapping.get(type);
-        }
-        this.routingRequired = routingRequired(withoutType);
-    }
-
-    @SuppressWarnings("unchecked")
-    private boolean routingRequired(Map<String, Object> withoutType) {
-        boolean required = false;
-        if (withoutType.containsKey("_routing")) {
-            Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_routing");
-            for (Map.Entry<String, Object> entry : routingNode.entrySet()) {
-                String fieldName = entry.getKey();
-                Object fieldNode = entry.getValue();
-                if (fieldName.equals("required")) {
-                    try {
-                        required = nodeBooleanValue(fieldNode);
-                    } catch (IllegalArgumentException ex) {
-                        throw new IllegalArgumentException("Failed to create mapping for type [" + this.type() + "]. " +
-                            "Illegal value in field [_routing.required].", ex);
+        String type = null;
+        boolean routingRequired = false;
+        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.IGNORE_DEPRECATIONS, mapping.uncompressed())) {
+            while (parser.nextToken() != null) {
+                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                    if (type != null) {
+                        throw new IllegalStateException("Mappings must contain a single type root, but found ["
+                            + type + "," + parser.currentName() + "]");
+                    }
+                    type = parser.currentName();
+                    parser.nextToken();
+                    try (XContentParser sub = new XContentSubParser(parser)) {
+                        routingRequired = findRoutingRequired(sub);
                     }
                 }
             }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        return required;
+        if (type == null) {
+            throw new IllegalStateException("Mappings must contain a single type root");
+        }
+        this.type = type;
+        this.routingRequired = routingRequired;
+    }
+
+    public MappingMetadata(String type, Map<String, Object> mapping) {
+        this(buildXContent(type, mapping), XContentType.JSON);
+    }
+
+    private static CompressedXContent buildXContent(String type, Map<String, Object> mapping) {
+        try {
+            if (mapping.isEmpty()) {
+                return new CompressedXContent("{\"" + type + "\":{}}");
+            }
+            if (mapping.size() > 1 || mapping.keySet().iterator().next().equals(type) == false) {
+                mapping = Map.of(type, mapping);
+            }
+            return new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().map(mapping)));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static boolean findRoutingRequired(XContentParser parser) throws IOException {
+        while (parser.nextToken() != null) {
+            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                if ("_routing".equals(parser.currentName()) == false) {
+                    parser.skipChildren();
+                }
+                if ("required".equals(parser.currentName())) {
+                    parser.nextToken();
+                    return parser.booleanValue();
+                }
+            }
+        }
+        return false;
     }
 
     public String type() {

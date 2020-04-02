@@ -36,12 +36,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -101,29 +98,27 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 1)
                             .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID()))
-                        .putMapping(
-                            XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
+                        .putMapping(XContentFactory.jsonBuilder()
                                 .startObject()
                                     .startObject("_doc")
                                         .startObject("_routing")
                                             .field("required", false)
                                         .endObject()
                                     .endObject()
-                                .endObject()), true, XContentType.JSON)))
+                                .endObject()))
                     .put(new IndexMetadata.Builder(index2.getName())
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT)
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 1)
                             .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID()))
-                        .putMapping(
-                            XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
+                        .putMapping(XContentFactory.jsonBuilder()
                                 .startObject()
                                     .startObject("_doc")
                                         .startObject("_routing")
                                             .field("required", true)
                                         .endObject()
                                     .endObject()
-                                .endObject()), true, XContentType.JSON)))).build();
+                                .endObject()))).build();
 
         final ShardIterator index1ShardIterator = mock(ShardIterator.class);
         when(index1ShardIterator.shardId()).thenReturn(new ShardId(index1, randomInt()));

@@ -28,8 +28,8 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -567,7 +567,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
 
-    public void process(Version indexCreatedVersion, @Nullable MappingMetaData mappingMd, String concreteIndex) {
+    public void process(Version indexCreatedVersion, @Nullable MappingMetadata mappingMd, String concreteIndex) {
         if (mappingMd != null) {
             // might as well check for routing here
             if (mappingMd.routingRequired() && routing == null) {
@@ -591,8 +591,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /* resolve the routing if needed */
-    public void resolveRouting(MetaData metaData) {
-        routing(metaData.resolveWriteIndexRouting(routing, index));
+    public void resolveRouting(Metadata metadata) {
+        routing(metadata.resolveWriteIndexRouting(routing, index));
     }
 
     public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {

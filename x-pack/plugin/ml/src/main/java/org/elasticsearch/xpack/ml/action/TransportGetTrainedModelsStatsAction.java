@@ -130,7 +130,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     }
 
     static Map<String, Set<String>> pipelineIdsByModelIds(ClusterState state, IngestService ingestService, Set<String> modelIds) {
-        IngestMetadata ingestMetadata = state.metaData().custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Map<String, Set<String>> pipelineIdsByModelIds = new HashMap<>();
         if (ingestMetadata == null) {
             return pipelineIdsByModelIds;

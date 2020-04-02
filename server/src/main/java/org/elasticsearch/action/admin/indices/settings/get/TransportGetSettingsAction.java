@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -89,14 +89,14 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
         ImmutableOpenMap.Builder<String, Settings> indexToSettingsBuilder = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> indexToDefaultSettingsBuilder = ImmutableOpenMap.builder();
         for (Index concreteIndex : concreteIndices) {
-            IndexMetaData indexMetaData = state.getMetaData().index(concreteIndex);
-            if (indexMetaData == null) {
+            IndexMetadata indexMetadata = state.getMetadata().index(concreteIndex);
+            if (indexMetadata == null) {
                 continue;
             }
 
-            Settings indexSettings = settingsFilter.filter(indexMetaData.getSettings());
+            Settings indexSettings = settingsFilter.filter(indexMetadata.getSettings());
             if (request.humanReadable()) {
-                indexSettings = IndexMetaData.addHumanReadableSettings(indexSettings);
+                indexSettings = IndexMetadata.addHumanReadableSettings(indexSettings);
             }
 
             if (isFilteredRequest(request)) {

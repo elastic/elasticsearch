@@ -34,5 +34,5 @@ public interface ValueCountAggregatorSupplier extends AggregatorSupplier {
                      SearchContext aggregationContext,
                      Aggregator parent,
                      List<PipelineAggregator> pipelineAggregators,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

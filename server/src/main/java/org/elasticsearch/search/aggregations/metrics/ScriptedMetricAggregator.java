@@ -51,8 +51,8 @@ class ScriptedMetricAggregator extends MetricsAggregator {
                                 SearchContext context,
                                 Aggregator parent,
                                 List<PipelineAggregator> pipelineAggregators,
-                                Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                                Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.aggState = aggState;
         this.mapScript = mapScript;
         this.combineScript = combineScript;
@@ -94,12 +94,12 @@ class ScriptedMetricAggregator extends MetricsAggregator {
             aggregation = aggState;
         }
         return new InternalScriptedMetric(name, aggregation, reduceScript, pipelineAggregators(),
-                metaData());
+                metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalScriptedMetric(name, null, reduceScript, pipelineAggregators(), metaData());
+        return new InternalScriptedMetric(name, null, reduceScript, pipelineAggregators(), metadata());
     }
 
     @Override

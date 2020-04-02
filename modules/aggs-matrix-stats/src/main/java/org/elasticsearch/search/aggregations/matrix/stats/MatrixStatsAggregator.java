@@ -51,8 +51,8 @@ final class MatrixStatsAggregator extends MetricsAggregator {
 
     MatrixStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, SearchContext context,
                                  Aggregator parent, MultiValueMode multiValueMode, List<PipelineAggregator> pipelineAggregators,
-                                 Map<String,Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                                 Map<String,Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         if (valuesSources != null && !valuesSources.isEmpty()) {
             this.valuesSources = new NumericArrayValuesSource(valuesSources, multiValueMode);
             stats = context.bigArrays().newObjectArray(1);
@@ -126,12 +126,12 @@ final class MatrixStatsAggregator extends MetricsAggregator {
         if (valuesSources == null || bucket >= stats.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMatrixStats(name, stats.size(), stats.get(bucket), null, pipelineAggregators(), metaData());
+        return new InternalMatrixStats(name, stats.size(), stats.get(bucket), null, pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMatrixStats(name, 0, null, null, pipelineAggregators(), metaData());
+        return new InternalMatrixStats(name, 0, null, null, pipelineAggregators(), metadata());
     }
 
     @Override

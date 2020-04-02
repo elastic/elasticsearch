@@ -143,7 +143,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             builder.startObject();
             {
                 builder.field("repository", entry.repository());
-                builder.field("snapshot", entry.getPattern());
+                builder.field("snapshot", entry.getSnapshotName());
                 builder.humanReadableField("start_time_millis", "start_time", new TimeValue(entry.startTime));
                 builder.field("repository_state_id", entry.repositoryStateId);
             }
@@ -157,7 +157,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public String toString() {
         StringBuilder builder = new StringBuilder("SnapshotDeletionsInProgress[");
         for (int i = 0; i < entries.size(); i++) {
-            builder.append(entries.get(i).getPattern());
+            builder.append(entries.get(i).getSnapshotName());
             if (i + 1 < entries.size()) {
                 builder.append(",");
             }
@@ -171,13 +171,13 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public static final class Entry implements Writeable, RepositoryOperation {
         private final List<SnapshotId> snapshotIds;
         private final String repo;
-        private final String pattern;
+        private final String snapshotName;
         private final long startTime;
         private final long repositoryStateId;
 
-        public Entry(String repo, String pattern, long startTime) {
+        public Entry(String repo, String snapshotName, long startTime) {
             this.repo = repo;
-            this.pattern = pattern;
+            this.snapshotName = snapshotName;
             this.startTime = startTime;
             this.snapshotIds = Collections.emptyList();
             this.repositoryStateId = RepositoryData.UNKNOWN_REPO_GEN;
@@ -186,7 +186,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         public Entry(Snapshot snapshot, long startTime, long repositoryStateId) {
             this.snapshotIds = Collections.singletonList(snapshot.getSnapshotId());
             this.repo = snapshot.getRepository();
-            this.pattern = snapshot.getSnapshotId().getName();
+            this.snapshotName = snapshot.getSnapshotId().getName();
             this.startTime = startTime;
             this.repositoryStateId = repositoryStateId;
         }
@@ -194,7 +194,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         public Entry(Entry entry, long repositoryStateId) {
             this.snapshotIds = entry.snapshotIds;
             this.repo = entry.repo;
-            this.pattern = entry.pattern;
+            this.snapshotName = entry.snapshotName;
             this.startTime = entry.startTime;
             this.repositoryStateId = repositoryStateId;
         }
@@ -202,20 +202,20 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         public Entry(StreamInput in) throws IOException {
             if (in.getVersion().onOrAfter(SnapshotsService.TWO_STEP_DELETE_VERSION)) {
                 this.repo = in.readString();
-                this.pattern = in.readString();
+                this.snapshotName = in.readString();
                 this. snapshotIds = in.readList(SnapshotId::new);
             } else {
                 final Snapshot snapshot = new Snapshot(in);
                 this.snapshotIds = Collections.singletonList(snapshot.getSnapshotId());
                 this.repo = snapshot.getRepository();
-                this.pattern = snapshot.getSnapshotId().getName();
+                this.snapshotName = snapshot.getSnapshotId().getName();
             }
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
         }
 
-        public String getPattern() {
-            return pattern;
+        public String getSnapshotName() {
+            return snapshotName;
         }
 
         public boolean matches(Snapshot snapshot) {
@@ -223,7 +223,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 return false;
             }
             if (repositoryStateId == RepositoryData.UNKNOWN_REPO_GEN) {
-                return pattern.equals(snapshot.getSnapshotId().getName());
+                return snapshotName.equals(snapshot.getSnapshotId().getName());
             }
             return snapshotIds.contains(snapshot.getSnapshotId());
         }
@@ -248,7 +248,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 return false;
             }
             Entry that = (Entry) o;
-            return pattern.equals(that.pattern)
+            return snapshotName.equals(that.snapshotName)
                        && snapshotIds.equals(that.snapshotIds)
                        && startTime == that.startTime
                        && repositoryStateId == that.repositoryStateId;
@@ -256,14 +256,14 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         @Override
         public int hashCode() {
-            return Objects.hash(pattern, snapshotIds, startTime, repositoryStateId);
+            return Objects.hash(snapshotName, snapshotIds, startTime, repositoryStateId);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getVersion().onOrAfter(SnapshotsService.TWO_STEP_DELETE_VERSION)) {
                 out.writeString(repo);
-                out.writeString(pattern);
+                out.writeString(snapshotName);
                 out.writeList(snapshotIds);
             } else {
                 new Snapshot(repo, snapshotIds.get(0)).writeTo(out);
@@ -285,7 +285,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         @Override
         public String toString() {
             return "Entry[repository=" + repo + ", repositoryStateId=" + repositoryStateId + ", snapshotIds="
-                + snapshotIds + ", pattern=" + pattern + "]";
+                + snapshotIds + ", pattern=" + snapshotName + "]";
         }
     }
 }

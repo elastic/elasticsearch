@@ -976,8 +976,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Deletes a snapshot from the repository, looking up the {@link Snapshot} reference before deleting.
-     * If the snapshot is still running cancels the snapshot first and then deletes it from the repository.
+     * Deletes a snapshot from the repository.
+     * TODO: Add assertions that there is always an aborted snapshot if we have snapshot + deletion in the CS.
      *
      * @param repositoryName  repositoryName
      * @param snapshotName    snapshotName
@@ -1012,8 +1012,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         }
                     }
+                    final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);
                     List<SnapshotsInProgress.Entry> snapshots =
-                        currentSnapshots(currentState.custom(SnapshotsInProgress.TYPE), repositoryName, Collections.emptyList());
+                        currentSnapshots(snapshotsInProgress, repositoryName, Collections.emptyList());
                     Optional<SnapshotsInProgress.Entry> matchedInProgress = snapshots.stream()
                         .filter(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName)).findFirst();
                     final SnapshotDeletionsInProgress.Entry newDelete;
@@ -1088,6 +1089,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             });
     }
 
+    /**
+     * Deletes a snapshot that is known to exist in the repository at the given repository generation from the repository.
+     *
+     * @param repositoryName Repository name
+     * @param snapshot       SnapshotId of deleted snapshot
+     * @param repositoryGen  Repository generation that this delete is based on
+     * @param listener       listener to complete once done
+     */
     private void deleteCompletedSnapshotStep(String repositoryName, SnapshotId snapshot, long repositoryGen,
                                              ActionListener<Void> listener) {
         clusterService.submitStateUpdateTask("delete snapshot [" + snapshot + "] step 2", new ClusterStateUpdateTask() {
@@ -1104,7 +1113,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         newEntries.add(entry);
                     }
                 }
-                assert changed : "Did not find initialized deletion for snapshot [" + snapshot + "]";
+                assert changed : "Did not find initializing deletion for snapshot [" + snapshot + "]";
                 return ClusterState.builder(currentState)
                     .putCustom(SnapshotDeletionsInProgress.TYPE, new SnapshotDeletionsInProgress(newEntries)).build();
             }

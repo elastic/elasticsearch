@@ -73,10 +73,30 @@
  * <p>Deleting a snapshot can take the form of either simply deleting it from the repository or (if it has not completed yet) aborting it
  * and subsequently deleting it from the repository.</p>
  *
- * <h2>Aborting a Snapshot</h2>
+ * <ol>
+ *     <li>Deleting a snapshot starts with creating a {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.Entry} in the cluster
+ *     state. There are two possible ways the snapshot delete entry can be created.
+ *     <ul>
+ *     <li>If there is a snapshot currently in progress that matches the snapshot name and repository of the delete request, then that
+ *     snapshot is going to become the basis of the {@code SnapshotDeletionsInProgress.Entry} and it will contain the {@code SnapshotId} of
+ *     the in-progress snapshot and be based on the repository generation of the in progress snapshot plus one (as that is the expected
+ *     generation the repository will be in once the snapshot finishes). Also, the {@code SnapshotsInProgress.Entry} of the in-progress
+ *     snapshot will be updated by setting its state to {@code ABORTED}.</li>
+ *     <li>If no such snapshot matching the repository name and snapshot name in the delete request is found, then the
+ *     { @code RepositoryData} of the repository to delete from has to be inspected to find the {@code SnapshotId} of the snapshot to
+ *     delete. Since the {@code RepositoryData} cannot be loaded during the cluster state update a placeholder, a
+ *     {@code SnapshotDeletionsInProgress.Entry} that does not yet contain a {@code SnapshotId} and uses
+ *     {@link org.elasticsearch.repositories.RepositoryData#UNKNOWN_REPO_GEN} for the repository generation to base the delete on, is put
+ *     into the cluster state.</li>
+ *     </ul>
+ *     </li>
+ * </ol>
+ *
+ * <h3>Aborting a Snapshot</h3>
  *
  * <ol>
- * <li>Aborting a snapshot starts by updating the state of the snapshot's {@code SnapshotsInProgress.Entry} to {@code ABORTED}.</li>
+ * <li>Aborting a snapshot happens if an in-progress snapshot's {@code SnapshotsInProgress.Entry} was set to state {@code ABORTED} in the
+ * first step of the delete process.</li>
  *
  * <li>The snapshot's state change to {@code ABORTED} in cluster state is then picked up by the {@code SnapshotShardsService} on all nodes.
  * Those nodes that have shard snapshot actions for the snapshot assigned to them, will abort them and notify master about the shards
@@ -89,12 +109,13 @@
  * of the snapshot creation section above.</li>
  * </ol>
  *
- * <h2>Deleting a Snapshot from a Repository</h2>
+ * <h3>Deleting a Snapshot from a Repository</h3>
  *
  * <ol>
- * <li>Assuming there are no entries in the cluster state's {@code SnapshotsInProgress}, deleting a snapshot starts by the
- * {@code SnapshotsService} creating an entry for deleting the snapshot in the cluster state's
- * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress}.</li>
+ * <li>Assuming there are no entries in the cluster state's {@code SnapshotsInProgress}, deleting a snapshot starts by loading the
+ * {@code RepositoryData} for the repository to find the {@code SnapshotId} of the snapshot to delete. Once that has been found, the
+ * {@code SnapshotDeletionsInProgress.Entry} is updated to point at the concrete {@code SnapshotId} and current repository generation found
+ * in the {@code RepositoryData}</li>
  *
  * <li>Once the cluster state contains the deletion entry in {@code SnapshotDeletionsInProgress} the {@code SnapshotsService} will invoke
  * {@link org.elasticsearch.repositories.Repository#deleteSnapshot} for the given snapshot, which will remove files associated with the

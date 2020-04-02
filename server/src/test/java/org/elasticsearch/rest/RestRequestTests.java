@@ -253,15 +253,21 @@ public class RestRequestTests extends ESTestCase {
         FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
         builder.withHeaders(Map.of("Accept", compatibleHeaderValue));
         RestRequest restRequest = builder.build();
-
         assertThat(restRequest.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY), equalTo("7"));
+
+        // when no body - both Accept and Content-Type provided, but only Accept required - still OK
+        builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
+        builder.withHeaders(Map.of("Accept", compatibleHeaderValue, "Content-Type", compatibleHeaderValue));
+        builder.withContent(new BytesArray("some content"), null);
+        restRequest = builder.build();
+        assertThat(restRequest.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY), equalTo("7"));
+
 
         // with body - both Accept and Content-Type are required
         builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
         builder.withHeaders(Map.of("Accept", compatibleHeaderValue, "Content-Type", compatibleHeaderValue));
         builder.withContent(new BytesArray("some content"), null);
         restRequest = builder.build();
-
         assertThat(restRequest.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY), equalTo("7"));
     }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -274,13 +274,13 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testBuildSearchContextHighlight() throws IOException {
         Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, null, null, null, xContentRegistry(), namedWriteableRegistry,
-                null, null, System::currentTimeMillis, null, null, () -> true) {
+                null, null, System::currentTimeMillis, null, null, () -> true, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);

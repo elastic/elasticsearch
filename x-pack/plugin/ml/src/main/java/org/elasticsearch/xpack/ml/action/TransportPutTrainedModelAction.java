@@ -96,6 +96,22 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                 request.getTrainedModelConfig().getModelId()));
             return;
         }
+        if (request.getTrainedModelConfig()
+            .getInferenceConfig()
+            .isTargetTypeSupported(request.getTrainedModelConfig()
+                .getModelDefinition()
+                .getTrainedModel()
+                .targetType()) == false) {
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                "Model [{}] inference config type [{}] does not support definition target type [{}]",
+                request.getTrainedModelConfig().getModelId(),
+                request.getTrainedModelConfig().getInferenceConfig().getName(),
+                request.getTrainedModelConfig()
+                    .getModelDefinition()
+                    .getTrainedModel()
+                    .targetType()));
+            return;
+        }
 
         Version minCompatibilityVersion = request.getTrainedModelConfig()
             .getModelDefinition()

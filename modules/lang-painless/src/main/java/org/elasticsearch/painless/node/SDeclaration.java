@@ -74,12 +74,4 @@ public class SDeclaration extends AStatement {
 
         return output;
     }
-
-    @Override
-    public String toString() {
-        if (expression == null) {
-            return singleLineToString(type, name);
-        }
-        return singleLineToString(type, name, expression);
-    }
 }

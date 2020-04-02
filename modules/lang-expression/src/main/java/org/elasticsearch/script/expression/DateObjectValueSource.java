@@ -54,7 +54,7 @@ class DateObjectValueSource extends FieldDataValueSource {
         LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         MutableDateTime joda = new MutableDateTime(0, DateTimeZone.UTC);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
-        return DoubleValues.withDefault(new DoubleValues() {
+        return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
                 joda.setMillis((long)docValues.doubleValue());
@@ -65,7 +65,7 @@ class DateObjectValueSource extends FieldDataValueSource {
             public boolean advanceExact(int doc) throws IOException {
                 return docValues.advanceExact(doc);
             }
-        }, 0);
+        };
     }
 
     @Override

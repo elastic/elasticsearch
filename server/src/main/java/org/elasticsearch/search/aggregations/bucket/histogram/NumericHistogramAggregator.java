@@ -51,7 +51,7 @@ import java.util.Map;
  * written as {@code interval * x + offset} and yet is less than or equal to
  * {@code value}.
  */
-class NumericHistogramAggregator extends BucketsAggregator {
+public class NumericHistogramAggregator extends BucketsAggregator {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
@@ -63,13 +63,13 @@ class NumericHistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    NumericHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
+    public NumericHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
                                BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
                                @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
                                SearchContext context, Aggregator parent,
-                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metadata);
         if (interval <= 0) {
             throw new IllegalArgumentException("interval must be positive, got: " + interval);
         }
@@ -150,8 +150,7 @@ class NumericHistogramAggregator extends BucketsAggregator {
         if (minDocCount == 0) {
             emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
         }
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, pipelineAggregators(),
-                metaData());
+        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
     }
 
     @Override
@@ -160,8 +159,7 @@ class NumericHistogramAggregator extends BucketsAggregator {
         if (minDocCount == 0) {
             emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
         }
-        return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed,
-                pipelineAggregators(), metaData());
+        return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
     }
 
     @Override

@@ -71,7 +71,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=from]
 (Optional, integer) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 
-
+[role="child_attributes"]
 [[ml-get-dfanalytics-results]]
 ==== {api-response-body-title}
 

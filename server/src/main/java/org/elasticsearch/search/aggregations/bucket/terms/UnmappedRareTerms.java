@@ -46,8 +46,8 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
         }
     }
 
-    UnmappedRareTerms(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, LongRareTermsAggregator.ORDER, 0, pipelineAggregators, metaData);
+    UnmappedRareTerms(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, LongRareTermsAggregator.ORDER, 0, pipelineAggregators, metadata);
     }
 
     /**
@@ -74,7 +74,7 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
 
     @Override
     public UnmappedRareTerms create(List<UnmappedRareTerms.Bucket> buckets) {
-        return new UnmappedRareTerms(name, pipelineAggregators(), metaData);
+        return new UnmappedRareTerms(name, pipelineAggregators(), metadata);
     }
 
     @Override
@@ -94,7 +94,7 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        return new UnmappedRareTerms(name, pipelineAggregators(), metaData);
+        return new UnmappedRareTerms(name, pipelineAggregators(), metadata);
     }
 
     @Override

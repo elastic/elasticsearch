@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -61,7 +61,7 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
         assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
         assertThat(firstStep.getSettings().size(), equalTo(1));
-        assertEquals(priority, (long) IndexMetaData.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()));
+        assertEquals(priority, (long) IndexMetadata.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()));
     }
 
     public void testNullPriorityStep() {
@@ -77,8 +77,8 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
         assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
         assertThat(firstStep.getSettings().size(), equalTo(1));
-        assertThat(IndexMetaData.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()),
-            equalTo(IndexMetaData.INDEX_PRIORITY_SETTING.getDefault(firstStep.getSettings())));
+        assertThat(IndexMetadata.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()),
+            equalTo(IndexMetadata.INDEX_PRIORITY_SETTING.getDefault(firstStep.getSettings())));
     }
 
     public void testEqualsAndHashCode() {

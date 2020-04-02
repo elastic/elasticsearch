@@ -102,16 +102,20 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_7_8_0) && out.getVersion().onOrAfter(Version.V_6_7_0)) {
+        if (out.getVersion().before(Version.V_7_8_0)) {
             if (pipelineTreeForBwcSerialization == null) {
                 mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
                 out.writeNamedWriteableList(getInternalAggregations());
-                out.writeNamedWriteableList(emptyList());
+                if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                    out.writeNamedWriteableList(emptyList());
+                }
             } else {
                 PipelineAggregator.PipelineTree pipelineTree = pipelineTreeForBwcSerialization.get();
                 mergePipelineTreeForBWCSerialization(pipelineTree);
                 out.writeNamedWriteableList(getInternalAggregations());
-                out.writeNamedWriteableList(pipelineTree.aggregators());
+                if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                    out.writeNamedWriteableList(emptyList());
+                }
             }
         } else {
             out.writeNamedWriteableList(getInternalAggregations());

@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
@@ -32,10 +31,10 @@ import java.util.Map;
 public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
 
     @Override
-    protected InternalMax createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+    protected InternalMax createTestInstance(String name, Map<String, Object> metadata) {
         double value = frequently() ? randomDouble() : randomFrom(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         DocValueFormat formatter = randomNumericDocValueFormat();
-        return new InternalMax(name, value, formatter, pipelineAggregators, metadata);
+        return new InternalMax(name, value, formatter, metadata);
     }
 
     @Override
@@ -66,7 +65,6 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
         String name = instance.getName();
         double value = instance.getValue();
         DocValueFormat formatter = instance.format;
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
@@ -90,6 +88,6 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalMax(name, value, formatter, pipelineAggregators, metadata);
+        return new InternalMax(name, value, formatter, metadata);
     }
 }

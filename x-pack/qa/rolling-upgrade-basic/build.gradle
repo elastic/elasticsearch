@@ -79,5 +79,3 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     dependsOn "${baseName}#upgradedClusterTest"
   }
 }
-
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"

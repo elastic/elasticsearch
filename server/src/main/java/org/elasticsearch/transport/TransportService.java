@@ -227,7 +227,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             }
         }
         localNode = localNodeFactory.apply(transport.boundAddress());
-        transport.setLocalNode(localNode);
 
         if (remoteClusterClient) {
             // here we start to connect to the remote clusters

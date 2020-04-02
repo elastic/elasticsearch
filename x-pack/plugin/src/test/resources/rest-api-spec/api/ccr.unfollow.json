@@ -1,7 +1,8 @@
 {
   "ccr.unfollow":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-post-unfollow.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-post-unfollow.html",
+      "description": "Stops the following task associated with a follower index and removes index metadata and settings associated with cross-cluster replication."
     },
     "stability":"stable",
     "url":{

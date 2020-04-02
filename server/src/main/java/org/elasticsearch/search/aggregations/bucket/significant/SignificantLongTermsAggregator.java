@@ -121,7 +121,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         }
 
         return new SignificantLongTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
+                metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
     }
 
     @Override
@@ -131,7 +131,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantLongTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metadata(), format, 0, supersetSize, significanceHeuristic, emptyList());
+                metadata(), format, 0, supersetSize, significanceHeuristic, emptyList());
     }
 
     @Override

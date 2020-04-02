@@ -36,11 +36,10 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
     private int tails = randomIntBetween(1, 2);
 
     @Override
-    protected InternalTTest createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                               Map<String, Object> metadata) {
+    protected InternalTTest createTestInstance(String name, Map<String, Object> metadata) {
         TTestState state = randomState();
         DocValueFormat formatter = randomNumericDocValueFormat();
-        return new InternalTTest(name, state, formatter, pipelineAggregators, metadata);
+        return new InternalTTest(name, state, formatter, metadata);
     }
 
     private TTestState randomState() {
@@ -105,7 +104,7 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalTTest(name, state, formatter, pipelineAggregators, metadata);
+        return new InternalTTest(name, state, formatter, metadata);
     }
 
     @Override

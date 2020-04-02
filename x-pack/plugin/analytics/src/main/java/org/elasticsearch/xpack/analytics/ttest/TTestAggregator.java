@@ -52,12 +52,12 @@ public abstract class TTestAggregator<T extends TTestState> extends NumericMetri
         if (valuesSources == null || bucket >= size()) {
             return buildEmptyAggregation();
         }
-        return new InternalTTest(name, getState(bucket), format, pipelineAggregators(), metadata());
+        return new InternalTTest(name, getState(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTTest(name, getEmptyState(), format, pipelineAggregators(), metadata());
+        return new InternalTTest(name, getEmptyState(), format, metadata());
     }
 
     @Override

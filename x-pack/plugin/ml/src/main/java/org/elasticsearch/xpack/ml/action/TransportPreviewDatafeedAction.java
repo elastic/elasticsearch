@@ -91,7 +91,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                                         xContentRegistry,
                                         // Fake DatafeedTimingStatsReporter that does not have access to results index
                                         new DatafeedTimingStatsReporter(timingStats, (ts, refreshPolicy) -> {}),
-                                        new ActionListener<>() {
+                                        new ActionListener<DataExtractorFactory>() {
                                             @Override
                                             public void onResponse(DataExtractorFactory dataExtractorFactory) {
                                                 DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);

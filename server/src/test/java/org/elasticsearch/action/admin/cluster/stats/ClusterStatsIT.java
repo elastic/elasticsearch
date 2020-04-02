@@ -41,7 +41,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.OS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -194,7 +193,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
         assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
 
-        NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().addMetric(OS.metricName()).get();
+        NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().setOs(true).get();
         long total = 0;
         long free = 0;
         long used = 0;

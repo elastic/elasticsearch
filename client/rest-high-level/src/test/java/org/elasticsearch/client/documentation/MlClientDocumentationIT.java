@@ -174,6 +174,7 @@ import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
+import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
@@ -3646,11 +3647,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             .setDescription("test model") // <5>
             .setMetadata(new HashMap<>()) // <6>
             .setTags("my_regression_models") // <7>
+            .setInferenceConfig(new RegressionConfig("value", 0)) // <8>
             .build();
         // end::put-trained-model-config
 
         trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition)
+            .setInferenceConfig(new RegressionConfig(null, null))
             .setModelId("my-new-trained-model")
             .setInput(new TrainedModelInput("col1", "col2", "col3", "col4"))
             .setDescription("test model")
@@ -4234,6 +4237,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition)
             .setModelId(modelId)
+            .setInferenceConfig(new RegressionConfig("value", 0))
             .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
             .setDescription("test model")
             .build();

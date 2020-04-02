@@ -5,37 +5,32 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class RegressionConfigTests extends AbstractSerializingTestCase<RegressionConfig> {
+public class RegressionConfigTests extends AbstractBWCSerializationTestCase<RegressionConfig> {
+    private boolean lenient;
 
     public static RegressionConfig randomRegressionConfig() {
         return new RegressionConfig(randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
-    public void testFromMap() {
-        RegressionConfig expected = new RegressionConfig("foo", 3);
-        Map<String, Object> config = new HashMap<String, Object>(){{
-            put(RegressionConfig.RESULTS_FIELD.getPreferredName(), "foo");
-            put(RegressionConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), 3);
-        }};
-        assertThat(RegressionConfig.fromMap(config), equalTo(expected));
+    public static RegressionConfig mutateForVersion(RegressionConfig instance, Version version) {
+        RegressionConfig.Builder builder = new RegressionConfig.Builder(instance);
+        if (version.before(Version.V_7_7_0)) {
+            builder.setNumTopFeatureImportanceValues(0);
+        }
+        return builder.build();
     }
 
-    public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> RegressionConfig.fromMap(Collections.singletonMap("some_key", 1)));
-        assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
+    @Before
+    public void chooseStrictOrLenient() {
+        lenient = randomBoolean();
     }
 
     @Override
@@ -50,6 +45,16 @@ public class RegressionConfigTests extends AbstractSerializingTestCase<Regressio
 
     @Override
     protected RegressionConfig doParseInstance(XContentParser parser) throws IOException {
-        return RegressionConfig.fromXContent(parser);
+        return lenient ? RegressionConfig.fromXContentLenient(parser) : RegressionConfig.fromXContentStrict(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return lenient;
+    }
+
+    @Override
+    protected RegressionConfig mutateInstanceForVersion(RegressionConfig instance, Version version) {
+        return mutateForVersion(instance, version);
     }
 }

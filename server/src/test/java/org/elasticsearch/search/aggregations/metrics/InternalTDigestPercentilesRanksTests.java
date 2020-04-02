@@ -21,11 +21,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.ParsedTDigestPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
-import org.elasticsearch.search.aggregations.metrics.InternalPercentilesRanksTestCase;
-import org.elasticsearch.search.aggregations.metrics.ParsedPercentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.Arrays;
@@ -33,17 +28,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+
 public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalTDigestPercentileRanks> {
 
     @Override
-    protected InternalTDigestPercentileRanks createTestInstance(String name, List<PipelineAggregator> aggregators,
-                                                                Map<String, Object> metadata,
+    protected InternalTDigestPercentileRanks createTestInstance(String name, Map<String, Object> metadata,
                                                                 boolean keyed, DocValueFormat format, double[] percents, double[] values) {
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
         assertEquals(state.centroidCount(), values.length);
-        return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, aggregators, metadata);
+        return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, emptyList(), metadata);
     }
 
     @Override

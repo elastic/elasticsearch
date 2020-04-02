@@ -35,12 +35,15 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
+import org.elasticsearch.client.indices.ComponentTemplatesExistRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
+import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
@@ -48,6 +51,7 @@ import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutComponentTemplateRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
@@ -404,6 +408,23 @@ final class IndicesRequestConverters {
         return request;
     }
 
+    static Request putComponentTemplate(PutComponentTemplateRequest putComponentTemplateRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_component_template")
+            .addPathPart(putComponentTemplateRequest.name()).build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(putComponentTemplateRequest.masterNodeTimeout());
+        if (putComponentTemplateRequest.create()) {
+            params.putParam("create", Boolean.TRUE.toString());
+        }
+        if (Strings.hasText(putComponentTemplateRequest.cause())) {
+            params.putParam("cause", putComponentTemplateRequest.cause());
+        }
+        request.addParameters(params.asMap());
+        request.setEntity(RequestConverters.createEntity(putComponentTemplateRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request validateQuery(ValidateQueryRequest validateQueryRequest) throws IOException {
         String[] indices = validateQueryRequest.indices() == null ? Strings.EMPTY_ARRAY : validateQueryRequest.indices();
         String endpoint = RequestConverters.endpoint(indices, "_validate/query");
@@ -439,6 +460,19 @@ final class IndicesRequestConverters {
         final RequestConverters.Params params = new RequestConverters.Params();
         params.withLocal(getComponentTemplatesRequest.isLocal());
         params.withMasterTimeout(getComponentTemplatesRequest.getMasterNodeTimeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request componentTemplatesExist(ComponentTemplatesExistRequest componentTemplatesRequest) {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_component_template")
+            .addCommaSeparatedPathParts(componentTemplatesRequest.names())
+            .build();
+        final Request request = new Request(HttpHead.METHOD_NAME, endpoint);
+        final RequestConverters.Params params = new RequestConverters.Params();
+        params.withLocal(componentTemplatesRequest.isLocal());
+        params.withMasterTimeout(componentTemplatesRequest.getMasterNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }
@@ -511,6 +545,16 @@ final class IndicesRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(deleteIndexTemplateRequest.masterNodeTimeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request deleteComponentTemplate(DeleteComponentTemplateRequest deleteComponentTemplateRequest) {
+        String name = deleteComponentTemplateRequest.getName();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_component_template").addPathPart(name).build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(deleteComponentTemplateRequest.masterNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }

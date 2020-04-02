@@ -148,6 +148,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
             return false;
         }
         Template other = (Template) obj;
+
         return Objects.equals(settings, other.settings) &&
             Objects.equals(mappings, other.mappings) &&
             Objects.equals(aliases, other.aliases);

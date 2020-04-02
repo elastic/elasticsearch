@@ -33,8 +33,8 @@ dependencies {
 
   // watcher deps
   compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20191001.1'
-  compile 'com.google.guava:guava:27.1-jre' // needed by watcher for the html sanitizer
-  compile 'com.google.guava:failureaccess:1.0.1'
+  runtimeOnly 'com.google.guava:guava:27.1-jre' // needed by watcher for the html sanitizer
+  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   compile 'com.sun.mail:jakarta.mail:1.6.4'
   compile 'com.sun.activation:jakarta.activation:1.2.1'
   compileOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"

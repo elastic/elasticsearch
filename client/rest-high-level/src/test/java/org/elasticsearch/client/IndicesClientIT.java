@@ -85,7 +85,6 @@ import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -1271,51 +1270,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 "Elasticsearch exception [type=illegal_argument_exception, "
                 + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins are installed, "
                 + "or check the breaking changes documentation for removed settings]"));
-    }
-
-    public void testComponentTemplates() throws Exception {
-        String templateName = "my-template";
-        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
-        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
-        AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
-        Template template = new Template(settings, mappings, Map.of("alias", alias));
-        ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
-        PutComponentTemplateRequest putComponentTemplateRequest =
-            new PutComponentTemplateRequest().name(templateName).create(true).componentTemplate(componentTemplate);
-
-        AcknowledgedResponse response = execute(putComponentTemplateRequest,
-            highLevelClient().indices()::putComponentTemplate, highLevelClient().indices()::putComponentTemplateAsync);
-        assertThat(response.isAcknowledged(), equalTo(true));
-
-        ComponentTemplatesExistRequest componentTemplatesExistRequest = new ComponentTemplatesExistRequest(templateName);
-        boolean exist = execute(componentTemplatesExistRequest,
-            highLevelClient().indices()::existsComponentTemplate, highLevelClient().indices()::existsComponentTemplateAsync);
-
-        assertTrue(exist);
-
-        GetComponentTemplatesRequest getComponentTemplatesRequest = new GetComponentTemplatesRequest(templateName);
-        GetComponentTemplatesResponse getResponse = execute(getComponentTemplatesRequest,
-            highLevelClient().indices()::getComponentTemplate, highLevelClient().indices()::getComponentTemplateAsync);
-
-        assertThat(getResponse.getComponentTemplates().size(), equalTo(1));
-        assertThat(getResponse.getComponentTemplates().containsKey(templateName), equalTo(true));
-        assertThat(getResponse.getComponentTemplates().get(templateName), equalTo(componentTemplate));
-
-        DeleteComponentTemplateRequest deleteComponentTemplateRequest = new DeleteComponentTemplateRequest(templateName);
-        response = execute(deleteComponentTemplateRequest, highLevelClient().indices()::deleteComponentTemplate,
-            highLevelClient().indices()::deleteComponentTemplateAsync);
-        assertThat(response.isAcknowledged(), equalTo(true));
-
-        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
-            () -> execute(getComponentTemplatesRequest,
-                highLevelClient().indices()::getComponentTemplate, highLevelClient().indices()::getComponentTemplateAsync));
-
-        assertThat(statusException.status(), equalTo(RestStatus.NOT_FOUND));
-
-        exist = execute(componentTemplatesExistRequest,
-            highLevelClient().indices()::existsComponentTemplate, highLevelClient().indices()::existsComponentTemplateAsync);
-
-        assertFalse(exist);
     }
 
     @SuppressWarnings("unchecked")

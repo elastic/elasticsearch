@@ -407,23 +407,6 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    static Request putComponentTemplate(PutComponentTemplateRequest putComponentTemplateRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_component_template")
-            .addPathPart(putComponentTemplateRequest.name()).build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withMasterTimeout(putComponentTemplateRequest.masterNodeTimeout());
-        if (putComponentTemplateRequest.create()) {
-            params.putParam("create", Boolean.TRUE.toString());
-        }
-        if (Strings.hasText(putComponentTemplateRequest.cause())) {
-            params.putParam("cause", putComponentTemplateRequest.cause());
-        }
-        request.addParameters(params.asMap());
-        request.setEntity(RequestConverters.createEntity(putComponentTemplateRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
     static Request validateQuery(ValidateQueryRequest validateQueryRequest) throws IOException {
         String[] indices = validateQueryRequest.indices() == null ? Strings.EMPTY_ARRAY : validateQueryRequest.indices();
         String endpoint = RequestConverters.endpoint(indices, "_validate/query");
@@ -446,32 +429,6 @@ final class IndicesRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params();
         params.withIndicesOptions(getAliasesRequest.indicesOptions());
         params.withLocal(getAliasesRequest.local());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request getComponentTemplates(GetComponentTemplatesRequest getComponentTemplatesRequest){
-        final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_component_template")
-            .addCommaSeparatedPathParts(getComponentTemplatesRequest.names())
-            .build();
-        final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        final RequestConverters.Params params = new RequestConverters.Params();
-        params.withLocal(getComponentTemplatesRequest.isLocal());
-        params.withMasterTimeout(getComponentTemplatesRequest.getMasterNodeTimeout());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request componentTemplatesExist(ComponentTemplatesExistRequest componentTemplatesRequest) {
-        final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_component_template")
-            .addCommaSeparatedPathParts(componentTemplatesRequest.names())
-            .build();
-        final Request request = new Request(HttpHead.METHOD_NAME, endpoint);
-        final RequestConverters.Params params = new RequestConverters.Params();
-        params.withLocal(componentTemplatesRequest.isLocal());
-        params.withMasterTimeout(componentTemplatesRequest.getMasterNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }
@@ -544,16 +501,6 @@ final class IndicesRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(deleteIndexTemplateRequest.masterNodeTimeout());
-        request.addParameters(params.asMap());
-        return request;
-    }
-
-    static Request deleteComponentTemplate(DeleteComponentTemplateRequest deleteComponentTemplateRequest) {
-        String name = deleteComponentTemplateRequest.getName();
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_component_template").addPathPart(name).build();
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params();
-        params.withMasterTimeout(deleteComponentTemplateRequest.masterNodeTimeout());
         request.addParameters(params.asMap());
         return request;
     }

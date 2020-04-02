@@ -62,13 +62,13 @@ public class LogicalPlanTests extends ESTestCase {
 
     public void testQueryPlan() {
         LogicalPlan plan = parser.createStatement(
-                "join by pid " + 
-                "  [process where true] " + 
-                "  [network where true] " + 
-                "  [registry where true] " + 
-                "  [file where true] " + 
-                " " + 
+                "join by pid " +
+                "  [process where true] " +
+                "  [network where true] " +
+                "  [registry where true] " +
+                "  [file where true] " +
+                " " +
                 "until [process where event_subtype_full == \"termination_event\"]");
-        System.out.println(plan);
+        //        System.out.println(plan);
     }
 }

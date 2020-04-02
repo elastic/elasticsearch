@@ -317,18 +317,23 @@ join
   [file where opcode=0 and file_name="*.exe"] by unique_pid
   [file where opcode=2 and file_name="*.exe"] by unique_pid
 until [process where opcode=1] by unique_ppid
-| head 1;
+| head 1
+;
 
 join by string(unique_pid)
   [process where opcode=1]
   [file where opcode=0 and file_name="svchost.exe"]
-  [file where opcode == 0 and file_name == "lsass.exe"];
+  [file where opcode == 0 and file_name == "lsass.exe"]
+| head 1
+; 
 
 join by string(unique_pid), unique_pid, unique_pid * 2
   [process where opcode=1]
   [file where opcode=0 and file_name="svchost.exe"]
   [file where opcode == 0 and file_name == "lsass.exe"]
-until [file where opcode == 2];
+until [file where opcode == 2]
+: tail 1
+;
 
 any where true
 | unique event_type_full;
@@ -378,11 +383,13 @@ process where event of [process where process_name = "python.exe" ];
 sequence
   [process where serial_event_id<3] by unique_pid * 2
   [process where true] by unique_ppid * 2
+| tail 1
 ;
 
 sequence
   [process where serial_event_id<3] by unique_pid * 2, length(unique_pid), string(unique_pid)
   [process where true] by unique_ppid * 2, length(unique_ppid), string(unique_ppid)
+| tail 1
 ;
 
 sequence by user_name

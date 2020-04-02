@@ -87,7 +87,7 @@ or `classification` configuration. It must match the underlying
 .Properties of `inference_config`
 [%collapsible%open]
 ====
-`<model_id>.regression`:::
+`regression`:::
 (Optional, object)
 Regression configuration for inference.
 +
@@ -103,7 +103,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-
 include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-results-field]
 =====
 
-`<model_id>.classification`:::
+`classification`:::
 (Optional, object)
 Classification configuration for inference.
 +

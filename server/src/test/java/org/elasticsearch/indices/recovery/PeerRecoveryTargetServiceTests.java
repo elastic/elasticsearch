@@ -26,7 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -43,7 +43,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -72,8 +72,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         }
         sourceShard.flush(new FlushRequest());
         Store.MetadataSnapshot sourceSnapshot = sourceShard.store().getMetadata(null);
-        List<StoreFileMetaData> mdFiles = new ArrayList<>();
-        for (StoreFileMetaData md : sourceSnapshot) {
+        List<StoreFileMetadata> mdFiles = new ArrayList<>();
+        for (StoreFileMetadata md : sourceSnapshot) {
             mdFiles.add(md);
         }
         final IndexShard targetShard = newShard(false);
@@ -83,13 +83,13 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null);
         final PlainActionFuture<Void> receiveFileInfoFuture = new PlainActionFuture<>();
         recoveryTarget.receiveFileInfo(
-            mdFiles.stream().map(StoreFileMetaData::name).collect(Collectors.toList()),
-            mdFiles.stream().map(StoreFileMetaData::length).collect(Collectors.toList()),
+            mdFiles.stream().map(StoreFileMetadata::name).collect(Collectors.toList()),
+            mdFiles.stream().map(StoreFileMetadata::length).collect(Collectors.toList()),
             Collections.emptyList(), Collections.emptyList(), 0, receiveFileInfoFuture
         );
         receiveFileInfoFuture.actionGet();
         List<RecoveryFileChunkRequest> requests = new ArrayList<>();
-        for (StoreFileMetaData md : mdFiles) {
+        for (StoreFileMetadata md : mdFiles) {
             try (IndexInput in = sourceShard.store().directory().openInput(md.name(), IOContext.READONCE)) {
                 int pos = 0;
                 while (pos < md.length()) {
@@ -243,18 +243,18 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         long globalCheckpoint = populateRandomData(shard).getGlobalCheckpoint();
         Optional<SequenceNumbers.CommitInfo> safeCommit = shard.store().findSafeIndexCommit(globalCheckpoint);
         assertTrue(safeCommit.isPresent());
-        final IndexMetaData indexMetaData;
+        final IndexMetadata indexMetadata;
         if (randomBoolean()) {
-            indexMetaData = IndexMetaData.builder(shard.indexSettings().getIndexMetaData())
+            indexMetadata = IndexMetadata.builder(shard.indexSettings().getIndexMetadata())
                 .settings(shard.indexSettings().getSettings())
-                .state(IndexMetaData.State.CLOSE).build();
+                .state(IndexMetadata.State.CLOSE).build();
         } else {
-            indexMetaData = IndexMetaData.builder(shard.indexSettings().getIndexMetaData())
+            indexMetadata = IndexMetadata.builder(shard.indexSettings().getIndexMetadata())
                 .settings(Settings.builder().put(shard.indexSettings().getSettings())
-                    .put(IndexMetaData.SETTING_BLOCKS_WRITE, true)).build();
+                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)).build();
         }
         IndexShard replica = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(),
-            RecoverySource.PeerRecoverySource.INSTANCE), indexMetaData, NoOpEngine::new);
+            RecoverySource.PeerRecoverySource.INSTANCE), indexMetadata, NoOpEngine::new);
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
         assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(safeCommit.get().localCheckpoint + 1));

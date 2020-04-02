@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -36,7 +36,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestCustomMetaData;
+import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.EnumSet;
@@ -98,14 +98,14 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
         Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, masterNode);
         final ClusterState state = clusterService.state();
-        MetaData.Builder mdBuilder = MetaData.builder(state.metaData());
-        mdBuilder.putCustom(CustomMetaData.TYPE, new CustomMetaData("data"));
-        ClusterState stateWithCustomMetaData = ClusterState.builder(state).metaData(mdBuilder).build();
+        Metadata.Builder mdBuilder = Metadata.builder(state.metadata());
+        mdBuilder.putCustom(CustomMetadata.TYPE, new CustomMetadata("data"));
+        ClusterState stateWithCustomMetadata = ClusterState.builder(state).metadata(mdBuilder).build();
 
         final CompletableFuture<Throwable> future = new CompletableFuture<>();
         DiscoveryNode node = state.nodes().getLocalNode();
 
-        coordinator.sendValidateJoinRequest(stateWithCustomMetaData, new JoinRequest(node, 0L, Optional.empty()),
+        coordinator.sendValidateJoinRequest(stateWithCustomMetadata, new JoinRequest(node, 0L, Optional.empty()),
                 new JoinHelper.JoinCallback() {
             @Override
             public void onSuccess() {
@@ -126,10 +126,10 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(t.getCause().getCause().getMessage(), containsString("Unknown NamedWriteable"));
     }
 
-    public static class CustomMetaData extends TestCustomMetaData {
+    public static class CustomMetadata extends TestCustomMetadata {
         public static final String TYPE = "custom_md";
 
-        CustomMetaData(String data) {
+        CustomMetadata(String data) {
             super(data);
         }
 
@@ -144,8 +144,8 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         }
 
         @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return EnumSet.of(MetaData.XContentContext.GATEWAY, MetaData.XContentContext.SNAPSHOT);
+        public EnumSet<Metadata.XContentContext> context() {
+            return EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
         }
     }
 

@@ -31,12 +31,15 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.function.BiConsumer;
+import java.util.function.LongSupplier;
 
 public class InboundPipeline implements Releasable {
 
     private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);
     private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
 
+    private final LongSupplier relativeTimeInMillis;
+    private final StatsTracker statsTracker;
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
@@ -44,14 +47,18 @@ public class InboundPipeline implements Releasable {
     private ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
 
-    public InboundPipeline(Version version, PageCacheRecycler recycler, BiConsumer<TcpChannel, InboundMessage> messageHandler,
+    public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler, LongSupplier relativeTimeInMillis,
+                           BiConsumer<TcpChannel, InboundMessage> messageHandler,
                            BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
-        this(new InboundDecoder(version, recycler), new InboundAggregator(), messageHandler, errorHandler);
+        this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler), new InboundAggregator(), messageHandler,
+            errorHandler);
     }
 
-    private InboundPipeline(InboundDecoder decoder, InboundAggregator aggregator,
-                            BiConsumer<TcpChannel, InboundMessage> messageHandler,
+    private InboundPipeline(StatsTracker statsTracker, LongSupplier relativeTimeInMillis, InboundDecoder decoder,
+                            InboundAggregator aggregator, BiConsumer<TcpChannel, InboundMessage> messageHandler,
                             BiConsumer<TcpChannel, Tuple<Header, Exception>> errorHandler) {
+        this.relativeTimeInMillis = relativeTimeInMillis;
+        this.statsTracker = statsTracker;
         this.decoder = decoder;
         this.aggregator = aggregator;
         this.messageHandler = messageHandler;
@@ -67,6 +74,8 @@ public class InboundPipeline implements Releasable {
     }
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+        channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
+        statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());
 
         final ArrayList<Object> fragments = fragmentList.get();
@@ -116,12 +125,14 @@ public class InboundPipeline implements Releasable {
             } else if (fragment == InboundDecoder.END_CONTENT) {
                 assert aggregator.isAggregating();
                 try (InboundMessage aggregated = aggregator.finishAggregation()) {
+                    statsTracker.markMessageReceived();
                     messageHandler.accept(channel, aggregated);
                 }
             } else if (fragment instanceof Exception) {
                 final Header header;
                 if (aggregator.isAggregating()) {
                     header = aggregator.cancelAggregation();
+                    statsTracker.markMessageReceived();
                 } else {
                     header = null;
                 }

@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,7 +48,7 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         // From "wildcard_services.json"
         final String entityId = "service:" + owner + ":" + service;
         final String acs = "https://" + service + ".services.example.com/saml/acs";
-        getMetaData(entityId, acs);
+        getMetadata(entityId, acs);
     }
 
     public void testInitSingleSignOnToWildcardServiceProvider() throws Exception {
@@ -86,7 +84,7 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         deleteRole(roleName);
     }
 
-    private void getMetaData(String entityId, String acs) throws IOException {
+    private void getMetadata(String entityId, String acs) throws IOException {
         final Map<String, Object> map = getAsMap("/_idp/saml/metadata/" + encode(entityId) + "?acs=" + encode(acs));
         assertThat(map, notNullValue());
         assertThat(map.keySet(), containsInAnyOrder("metadata"));
@@ -106,7 +104,7 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
 
         final Map<String, Object> map = entityAsMap(response);
         assertThat(map, notNullValue());
-        assertThat(map.keySet(), containsInAnyOrder("post_url", "saml_response", "service_provider"));
+        assertThat(map.keySet(), containsInAnyOrder("post_url", "saml_response", "saml_status", "service_provider", "error"));
         assertThat(map.get("post_url"), equalTo(acs));
         assertThat(map.get("saml_response"), instanceOf(String.class));
 
@@ -121,10 +119,6 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent()).map(body)) {
             return BytesReference.bytes(builder).utf8ToString();
         }
-    }
-
-    private String encode(String param) {
-        return URLEncoder.encode(param, StandardCharsets.UTF_8);
     }
 
 }

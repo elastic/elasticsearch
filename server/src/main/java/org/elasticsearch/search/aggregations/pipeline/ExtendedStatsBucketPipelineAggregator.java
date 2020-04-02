@@ -38,8 +38,8 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
     private double sumOfSqrs = 1;
 
     ExtendedStatsBucketPipelineAggregator(String name, String[] bucketsPaths, double sigma, GapPolicy gapPolicy,
-                                                    DocValueFormat formatter, Map<String, Object> metaData) {
-        super(name, bucketsPaths, gapPolicy, formatter, metaData);
+                                                    DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, bucketsPaths, gapPolicy, formatter, metadata);
         this.sigma = sigma;
     }
 

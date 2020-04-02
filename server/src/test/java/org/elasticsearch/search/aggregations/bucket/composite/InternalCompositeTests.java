@@ -156,7 +156,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
     @Override
     protected InternalComposite createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                   Map<String, Object> metaData, InternalAggregations aggregations) {
+                                                   Map<String, Object> metadata, InternalAggregations aggregations) {
         int numBuckets = randomIntBetween(0, size);
         List<InternalComposite.InternalBucket> buckets = new ArrayList<>();
         TreeSet<CompositeKey> keys = new TreeSet<>(getKeyComparator());
@@ -173,13 +173,13 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         Collections.sort(buckets, (o1, o2) -> o1.compareKey(o2));
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size()-1).getRawKey() : null;
         return new InternalComposite(name, size, sourceNames, formats, buckets, lastBucket, reverseMuls, randomBoolean(),
-            Collections.emptyList(), metaData);
+            Collections.emptyList(), metadata);
     }
 
     @Override
     protected InternalComposite mutateInstance(InternalComposite instance) throws IOException {
         List<InternalComposite.InternalBucket> buckets = instance.getBuckets();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         int code = randomIntBetween(0, 2);
         int[] reverseMuls = instance.getReverseMuls();
         switch(code) {
@@ -197,19 +197,19 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
                 );
                 break;
             case 2:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(instance.getMetaData());
+                    metadata = new HashMap<>(instance.getMetadata());
                 }
-                metaData.put(randomAlphaOfLength(15), randomInt());
+                metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             default:
                 throw new AssertionError("illegal branch");
         }
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size()-1).getRawKey() : null;
         return new InternalComposite(instance.getName(), instance.getSize(), sourceNames, formats, buckets, lastBucket, reverseMuls,
-            randomBoolean(), instance.pipelineAggregators(), metaData);
+            randomBoolean(), instance.pipelineAggregators(), metadata);
     }
 
     @Override

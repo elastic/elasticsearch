@@ -46,8 +46,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     }
 
     protected BoxplotAggregationBuilder(BoxplotAggregationBuilder clone,
-                                        AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                        AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.compression = clone.compression;
     }
 
@@ -56,8 +56,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new BoxplotAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new BoxplotAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -104,7 +104,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
                                                   ValuesSourceConfig config,
                                                   AggregatorFactory parent,
                                                   AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new BoxplotAggregatorFactory(name, config, compression, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new BoxplotAggregatorFactory(name, config, compression, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

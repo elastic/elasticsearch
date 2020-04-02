@@ -18,11 +18,14 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.info.BuildParams
 
 import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 
 apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'elasticsearch.jdk-download'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
@@ -94,6 +97,15 @@ dependencies {
   es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
 }
 
+jdks {
+  legacy {
+    vendor = 'adoptopenjdk'
+    version = '8u242+b08'
+    platform = OS.current().name().toLowerCase()
+    architecture = Architecture.current().name().toLowerCase()
+  }
+}
+
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
   integTest.runner {
@@ -114,7 +126,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     versions = ['2', '1']
   }
   for (String version : versions) {
-    TaskProvider unzip = tasks.register("unzipEs${version}", Sync) {
+    Task unzip = task("unzipEs${version}", type: Sync) {
       Configuration oldEsDependency = configurations['es' + version]
       dependsOn oldEsDependency
       /* Use a closure here to delay resolution of the dependency until we need
@@ -125,15 +137,15 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       into temporaryDir
     }
 
-    TaskProvider fixture = tasks.register("oldEs${version}Fixture", org.elasticsearch.gradle.test.AntFixture) {
-      dependsOn project.configurations.oldesFixture
+    Task fixture = task("oldEs${version}Fixture", type: org.elasticsearch.gradle.test.AntFixture) {
+      dependsOn project.configurations.oldesFixture, jdks.legacy
       dependsOn unzip
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
-      env 'JAVA_HOME', getJavaHome(it, 8)
+      env 'JAVA_HOME', jdks.legacy.javaHomePath
       args 'oldes.OldElasticsearch',
         baseDir,
-        unzip.get().temporaryDir,
+        unzip.temporaryDir,
         version == '090'
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service
@@ -149,7 +161,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         /* Use a closure on the string to delay evaluation until right before we
          * run the integration tests so that we can be sure that the file is
          * ready. */
-        nonInputProperties.systemProperty "es${version}.port", "${-> fixture.get().addressAndPort}"
+        nonInputProperties.systemProperty "es${version}.port", "${-> fixture.addressAndPort}"
       }
     }
   }

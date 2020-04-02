@@ -14,7 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.IndexInputStats;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -47,7 +47,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
     private DirectBlobContainerIndexInput createIndexInput(final byte[] input, long partSize, long minimumReadSize,
                                                            Runnable onReadBlob) throws IOException {
         final FileInfo fileInfo = new FileInfo(randomAlphaOfLength(5),
-            new StoreFileMetaData("test", input.length, "_checksum", Version.LATEST),
+            new StoreFileMetadata("test", input.length, "_checksum", Version.LATEST),
             partSize == input.length
                 ? randomFrom(
                     new ByteSizeValue(partSize, ByteSizeUnit.BYTES),

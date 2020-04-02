@@ -36,8 +36,8 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     private final HyperLogLogPlusPlus counts;
 
     InternalCardinality(String name, HyperLogLogPlusPlus counts, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.counts = counts;
     }
 
@@ -92,7 +92,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
             if (cardinality.counts != null) {
                 if (reduced == null) {
                     reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(),
-                            BigArrays.NON_RECYCLING_INSTANCE, 1), pipelineAggregators(), getMetaData());
+                            BigArrays.NON_RECYCLING_INSTANCE, 1), pipelineAggregators(), getMetadata());
                 }
                 reduced.merge(cardinality);
             }

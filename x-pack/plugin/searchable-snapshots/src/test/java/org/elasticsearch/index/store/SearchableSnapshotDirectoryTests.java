@@ -34,8 +34,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
@@ -284,8 +284,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
      */
     private void testDirectories(final CheckedBiConsumer<Directory, Directory, Exception> consumer) throws Exception {
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("_index", Settings.builder()
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-            .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
             .build());
         final ShardId shardId = new ShardId(indexSettings.getIndex(), randomIntBetween(0, 10));
         final List<Releasable> releasables = new ArrayList<>();
@@ -340,16 +340,16 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 }
 
                 final String repositoryName = randomAlphaOfLength(10);
-                final RepositoryMetaData repositoryMetaData =
-                    new RepositoryMetaData(repositoryName, FsRepository.TYPE, repositorySettings.build());
+                final RepositoryMetadata repositoryMetadata =
+                    new RepositoryMetadata(repositoryName, FsRepository.TYPE, repositorySettings.build());
 
                 final BlobStoreRepository repository = new FsRepository(
-                    repositoryMetaData,
+                    repositoryMetadata,
                     new Environment(Settings.builder()
                         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                         .put(Environment.PATH_REPO_SETTING.getKey(), repositoryPath.toAbsolutePath())
                         .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build(), null),
-                    NamedXContentRegistry.EMPTY, BlobStoreTestUtil.mockClusterService(repositoryMetaData)) {
+                    NamedXContentRegistry.EMPTY, BlobStoreTestUtil.mockClusterService(repositoryMetadata)) {
 
                     @Override
                     protected void assertSnapshotOrGenericThread() {
@@ -425,7 +425,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final String blobName = randomAlphaOfLength(15);
                 Files.write(shardSnapshotDir.resolve(blobName), fileContent, StandardOpenOption.CREATE_NEW);
                 randomFiles.add(new BlobStoreIndexShardSnapshot.FileInfo(blobName,
-                    new StoreFileMetaData(fileName, fileContent.length, "_check", Version.CURRENT.luceneVersion),
+                    new StoreFileMetadata(fileName, fileContent.length, "_check", Version.CURRENT.luceneVersion),
                     new ByteSizeValue(fileContent.length)));
             }
 

@@ -23,8 +23,8 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -138,7 +138,7 @@ public class AllocationServiceTests extends ESTestCase {
             }, new EmptyClusterInfoService());
 
         final String unrealisticAllocatorName = "unrealistic";
-        final Map<String,ExistingShardsAllocator> allocatorMap = new HashMap<>();
+        final Map<String, ExistingShardsAllocator> allocatorMap = new HashMap<>();
         final TestGatewayAllocator testGatewayAllocator = new TestGatewayAllocator();
         allocatorMap.put(GatewayAllocator.ALLOCATOR_NAME, testGatewayAllocator);
         allocatorMap.put(unrealisticAllocatorName, new UnrealisticAllocator());
@@ -149,20 +149,20 @@ public class AllocationServiceTests extends ESTestCase {
         nodesBuilder.add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT));
         nodesBuilder.add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT));
 
-        final MetaData.Builder metaData = MetaData.builder()
+        final Metadata.Builder metaData = Metadata.builder()
             // create 3 indices with different priorities. The high and low priority indices use the default allocator which (in this test)
             // does not allocate any replicas, whereas the medium priority one uses the unrealistic allocator which does allocate replicas
             .put(indexMetadata("highPriority", Settings.builder()
-                .put(IndexMetaData.SETTING_PRIORITY, 10)))
+                .put(IndexMetadata.SETTING_PRIORITY, 10)))
             .put(indexMetadata("mediumPriority", Settings.builder()
-                .put(IndexMetaData.SETTING_PRIORITY, 5)
+                .put(IndexMetadata.SETTING_PRIORITY, 5)
                 .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), unrealisticAllocatorName)))
             .put(indexMetadata("lowPriority", Settings.builder()
-                .put(IndexMetaData.SETTING_PRIORITY, 3)))
+                .put(IndexMetadata.SETTING_PRIORITY, 3)))
 
             // also create a 4th index with arbitrary priority and an invalid allocator that we expect to ignore
             .put(indexMetadata("invalid", Settings.builder()
-                .put(IndexMetaData.SETTING_PRIORITY, between(0, 15))
+                .put(IndexMetadata.SETTING_PRIORITY, between(0, 15))
                 .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "unknown")));
 
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder()
@@ -173,7 +173,7 @@ public class AllocationServiceTests extends ESTestCase {
 
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(nodesBuilder)
-            .metaData(metaData)
+            .metadata(metaData)
             .routingTable(routingTableBuilder.build())
             .build();
 
@@ -230,14 +230,14 @@ public class AllocationServiceTests extends ESTestCase {
         nodesBuilder.add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT));
         nodesBuilder.add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT));
 
-        final MetaData.Builder metaData = MetaData.builder().put(indexMetadata("index", Settings.builder()
+        final Metadata.Builder metadata = Metadata.builder().put(indexMetadata("index", Settings.builder()
             .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "unknown")));
 
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsRecovery(metaData.get("index"));
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder().addAsRecovery(metadata.get("index"));
 
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(nodesBuilder)
-            .metaData(metaData)
+            .metadata(metadata)
             .routingTable(routingTableBuilder.build())
             .build();
 
@@ -268,8 +268,8 @@ public class AllocationServiceTests extends ESTestCase {
 
     private static final String FAKE_IN_SYNC_ALLOCATION_ID = "_in_sync_"; // so we can allocate primaries anywhere
 
-    private static IndexMetaData.Builder indexMetadata(String name, Settings.Builder settings) {
-        return IndexMetaData.builder(name)
+    private static IndexMetadata.Builder indexMetadata(String name, Settings.Builder settings) {
+        return IndexMetadata.builder(name)
             .settings(settings(Version.CURRENT).put(settings.build()))
             .numberOfShards(2).numberOfReplicas(1)
             .putInSyncAllocationIds(0, Collections.singleton(FAKE_IN_SYNC_ALLOCATION_ID))

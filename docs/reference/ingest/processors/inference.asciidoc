@@ -163,7 +163,7 @@ For example, you provide a tag `foo` in the definition as you can see below:
 // NOTCONSOLE
 
 
-The `{feat-imp}` value is written to the `ml.inference.foo.feature_importance` 
+The {feat-imp} value is written to the `ml.inference.foo.feature_importance` 
 field.
 
 You can also specify a target field as follows:
@@ -177,5 +177,5 @@ You can also specify a target field as follows:
 --------------------------------------------------
 // NOTCONSOLE
 
-In this case, `{feat-imp}` is exposed in the 
+In this case, {feat-imp} is exposed in the 
 `my_field.foo.feature_importance` field.

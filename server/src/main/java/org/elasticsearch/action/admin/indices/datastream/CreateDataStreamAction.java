@@ -34,8 +34,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -162,17 +162,17 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         static ClusterState createDataStream(ClusterState currentState, Request request) {
-            if (currentState.metaData().dataStreams().containsKey(request.name)) {
+            if (currentState.metadata().dataStreams().containsKey(request.name)) {
                 throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
             }
 
-            MetaDataCreateIndexService.validateIndexOrAliasName(request.name,
+            MetadataCreateIndexService.validateIndexOrAliasName(request.name,
                 (s1, s2) -> new IllegalArgumentException("data_stream [" + s1 + "] " + s2));
 
-            MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(
+            Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(
                 new DataStream(request.name, request.timestampFieldName, Collections.emptyList()));
             logger.info("adding data stream [{}]", request.name);
-            return ClusterState.builder(currentState).metaData(builder).build();
+            return ClusterState.builder(currentState).metadata(builder).build();
         }
 
         @Override

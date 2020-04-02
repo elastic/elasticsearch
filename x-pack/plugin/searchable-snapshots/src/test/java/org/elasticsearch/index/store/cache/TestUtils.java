@@ -6,7 +6,7 @@
 package org.elasticsearch.index.store.cache;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.io.Streams;
@@ -127,7 +127,7 @@ public final class TestUtils {
         }
 
         @Override
-        public Map<String, BlobMetaData> listBlobs() {
+        public Map<String, BlobMetadata> listBlobs() {
             throw unsupportedException();
         }
 
@@ -167,7 +167,7 @@ public final class TestUtils {
         }
 
         @Override
-        public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) {
+        public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) {
             throw unsupportedException();
         }
 

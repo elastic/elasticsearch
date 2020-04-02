@@ -182,8 +182,8 @@ public class ILMHistoryStore implements Closeable {
     @SuppressWarnings("unchecked")
     static void ensureHistoryIndex(Client client, ClusterState state, ActionListener<Boolean> listener) {
         final String initialHistoryIndexName = ILM_HISTORY_INDEX_PREFIX + "000001";
-        final IndexAbstraction ilmHistory = state.metaData().getIndicesLookup().get(ILM_HISTORY_ALIAS);
-        final IndexAbstraction initialHistoryIndex = state.metaData().getIndicesLookup().get(initialHistoryIndexName);
+        final IndexAbstraction ilmHistory = state.metadata().getIndicesLookup().get(ILM_HISTORY_ALIAS);
+        final IndexAbstraction initialHistoryIndex = state.metadata().getIndicesLookup().get(initialHistoryIndexName);
 
         if (ilmHistory == null && initialHistoryIndex == null) {
             // No alias or index exists with the expected names, so create the index with appropriate alias

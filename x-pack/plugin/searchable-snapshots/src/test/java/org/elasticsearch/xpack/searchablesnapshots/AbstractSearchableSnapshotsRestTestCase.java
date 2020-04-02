@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequ
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -60,8 +60,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         logger.info("creating index [{}]", indexName);
         createIndex(indexName, Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
         ensureGreen(indexName);
 
@@ -162,7 +162,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             final Map<String, Object> stats = searchableSnapshotStats(restoredIndexName);
             assertThat("Expected searchable snapshots stats for [" + restoredIndexName + ']', stats.size(), greaterThan(0));
 
-            final int nbShards = Integer.valueOf(extractValue(indexSettings(restoredIndexName), IndexMetaData.SETTING_NUMBER_OF_SHARDS));
+            final int nbShards = Integer.valueOf(extractValue(indexSettings(restoredIndexName), IndexMetadata.SETTING_NUMBER_OF_SHARDS));
             assertThat("Expected searchable snapshots stats for " + nbShards + " shards but got " + stats, stats.size(), equalTo(nbShards));
         });
     }

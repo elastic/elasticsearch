@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -34,7 +34,7 @@ public class OnAsyncWaitBranchingStep extends AsyncWaitStep {
 
     private StepKey nextStepKeyUnfulfilledWaitAction;
     private StepKey nextStepKeyFulfilledWaitAction;
-    private TriConsumer<Client, IndexMetaData, BranchingStepListener> asyncWaitAction;
+    private TriConsumer<Client, IndexMetadata, BranchingStepListener> asyncWaitAction;
     private SetOnce<Boolean> onCompleteConditionMet;
 
     /**
@@ -48,7 +48,7 @@ public class OnAsyncWaitBranchingStep extends AsyncWaitStep {
      *                                           but the user has the option to decide to stop waiting for the condition to be fulfilled
      */
     public OnAsyncWaitBranchingStep(StepKey key, StepKey nextStepKeyUnfulfilledWaitAction, StepKey nextStepKeyFulfilledWaitAction,
-                                    Client client, TriConsumer<Client, IndexMetaData, BranchingStepListener> asyncWaitAction) {
+                                    Client client, TriConsumer<Client, IndexMetadata, BranchingStepListener> asyncWaitAction) {
         // super.nextStepKey is set to null since it is not used by this step
         super(key, null, client);
         this.nextStepKeyUnfulfilledWaitAction = nextStepKeyUnfulfilledWaitAction;
@@ -63,8 +63,8 @@ public class OnAsyncWaitBranchingStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener, TimeValue masterTimeout) {
-        asyncWaitAction.apply(getClient(), indexMetaData, new BranchingStepListener() {
+    public void evaluateCondition(IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
+        asyncWaitAction.apply(getClient(), indexMetadata, new BranchingStepListener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 onCompleteConditionMet.set(true);
@@ -120,7 +120,7 @@ public class OnAsyncWaitBranchingStep extends AsyncWaitStep {
         return nextStepKeyFulfilledWaitAction;
     }
 
-    TriConsumer<Client, IndexMetaData, BranchingStepListener> getAsyncWaitAction() {
+    TriConsumer<Client, IndexMetadata, BranchingStepListener> getAsyncWaitAction() {
         return asyncWaitAction;
     }
 

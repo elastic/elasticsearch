@@ -31,8 +31,8 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
     public static final String NAME = "tdigest_percentile_ranks";
 
     public InternalTDigestPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed, DocValueFormat formatter,
-                                          List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metaData);
+                                          List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metadata);
     }
 
     /**
@@ -69,8 +69,8 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
 
     @Override
     protected AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalTDigestPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalTDigestPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metadata);
     }
 
     public static double percentileRank(TDigestState state, double value) {

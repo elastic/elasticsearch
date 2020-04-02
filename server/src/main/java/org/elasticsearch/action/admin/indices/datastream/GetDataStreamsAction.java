@@ -161,7 +161,7 @@ public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Respon
         }
 
         static List<DataStream> getDataStreams(ClusterState clusterState, Request request) {
-            Map<String, DataStream> dataStreams = clusterState.metaData().dataStreams();
+            Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
 
             // return all data streams if no name was specified
             if (request.names.length == 0) {

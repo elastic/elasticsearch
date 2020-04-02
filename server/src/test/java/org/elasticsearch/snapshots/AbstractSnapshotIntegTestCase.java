@@ -75,9 +75,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     @After
     public void assertRepoConsistency() {
         if (skipRepoConsistencyCheckReason == null) {
-            client().admin().cluster().prepareGetRepositories().get().repositories().forEach(repositoryMetaData -> {
-                final String name = repositoryMetaData.name();
-                if (repositoryMetaData.settings().getAsBoolean("readonly", false) == false) {
+            client().admin().cluster().prepareGetRepositories().get().repositories().forEach(repositoryMetadata -> {
+                final String name = repositoryMetadata.name();
+                if (repositoryMetadata.settings().getAsBoolean("readonly", false) == false) {
                     client().admin().cluster().prepareCleanupRepository(name).get();
                 }
                 BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);

@@ -78,7 +78,7 @@ public class TransportHandshakerTests extends ESTestCase {
         StreamInput input = bytesStreamOutput.bytes().streamInput();
         final PlainActionFuture<TransportResponse> responseFuture = PlainActionFuture.newFuture();
         final TestTransportChannel channel = new TestTransportChannel(responseFuture);
-        handshaker.handleHandshake2(channel, reqId, input);
+        handshaker.handleHandshake(channel, reqId, input);
 
         TransportResponseHandler<TransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
         handler.handleResponse((TransportHandshaker.HandshakeResponse) responseFuture.actionGet());
@@ -114,7 +114,7 @@ public class TransportHandshakerTests extends ESTestCase {
         assertEquals(1031, futureHandshakeStream.available());
         final PlainActionFuture<TransportResponse> responseFuture = PlainActionFuture.newFuture();
         final TestTransportChannel channel = new TestTransportChannel(responseFuture);
-        handshaker.handleHandshake2(channel, reqId, futureHandshakeStream);
+        handshaker.handleHandshake(channel, reqId, futureHandshakeStream);
         assertEquals(0, futureHandshakeStream.available());
 
         TransportHandshaker.HandshakeResponse response = (TransportHandshaker.HandshakeResponse) responseFuture.actionGet();

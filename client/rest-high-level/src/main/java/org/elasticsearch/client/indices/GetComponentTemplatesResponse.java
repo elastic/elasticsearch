@@ -58,7 +58,7 @@ public class GetComponentTemplatesResponse {
         String name;
         ComponentTemplate componentTemplate;
 
-        public NamedComponentTemplate(String name, ComponentTemplate componentTemplate) {
+        private NamedComponentTemplate(String name, ComponentTemplate componentTemplate) {
             this.name = name;
             this.componentTemplate = componentTemplate;
         }

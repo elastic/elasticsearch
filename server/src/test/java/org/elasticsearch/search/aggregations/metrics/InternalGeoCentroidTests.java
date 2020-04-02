@@ -22,8 +22,6 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.ParsedGeoCentroid;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -36,8 +34,7 @@ import java.util.Map;
 public class InternalGeoCentroidTests extends InternalAggregationTestCase<InternalGeoCentroid> {
 
     @Override
-    protected InternalGeoCentroid createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                     Map<String, Object> metadata) {
+    protected InternalGeoCentroid createTestInstance(String name, Map<String, Object> metadata) {
         GeoPoint centroid = RandomGeoGenerator.randomPoint(random());
 
         // Re-encode lat/longs to avoid rounding issue when testing InternalGeoCentroid#hashCode() and

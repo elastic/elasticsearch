@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
@@ -271,7 +272,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
                 if (metrics.isEmpty() == false) {
                     final String field = metricConfig.getField();
                     for (String metric : metrics) {
-                        ValuesSourceAggregationBuilder.LeafOnly newBuilder;
+                        ValuesSourceAggregationBuilder.LeafOnly<? extends ValuesSource, ? extends AggregationBuilder> newBuilder;
                         if (metric.equals(MetricConfig.MIN.getPreferredName())) {
                             newBuilder = new MinAggregationBuilder(formatFieldName(field, MinAggregationBuilder.NAME, RollupField.VALUE));
                         } else if (metric.equals(MetricConfig.MAX.getPreferredName())) {
@@ -279,7 +280,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
                         } else if (metric.equals(MetricConfig.AVG.getPreferredName())) {
                             // Avgs are sum + count
                             newBuilder = new SumAggregationBuilder(formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.VALUE));
-                            ValuesSourceAggregationBuilder.LeafOnly countBuilder
+                            ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, ValueCountAggregationBuilder> countBuilder
                                 = new ValueCountAggregationBuilder(
                                 formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.COUNT_FIELD));
                             countBuilder.field(field);

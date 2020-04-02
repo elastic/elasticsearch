@@ -43,6 +43,8 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+
 public class InternalScriptedMetricTests extends InternalAggregationTestCase<InternalScriptedMetric> {
 
     private static final String REDUCE_SCRIPT_NAME = "reduceScript";
@@ -72,8 +74,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     }
 
     @Override
-    protected InternalScriptedMetric createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata) {
+    protected InternalScriptedMetric createTestInstance(String name, Map<String, Object> metadata) {
         Map<String, Object> params = new HashMap<>();
         if (randomBoolean()) {
             params.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
@@ -83,7 +84,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             reduceScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, REDUCE_SCRIPT_NAME, params);
         }
         Object randomValue = randomValue(valueTypes, 0);
-        return new InternalScriptedMetric(name, randomValue, reduceScript, pipelineAggregators, metadata);
+        return new InternalScriptedMetric(name, randomValue, reduceScript, emptyList(), metadata);
     }
 
     @SuppressWarnings("unchecked")

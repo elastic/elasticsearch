@@ -32,6 +32,12 @@ If the {es} {security-features} are enabled, you must have the following built-i
   
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 
++
+--
+NOTE: It is possible that secondary authorization headers are supplied in the
+request. If this is the case, the secondary authorization headers are used
+instead of the primary headers.
+--
 
 [[ml-put-dfanalytics-desc]]
 ==== {api-description-title}

@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -146,7 +145,6 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -348,9 +346,10 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     private HttpEntity createGzipEncodedEntity(String content, ContentType contentType) throws IOException {
         byte[] gzipEncodedContent = compressContentWithGzip(content.getBytes(StandardCharsets.UTF_8));
-        HttpEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
+        NByteArrayEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
+        httpEntity.setContentEncoding("gzip");
 
-        return enrichHeaderWithGzipContentEncoding(httpEntity);
+        return httpEntity;
     }
 
     private HttpEntity createGzipEncodedEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
@@ -361,9 +360,10 @@ public class RestHighLevelClientTests extends ESTestCase {
 
             BytesRef bytesRef = BytesReference.bytes(xContentBuilder).toBytesRef();
             byte[] gzipEncodedContent = compressContentWithGzip(bytesRef.bytes);
-            HttpEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
+            NByteArrayEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
+            httpEntity.setContentEncoding("gzip");
 
-            return enrichHeaderWithGzipContentEncoding(httpEntity);
+            return httpEntity;
         }
     }
 
@@ -375,16 +375,6 @@ public class RestHighLevelClientTests extends ESTestCase {
         bos.close();
 
         return bos.toByteArray();
-    }
-
-    private static HttpEntity enrichHeaderWithGzipContentEncoding(HttpEntity httpEntity) {
-        HttpEntity spiedHttpEntity = spy(httpEntity);
-        Header mockedHeader = mock(Header.class);
-
-        when(spiedHttpEntity.getContentEncoding()).thenReturn(mockedHeader);
-        when(mockedHeader.getValue()).thenReturn("gzip");
-
-        return spiedHttpEntity;
     }
 
     private static HttpEntity createBinaryEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {

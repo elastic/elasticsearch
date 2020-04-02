@@ -205,13 +205,12 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         }
         return new InternalExtendedStats(name, counts.get(bucket), sums.get(bucket),
                 mins.get(bucket), maxes.get(bucket), sumOfSqrs.get(bucket), sigma, format,
-                pipelineAggregators(), metadata());
+                metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d,
-            sigma, format, pipelineAggregators(), metadata());
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, format, metadata());
     }
 
     @Override

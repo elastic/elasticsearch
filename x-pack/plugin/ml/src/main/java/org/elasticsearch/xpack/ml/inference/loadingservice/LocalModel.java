@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
@@ -27,7 +28,7 @@ import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING;
 
-public class LocalModel implements Model {
+public class LocalModel<T extends InferenceConfig> implements Model<T> {
 
     private final TrainedModelDefinition trainedModelDefinition;
     private final String modelId;
@@ -37,13 +38,15 @@ public class LocalModel implements Model {
     private final TrainedModelStatsService trainedModelStatsService;
     private volatile long persistenceQuotient = 100;
     private final LongAdder currentInferenceCount;
+    private final T inferenceConfig;
 
-    LocalModel(String modelId,
-               TrainedModelDefinition trainedModelDefinition,
-               TrainedModelInput input,
-               Map<String, String> defaultFieldMap,
-               InferenceStats previousStats,
-               TrainedModelStatsService trainedModelStatsService) {
+    public LocalModel(String modelId,
+                      TrainedModelDefinition trainedModelDefinition,
+                      TrainedModelInput input,
+                      Map<String, String> defaultFieldMap,
+                      T modelInferenceConfig,
+                      InferenceStats previousStats,
+                      TrainedModelStatsService trainedModelStatsService ) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
         this.fieldNames = new HashSet<>(input.getFieldNames());
@@ -51,6 +54,7 @@ public class LocalModel implements Model {
         this.trainedModelStatsService = trainedModelStatsService;
         this.defaultFieldMap = defaultFieldMap == null ? null : new HashMap<>(defaultFieldMap);
         this.currentInferenceCount = new LongAdder();
+        this.inferenceConfig = modelInferenceConfig;
     }
 
     long ramBytesUsed() {
@@ -92,7 +96,15 @@ public class LocalModel implements Model {
     }
 
     @Override
-    public void infer(Map<String, Object> fields, InferenceConfig config, ActionListener<InferenceResults> listener) {
+    public void infer(Map<String, Object> fields, InferenceConfigUpdate<T> update, ActionListener<InferenceResults> listener) {
+        if (update.isSupported(this.inferenceConfig) == false) {
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                "Model [{}] has inference config of type [{}] which is not supported by inference request of type [{}]",
+                this.modelId,
+                this.inferenceConfig.getName(),
+                update.getName()));
+            return;
+        }
         try {
             statsAccumulator.incInference();
             currentInferenceCount.increment();
@@ -108,7 +120,7 @@ public class LocalModel implements Model {
                 listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
                 return;
             }
-            InferenceResults inferenceResults = trainedModelDefinition.infer(fields, config);
+            InferenceResults inferenceResults = trainedModelDefinition.infer(fields, update.apply(inferenceConfig));
             if (shouldPersistStats) {
                 persistStats();
             }

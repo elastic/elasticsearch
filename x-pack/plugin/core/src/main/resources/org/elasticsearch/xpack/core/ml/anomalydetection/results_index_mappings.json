@@ -385,6 +385,9 @@
       "multi_bucket_impact" : {
         "type" : "double"
       },
+      "num_matches": {
+        "type" : "long"
+      },
       "out_of_order_timestamp_count" : {
         "type" : "long"
       },
@@ -405,6 +408,9 @@
         "copy_to" : [
           "all_field_values"
         ]
+      },
+      "preferred_to_categories": {
+        "type": "long"
       },
       "probability" : {
         "type" : "double"

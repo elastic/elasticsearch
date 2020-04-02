@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -204,6 +205,93 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         LogManager.getLogger(CategorizationIT.class).info("Performance test with tokenization in " +
                 (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA ? "Java" : "C++") + " took " + duration + "ms");
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1062")
+    public void testNumMatchesAndCategoryPreference() throws Exception {
+        String index = "hadoop_logs";
+        client().admin().indices().prepareCreate(index)
+            .setMapping("time", "type=date,format=epoch_millis",
+                "msg", "type=text")
+            .get();
+
+        nowMillis = System.currentTimeMillis();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        IndexRequest indexRequest = new IndexRequest(index);
+        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(8).millis(),
+            "msg", "2015-10-18 18:01:51,963 INFO [main] org.mortbay.log: jetty-6.1.26");
+        bulkRequestBuilder.add(indexRequest);
+        indexRequest = new IndexRequest(index);
+        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(7).millis(),
+            "msg",
+            "2015-10-18 18:01:52,728 INFO [main] org.mortbay.log: Started HttpServer2$SelectChannelConnectorWithSafeStartup@0.0.0.0:62267");
+        bulkRequestBuilder.add(indexRequest);
+        indexRequest = new IndexRequest(index);
+        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(6).millis(),
+            "msg", "2015-10-18 18:01:53,400 INFO [main] org.apache.hadoop.yarn.webapp.WebApps: Registered webapp guice modules");
+        bulkRequestBuilder.add(indexRequest);
+        indexRequest = new IndexRequest(index);
+        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(5).millis(),
+            "msg",
+            "2015-10-18 18:01:53,447 INFO [main] org.apache.hadoop.mapreduce.v2.app.rm.RMContainerRequestor: nodeBlacklistingEnabled:true");
+        bulkRequestBuilder.add(indexRequest);
+        indexRequest = new IndexRequest(index);
+        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(4).millis(),
+            "msg",
+            "2015-10-18 18:01:52,728 INFO [main] org.apache.hadoop.yarn.webapp.WebApps: Web app /mapreduce started at 62267");
+        bulkRequestBuilder.add(indexRequest);
+        indexRequest = new IndexRequest(index);
+        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(2).millis(),
+            "msg",
+            "2015-10-18 18:01:53,557 INFO [main] org.apache.hadoop.yarn.client.RMProxy: " +
+                "Connecting to ResourceManager at msra-sa-41/10.190.173.170:8030");
+        bulkRequestBuilder.add(indexRequest);
+
+        indexRequest = new IndexRequest(index);
+        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(1).millis(),
+            "msg",
+            "2015-10-18 18:01:53,713 INFO [main] org.apache.hadoop.mapreduce.v2.app.rm.RMContainerAllocator: " +
+                "maxContainerCapability: <memory:8192, vCores:32>");
+        bulkRequestBuilder.add(indexRequest);
+
+        indexRequest = new IndexRequest(index);
+        indexRequest.source("time", nowMillis,
+            "msg",
+            "2015-10-18 18:01:53,713 INFO [main] org.apache.hadoop.yarn.client.api.impl.ContainerManagementProtocolProxy: " +
+                "yarn.client.max-cached-nodemanagers-proxies : 0");
+        bulkRequestBuilder.add(indexRequest);
+
+
+        BulkResponse bulkResponse = bulkRequestBuilder
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertThat(bulkResponse.hasFailures(), is(false));
+
+        Job.Builder job = newJobBuilder("categorization-with-preferred-categories", Collections.emptyList());
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+
+        String datafeedId = job.getId() + "-feed";
+        DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
+        datafeedConfig.setIndices(Collections.singletonList(index));
+        DatafeedConfig datafeed = datafeedConfig.build();
+        registerDatafeed(datafeed);
+        putDatafeed(datafeed);
+        startDatafeed(datafeedId, 0, nowMillis + 1);
+        waitUntilJobIsClosed(job.getId());
+
+        List<CategoryDefinition> categories = getCategories(job.getId());
+        assertThat(categories, hasSize(7));
+
+        CategoryDefinition category1 = categories.get(0);
+        assertThat(category1.getNumMatches(), equalTo(2L));
+        long[] expectedPreferenceTo = new long[]{2L, 3L, 4L, 5L, 6L};
+        assertThat(category1.getPreferredToCategories().length, equalTo(5));
+        assertThat(category1.getPreferredToCategories(), equalTo(expectedPreferenceTo));
+        client().admin().indices().prepareDelete(index).get();
+    }
+
 
     private static Job.Builder newJobBuilder(String id, List<String> categorizationFilters) {
         Detector.Builder detector = new Detector.Builder();

@@ -24,8 +24,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
@@ -114,7 +114,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
                 mergePipelineTreeForBWCSerialization(pipelineTree);
                 out.writeNamedWriteableList(getInternalAggregations());
                 if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                    out.writeNamedWriteableList(emptyList());
+                    out.writeNamedWriteableList(pipelineTree.aggregators());
                 }
             }
         } else {

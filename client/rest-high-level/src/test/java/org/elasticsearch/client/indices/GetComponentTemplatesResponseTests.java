@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -75,7 +75,7 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
     private static ComponentTemplate randomTemplate() {
         Settings settings = null;
         CompressedXContent mappings = null;
-        Map<String, AliasMetaData> aliases = null;
+        Map<String, AliasMetadata> aliases = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -94,9 +94,9 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
         return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta);
     }
 
-    private static Map<String, AliasMetaData> randomAliases() {
+    private static Map<String, AliasMetadata> randomAliases() {
         String aliasName = randomAlphaOfLength(5);
-        AliasMetaData aliasMeta = AliasMetaData.builder(aliasName)
+        AliasMetadata aliasMeta = AliasMetadata.builder(aliasName)
             .filter(Collections.singletonMap(randomAlphaOfLength(2), randomAlphaOfLength(2)))
             .routing(randomBoolean() ? null : randomAlphaOfLength(3))
             .isHidden(randomBoolean() ? null : randomBoolean())

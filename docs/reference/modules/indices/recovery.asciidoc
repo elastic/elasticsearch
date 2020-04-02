@@ -15,8 +15,8 @@ You can view a list of in-progress and completed recoveries using the
 [float]
 ==== Peer recovery settings
 
-`indices.recovery.max_bytes_per_sec`
-(<<cluster-update-settings,Dynamic>>):: Limits total inbound and outbound
+`indices.recovery.max_bytes_per_sec`::
+(<<cluster-update-settings,Dynamic>>) Limits total inbound and outbound
 recovery traffic for each node. Defaults to `40mb`.
 +
 This limit applies to each node separately. If multiple nodes in a cluster
@@ -41,8 +41,8 @@ than your warm nodes.
 You can use the following _expert_ setting to manage resources for peer
 recoveries.
 
-`indices.recovery.max_concurrent_file_chunks`
-(<<cluster-update-settings,Dynamic>>, Expert):: Number of file chunk requests
+`indices.recovery.max_concurrent_file_chunks`::
+(<<cluster-update-settings,Dynamic>>, Expert) Number of file chunk requests
 sent in parallel for each recovery. Defaults to `2`.
 +
 You can increase the value of this setting when the recovery of a single shard

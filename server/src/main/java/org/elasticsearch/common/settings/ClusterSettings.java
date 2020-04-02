@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -203,9 +203,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
             MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
             MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
-            MetaData.SETTING_READ_ONLY_SETTING,
-            MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
-            MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+            Metadata.SETTING_READ_ONLY_SETTING,
+            Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
+            Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
             RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
             RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
             RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
@@ -285,7 +285,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             IndexModule.NODE_STORE_ALLOW_MMAP,
             ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-            ClusterService.USER_DEFINED_META_DATA,
+            ClusterService.USER_DEFINED_METADATA,
             MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,

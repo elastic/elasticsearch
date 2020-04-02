@@ -58,14 +58,13 @@ they are not included in the explanation.
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
-
 [[ml-explain-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
 A {dataframe-analytics-config} as described in <<put-dfanalytics>>.
 Note that `id` and `dest` don't need to be provided in the context of this API.
 
-
+[role="child_attributes"]
 [[ml-explain-dfanalytics-results]]
 ==== {api-response-body-title}
 

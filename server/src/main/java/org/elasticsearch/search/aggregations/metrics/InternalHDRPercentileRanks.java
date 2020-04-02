@@ -32,8 +32,8 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
     public static final String NAME = "hdr_percentile_ranks";
 
     public InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-                                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metaData);
+                                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metadata);
     }
 
     /**
@@ -70,8 +70,8 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
 
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metadata);
     }
 
     public static double percentileRank(DoubleHistogram state, double value) {

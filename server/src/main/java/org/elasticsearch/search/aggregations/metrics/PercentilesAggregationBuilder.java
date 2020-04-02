@@ -73,13 +73,13 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
     }
 
     protected PercentilesAggregationBuilder(PercentilesAggregationBuilder clone,
-                                            Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                            Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new PercentilesAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new PercentilesAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -131,7 +131,7 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
                                                                     AggregatorFactory parent,
                                                                     Builder subFactoriesBuilder) throws IOException {
         return new PercentilesAggregatorFactory(name, config, values, configOrDefault(), keyed,
-            queryShardContext, parent, subFactoriesBuilder, metaData);
+            queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

@@ -33,10 +33,10 @@ import java.util.Map;
 public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
 
     @Override
-    protected InternalSum createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalSum createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         double value = frequently() ? randomDouble() : randomFrom(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN);
         DocValueFormat formatter = randomFrom(new DocValueFormat.Decimal("###.##"), DocValueFormat.RAW);
-        return new InternalSum(name, value, formatter, pipelineAggregators, metaData);
+        return new InternalSum(name, value, formatter, pipelineAggregators, metadata);
     }
 
     @Override
@@ -104,7 +104,7 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
         double value = instance.getValue();
         DocValueFormat formatter = instance.format;
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -117,16 +117,16 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
             }
             break;
         case 2:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalSum(name, value, formatter, pipelineAggregators, metaData);
+        return new InternalSum(name, value, formatter, pipelineAggregators, metadata);
     }
 }

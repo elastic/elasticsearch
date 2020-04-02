@@ -69,11 +69,11 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -375,7 +375,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testNoRolesCausesDenial() throws IOException {
         final TransportRequest request = new SearchRequest();
         final Authentication authentication = createAuthentication(new User("test user"));
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         assertThrowsAuthorizationException(
             () -> authorize(authentication, "indices:a", request),
@@ -389,7 +389,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.indices("other_cluster:index1", "*_cluster:index2", "other_cluster:other_*");
         final Authentication authentication = createAuthentication(new User("test user"));
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         authorize(authentication, SearchAction.NAME, request);
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(SearchAction.NAME), eq(request),
@@ -406,7 +406,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.indices("no_such_cluster:index");
         final Authentication authentication = createAuthentication(new User("test user"));
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         assertThrowsAuthorizationException(
             () -> authorize(authentication, SearchAction.NAME, request),
@@ -424,7 +424,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.indices("local_index", "wildcard_*", "other_cluster:remote_index", "*:foo?");
         final Authentication authentication = createAuthentication(new User("test user"));
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         assertThrowsAuthorizationException(
             () -> authorize(authentication, SearchAction.NAME, request),
@@ -437,7 +437,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testUserWithNoRolesCannotSql() throws IOException {
         TransportRequest request = new SqlQueryRequest();
         Authentication authentication = createAuthentication(new User("test user"));
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         assertThrowsAuthorizationException(
             () -> authorize(authentication, SqlQueryAction.NAME, request),
@@ -454,7 +454,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         DeleteIndexRequest request = new DeleteIndexRequest();
         request.indices("other_cluster:index1", "other_cluster:index2");
         final Authentication authentication = createAuthentication(new User("test user"));
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         assertThrowsAuthorizationException(
             () -> authorize(authentication, DeleteIndexAction.NAME, request),
@@ -472,7 +472,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = tuple.v2();
         final Authentication authentication = createAuthentication(new User("test user", "non-existent-role"));
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         assertThrowsAuthorizationException(
             () -> authorize(authentication, action, request),
             action, "test user");
@@ -507,7 +507,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user", "no_indices"));
         RoleDescriptor role = new RoleDescriptor("no_indices", null, null, null);
         roleMap.put("no_indices", role);
-        mockEmptyMetaData();
+        mockEmptyMetadata();
 
         assertThrowsAuthorizationException(
             () -> authorize(authentication, action, request),
@@ -533,7 +533,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         roleMap.put("a_all", role);
-        mockEmptyMetaData();
+        mockEmptyMetadata();
 
         {
             //ignore_unavailable set to false, user is not authorized for this index nor does it exist
@@ -577,7 +577,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
         roleMap.put("a_all", role);
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
@@ -616,7 +616,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testAuthorizeIndicesFailures() throws IOException {
         TransportRequest request = new GetIndexRequest().indices("b");
-        ClusterState state = mockEmptyMetaData();
+        ClusterState state = mockEmptyMetadata();
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
@@ -630,13 +630,13 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService, times(1)).state();
-        verify(state, times(1)).metaData();
+        verify(state, times(1)).metadata();
     }
 
     public void testCreateIndexWithAliasWithoutPermissions() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("a");
         request.alias(new Alias("a2"));
-        ClusterState state = mockEmptyMetaData();
+        ClusterState state = mockEmptyMetadata();
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
@@ -652,13 +652,13 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService).state();
-        verify(state, times(1)).metaData();
+        verify(state, times(1)).metadata();
     }
 
     public void testCreateIndexWithAlias() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("a");
         request.alias(new Alias("a2"));
-        ClusterState state = mockEmptyMetaData();
+        ClusterState state = mockEmptyMetadata();
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a", "a2").privileges("all").build()}, null);
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
@@ -673,12 +673,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService).state();
-        verify(state, times(1)).metaData();
+        verify(state, times(1)).metadata();
     }
 
     public void testDenialForAnonymousUser() throws IOException {
         TransportRequest request = new GetIndexRequest().indices("b");
-        ClusterState state = mockEmptyMetaData();
+        ClusterState state = mockEmptyMetadata();
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrailService,
@@ -698,12 +698,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService, times(1)).state();
-        verify(state, times(1)).metaData();
+        verify(state, times(1)).metadata();
     }
 
     public void testDenialForAnonymousUserAuthorizationExceptionDisabled() throws IOException {
         TransportRequest request = new GetIndexRequest().indices("b");
-        ClusterState state = mockEmptyMetaData();
+        ClusterState state = mockEmptyMetadata();
         Settings settings = Settings.builder()
             .put(AnonymousUser.ROLES_SETTING.getKey(), "a_all")
             .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false)
@@ -725,13 +725,13 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService, times(1)).state();
-        verify(state, times(1)).metaData();
+        verify(state, times(1)).metadata();
     }
 
     public void testAuditTrailIsRecordedWhenIndexWildcardThrowsError() throws IOException {
         IndicesOptions options = IndicesOptions.fromOptions(false, false, true, true);
         TransportRequest request = new GetIndexRequest().indices("not-an-index-*").indicesOptions(options);
-        ClusterState state = mockEmptyMetaData();
+        ClusterState state = mockEmptyMetadata();
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
@@ -747,7 +747,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
         verify(clusterService).state();
-        verify(state, times(1)).metaData();
+        verify(state, times(1)).metadata();
     }
 
     public void testRunAsRequestWithNoRolesUser() throws IOException {
@@ -815,14 +815,14 @@ public class AuthorizationServiceTests extends ESTestCase {
         if (indexExists) {
             ClusterState state = mock(ClusterState.class);
             when(clusterService.state()).thenReturn(state);
-            when(state.metaData()).thenReturn(MetaData.builder()
-                .put(new IndexMetaData.Builder("a")
+            when(state.metadata()).thenReturn(Metadata.builder()
+                .put(new IndexMetadata.Builder("a")
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                     .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build());
             roleMap.put("b", bRole);
         } else {
-            mockEmptyMetaData();
+            mockEmptyMetadata();
         }
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
@@ -853,8 +853,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("can run as", runAsRole);
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
-        when(state.metaData()).thenReturn(MetaData.builder()
-            .put(new IndexMetaData.Builder("b")
+        when(state.metadata()).thenReturn(Metadata.builder()
+            .put(new IndexMetadata.Builder("b")
                 .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                 .numberOfShards(1).numberOfReplicas(0).build(), true)
             .build());
@@ -878,9 +878,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("all_access", role);
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
-        when(state.metaData()).thenReturn(MetaData.builder()
-            .put(new IndexMetaData.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
-                    .putAlias(new AliasMetaData.Builder(SECURITY_MAIN_ALIAS).build())
+        when(state.metadata()).thenReturn(Metadata.builder()
+            .put(new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
+                    .putAlias(new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build())
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -956,9 +956,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("unrestricted_monitor", unrestrictedMonitorRole);
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
-        when(state.metaData()).thenReturn(MetaData.builder()
-            .put(new IndexMetaData.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
-                    .putAlias(new AliasMetaData.Builder(SECURITY_MAIN_ALIAS).build())
+        when(state.metadata()).thenReturn(Metadata.builder()
+            .put(new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
+                    .putAlias(new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build())
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -1000,9 +1000,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
-        when(state.metaData()).thenReturn(MetaData.builder()
-            .put(new IndexMetaData.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
-                    .putAlias(new AliasMetaData.Builder(SECURITY_MAIN_ALIAS).build())
+        when(state.metadata()).thenReturn(Metadata.builder()
+            .put(new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
+                    .putAlias(new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build())
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -1053,9 +1053,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
-        when(state.metaData()).thenReturn(MetaData.builder()
-            .put(new IndexMetaData.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
-                    .putAlias(new AliasMetaData.Builder(SECURITY_MAIN_ALIAS).build())
+        when(state.metadata()).thenReturn(Metadata.builder()
+            .put(new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
+                    .putAlias(new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build())
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -1156,7 +1156,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("roleDenied", new RoleDescriptor("roleDenied", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null));
         AuditUtil.getOrGenerateRequestId(threadContext);
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
             authorize(createAuthentication(userAllowed), action, request);
         }
@@ -1185,7 +1185,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }, null);
         roleMap.put("my-role", role);
 
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         authorize(authentication, action, request);
 
@@ -1231,7 +1231,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("my-role", role);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         authorize(authentication, action, request);
 
         // both deletes should fail
@@ -1290,10 +1290,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         return authentication;
     }
 
-    private ClusterState mockEmptyMetaData() {
+    private ClusterState mockEmptyMetadata() {
         ClusterState state = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(state);
-        when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
+        when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         return state;
     }
 
@@ -1350,7 +1350,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("a_all", role);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
 
         final ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
@@ -1366,7 +1366,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("read_cross_cluster").build()}, null);
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
         roleMap.put("a_all", role);
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
@@ -1384,7 +1384,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("read").build()}, null);
         roleMap.put("a_all", role);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        mockEmptyMetaData();
+        mockEmptyMetadata();
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, clearScrollRequest);

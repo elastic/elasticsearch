@@ -49,8 +49,8 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
 
     GeoGridAggregator(String name, AggregatorFactories factories, CellIdSource valuesSource,
                       int requiredSize, int shardSize, SearchContext aggregationContext,
-                      Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+                      Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, factories, aggregationContext, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -96,7 +96,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     }
 
     abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                                              List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+                                              List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata);
 
     /**
      * This method is used to return a re-usable instance of the bucket when building
@@ -132,12 +132,12 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return buildAggregation(name, requiredSize, Arrays.asList(list), pipelineAggregators(), metaData());
+        return buildAggregation(name, requiredSize, Arrays.asList(list), pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalGeoGrid buildEmptyAggregation() {
-        return buildAggregation(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
+        return buildAggregation(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metadata());
     }
 
     @Override

@@ -53,8 +53,8 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
     protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.docCount = docCount;
         this.aggregations = aggregations;
     }

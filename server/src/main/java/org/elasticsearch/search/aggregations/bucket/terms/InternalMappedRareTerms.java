@@ -53,9 +53,9 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     protected final Logger logger = LogManager.getLogger(getClass());
 
     InternalMappedRareTerms(String name, BucketOrder order, List<PipelineAggregator> pipelineAggregators,
-                            Map<String, Object> metaData, DocValueFormat format,
+                            Map<String, Object> metadata, DocValueFormat format,
                             List<B> buckets, long maxDocCount, SetBackedScalingCuckooFilter filter) {
-        super(name, order, maxDocCount, pipelineAggregators, metaData);
+        super(name, order, maxDocCount, pipelineAggregators, metadata);
         this.format = format;
         this.buckets = buckets;
         this.filter = filter;

@@ -39,18 +39,18 @@ import java.util.Map;
 public class InternalStatsTests extends InternalAggregationTestCase<InternalStats> {
 
     @Override
-    protected InternalStats createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalStats createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         long count = frequently() ? randomIntBetween(1, Integer.MAX_VALUE) : 0;
         double min = randomDoubleBetween(-1000000, 1000000, true);
         double max = randomDoubleBetween(-1000000, 1000000, true);
         double sum = randomDoubleBetween(-1000000, 1000000, true);
         DocValueFormat format = randomNumericDocValueFormat();
-        return createInstance(name, count, sum, min, max, format, pipelineAggregators, metaData);
+        return createInstance(name, count, sum, min, max, format, pipelineAggregators, metadata);
     }
 
     protected InternalStats createInstance(String name, long count, double sum, double min, double max, DocValueFormat formatter,
-                                           List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
+                                           List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metadata);
     }
 
     @Override
@@ -161,7 +161,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         double max = instance.getMax();
         DocValueFormat formatter = instance.format;
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -195,17 +195,17 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             }
             break;
         case 5:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
+        return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metadata);
     }
 
     public void testDoXContentBody() throws IOException {

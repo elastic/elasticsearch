@@ -33,7 +33,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
@@ -86,8 +86,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     private static final Logger logger = LogManager.getLogger(TransportOpenJobAction.class);
 
-    static final PersistentTasksCustomMetaData.Assignment AWAITING_MIGRATION =
-            new PersistentTasksCustomMetaData.Assignment(null, "job cannot be assigned until it has been migrated.");
+    static final PersistentTasksCustomMetadata.Assignment AWAITING_MIGRATION =
+            new PersistentTasksCustomMetadata.Assignment(null, "job cannot be assigned until it has been migrated.");
 
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
@@ -148,7 +148,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         for (String index : indices) {
             // Indices are created on demand from templates.
             // It is not an error if the index doesn't exist yet
-            if (clusterState.metaData().hasIndex(index) == false) {
+            if (clusterState.metadata().hasIndex(index) == false) {
                 continue;
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
@@ -230,10 +230,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             );
 
             // Wait for job to be started
-            ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>> waitForJobToStart =
-                    new ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>>() {
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams>> waitForJobToStart =
+                    new ActionListener<PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams>>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> task) {
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> task) {
                     waitForJobStarted(task.getId(), jobParams, clearJobFinishTime);
                 }
 
@@ -279,7 +279,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, jobParams.getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<OpenJobAction.JobParams>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask) {
+            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask) {
                 if (predicate.exception != null) {
                     if (predicate.shouldCancel) {
                         // We want to return to the caller without leaving an unassigned persistent task, to match
@@ -319,12 +319,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         ));
     }
 
-    private void cancelJobStart(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask, Exception exception,
+    private void cancelJobStart(PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask, Exception exception,
                                 ActionListener<AcknowledgedResponse> listener) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(),
-                new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+                new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                     @Override
-                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                         // We succeeded in cancelling the persistent task, but the
                         // problem that caused us to cancel it is the overall result
                         listener.onFailure(exception);
@@ -377,7 +377,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
 
         @Override
-        public PersistentTasksCustomMetaData.Assignment getAssignment(OpenJobAction.JobParams params, ClusterState clusterState) {
+        public PersistentTasksCustomMetadata.Assignment getAssignment(OpenJobAction.JobParams params, ClusterState clusterState) {
 
             // If the task parameters do not have a job field then the job
             // was first opened on a pre v6.6 node and has not been migrated
@@ -398,7 +398,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
                     String.join(",", unavailableIndices) + "]";
                 logger.debug(reason);
-                return new PersistentTasksCustomMetaData.Assignment(null, reason);
+                return new PersistentTasksCustomMetadata.Assignment(null, reason);
             }
 
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
@@ -407,7 +407,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 if (scheduledRefresh) {
                     String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
                     logger.debug(reason);
-                    return new PersistentTasksCustomMetaData.Assignment(null, reason);
+                    return new PersistentTasksCustomMetadata.Assignment(null, reason);
                 }
             }
 
@@ -424,7 +424,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // If we already know that we can't find an ml node because all ml nodes are running at capacity or
             // simply because there are no ml nodes in the cluster then we fail quickly here:
-            PersistentTasksCustomMetaData.Assignment assignment = getAssignment(params, clusterState);
+            PersistentTasksCustomMetadata.Assignment assignment = getAssignment(params, clusterState);
             if (assignment.equals(AWAITING_UPGRADE)) {
                 throw makeCurrentlyBeingUpgradedException(logger, params.getJobId(), assignment.getExplanation());
             }
@@ -475,7 +475,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         @Override
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                     PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask,
+                                                     PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask,
                                                      Map<String, String> headers) {
             return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
         }
@@ -537,19 +537,19 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private static class JobPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+    private static class JobPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
         private volatile Exception exception;
         private volatile boolean shouldCancel;
 
         @Override
-        public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
             JobState jobState = JobState.CLOSED;
             if (persistentTask != null) {
                 JobTaskState jobTaskState = (JobTaskState) persistentTask.getState();
                 jobState = jobTaskState == null ? JobState.OPENING : jobTaskState.getState();
 
-                PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
+                PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
 
                 // This means we are awaiting a new node to be spun up, ok to return back to the user to await node creation
                 if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
@@ -558,7 +558,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                 // This logic is only appropriate when opening a job, not when reallocating following a failure,
                 // and this is why this class must only be used when opening a job
-                if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
+                if (assignment != null && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false &&
                         assignment.isAssigned() == false) {
                     OpenJobAction.JobParams params = (OpenJobAction.JobParams) persistentTask.getParams();
                     // Assignment has failed on the master node despite passing our "fast fail" validation

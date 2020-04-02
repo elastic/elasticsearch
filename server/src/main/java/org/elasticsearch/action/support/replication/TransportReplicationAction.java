@@ -39,7 +39,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -166,14 +166,14 @@ public abstract class TransportReplicationAction<
      * Resolves derived values in the request. For example, the target shard id of the incoming request, if not set at request construction.
      * Additional processing or validation of the request should be done here.
      *
-     * @param indexMetaData index metadata of the concrete index this request is going to operate on
+     * @param indexMetadata index metadata of the concrete index this request is going to operate on
      * @param request       the request to resolve
      */
-    protected void resolveRequest(final IndexMetaData indexMetaData, final Request request) {
+    protected void resolveRequest(final IndexMetadata indexMetadata, final Request request) {
         if (request.waitForActiveShards() == ActiveShardCount.DEFAULT) {
             // if the wait for active shard count has not been set in the request,
             // resolve it from the index settings
-            request.waitForActiveShards(indexMetaData.getWaitForActiveShards());
+            request.waitForActiveShards(indexMetadata.getWaitForActiveShards());
         }
     }
 
@@ -306,9 +306,9 @@ public abstract class TransportReplicationAction<
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
             try {
                 final ClusterState clusterState = clusterService.state();
-                final IndexMetaData indexMetaData = clusterState.metaData().getIndexSafe(primaryShardReference.routingEntry().index());
+                final IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(primaryShardReference.routingEntry().index());
 
-                final ClusterBlockException blockException = blockExceptions(clusterState, indexMetaData.getIndex().getName());
+                final ClusterBlockException blockException = blockExceptions(clusterState, indexMetadata.getIndex().getName());
                 if (blockException != null) {
                     logger.trace("cluster is blocked, action failed on primary", blockException);
                     throw blockException;
@@ -633,8 +633,8 @@ public abstract class TransportReplicationAction<
                     finishAsFailed(blockException);
                 }
             } else {
-                final IndexMetaData indexMetaData = state.metaData().index(request.shardId().getIndex());
-                if (indexMetaData == null) {
+                final IndexMetadata indexMetadata = state.metadata().index(request.shardId().getIndex());
+                if (indexMetadata == null) {
                     // ensure that the cluster state on the node is at least as high as the node that decided that the index was there
                     if (state.version() < request.routedBasedOnClusterVersion()) {
                         logger.trace("failed to find index [{}] for request [{}] despite sender thinking it would be here. " +
@@ -650,15 +650,15 @@ public abstract class TransportReplicationAction<
                     }
                 }
 
-                if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                    finishAsFailed(new IndexClosedException(indexMetaData.getIndex()));
+                if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+                    finishAsFailed(new IndexClosedException(indexMetadata.getIndex()));
                     return;
                 }
 
                 if (request.waitForActiveShards() == ActiveShardCount.DEFAULT) {
                     // if the wait for active shard count has not been set in the request,
                     // resolve it from the index settings
-                    request.waitForActiveShards(indexMetaData.getWaitForActiveShards());
+                    request.waitForActiveShards(indexMetadata.getWaitForActiveShards());
                 }
                 assert request.waitForActiveShards() != ActiveShardCount.DEFAULT :
                     "request waitForActiveShards must be set in resolveRequest";
@@ -678,21 +678,21 @@ public abstract class TransportReplicationAction<
                 }
                 final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
                 if (primary.currentNodeId().equals(state.nodes().getLocalNodeId())) {
-                    performLocalAction(state, primary, node, indexMetaData);
+                    performLocalAction(state, primary, node, indexMetadata);
                 } else {
                     performRemoteAction(state, primary, node);
                 }
             }
         }
 
-        private void performLocalAction(ClusterState state, ShardRouting primary, DiscoveryNode node, IndexMetaData indexMetaData) {
+        private void performLocalAction(ClusterState state, ShardRouting primary, DiscoveryNode node, IndexMetadata indexMetadata) {
             setPhase(task, "waiting_on_primary");
             if (logger.isTraceEnabled()) {
                 logger.trace("send action [{}] to local primary [{}] for request [{}] with cluster state version [{}] to [{}] ",
                     transportPrimaryAction, request.shardId(), request, state.version(), primary.currentNodeId());
             }
             performAction(node, transportPrimaryAction, true,
-                new ConcreteShardRequest<>(request, primary.allocationId().getId(), indexMetaData.primaryTerm(primary.id())));
+                new ConcreteShardRequest<>(request, primary.allocationId().getId(), indexMetadata.primaryTerm(primary.id())));
         }
 
         private void performRemoteAction(ClusterState state, ShardRouting primary, DiscoveryNode node) {

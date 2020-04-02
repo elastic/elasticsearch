@@ -33,11 +33,11 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -193,17 +193,17 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
-        MetaData metaData = MetaData.builder().indices(ImmutableOpenMap.<String, IndexMetaData>builder()
+        Metadata metadata = Metadata.builder().indices(ImmutableOpenMap.<String, IndexMetadata>builder()
             .putAll(
                 Collections.singletonMap(
                     WITH_DEFAULT_PIPELINE,
-                    IndexMetaData.builder(WITH_DEFAULT_PIPELINE).settings(
+                    IndexMetadata.builder(WITH_DEFAULT_PIPELINE).settings(
                         settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
                             .build()
-                    ).putAlias(AliasMetaData.builder(WITH_DEFAULT_PIPELINE_ALIAS).build()).numberOfShards(1).numberOfReplicas(1).build()))
+                    ).putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build()).numberOfShards(1).numberOfReplicas(1).build()))
             .build()).build();
-        when(state.getMetaData()).thenReturn(metaData);
-        when(state.metaData()).thenReturn(metaData);
+        when(state.getMetadata()).thenReturn(metadata);
+        when(state.metadata()).thenReturn(metadata);
         when(clusterService.state()).thenReturn(state);
         doAnswer(invocation -> {
             ClusterChangedEvent event = mock(ClusterChangedEvent.class);
@@ -540,22 +540,22 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         Exception exception = new Exception("fake exception");
         ClusterState state = clusterService.state();
 
-        ImmutableOpenMap.Builder<String, IndexTemplateMetaData> templateMetaDataBuilder = ImmutableOpenMap.builder();
-        templateMetaDataBuilder.put("template1", IndexTemplateMetaData.builder("template1").patterns(Arrays.asList("missing_index"))
+        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMetadataBuilder = ImmutableOpenMap.builder();
+        templateMetadataBuilder.put("template1", IndexTemplateMetadata.builder("template1").patterns(Arrays.asList("missing_index"))
             .order(1).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline1").build()).build());
-        templateMetaDataBuilder.put("template2", IndexTemplateMetaData.builder("template2").patterns(Arrays.asList("missing_*"))
+        templateMetadataBuilder.put("template2", IndexTemplateMetadata.builder("template2").patterns(Arrays.asList("missing_*"))
             .order(2).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build()).build());
-        templateMetaDataBuilder.put("template3", IndexTemplateMetaData.builder("template3").patterns(Arrays.asList("missing*"))
+        templateMetadataBuilder.put("template3", IndexTemplateMetadata.builder("template3").patterns(Arrays.asList("missing*"))
             .order(3).build());
-        templateMetaDataBuilder.put("template4", IndexTemplateMetaData.builder("template4").patterns(Arrays.asList("nope"))
+        templateMetadataBuilder.put("template4", IndexTemplateMetadata.builder("template4").patterns(Arrays.asList("nope"))
             .order(4).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline4").build()).build());
 
-        MetaData metaData = mock(MetaData.class);
-        when(state.metaData()).thenReturn(metaData);
-        when(state.getMetaData()).thenReturn(metaData);
-        when(metaData.templates()).thenReturn(templateMetaDataBuilder.build());
-        when(metaData.getTemplates()).thenReturn(templateMetaDataBuilder.build());
-        when(metaData.indices()).thenReturn(ImmutableOpenMap.of());
+        Metadata metadata = mock(Metadata.class);
+        when(state.metadata()).thenReturn(metadata);
+        when(state.getMetadata()).thenReturn(metadata);
+        when(metadata.templates()).thenReturn(templateMetadataBuilder.build());
+        when(metadata.getTemplates()).thenReturn(templateMetadataBuilder.build());
+        when(metadata.indices()).thenReturn(ImmutableOpenMap.of());
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(Collections.emptyMap());

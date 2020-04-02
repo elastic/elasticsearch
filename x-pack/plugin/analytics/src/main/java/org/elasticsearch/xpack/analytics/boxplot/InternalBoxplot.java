@@ -73,8 +73,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     private final TDigestState state;
 
     InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                    Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.state = state;
         this.format = formatter;
     }
@@ -174,7 +174,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
             merged.add(percentiles.state);
         }
-        return new InternalBoxplot(name, merged, format, pipelineAggregators(), metaData);
+        return new InternalBoxplot(name, merged, format, pipelineAggregators(), metadata);
     }
 
     @Override

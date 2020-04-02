@@ -43,8 +43,8 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
 
     InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
                       double negLeft, double negRight, boolean wrapLongitude,
-                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.top = top;
         this.bottom = bottom;
         this.posLeft = posLeft;
@@ -116,7 +116,7 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
             }
         }
         return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators(),
-                getMetaData());
+                getMetadata());
     }
 
     @Override

@@ -32,8 +32,8 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
     public static final String NAME = "hdr_percentiles";
 
     public InternalHDRPercentiles(String name, double[] percents, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-                                  List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
+                                  List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, percents, state, keyed, formatter, pipelineAggregators, metadata);
     }
 
     /**
@@ -73,8 +73,8 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
 
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalHDRPercentiles(name, keys, merged, keyed, format, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        return new InternalHDRPercentiles(name, keys, merged, keyed, format, pipelineAggregators, metadata);
     }
 
     public static class Iter implements Iterator<Percentile> {

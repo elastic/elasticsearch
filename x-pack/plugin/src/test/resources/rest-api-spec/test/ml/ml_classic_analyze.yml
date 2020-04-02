@@ -14,7 +14,7 @@
                 "GMT", "UTC"
               ] }
             ],
-            "text" : "[elasticsearch] [2017-12-13T10:46:30,816][INFO ][o.e.c.m.MetaDataCreateIndexService] [node-0] [.watcher-history-7-2017.12.13] creating index, cause [auto(bulk api)], templates [.watch-history-7], shards [1]/[1], mappings [doc]"
+            "text" : "[elasticsearch] [2017-12-13T10:46:30,816][INFO ][o.e.c.m.MetadataCreateIndexService] [node-0] [.watcher-history-7-2017.12.13] creating index, cause [auto(bulk api)], templates [.watch-history-7], shards [1]/[1], mappings [doc]"
           }
   - match: { tokens.0.token: "elasticsearch" }
   - match: { tokens.0.start_offset: 1 }
@@ -24,7 +24,7 @@
   - match: { tokens.1.start_offset: 42 }
   - match: { tokens.1.end_offset: 46 }
   - match: { tokens.1.position: 5 }
-  - match: { tokens.2.token: "o.e.c.m.MetaDataCreateIndexService" }
+  - match: { tokens.2.token: "o.e.c.m.MetadataCreateIndexService" }
   - match: { tokens.2.start_offset: 49 }
   - match: { tokens.2.end_offset: 83 }
   - match: { tokens.2.position: 6 }

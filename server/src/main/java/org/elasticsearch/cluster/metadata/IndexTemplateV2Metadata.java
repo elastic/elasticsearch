@@ -38,10 +38,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The {@link IndexTemplateV2Metadata} class is a custom {@link MetaData.Custom} implementation that
+ * The {@link IndexTemplateV2Metadata} class is a custom {@link Metadata.Custom} implementation that
  * stores a map of ids to {@link IndexTemplateV2} templates.
  */
-public class IndexTemplateV2Metadata implements MetaData.Custom {
+public class IndexTemplateV2Metadata implements Metadata.Custom {
     public static final String TYPE = "index_template";
     private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
     @SuppressWarnings("unchecked")
@@ -78,16 +78,16 @@ public class IndexTemplateV2Metadata implements MetaData.Custom {
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.ALL_CONTEXTS;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.ALL_CONTEXTS;
     }
 
     @Override
-    public Diff<MetaData.Custom> diff(MetaData.Custom before) {
+    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
         return new IndexTemplateV2MetadataDiff((IndexTemplateV2Metadata) before, this);
     }
 
-    public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new IndexTemplateV2MetadataDiff(in);
     }
 
@@ -138,7 +138,7 @@ public class IndexTemplateV2Metadata implements MetaData.Custom {
         return Strings.toString(this);
     }
 
-    static class IndexTemplateV2MetadataDiff implements NamedDiff<MetaData.Custom> {
+    static class IndexTemplateV2MetadataDiff implements NamedDiff<Metadata.Custom> {
 
         final Diff<Map<String, IndexTemplateV2>> indexTemplateDiff;
 
@@ -153,7 +153,7 @@ public class IndexTemplateV2Metadata implements MetaData.Custom {
         }
 
         @Override
-        public MetaData.Custom apply(MetaData.Custom part) {
+        public Metadata.Custom apply(Metadata.Custom part) {
             return new IndexTemplateV2Metadata(indexTemplateDiff.apply(((IndexTemplateV2Metadata) part).indexTemplates));
         }
 

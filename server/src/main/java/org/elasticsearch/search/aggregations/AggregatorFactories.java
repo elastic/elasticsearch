@@ -93,7 +93,7 @@ public class AggregatorFactories {
             BaseAggregationBuilder aggBuilder = null;
             AggregatorFactories.Builder subFactories = null;
 
-            Map<String, Object> metaData = null;
+            Map<String, Object> metadata = null;
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token != XContentParser.Token.FIELD_NAME) {
@@ -108,7 +108,7 @@ public class AggregatorFactories {
                 if (token == XContentParser.Token.START_OBJECT) {
                     switch (fieldName) {
                     case "meta":
-                        metaData = parser.map();
+                        metadata = parser.map();
                         break;
                     case "aggregations":
                     case "aggs":
@@ -136,8 +136,8 @@ public class AggregatorFactories {
                 throw new ParsingException(parser.getTokenLocation(), "Missing definition for aggregation [" + aggregationName + "]",
                         parser.getTokenLocation());
             } else {
-                if (metaData != null) {
-                    aggBuilder.setMetaData(metaData);
+                if (metadata != null) {
+                    aggBuilder.setMetadata(metadata);
                 }
 
                 if (subFactories != null) {

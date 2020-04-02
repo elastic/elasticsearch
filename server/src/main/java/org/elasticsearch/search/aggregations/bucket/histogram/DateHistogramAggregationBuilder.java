@@ -128,8 +128,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     protected DateHistogramAggregationBuilder(DateHistogramAggregationBuilder clone,
-                                              Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                              Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.dateHistogramInterval = clone.dateHistogramInterval;
         this.offset = clone.offset;
         this.extendedBounds = clone.extendedBounds;
@@ -139,8 +139,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new DateHistogramAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new DateHistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /** Read from a stream, for internal use only. */
@@ -537,7 +537,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             roundedBounds = this.extendedBounds.parseAndValidate(name, queryShardContext, config.format()).round(rounding);
         }
         return new DateHistogramAggregatorFactory(name, config, order, keyed, minDocCount,
-                rounding, shardRounding, roundedBounds, queryShardContext, parent, subFactoriesBuilder, metaData);
+                rounding, shardRounding, roundedBounds, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

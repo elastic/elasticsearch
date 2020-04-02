@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
@@ -146,20 +146,20 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         // Test regression
         InternalInferModelAction.Request request = new InternalInferModelAction.Request(modelId1,
             toInfer,
-            RegressionConfig.EMPTY_PARAMS,
+            RegressionConfigUpdate.EMPTY_PARAMS,
             true);
         InternalInferModelAction.Response response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.3, 1.25));
 
-        request = new InternalInferModelAction.Request(modelId1, toInfer2, RegressionConfig.EMPTY_PARAMS, true);
+        request = new InternalInferModelAction.Request(modelId1, toInfer2, RegressionConfigUpdate.EMPTY_PARAMS, true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
             contains(1.65, 1.55));
 
 
         // Test classification
-        request = new InternalInferModelAction.Request(modelId2, toInfer, ClassificationConfig.EMPTY_PARAMS, true);
+        request = new InternalInferModelAction.Request(modelId2, toInfer, ClassificationConfigUpdate.EMPTY_PARAMS, true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults()
                 .stream()
@@ -168,7 +168,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             contains("not_to_be", "to_be"));
 
         // Get top classes
-        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfig(2, null, null), true);
+        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfigUpdate(2, null, null, null), true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
 
         ClassificationInferenceResults classificationInferenceResults =
@@ -187,7 +187,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
         // Test that top classes restrict the number returned
-        request = new InternalInferModelAction.Request(modelId2, toInfer2, new ClassificationConfig(1, null, null), true);
+        request = new InternalInferModelAction.Request(modelId2, toInfer2, new ClassificationConfigUpdate(1, null, null, null), true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
 
         classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(0);
@@ -262,7 +262,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         // Test regression
         InternalInferModelAction.Request request = new InternalInferModelAction.Request(modelId,
             toInfer,
-            ClassificationConfig.EMPTY_PARAMS,
+            ClassificationConfigUpdate.EMPTY_PARAMS,
             true);
         InternalInferModelAction.Response response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults()
@@ -271,7 +271,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
                 .collect(Collectors.toList()),
             contains("option_0", "option_2"));
 
-        request = new InternalInferModelAction.Request(modelId, toInfer2, ClassificationConfig.EMPTY_PARAMS, true);
+        request = new InternalInferModelAction.Request(modelId, toInfer2, ClassificationConfigUpdate.EMPTY_PARAMS, true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
         assertThat(response.getInferenceResults()
                 .stream()
@@ -281,7 +281,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
 
         // Get top classes
-        request = new InternalInferModelAction.Request(modelId, toInfer, new ClassificationConfig(3, null, null), true);
+        request = new InternalInferModelAction.Request(modelId, toInfer, new ClassificationConfigUpdate(3, null, null, null), true);
         response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
 
         ClassificationInferenceResults classificationInferenceResults =
@@ -303,7 +303,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         InternalInferModelAction.Request request = new InternalInferModelAction.Request(
             model,
             Collections.emptyList(),
-            RegressionConfig.EMPTY_PARAMS,
+            RegressionConfigUpdate.EMPTY_PARAMS,
             true);
         try {
             client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
@@ -344,7 +344,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         InternalInferModelAction.Request request = new InternalInferModelAction.Request(
             modelId,
             toInferMissingField,
-            RegressionConfig.EMPTY_PARAMS,
+            RegressionConfigUpdate.EMPTY_PARAMS,
             true);
         try {
             InferenceResults result =

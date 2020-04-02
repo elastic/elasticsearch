@@ -43,7 +43,7 @@ is not created by {dfanalytics}.
 (Required, string) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
 
-
+[role="child_attributes"]
 [[ml-put-inference-request-body]]
 ==== {api-request-body-title}
 
@@ -52,32 +52,96 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
 The compressed (GZipped and Base64 encoded) {infer} definition of the model. 
 If `compressed_definition` is specified, then `definition` cannot be specified.
 
+//Begin definition
 `definition`::
 (Required, object) 
 The {infer} definition for the model. If `definition` is specified, then 
 `compressed_definition` cannot be specified.
-
-`definition`.`preprocessors`:::
++
+.Properties of `definition`
+[%collapsible%open]
+====
+`preprocessors`:::
 (Optional, object)
 Collection of preprocessors. See <<ml-put-inference-preprocessors>> for the full 
 list of available preprocessors.
 
-`definition`.`trained_model`:::
+`trained_model`:::
 (Required, object) 
 The definition of the trained model. See <<ml-put-inference-trained-model>> for 
 details.
+====
+//End definition
 
 `description`::
 (Optional, string) 
 A human-readable description of the {infer} trained model.
 
+//Begin inference_config
+`inference_config`::
+(Required, object)
+The default configuration for inference. This can be either a `regression`
+or `classification` configuration. It must match the underlying
+`definition.trained_model`'s `target_type`.
++
+.Properties of `inference_config`
+[%collapsible%open]
+====
+`regression`:::
+(Optional, object)
+Regression configuration for inference.
++
+.Properties of regression inference
+[%collapsible%open]
+=====
+`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+
+`results_field`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-results-field]
+=====
+
+`classification`:::
+(Optional, object)
+Classification configuration for inference.
++
+.Properties of classification inference
+[%collapsible%open]
+=====
+`num_top_classes`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
+
+`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
+
+`results_field`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-results-field]
+
+`top_classes_results_field`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
+=====
+====
+//End of inference_config
+
+//Begin input
 `input`::
 (Required, object) 
 The input field names for the model definition.
-
-`input`.`field_names`:::
++
+.Properties of `input`
+[%collapsible%open]
+====
+`field_names`:::
 (Required, string) 
 An array of input field names for the model.
+====
+//End input
 
 `metadata`::
 (Optional, object) 
@@ -86,7 +150,6 @@ An object map that contains metadata about the model.
 `tags`::
 (Optional, string) 
 An array of tags to organize the model.
-
 
 [[ml-put-inference-preprocessors]]
 ===== {infer-cap} preprocessor definitions

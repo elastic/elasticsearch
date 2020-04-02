@@ -99,6 +99,5 @@ public final class TcpTransportChannel implements TransportChannel {
     public TcpChannel getChannel() {
         return channel;
     }
-
 }
 

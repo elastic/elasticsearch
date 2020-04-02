@@ -155,7 +155,10 @@ public class InboundHandler {
         try {
             messageListener.onRequestReceived(requestId, action);
             if (header.isHandshake()) {
-                handshaker.handleHandshake(version, channel, requestId, stream);
+                // Handshakes are not currently circuit broken
+                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
+                    circuitBreakerService, 0, header.isCompressed());
+                handshaker.handleHandshake2(transportChannel, requestId, stream);
             } else {
                 final RequestHandlerRegistry<T> reg = getRequestHandler(action);
                 if (reg == null) {

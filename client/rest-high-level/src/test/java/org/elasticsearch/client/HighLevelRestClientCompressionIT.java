@@ -23,9 +23,10 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class HighLevelRestClientCompressionIT extends ESRestHighLevelClientTestCase {
 
@@ -45,7 +46,7 @@ public class HighLevelRestClientCompressionIT extends ESRestHighLevelClientTestC
         SearchRequest searchRequest = new SearchRequest("company");
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync, requestOptions);
 
-        assertThat(searchResponse.status().getStatus(), Matchers.equalTo(200));
+        assertThat(searchResponse.status().getStatus(), equalTo(200));
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
         assertEquals(SAMPLE_DOCUMENT, searchResponse.getHits().getHits()[0].getSourceAsString());
     }

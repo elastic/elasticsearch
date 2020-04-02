@@ -71,22 +71,21 @@ public class TransportGetIndexTemplateV2Action
         Map<String, IndexTemplateV2> allTemplates = state.metadata().templatesV2();
 
         // If we did not ask for a specific name, then we return all templates
-        if (request.names().length == 0) {
+        if (request.name() == null) {
             listener.onResponse(new GetIndexTemplateV2Action.Response(allTemplates));
             return;
         }
 
         final Map<String, IndexTemplateV2> results = new HashMap<>();
-        for (String name : request.names()) {
-            if (Regex.isSimpleMatchPattern(name)) {
-                for (Map.Entry<String, IndexTemplateV2> entry : allTemplates.entrySet()) {
-                    if (Regex.simpleMatch(name, entry.getKey())) {
-                        results.put(entry.getKey(), entry.getValue());
-                    }
+        String name = request.name();
+        if (Regex.isSimpleMatchPattern(name)) {
+            for (Map.Entry<String, IndexTemplateV2> entry : allTemplates.entrySet()) {
+                if (Regex.simpleMatch(name, entry.getKey())) {
+                    results.put(entry.getKey(), entry.getValue());
                 }
-            } else if (allTemplates.containsKey(name)) {
-                results.put(name, allTemplates.get(name));
             }
+        } else if (allTemplates.containsKey(name)) {
+            results.put(name, allTemplates.get(name));
         }
 
         listener.onResponse(new GetIndexTemplateV2Action.Response(results));

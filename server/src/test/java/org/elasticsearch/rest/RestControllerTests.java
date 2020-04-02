@@ -59,6 +59,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -609,12 +610,13 @@ public class RestControllerTests extends ESTestCase {
     public void testDispatchCompatibleHandler() {
         final byte version = (byte) (Version.CURRENT.major - 1);
 
-        final String mimeType = randomFrom("application/vnd.elasticsearch+json;compatible-with="+version);
+        final String mimeType = randomCompatibleMimeType(version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
-        final List<String> contentTypeHeader = Collections.singletonList(mimeType);
+        final List<String> mimeTypeList = Collections.singletonList(mimeType);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(content), RestRequest.parseContentType(contentTypeHeader)).withPath("/foo")
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+            .withContent(new BytesArray(content), RestRequest.parseContentType(mimeTypeList))
+            .withPath("/foo")
+            .withHeaders(Map.of("Content-Type", mimeTypeList, "Accept", mimeTypeList))
             .build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
@@ -623,11 +625,6 @@ public class RestControllerTests extends ESTestCase {
                 XContentBuilder xContentBuilder = channel.newBuilder();
                 assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            }
-
-            @Override
-            public boolean supportsContentStream() {
-                return true;
             }
 
             @Override
@@ -641,28 +638,30 @@ public class RestControllerTests extends ESTestCase {
         assertTrue(channel.getSendResponseCalled());
     }
 
+    private String randomCompatibleMimeType(byte version) {
+        String subtype = randomFrom(Stream.of(XContentType.values())
+            .map(XContentType::shortName)
+            .toArray(String[]::new));
+        return randomFrom("application/vnd.elasticsearch+" + subtype + ";compatible-with=" + version);
+    }
+
     public void testIncorrectCompatibleHandlersDoNotDispatch() {
         final byte version = (byte) (Version.CURRENT.major - 1);
-
-        final String mimeType = randomFrom("application/vnd.elasticsearch+json;compatible-with="+version);
+        final String mimeType = randomCompatibleMimeType(version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
-        final List<String> contentTypeHeader = Collections.singletonList(mimeType);
+        final List<String> mimeTypeList = Collections.singletonList(mimeType);
 
         // request to compatible api with body requires a content-type header.
-        // this one does no have it, making it non compatiblegit
+        // this one does no have it, making it non compatible
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(content), RestRequest.parseContentType(contentTypeHeader)).withPath("/foo")
-            .withHeaders(Map.of("Accept", contentTypeHeader))
+            .withContent(new BytesArray(content), RestRequest.parseContentType(mimeTypeList))
+            .withPath("/foo")
+            .withHeaders(Map.of("Accept", mimeTypeList))
             .build();
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 Assert.fail();
-            }
-
-            @Override
-            public boolean supportsContentStream() {
-                return true;
             }
 
             @Override

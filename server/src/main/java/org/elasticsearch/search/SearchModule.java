@@ -274,6 +274,7 @@ import java.util.function.Function;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toUnmodifiableMap;
 
 /**
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
@@ -486,7 +487,9 @@ public class SearchModule {
             }
         }
 
-        ValuesSourceRegistry registry = new ValuesSourceRegistry(aggregations);
+        ValuesSourceRegistry registry = new ValuesSourceRegistry(aggregations.stream()
+            .filter(agg -> false == agg.getAggregatorImplementations().isEmpty())
+            .collect(toUnmodifiableMap(agg -> agg.getName().getPreferredName(), AggregationSpec::getAggregatorImplementations)));
         aggregations.stream().forEach(agg -> registerAggregation(agg, registry));
         return registry;
     }

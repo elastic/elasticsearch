@@ -37,13 +37,13 @@ import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorImplementation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -400,9 +400,8 @@ public interface SearchPlugin {
          * a {@link ValuesSourceType}s.
          *
          * @param aggregatorSupplier implementation to register
-         * @param appliesTo {@link ValuesSourceType} that this implementation can consume
          */
-        public AggregationSpec implementForAllValues(AggregatorSupplier aggregatorSupplier) {
+        public AggregationSpec implementForAll(AggregatorSupplier aggregatorSupplier) {
             return implement(aggregatorSupplier, candidate -> true);
         }
 
@@ -411,34 +410,6 @@ public interface SearchPlugin {
          */
         public List<AggregatorImplementation> getAggregatorImplementations() {
             return aggregatorImplementations;
-        }
-
-        /**
-         * Configuration for how {@link Aggregator}s are built.
-         */
-        public static class AggregatorImplementation {
-            private final Predicate<ValuesSourceType> appliesTo;
-            private final AggregatorSupplier aggregatorSupplier;
-
-            public AggregatorImplementation(Predicate<ValuesSourceType> appliesTo, AggregatorSupplier aggregatorSupplier) {
-                super();
-                this.appliesTo = appliesTo;
-                this.aggregatorSupplier = aggregatorSupplier;
-            }
-
-            /**
-             * Matches {@linkplain ValuesSourceType}s that this implementation supports.
-             */
-            public Predicate<ValuesSourceType> getAppliesTo() {
-                return appliesTo;
-            }
-
-            /**
-             * The factory for the {@link Aggregator} implementation.
-             */
-            public AggregatorSupplier getAggregatorSupplier() {
-                return aggregatorSupplier;
-            }
         }
     }
 

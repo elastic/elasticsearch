@@ -24,11 +24,10 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
-import org.elasticsearch.plugins.SearchPlugin.AggregationSpec.AggregatorImplementation;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregatorImplementation;
 
 import java.util.AbstractMap;
 import java.util.List;
@@ -36,7 +35,6 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.toUnmodifiableMap;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to {@link AggregatorSupplier}s.  DO NOT directly
@@ -48,10 +46,8 @@ public class ValuesSourceRegistry {
     // Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType
     private Map<String, List<AggregatorImplementation>> aggregatorRegistry;
 
-    public ValuesSourceRegistry(List<SearchPlugin.AggregationSpec> aggregations) {
-        aggregatorRegistry = aggregations.stream()
-            .filter(agg -> false == agg.getAggregatorImplementations().isEmpty())
-            .collect(toUnmodifiableMap(agg -> agg.getName().getPreferredName(), AggregationSpec::getAggregatorImplementations));
+    public ValuesSourceRegistry(Map<String, List<AggregatorImplementation>> aggregatorRegistry) {
+        this.aggregatorRegistry = aggregatorRegistry;
     }
 
     /**
@@ -68,7 +64,9 @@ public class ValuesSourceRegistry {
      * @param appliesTo A predicate which accepts the resolved {@link ValuesSourceType} and decides if the given aggregator can be applied
      *                  to that type.
      * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
+     * @deprecated register the implementation with {@link AggregationSpec#implement(AggregatorSupplier, Predicate)}
      */
+    @Deprecated
     public synchronized void register(String aggregationName, Predicate<ValuesSourceType> appliesTo,
                                       AggregatorSupplier aggregatorSupplier) {
         List<AggregatorImplementation> current = aggregatorRegistry.getOrDefault(aggregationName, emptyList());
@@ -84,7 +82,9 @@ public class ValuesSourceRegistry {
      * @param valuesSourceType The ValuesSourceType this mapping applies to.
      * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
      *                           from the aggregation standard set of parameters
+     * @deprecated register the implementation with {@link AggregationSpec#implementFor(AggregatorSupplier, ValuesSourceType...)}
      */
+    @Deprecated
     public void register(String aggregationName, ValuesSourceType valuesSourceType, AggregatorSupplier aggregatorSupplier) {
         register(aggregationName, (candidate) -> valuesSourceType.equals(candidate), aggregatorSupplier);
     }
@@ -96,6 +96,7 @@ public class ValuesSourceRegistry {
      * @param valuesSourceTypes The ValuesSourceTypes this mapping applies to.
      * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
      *                           from the aggregation standard set of parameters
+     * @deprecated register the implementation with {@link AggregationSpec#implementFor(AggregatorSupplier, ValuesSourceType...)}
      */
     public void register(String aggregationName, List<ValuesSourceType> valuesSourceTypes, AggregatorSupplier aggregatorSupplier) {
         register(aggregationName, (candidate) -> {
@@ -116,7 +117,9 @@ public class ValuesSourceRegistry {
      * @param aggregationName The name of the family of aggregations, typically found via {@link ValuesSourceAggregationBuilder#getType()}
      * @param aggregatorSupplier An Aggregation-specific specialization of AggregatorSupplier which will construct the mapped aggregator
      *                           from the aggregation standard set of parameters.
+     * @deprecated register the implementation with {@link AggregationSpec#implementForAll(AggregatorSupplier)}
      */
+    @Deprecated
     public void registerAny(String aggregationName, AggregatorSupplier aggregatorSupplier) {
         register(aggregationName, (ignored) -> true, aggregatorSupplier);
     }

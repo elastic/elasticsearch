@@ -37,11 +37,6 @@
 
   - do:
       indices.delete_data_stream:
-        name: simple-data-stream1
-  - is_true: acknowledged
-
-  - do:
-      indices.delete_data_stream:
         name: simple-data-stream2
   - is_true: acknowledged
 

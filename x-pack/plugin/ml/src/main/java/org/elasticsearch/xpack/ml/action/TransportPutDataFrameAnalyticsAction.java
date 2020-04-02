@@ -57,9 +57,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
-import static org.elasticsearch.xpack.ml.utils.AuthHeadersExtractor.extractAuthHeadersAndPreferSecondaryAuth;
+import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportPutDataFrameAnalyticsAction
     extends TransportMasterNodeAction<PutDataFrameAnalyticsAction.Request, PutDataFrameAnalyticsAction.Response> {
@@ -144,35 +142,29 @@ public class TransportPutDataFrameAnalyticsAction
                 .build();
 
         if (licenseState.isAuthAllowed()) {
-            final Map<String, String> authHeaders = extractAuthHeadersAndPreferSecondaryAuth(threadPool.getThreadContext());
-            // If we have secondary auth, prefer it.
-            final String username = securityContext.getSecondaryAuthentication() == null ?
-                securityContext.getUser().principal() :
-                securityContext.getSecondaryAuthentication().getAuthentication().getUser().principal();
-            RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(preparedForPutConfig.getSource().getIndex())
-                .privileges("read")
-                .build();
-            RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(preparedForPutConfig.getDest().getIndex())
-                .privileges("read", "index", "create_index")
-                .build();
+            useSecondaryAuthIfAvailable(securityContext, () -> {
+                final String username = securityContext.getUser().principal();
+                RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(preparedForPutConfig.getSource().getIndex())
+                    .privileges("read")
+                    .build();
+                RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(preparedForPutConfig.getDest().getIndex())
+                    .privileges("read", "index", "create_index")
+                    .build();
 
-            HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
-            privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
-            privRequest.username(username);
-            privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
-            privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
+                HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
+                privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+                privRequest.username(username);
+                privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
+                privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
 
-            ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, preparedForPutConfig, r, authHeaders, listener),
-                listener::onFailure);
-            executeWithHeadersAsync(authHeaders,
-                ML_ORIGIN,
-                client,
-                HasPrivilegesAction.INSTANCE,
-                privRequest,
-                privResponseListener);
+                ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
+                    r -> handlePrivsResponse(username, preparedForPutConfig, r, listener),
+                    listener::onFailure);
+
+                client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+            });
         } else {
             updateDocMappingAndPutConfig(
                 preparedForPutConfig,
@@ -184,15 +176,13 @@ public class TransportPutDataFrameAnalyticsAction
         }
     }
 
-    private void handlePrivsResponse(String username,
-                                     DataFrameAnalyticsConfig memoryCappedConfig,
+    private void handlePrivsResponse(String username, DataFrameAnalyticsConfig memoryCappedConfig,
                                      HasPrivilegesResponse response,
-                                     Map<String, String> authHeaders,
                                      ActionListener<PutDataFrameAnalyticsAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
             updateDocMappingAndPutConfig(
                 memoryCappedConfig,
-                authHeaders,
+                threadPool.getThreadContext().getHeaders(),
                 ActionListener.wrap(
                     indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
                     listener::onFailure

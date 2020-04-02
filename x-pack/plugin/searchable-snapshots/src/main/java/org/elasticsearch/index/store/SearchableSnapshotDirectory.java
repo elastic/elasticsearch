@@ -7,7 +7,6 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.BaseDirectory;
-import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -49,8 +48,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.apache.lucene.store.BufferedIndexInput.bufferSize;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
@@ -144,10 +144,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return stats.get(fileName);
     }
 
-    public long statsCurrentTimeNanos() {
-        return statsCurrentTimeNanosSupplier.getAsLong();
-    }
-
     private BlobStoreIndexShardSnapshot.FileInfo fileInfo(final String name) throws FileNotFoundException {
         return snapshot().indexFiles()
             .stream()
@@ -227,7 +223,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     protected IndexInputStats createIndexInputStats(final long fileLength) {
-        return new IndexInputStats(fileLength);
+        return new IndexInputStats(fileLength, statsCurrentTimeNanosSupplier);
     }
 
     public CacheKey createCacheKey(String fileName) {
@@ -253,7 +249,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats);
         } else {
             return new DirectBlobContainerIndexInput(
-                blobContainer(), fileInfo, context, getUncachedChunkSize(), BufferedIndexInput.BUFFER_SIZE);
+                blobContainer(), fileInfo, context, inputStats, getUncachedChunkSize(), bufferSize(context));
         }
     }
 

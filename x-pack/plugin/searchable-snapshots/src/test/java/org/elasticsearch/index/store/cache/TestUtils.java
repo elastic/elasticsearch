@@ -32,18 +32,18 @@ public final class TestUtils {
     private TestUtils() {
     }
 
-    static CacheService createCacheService(final Random random) {
+    public static CacheService createCacheService(final Random random) {
         final ByteSizeValue cacheSize = new ByteSizeValue(randomIntBetween(random, 1, 100),
             randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB)));
         return new CacheService(cacheSize, randomCacheRangeSize(random));
     }
 
-    static ByteSizeValue randomCacheRangeSize(final Random random) {
+    public static ByteSizeValue randomCacheRangeSize(final Random random) {
         return new ByteSizeValue(randomIntBetween(random, 1, 100),
             randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB)));
     }
 
-    static long numberOfRanges(long fileSize, long rangeSize) {
+    public static long numberOfRanges(long fileSize, long rangeSize) {
         return numberOfRanges(Math.toIntExact(fileSize), Math.toIntExact(rangeSize));
     }
 
@@ -65,11 +65,23 @@ public final class TestUtils {
         assertThat(counter.max(), equalTo(max));
     }
 
+    public static void assertCounter(
+        IndexInputStats.TimedCounter timedCounter,
+        long total,
+        long count,
+        long min,
+        long max,
+        long totalNanoseconds
+    ) {
+        assertCounter(timedCounter, total, count, min, max);
+        assertThat(timedCounter.totalNanoseconds(), equalTo(totalNanoseconds));
+    }
+
     /**
      * A {@link BlobContainer} that can read a single in-memory blob.
      * Any attempt to read a different blob will throw a {@link FileNotFoundException}
      */
-    static BlobContainer singleBlobContainer(final String blobName, final byte[] blobContent) {
+    public static BlobContainer singleBlobContainer(final String blobName, final byte[] blobContent) {
         return new MostlyUnimplementedFakeBlobContainer() {
             @Override
             public InputStream readBlob(String name, long position, long length) throws IOException {

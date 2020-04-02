@@ -147,7 +147,6 @@ teardown:
   - is_true: indices.docs.shards.0.0.files.0.name
   - gt:      { indices.docs.shards.0.0.files.0.length: 0 }
   - gt:      { indices.docs.shards.0.0.files.0.open_count: 0 }
-  - gte:     { indices.docs.shards.0.0.files.0.inner_count: 0 }
   - gt:      { indices.docs.shards.0.0.files.0.close_count: 0 }
 
   - gte:     { indices.docs.shards.0.0.files.0.contiguous_bytes_read.count: 0 }
@@ -178,6 +177,13 @@ teardown:
   - gte:     { indices.docs.shards.0.0.files.0.direct_bytes_read.max: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.direct_bytes_read.time_in_nanos: 0 }
   - is_false:  indices.docs.shards.0.0.files.0.direct_bytes_read.time
+
+  - gte:     { indices.docs.shards.0.0.files.0.optimized_bytes_read.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.optimized_bytes_read.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.optimized_bytes_read.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.optimized_bytes_read.max: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.optimized_bytes_read.time_in_nanos: 0 }
+  - is_false:  indices.docs.shards.0.0.files.0.optimized_bytes_read.time
 
   - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.small.count: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.forward_seeks.small.sum: 0 }

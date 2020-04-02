@@ -118,14 +118,12 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         return Objects.hash(shardRouting, snapshotId, indexId, inputStats);
     }
 
-
     public static class CacheIndexInputStats implements Writeable, ToXContentObject {
 
         private final String fileName;
         private final long fileLength;
 
         private final long openCount;
-        private final long innerCount;
         private final long closeCount;
 
         private final Counter forwardSmallSeeks;
@@ -137,17 +135,17 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         private final Counter cachedBytesRead;
         private final TimedCounter cachedBytesWritten;
         private final TimedCounter directBytesRead;
+        private final TimedCounter optimizedBytesRead;
 
-        public CacheIndexInputStats(String fileName, long fileLength, long openCount, long innerCount, long closeCount,
+        public CacheIndexInputStats(String fileName, long fileLength, long openCount, long closeCount,
                                     Counter forwardSmallSeeks, Counter backwardSmallSeeks,
                                     Counter forwardLargeSeeks, Counter backwardLargeSeeks,
                                     Counter contiguousReads, Counter nonContiguousReads,
                                     Counter cachedBytesRead, TimedCounter cachedBytesWritten,
-                                    TimedCounter directBytesRead) {
+                                    TimedCounter directBytesRead, TimedCounter optimizedBytesRead) {
             this.fileName = fileName;
             this.fileLength = fileLength;
             this.openCount = openCount;
-            this.innerCount = innerCount;
             this.closeCount = closeCount;
             this.forwardSmallSeeks = forwardSmallSeeks;
             this.backwardSmallSeeks = backwardSmallSeeks;
@@ -158,13 +156,13 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.cachedBytesRead = cachedBytesRead;
             this.cachedBytesWritten = cachedBytesWritten;
             this.directBytesRead = directBytesRead;
+            this.optimizedBytesRead = optimizedBytesRead;
         }
 
         CacheIndexInputStats(final StreamInput in) throws IOException {
             this.fileName = in.readString();
             this.fileLength = in.readVLong();
             this.openCount = in.readVLong();
-            this.innerCount = in.readVLong();
             this.closeCount = in.readVLong();
             this.forwardSmallSeeks = new Counter(in);
             this.backwardSmallSeeks = new Counter(in);
@@ -175,6 +173,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.cachedBytesRead = new Counter(in);
             this.cachedBytesWritten = new TimedCounter(in);
             this.directBytesRead = new TimedCounter(in);
+            this.optimizedBytesRead = new TimedCounter(in);
         }
 
         @Override
@@ -182,7 +181,6 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             out.writeString(fileName);
             out.writeVLong(fileLength);
             out.writeVLong(openCount);
-            out.writeVLong(innerCount);
             out.writeVLong(closeCount);
 
             forwardSmallSeeks.writeTo(out);
@@ -194,6 +192,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             cachedBytesRead.writeTo(out);
             cachedBytesWritten.writeTo(out);
             directBytesRead.writeTo(out);
+            optimizedBytesRead.writeTo(out);
         }
 
         public String getFileName() {
@@ -206,10 +205,6 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
 
         public long getOpenCount() {
             return openCount;
-        }
-
-        public long getInnerCount() {
-            return innerCount;
         }
 
         public long getCloseCount() {
@@ -252,6 +247,10 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return directBytesRead;
         }
 
+        public TimedCounter getOptimizedBytesRead() {
+            return optimizedBytesRead;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -259,13 +258,13 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 builder.field("name", getFileName());
                 builder.field("length", getFileLength());
                 builder.field("open_count", getOpenCount());
-                builder.field("inner_count", getInnerCount());
                 builder.field("close_count", getCloseCount());
                 builder.field("contiguous_bytes_read", getContiguousReads());
                 builder.field("non_contiguous_bytes_read", getNonContiguousReads());
                 builder.field("cached_bytes_read", getCachedBytesRead());
                 builder.field("cached_bytes_written", getCachedBytesWritten());
                 builder.field("direct_bytes_read", getDirectBytesRead());
+                builder.field("optimized_bytes_read", getOptimizedBytesRead());
                 {
                     builder.startObject("forward_seeks");
                     builder.field("small", getForwardSmallSeeks());
@@ -293,7 +292,6 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             CacheIndexInputStats stats = (CacheIndexInputStats) other;
             return fileLength == stats.fileLength
                 && openCount == stats.openCount
-                && innerCount == stats.innerCount
                 && closeCount == stats.closeCount
                 && Objects.equals(fileName, stats.fileName)
                 && Objects.equals(forwardSmallSeeks, stats.forwardSmallSeeks)
@@ -304,17 +302,18 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 && Objects.equals(nonContiguousReads, stats.nonContiguousReads)
                 && Objects.equals(cachedBytesRead, stats.cachedBytesRead)
                 && Objects.equals(cachedBytesWritten, stats.cachedBytesWritten)
-                && Objects.equals(directBytesRead, stats.directBytesRead);
+                && Objects.equals(directBytesRead, stats.directBytesRead)
+                && Objects.equals(optimizedBytesRead, stats.optimizedBytesRead);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(fileName, fileLength, openCount, innerCount, closeCount,
+            return Objects.hash(fileName, fileLength, openCount, closeCount,
                 forwardSmallSeeks, backwardSmallSeeks,
                 forwardLargeSeeks, backwardLargeSeeks,
                 contiguousReads, nonContiguousReads,
                 cachedBytesRead, cachedBytesWritten,
-                directBytesRead);
+                directBytesRead, optimizedBytesRead);
         }
     }
 

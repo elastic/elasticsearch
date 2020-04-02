@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.azure;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -100,8 +101,8 @@ public class AzureBlobStore implements BlobStore {
         return service.deleteBlobDirectory(clientName, container, path, executor);
     }
 
-    public InputStream getInputStream(String blob) throws URISyntaxException, StorageException, IOException {
-        return service.getInputStream(clientName, container, blob);
+    public InputStream getInputStream(String blob, long position, @Nullable Long length) throws URISyntaxException, StorageException {
+        return service.getInputStream(clientName, container, blob, position, length);
     }
 
     public Map<String, BlobMetaData> listBlobsByPrefix(String keyPath, String prefix)

@@ -22,13 +22,9 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.BucketMetricValue;
-import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,22 +32,19 @@ import java.util.Map;
 public class InternalBucketMetricValueTests extends InternalAggregationTestCase<InternalBucketMetricValue> {
 
     @Override
-    protected InternalBucketMetricValue createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata) {
+    protected InternalBucketMetricValue createTestInstance(String name, Map<String, Object> metadata) {
         double value = frequently() ? randomDoubleBetween(-10000, 100000, true)
                 : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
         String[] keys = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < keys.length; i++) {
             keys[i] = randomAlphaOfLength(10);
         }
-        return new InternalBucketMetricValue(name, keys, value, randomNumericDocValueFormat(), pipelineAggregators, metadata);
+        return new InternalBucketMetricValue(name, keys, value, randomNumericDocValueFormat(), metadata);
     }
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class,
-                () -> createTestInstance("name", Collections.emptyList(), null).reduce(null,
-                        null));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
     }
 
     @Override
@@ -84,7 +77,6 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
         String[] keys = instance.keys();
         double value = instance.value();
         DocValueFormat formatter = instance.formatter();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
@@ -112,6 +104,6 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalBucketMetricValue(name, keys, value, formatter, pipelineAggregators, metadata);
+        return new InternalBucketMetricValue(name, keys, value, formatter, metadata);
     }
 }

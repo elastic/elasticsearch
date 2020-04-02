@@ -43,6 +43,10 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
@@ -62,7 +66,6 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
     @Override
     protected InternalAutoDateHistogram createTestInstance(String name,
-                                                       List<PipelineAggregator> pipelineAggregators,
                                                        Map<String, Object> metadata,
                                                        InternalAggregations aggregations) {
 
@@ -85,7 +88,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         }
         InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
         BucketInfo bucketInfo = new BucketInfo(roundingInfos, roundingIndex, subAggregations);
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metadata, 1);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, emptyList(), metadata, 1);
     }
 
     /*

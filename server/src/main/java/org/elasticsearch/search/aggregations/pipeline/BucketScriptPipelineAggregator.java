@@ -115,8 +115,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                     final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
                         (p) -> (InternalAggregation) p).collect(Collectors.toList());
 
-                    InternalSimpleValue simpleValue = new InternalSimpleValue(name(), returned.doubleValue(),
-                        formatter, new ArrayList<>(), metadata());
+                    InternalSimpleValue simpleValue = new InternalSimpleValue(name(), returned.doubleValue(), formatter, metadata());
                     aggs.add(simpleValue);
                     InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
                         bucket);

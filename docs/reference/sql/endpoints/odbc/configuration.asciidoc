@@ -199,6 +199,11 @@ This corresponds to the `MaxFetchSize` setting in <<odbc-cfg-dsnparams>>.
 The maximum number of megabytes that the driver will accept for one page.
 This corresponds to the `MaxBodySizeMB` setting in <<odbc-cfg-dsnparams>>.
 +
+* Varchar limit
++
+The maximum caracter length of the string type columns.
+this correspeonds to the `VarcharLimit` setting in <<odbc-cfg-dsnparams>>.
++
 * Floats format
 +
 How should the floating point numbers be printed, when these are converted to string by the driver.
@@ -214,30 +219,36 @@ This corresponds to the `Packing` setting in <<odbc-cfg-dsnparams>>.
 Should the data between the server and the driver be compressed?
 This corresponds to the `Compression` setting in <<odbc-cfg-dsnparams>>.
 +
-* Follow HTTP redirects?
+* Follow HTTP redirects
 +
 Should the driver follow HTTP redirects of the requests to the server?
 This corresponds to the `Follow` setting in <<odbc-cfg-dsnparams>>.
 +
-* Use local timezone?
+* Use local timezone
 +
 Should the driver use machine's local timezone? The default is UTC.
 This corresponds to the `ApplyTZ` setting in <<odbc-cfg-dsnparams>>.
 +
-* Auto-escape PVAs?
+* Auto-escape PVAs
 +
 Should the driver auto-escape the pattern-value arguments?
 This corresponds to the `AutoEscapePVA` setting in <<odbc-cfg-dsnparams>>.
 +
-* Multi value field lenient?
+* Multi value field lenient
 +
 Should the server return one value out of a multi-value field (instead of rejecting the request)?
 This corresponds to the `MultiFieldLenient` setting in <<odbc-cfg-dsnparams>>.
 +
-* Include frozen indices?
+* Include frozen indices
 +
 Should the server consider the frozen indices when servicing a request?
 This corresponds to the `IndexIncludeFrozen` setting in <<odbc-cfg-dsnparams>>.
++
+* Early query execution
++
+Should the driver execute a non-parameterized query as soon as it's submitted
+for preparation?
+This corresponds to the `EarlyExecution` setting in <<odbc-cfg-dsnparams>>.
 
 
 [[dsn_editor_misc]]
@@ -402,6 +413,18 @@ This is concerning the HTTP answer body of one page, not the cumulated data
 volume that a query might generate.
 
 
+`VarcharLimit` (default: `0`)::
+The maximum width of the string columns.
+If this setting is greater than zero, the driver will advertise all the string
+type columns as having a maximum character length equal to this value and will
+truncate any longer string to it. The string types are textual fields
+(TEXT, KEYWORD etc.) and some specialized fields (IP, the GEOs etc.). Note that
+no interpretation of the value is performed before trunctation, which can lead
+to invalid values if the limit is set too low.
+This is required for those applications that do not support column lenghts as
+large as {es} fields can be.
+
+
 `ApplyTZ` (default: `no`)::
 A boolean value controlling the timezone of:
 
@@ -466,5 +489,13 @@ will escape these special characters if not already done by the application.
 If this parameter is `true`, the server will include the frozen indices in the
 query execution.
 This corresponds to {es-sql}'s request parameter `index_include_frozen`
-(see <<sql-rest-fields>>).
+
+
+`EarlyExecution` (default: `true`)::
+If this parameter is `true`, the driver will execute a statement as soon as the
+application submits it for preparation, i.e. early and is functionally
+equivalent to a direct execution. This will only happen if the query lacks
+parameters. Early execution is useful with those applications that inspect the
+result before actually executing the query. {es-sql} lacks a preparation API,
+so early execution is required for interoperability with these applications.
 

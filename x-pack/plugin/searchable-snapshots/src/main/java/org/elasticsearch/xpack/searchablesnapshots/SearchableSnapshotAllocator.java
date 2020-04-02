@@ -54,7 +54,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     private static AllocateUnassignedDecision decideAllocation(RoutingAllocation allocation, ShardRouting shardRouting) {
         assert shardRouting.unassigned();
         assert ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            allocation.metaData().getIndexSafe(shardRouting.index()).getSettings()).equals(ALLOCATOR_NAME);
+            allocation.metadata().getIndexSafe(shardRouting.index()).getSettings()).equals(ALLOCATOR_NAME);
 
         Decision.Type bestDecision = Decision.Type.NO;
         RoutingNode bestNode = null;

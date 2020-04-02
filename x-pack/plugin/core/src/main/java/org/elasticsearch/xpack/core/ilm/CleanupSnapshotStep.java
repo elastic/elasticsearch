@@ -11,7 +11,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReq
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -34,10 +34,10 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
-        final String indexName = indexMetaData.getIndex().getName();
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
+        final String indexName = indexMetadata.getIndex().getName();
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetaData);
+        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
         final String repositoryName = lifecycleState.getSnapshotRepository();
         // if the snapshot information is missing from the ILM execution state there is nothing to delete so we move on
         if (Strings.hasText(repositoryName) == false) {
@@ -55,7 +55,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (acknowledgedResponse.isAcknowledged() == false) {
-                    String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                    String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
                     throw new ElasticsearchException("cleanup snapshot step request for repository [" + repositoryName + "] and snapshot " +
                         "[" + snapshotName + "] policy [" + policyName + "] and index [" + indexName + "] failed to be acknowledged");
                 }
@@ -69,7 +69,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                     listener.onResponse(true);
                 } else {
                     if (e instanceof RepositoryMissingException) {
-                        String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
                         listener.onFailure(new IllegalStateException("repository [" + repositoryName + "] is missing. [" + policyName +
                             "] policy for index [" + indexName + "] cannot continue until the repository is created", e));
                     } else {

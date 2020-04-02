@@ -12,8 +12,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Locale;
@@ -44,14 +44,14 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, ClusterStateObserver observer,
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
                               Listener listener) {
-        String originalIndex = indexMetaData.getIndex().getName();
+        String originalIndex = indexMetadata.getIndex().getName();
         final String targetIndexName = targetIndexPrefix + originalIndex;
-        IndexMetaData targetIndexMetadata = currentClusterState.metaData().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = currentClusterState.metadata().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
-            String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+            String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
             String errorMessage = String.format(Locale.ROOT, "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for" +
                 " index [%s]", targetIndexName, policyName, originalIndex);
             logger.debug(errorMessage);
@@ -59,7 +59,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
             return;
         }
 
-        deleteSourceIndexAndTransferAliases(getClient(), indexMetaData, getMasterTimeout(currentClusterState), targetIndexName, listener);
+        deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, getMasterTimeout(currentClusterState), targetIndexName, listener);
     }
 
     /**
@@ -68,7 +68,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
      * <p>
      * The is_write_index will *not* be set on the target index as this operation is currently executed on read-only indices.
      */
-    static void deleteSourceIndexAndTransferAliases(Client client, IndexMetaData sourceIndex, TimeValue masterTimeoutValue,
+    static void deleteSourceIndexAndTransferAliases(Client client, IndexMetadata sourceIndex, TimeValue masterTimeoutValue,
                                                     String targetIndex, Listener listener) {
         String sourceIndexName = sourceIndex.getIndex().getName();
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
@@ -77,7 +77,7 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(targetIndex).alias(sourceIndexName));
         // copy over other aliases from source index
         sourceIndex.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
-            AliasMetaData aliasMetaDataToAdd = aliasMetaDataObjectCursor.value;
+            AliasMetadata aliasMetaDataToAdd = aliasMetaDataObjectCursor.value;
             // inherit all alias properties except `is_write_index`
             aliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add()
                 .index(targetIndex).alias(aliasMetaDataToAdd.alias())

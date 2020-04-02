@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
@@ -55,9 +55,9 @@ public class CopySettingsStep extends ClusterStateActionStep {
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
         String sourceIndexName = index.getName();
-        IndexMetaData sourceIndexMetadata = clusterState.metaData().index(sourceIndexName);
+        IndexMetadata sourceIndexMetadata = clusterState.metadata().index(sourceIndexName);
         String targetIndexName = indexPrefix + sourceIndexName;
-        IndexMetaData targetIndexMetadata = clusterState.metaData().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
 
         if (sourceIndexMetadata == null) {
             // Index must have been since deleted, ignore it
@@ -82,11 +82,11 @@ public class CopySettingsStep extends ClusterStateActionStep {
             settings.put(key, value);
         }
 
-        MetaData.Builder newMetaData = MetaData.builder(clusterState.getMetaData())
-            .put(IndexMetaData.builder(targetIndexMetadata)
+        Metadata.Builder newMetaData = Metadata.builder(clusterState.getMetadata())
+            .put(IndexMetadata.builder(targetIndexMetadata)
                 .settingsVersion(targetIndexMetadata.getSettingsVersion() + 1)
                 .settings(settings));
-        return ClusterState.builder(clusterState).metaData(newMetaData).build();
+        return ClusterState.builder(clusterState).metadata(newMetaData).build();
     }
 
     @Override

@@ -14,9 +14,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -67,9 +67,9 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
 
     public void testPerformAction() {
         String sourceIndexName = randomAlphaOfLength(10);
-        IndexMetaData.Builder sourceIndexMetaDataBuilder = IndexMetaData.builder(sourceIndexName).settings(settings(Version.CURRENT))
+        IndexMetadata.Builder sourceIndexMetadataBuilder = IndexMetadata.builder(sourceIndexName).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-        AliasMetaData.Builder aliasBuilder = AliasMetaData.builder(randomAlphaOfLengthBetween(3, 10));
+        AliasMetadata.Builder aliasBuilder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             aliasBuilder.routing(randomAlphaOfLengthBetween(1, 10));
         }
@@ -80,8 +80,8 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             aliasBuilder.indexRouting(randomAlphaOfLengthBetween(1, 10));
         }
         aliasBuilder.writeIndex(randomBoolean());
-        AliasMetaData aliasMetaData = aliasBuilder.build();
-        IndexMetaData sourceIndexMetaData = sourceIndexMetaDataBuilder.putAlias(aliasMetaData).build();
+        AliasMetadata aliasMetaData = aliasBuilder.build();
+        IndexMetadata sourceIndexMetaData = sourceIndexMetadataBuilder.putAlias(aliasMetaData).build();
 
         String targetIndexPrefix = "index_prefix";
         String targetIndexName = targetIndexPrefix + sourceIndexName;
@@ -97,12 +97,12 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             SwapAliasesAndDeleteSourceIndexStep step = new SwapAliasesAndDeleteSourceIndexStep(randomStepKey(), randomStepKey(),
                 client, targetIndexPrefix);
 
-            IndexMetaData.Builder targetIndexMetaDataBuilder = IndexMetaData.builder(targetIndexName).settings(settings(Version.CURRENT))
+            IndexMetadata.Builder targetIndexMetaDataBuilder = IndexMetadata.builder(targetIndexName).settings(settings(Version.CURRENT))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
             ClusterState clusterState = ClusterState.builder(emptyClusterState())
-                .metaData(
-                    MetaData.builder()
+                .metadata(
+                    Metadata.builder()
                         .put(sourceIndexMetaData, true)
                         .put(targetIndexMetaDataBuilder)
                         .build()

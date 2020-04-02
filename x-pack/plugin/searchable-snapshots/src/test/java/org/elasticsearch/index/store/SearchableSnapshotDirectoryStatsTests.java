@@ -548,8 +548,8 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
 
         final String blobName = randomUnicodeOfLength(10);
         final BlobContainer blobContainer = singleBlobContainer(blobName, fileContent);
-        final StoreFileMetaData metaData = new StoreFileMetaData(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
-        final List<FileInfo> files = List.of(new FileInfo(blobName, metaData, new ByteSizeValue(fileContent.length)));
+        final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
+        final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
 
         try (CacheService ignored = cacheService;

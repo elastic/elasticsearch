@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -67,13 +67,13 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         String policyName = "test-ilm-policy";
 
         {
-            IndexMetaData.Builder indexMetadataBuilder =
-                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            IndexMetadata.Builder indexMetadataBuilder =
+                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                     .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-            IndexMetaData indexMetaData = indexMetadataBuilder.build();
+            IndexMetadata indexMetaData = indexMetadataBuilder.build();
 
             ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
 
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
             mountSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
@@ -92,17 +92,17 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         }
 
         {
-            IndexMetaData.Builder indexMetadataBuilder =
-                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            IndexMetadata.Builder indexMetadataBuilder =
+                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                     .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
             Map<String, String> ilmCustom = new HashMap<>();
             String repository = "repository";
             ilmCustom.put("snapshot_repository", repository);
             indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
-            IndexMetaData indexMetaData = indexMetadataBuilder.build();
+            IndexMetadata indexMetaData = indexMetadataBuilder.build();
 
             ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
 
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
             mountSnapshotStep.performAction(indexMetaData, clusterState, null, new AsyncActionStep.Listener() {
@@ -128,14 +128,14 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         String snapshotName = indexName + "-" + policyName;
         ilmCustom.put("snapshot_name", snapshotName);
 
-        IndexMetaData.Builder indexMetadataBuilder =
-            IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+        IndexMetadata.Builder indexMetadataBuilder =
+            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
-        IndexMetaData indexMetaData = indexMetadataBuilder.build();
+        IndexMetadata indexMetaData = indexMetadataBuilder.build();
 
         ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metaData(MetaData.builder().put(indexMetaData, true).build()).build();
+            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetaData, true).build()).build();
 
         String repository = "repository";
         String restoredIndexPrefix = "restored-";

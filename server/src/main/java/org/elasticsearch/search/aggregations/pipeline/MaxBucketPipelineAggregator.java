@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -69,9 +68,9 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     }
 
     @Override
-    protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+    protected InternalAggregation buildAggregation(Map<String, Object> metadata) {
         String[] keys = maxBucketKeys.toArray(new String[maxBucketKeys.size()]);
-        return new InternalBucketMetricValue(name(), keys, maxValue, format, Collections.emptyList(), metadata());
+        return new InternalBucketMetricValue(name(), keys, maxValue, format, metadata());
     }
 
 }

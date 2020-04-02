@@ -162,7 +162,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         }
 
         return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
+                metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
     }
 
     @Override
@@ -172,7 +172,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metadata(), format, numCollectedDocs, supersetSize, significanceHeuristic, emptyList());
+                metadata(), format, numCollectedDocs, supersetSize, significanceHeuristic, emptyList());
     }
 
     @Override

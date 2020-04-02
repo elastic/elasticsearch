@@ -240,7 +240,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
+                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
                 otherDocCount, Arrays.asList(list), 0);
     }
 

@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.INGEST;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -96,9 +95,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         );
         assertTrue(e.getMessage().contains("this script always fails"));
 
-        NodesStatsResponse r = client().admin().cluster().prepareNodesStats(internalCluster().getNodeNames())
-            .addMetric(INGEST.metricName())
-            .get();
+        NodesStatsResponse r = client().admin().cluster().prepareNodesStats(internalCluster().getNodeNames()).setIngest(true).get();
         int nodeCount = r.getNodes().size();
         for (int k = 0; k < nodeCount; k++) {
             List<IngestStats.ProcessorStat> stats = r.getNodes().get(k).getIngestStats().getProcessorStats().get(pipelineId);

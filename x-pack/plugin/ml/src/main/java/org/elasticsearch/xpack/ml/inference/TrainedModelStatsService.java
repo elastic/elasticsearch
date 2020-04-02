@@ -50,14 +50,12 @@ public class TrainedModelStatsService {
     private static final String STATS_UPDATE_SCRIPT = "" +
         "if (ctx._source.missing_all_fields_count >= params.missing_all_fields_count\n" +
         "     && ctx._source.inference_count >= params.inference_count\n" +
-        "     && ctx._source.total_time_spent_millis >= params.total_time_spent_millis\n" +
         "     && ctx._source.failure_count >= params.failure_count) {\n" +
         "      ctx.op = 'none';\n" +
         "      return;\n" +
         "    }\n" +
         "    ctx._source.missing_all_fields_count = params.missing_all_fields_count;\n" +
         "    ctx._source.inference_count = params.inference_count;\n" +
-        "    ctx._source.total_time_spent_millis = params.total_time_spent_millis;\n" +
         "    ctx._source.failure_count = params.failure_count;\n" +
         "    ctx._source.time_stamp = params.time_stamp;";
     private static final ToXContent.Params FOR_INTERNAL_STORAGE_PARAMS =

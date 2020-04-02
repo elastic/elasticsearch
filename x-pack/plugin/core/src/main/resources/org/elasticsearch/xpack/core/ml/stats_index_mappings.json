@@ -94,9 +94,6 @@
       "inference_count": {
         "type": "long"
       },
-      "total_time_spent_millis": {
-        "type": "long"
-      },
       "failure_count": {
         "type": "long"
       },

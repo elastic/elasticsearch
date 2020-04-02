@@ -90,8 +90,8 @@ public interface RestHandler {
         return Collections.emptyList();
     }
 
-    default String compatibleWithVersion(){
-        return ""+ Version.CURRENT.major;
+    default Version compatibleWithVersion(){
+        return Version.CURRENT;
     }
 
     class Route {

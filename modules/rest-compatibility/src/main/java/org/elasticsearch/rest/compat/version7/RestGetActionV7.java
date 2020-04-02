@@ -53,7 +53,7 @@ public class RestGetActionV7 extends RestGetAction {
     }
 
     @Override
-    public String compatibleWithVersion() {
-        return String.valueOf(Version.V_7_0_0.major);
+    public Version compatibleWithVersion() {
+        return Version.V_7_0_0;
     }
 }

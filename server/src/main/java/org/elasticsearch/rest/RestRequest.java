@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
@@ -74,6 +75,7 @@ public class RestRequest implements ToXContent.Params {
     private boolean contentConsumed = false;
 
     private final long requestId;
+    private final Version compatibleApiVersion;
 
     public boolean isContentConsumed() {
         return contentConsumed;
@@ -102,7 +104,13 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
-        addCompatibleParameter();
+
+        if (isRequestCompatible()) {
+            String compatibleVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_HEADER));
+            this.compatibleApiVersion = Version.fromString(compatibleVersion + ".0.0");
+        }else{
+            this.compatibleApiVersion = Version.CURRENT;
+        }
     }
 
     protected RestRequest(RestRequest restRequest) {
@@ -137,13 +145,13 @@ public class RestRequest implements ToXContent.Params {
         return restRequest;
     }
 
-    private void addCompatibleParameter() {
-        if (isRequestCompatible()) {
-            String compatibleVersion = XContentType.parseVersion(header(CompatibleConstants.COMPATIBLE_HEADER));
-            params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, compatibleVersion);
-            //use it so it won't fail request validation with unused parameter
-            param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
-        }
+    /**
+     * An http request can be accompanied with a compatible version indicating with what version a client is using.
+     * Only a major Versions are supported. Internally we use Versions objects, but only use Version(major,0,0)
+     * @return a version with what a client is compatible with.
+     */
+    public Version getCompatibleApiVersion() {
+        return this.compatibleApiVersion;
     }
 
     private boolean isRequestCompatible() {
@@ -154,7 +162,6 @@ public class RestRequest implements ToXContent.Params {
         String version = XContentType.parseVersion(headerValue);
         return CompatibleConstants.COMPATIBLE_VERSION.equals(version);
     }
-
 
     private static Map<String, String> params(final String uri) {
         final Map<String, String> params = new HashMap<>();
@@ -192,11 +199,6 @@ public class RestRequest implements ToXContent.Params {
         Map<String, String> params = Collections.emptyMap();
         return new RestRequest(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
             requestIdGenerator.incrementAndGet());
-    }
-
-    public boolean isCompatible(String compatibleVersion) {
-        String param = param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
-        return compatibleVersion.equals(param);
     }
 
     public enum Method {

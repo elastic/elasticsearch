@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.CompatibleConstants;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -216,12 +215,12 @@ public class DefaultRestChannelTests extends ESTestCase {
     }
 
     public void testCompatibleParamIsSet() {
-        String version = String.valueOf(Version.CURRENT.major-1);
+        int majorVersion = Version.CURRENT.major - 1;
         final TestRequest httpRequest = new TestRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        httpRequest.getHeaders().put(HttpHeaders.ACCEPT, List.of("application/vnd.elasticsearch+json;compatible-with=" + version));
+        httpRequest.getHeaders().put(HttpHeaders.ACCEPT, List.of("application/vnd.elasticsearch+json;compatible-with=" + majorVersion));
         final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
 
-        assertEquals(version, request.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY));
+        assertEquals(Version.fromString(majorVersion+"0.0"), request.getCompatibleApiVersion());
     }
 
     public void testCookiesSet() {

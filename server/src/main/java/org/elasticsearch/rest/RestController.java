@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
@@ -55,7 +54,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
-import static org.elasticsearch.rest.CompatibleConstants.COMPATIBLE_VERSION;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
@@ -150,7 +148,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
-        final String version = handler.compatibleWithVersion();
+        final Version version = handler.compatibleWithVersion();
         final RestHandler maybeWrappedHandler = handlerWrapper.apply(handler);
         handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, version, method),
             (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, version, method));
@@ -298,11 +296,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         final String rawPath = request.rawPath();
         final String uri = request.uri();
-        //TODO the problem with string, byte, null .. this should be more consistent
-        String compatibleWithVersion = request.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
-        if(compatibleWithVersion == null){
-            compatibleWithVersion=""+Version.CURRENT.major;
-        }
+        Version version = request.getCompatibleApiVersion();
+
         final RestRequest.Method requestMethod;
         try {
             // Resolves the HTTP method and fails if the method is invalid
@@ -315,7 +310,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (handlers == null) {
                     handler = null;
                 } else {
-                    handler = handlers.getHandler(requestMethod, compatibleWithVersion);
+                    handler = handlers.getHandler(requestMethod, version);
                 }
                 if (handler == null) {
                   if (handleNoHandlerFound(rawPath, requestMethod, uri, channel)) {
@@ -332,11 +327,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         // If request has not been handled, fallback to a bad request error.
         handleBadRequest(uri, requestMethod, channel);
-    }
-
-    private boolean isCompatible(ToXContent.Params params) {
-        String param = params.param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
-        return COMPATIBLE_VERSION.equals(param);
     }
 
     Iterator<MethodHandlers> getAllHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {

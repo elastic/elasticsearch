@@ -38,7 +38,7 @@ import static org.mockito.Mockito.mock;
  * that can be used to register individual REST actions, and test request handling.
  */
 public abstract class RestActionTestCase extends ESTestCase {
-    private RestController controller;
+    protected RestController controller;
     protected NodeClient nodeClient;
 
     @Before

@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.is;
@@ -18,7 +18,7 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
     @Override
     protected CopySettingsStep createRandomInstance() {
         return new CopySettingsStep(randomStepKey(), randomStepKey(), randomAlphaOfLengthBetween(1, 10),
-            IndexMetaData.SETTING_NUMBER_OF_SHARDS);
+            IndexMetadata.SETTING_NUMBER_OF_SHARDS);
     }
 
     @Override
@@ -55,25 +55,25 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
     public void testPerformAction() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        IndexMetaData.Builder sourceIndexMetadataBuilder =
-            IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+        IndexMetadata.Builder sourceIndexMetadataBuilder =
+            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
         String indexPrefix = "test-prefix-";
         String targetIndex = indexPrefix + indexName;
 
-        IndexMetaData.Builder targetIndexMetadataBuilder = IndexMetaData.builder(targetIndex).settings(settings(Version.CURRENT))
+        IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndex).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metaData(
-            MetaData.builder().put(sourceIndexMetadataBuilder).put(targetIndexMetadataBuilder).build()
+        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
+            Metadata.builder().put(sourceIndexMetadataBuilder).put(targetIndexMetadataBuilder).build()
         ).build();
 
         CopySettingsStep copySettingsStep = new CopySettingsStep(randomStepKey(), randomStepKey(), indexPrefix,
             LifecycleSettings.LIFECYCLE_NAME);
 
         ClusterState newClusterState = copySettingsStep.performAction(sourceIndexMetadataBuilder.build().getIndex(), clusterState);
-        IndexMetaData newTargetIndexMetadata = newClusterState.metaData().index(targetIndex);
+        IndexMetadata newTargetIndexMetadata = newClusterState.metadata().index(targetIndex);
         assertThat(newTargetIndexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME), is(policyName));
     }
 }

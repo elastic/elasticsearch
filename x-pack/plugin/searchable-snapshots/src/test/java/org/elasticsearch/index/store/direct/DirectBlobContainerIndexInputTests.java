@@ -13,7 +13,8 @@ import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.IndexInputStats;
+import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -46,7 +47,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
     private DirectBlobContainerIndexInput createIndexInput(final byte[] input, long partSize, long minimumReadSize,
                                                            Runnable onReadBlob) throws IOException {
         final FileInfo fileInfo = new FileInfo(randomAlphaOfLength(5),
-            new StoreFileMetaData("test", (long) input.length, "_checksum", Version.LATEST),
+            new StoreFileMetadata("test", input.length, "_checksum", Version.LATEST),
             partSize == input.length
                 ? randomFrom(
                     new ByteSizeValue(partSize, ByteSizeUnit.BYTES),
@@ -94,7 +95,8 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     };
                 }
             });
-        return new DirectBlobContainerIndexInput(blobContainer, fileInfo, newIOContext(random()), minimumReadSize,
+        return new DirectBlobContainerIndexInput(blobContainer, fileInfo, newIOContext(random()), new IndexInputStats(0L, () -> 0L),
+            minimumReadSize,
             randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE));
     }
 

@@ -68,7 +68,7 @@ public class TransportGetComponentTemplateAction extends
     @Override
     protected void masterOperation(Task task, GetComponentTemplateAction.Request request, ClusterState state,
                                    ActionListener<GetComponentTemplateAction.Response> listener) {
-        Map<String, ComponentTemplate> allTemplates = state.metaData().componentTemplates();
+        Map<String, ComponentTemplate> allTemplates = state.metadata().componentTemplates();
 
         // If we did not ask for a specific name, then we return all templates
         if (request.names().length == 0) {

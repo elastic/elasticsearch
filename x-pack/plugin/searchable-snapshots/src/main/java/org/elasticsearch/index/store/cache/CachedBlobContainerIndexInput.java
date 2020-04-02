@@ -18,8 +18,8 @@ import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
-import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.IndexInputStats;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -27,7 +27,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
@@ -36,14 +35,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private static final int COPY_BUFFER_SIZE = 8192;
 
     private final SearchableSnapshotDirectory directory;
-    private final long offset;
-    private final long end;
     private final CacheFileReference cacheFileReference;
-    private final IndexInputStats stats;
-
-    // the following are only mutable so they can be adjusted after cloning
-    private AtomicBoolean closed;
-    private boolean isClone;
 
     // last read position is kept around in order to detect (non)contiguous reads for stats
     private long lastReadPosition;
@@ -57,37 +49,23 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         IndexInputStats stats
     ) {
         this("CachedBlobContainerIndexInput(" + fileInfo.physicalName() + ")", directory, fileInfo, context, stats, 0L, fileInfo.length(),
-            false, new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()));
+            new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()));
         stats.incrementOpenCount();
     }
 
     private CachedBlobContainerIndexInput(String resourceDesc, SearchableSnapshotDirectory directory, FileInfo fileInfo, IOContext context,
-                                          IndexInputStats stats, long offset, long length, boolean isClone,
-                                          CacheFileReference cacheFileReference) {
-        super(resourceDesc, directory.blobContainer(), fileInfo, context);
+                                          IndexInputStats stats, long offset, long length, CacheFileReference cacheFileReference) {
+        super(resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
         this.directory = directory;
-        this.offset = offset;
-        this.stats = stats;
-        this.end = offset + length;
-        this.closed = new AtomicBoolean(false);
-        this.isClone = isClone;
         this.cacheFileReference = cacheFileReference;
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
     }
 
     @Override
-    public long length() {
-        return end - offset;
-    }
-
-    @Override
-    public void close() {
-        if (closed.compareAndSet(false, true)) {
-            if (isClone == false) {
-                stats.incrementCloseCount();
-                cacheFileReference.releaseOnClose();
-            }
+    public void innerClose() {
+        if (isClone == false) {
+            cacheFileReference.releaseOnClose();
         }
     }
 
@@ -151,9 +129,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", start, end, cacheFileReference));
 
         int bytesCopied = 0;
-        final long startTimeNanos = directory.statsCurrentTimeNanos();
+        final long startTimeNanos = stats.currentTimeNanos();
         try (InputStream input = openInputStream(start, length)) {
-            stats.incrementInnerOpenCount();
             long remaining = end - start;
             while (remaining > 0) {
                 final int len = (remaining < copyBuffer.length) ? Math.toIntExact(remaining) : copyBuffer.length;
@@ -166,7 +143,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
             }
-            final long endTimeNanos = directory.statsCurrentTimeNanos();
+            final long endTimeNanos = stats.currentTimeNanos();
             stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
         }
     }
@@ -185,20 +162,19 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     public CachedBlobContainerIndexInput clone() {
-        final CachedBlobContainerIndexInput clone = (CachedBlobContainerIndexInput) super.clone();
-        clone.closed = new AtomicBoolean(false);
-        clone.isClone = true;
-        return clone;
+        return (CachedBlobContainerIndexInput) super.clone();
     }
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) {
-        if (offset < 0 || length < 0 || offset + length > this.length()) {
+        if (offset < 0 || length < 0 || offset + length > length()) {
             throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: offset=" + offset
-                + ",length=" + length + ",fileLength=" + this.length() + ": " + this);
+                + ",length=" + length + ",fileLength=" + length() + ": " + this);
         }
-        return new CachedBlobContainerIndexInput(getFullSliceDescription(sliceDescription), directory, fileInfo, context, stats,
-            this.offset + offset, length, true, cacheFileReference);
+        final CachedBlobContainerIndexInput slice = new CachedBlobContainerIndexInput(getFullSliceDescription(sliceDescription), directory,
+            fileInfo, context, stats, this.offset + offset, length, cacheFileReference);
+        slice.isClone = true;
+        return slice;
     }
 
     @Override
@@ -206,7 +182,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         return "CachedBlobContainerIndexInput{" +
             "cacheFileReference=" + cacheFileReference +
             ", offset=" + offset +
-            ", end=" + end +
             ", length=" + length() +
             ", position=" + getFilePointer() +
             '}';
@@ -219,9 +194,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             new ParameterizedMessage("direct reading of range [{}-{}] for cache file [{}]", start, end, cacheFileReference));
 
         int bytesCopied = 0;
-        final long startTimeNanos = directory.statsCurrentTimeNanos();
+        final long startTimeNanos = stats.currentTimeNanos();
         try (InputStream input = openInputStream(start, length)) {
-            stats.incrementInnerOpenCount();
             long remaining = end - start;
             while (remaining > 0) {
                 final int len = (remaining < copyBuffer.length) ? (int) remaining : copyBuffer.length;
@@ -234,7 +208,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
             }
-            final long endTimeNanos = directory.statsCurrentTimeNanos();
+            final long endTimeNanos = stats.currentTimeNanos();
             stats.addDirectBytesRead(bytesCopied, endTimeNanos - startTimeNanos);
         }
         return bytesCopied;

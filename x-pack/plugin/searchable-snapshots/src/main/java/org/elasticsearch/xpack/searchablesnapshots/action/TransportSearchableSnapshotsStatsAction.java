@@ -69,12 +69,12 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
 
     private static CacheIndexInputStats toCacheIndexInputStats(final String fileName, final IndexInputStats inputStats) {
         return new CacheIndexInputStats(fileName, inputStats.getFileLength(),
-            inputStats.getOpened().sum(), inputStats.getInnerOpened().sum(), inputStats.getClosed().sum(),
+            inputStats.getOpened().sum(), inputStats.getClosed().sum(),
             toCounter(inputStats.getForwardSmallSeeks()), toCounter(inputStats.getBackwardSmallSeeks()),
             toCounter(inputStats.getForwardLargeSeeks()), toCounter(inputStats.getBackwardLargeSeeks()),
             toCounter(inputStats.getContiguousReads()), toCounter(inputStats.getNonContiguousReads()),
             toCounter(inputStats.getCachedBytesRead()), toTimedCounter(inputStats.getCachedBytesWritten()),
-            toTimedCounter(inputStats.getDirectBytesRead()));
+            toTimedCounter(inputStats.getDirectBytesRead()), toTimedCounter(inputStats.getOptimizedBytesRead()));
     }
 
     private static Counter toCounter(final IndexInputStats.Counter counter) {

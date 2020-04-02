@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeA
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
 public abstract class AbstractTransportSearchableSnapshotsAction
@@ -72,13 +71,11 @@ public abstract class AbstractTransportSearchableSnapshotsAction
     protected ShardsIterator shards(ClusterState state, Request request, String[] concreteIndices) {
         final List<String> searchableSnapshotIndices = new ArrayList<>();
         for (String concreteIndex : concreteIndices) {
-            IndexMetaData indexMetaData = state.metaData().index(concreteIndex);
+            IndexMetadata indexMetaData = state.metadata().index(concreteIndex);
             if (indexMetaData != null) {
                 Settings indexSettings = indexMetaData.getSettings();
                 if (INDEX_STORE_TYPE_SETTING.get(indexSettings).equals(SNAPSHOT_DIRECTORY_FACTORY_KEY)) {
-                    if (SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings)) {
-                        searchableSnapshotIndices.add(concreteIndex);
-                    }
+                    searchableSnapshotIndices.add(concreteIndex);
                 }
             }
         }

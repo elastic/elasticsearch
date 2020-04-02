@@ -10,9 +10,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -54,7 +54,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
 
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetaData indexMetaData = clusterState.metaData().index(index);
+        IndexMetadata indexMetaData = clusterState.metadata().index(index);
         if (indexMetaData == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
@@ -79,9 +79,9 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         newCustomData.setSnapshotName(snapshotName);
         newCustomData.setSnapshotRepository(snapshotRepository);
 
-        IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(indexMetaData);
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetaData);
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
-        newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(indexMetadataBuilder));
+        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder));
         return newClusterStateBuilder.build();
     }
 

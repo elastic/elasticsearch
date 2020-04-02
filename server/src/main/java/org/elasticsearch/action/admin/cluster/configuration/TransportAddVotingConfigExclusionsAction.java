@@ -31,10 +31,10 @@ import org.elasticsearch.cluster.ClusterStateObserver.Listener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -106,10 +106,10 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                 final int finalMaxVotingConfigExclusions = TransportAddVotingConfigExclusionsAction.this.maxVotingConfigExclusions;
                 resolvedExclusions = resolveVotingConfigExclusionsAndCheckMaximum(request, currentState, finalMaxVotingConfigExclusions);
 
-                final CoordinationMetaData.Builder builder = CoordinationMetaData.builder(currentState.coordinationMetaData());
+                final CoordinationMetadata.Builder builder = CoordinationMetadata.builder(currentState.coordinationMetadata());
                 resolvedExclusions.forEach(builder::addVotingConfigExclusion);
-                final MetaData newMetaData = MetaData.builder(currentState.metaData()).coordinationMetaData(builder.build()).build();
-                final ClusterState newState = ClusterState.builder(currentState).metaData(newMetaData).build();
+                final Metadata newMetadata = Metadata.builder(currentState.metadata()).coordinationMetadata(builder.build()).build();
+                final ClusterState newState = ClusterState.builder(currentState).metadata(newMetadata).build();
                 assert newState.getVotingConfigExclusions().size() <= finalMaxVotingConfigExclusions;
                 return newState;
             }

@@ -78,7 +78,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
     @Override
     protected InternalRange createTestInstance(String name,
                                                List<PipelineAggregator> pipelineAggregators,
-                                               Map<String, Object> metaData,
+                                               Map<String, Object> metadata,
                                                InternalAggregations aggregations,
                                                boolean keyed) {
         final List<InternalRange.Bucket> buckets = new ArrayList<>();
@@ -89,7 +89,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
             double to = range.v2();
             buckets.add(new InternalRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
         }
-        return new InternalRange<>(name, buckets, format, keyed, pipelineAggregators, metaData);
+        return new InternalRange<>(name, buckets, format, keyed, pipelineAggregators, metadata);
     }
 
     @Override
@@ -119,7 +119,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
         boolean keyed = instance.keyed;
         List<InternalRange.Bucket> buckets = instance.getBuckets();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -134,16 +134,16 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
                     InternalAggregations.EMPTY, false, format));
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalRange<>(name, buckets, format, keyed, pipelineAggregators, metaData);
+        return new InternalRange<>(name, buckets, format, keyed, pipelineAggregators, metadata);
     }
 }

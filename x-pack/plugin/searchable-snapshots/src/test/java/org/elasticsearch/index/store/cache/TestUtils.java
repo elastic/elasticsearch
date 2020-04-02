@@ -6,7 +6,7 @@
 package org.elasticsearch.index.store.cache;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.io.Streams;
@@ -32,18 +32,18 @@ public final class TestUtils {
     private TestUtils() {
     }
 
-    static CacheService createCacheService(final Random random) {
+    public static CacheService createCacheService(final Random random) {
         final ByteSizeValue cacheSize = new ByteSizeValue(randomIntBetween(random, 1, 100),
             randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB)));
         return new CacheService(cacheSize, randomCacheRangeSize(random));
     }
 
-    static ByteSizeValue randomCacheRangeSize(final Random random) {
+    public static ByteSizeValue randomCacheRangeSize(final Random random) {
         return new ByteSizeValue(randomIntBetween(random, 1, 100),
             randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB)));
     }
 
-    static long numberOfRanges(long fileSize, long rangeSize) {
+    public static long numberOfRanges(long fileSize, long rangeSize) {
         return numberOfRanges(Math.toIntExact(fileSize), Math.toIntExact(rangeSize));
     }
 
@@ -65,11 +65,23 @@ public final class TestUtils {
         assertThat(counter.max(), equalTo(max));
     }
 
+    public static void assertCounter(
+        IndexInputStats.TimedCounter timedCounter,
+        long total,
+        long count,
+        long min,
+        long max,
+        long totalNanoseconds
+    ) {
+        assertCounter(timedCounter, total, count, min, max);
+        assertThat(timedCounter.totalNanoseconds(), equalTo(totalNanoseconds));
+    }
+
     /**
      * A {@link BlobContainer} that can read a single in-memory blob.
      * Any attempt to read a different blob will throw a {@link FileNotFoundException}
      */
-    static BlobContainer singleBlobContainer(final String blobName, final byte[] blobContent) {
+    public static BlobContainer singleBlobContainer(final String blobName, final byte[] blobContent) {
         return new BlobContainer() {
 
             @Override
@@ -86,7 +98,7 @@ public final class TestUtils {
             }
 
             @Override
-            public Map<String, BlobMetaData> listBlobs() {
+            public Map<String, BlobMetadata> listBlobs() {
                 throw unsupportedException();
             }
 
@@ -126,7 +138,7 @@ public final class TestUtils {
             }
 
             @Override
-            public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) {
+            public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) {
                 throw unsupportedException();
             }
 

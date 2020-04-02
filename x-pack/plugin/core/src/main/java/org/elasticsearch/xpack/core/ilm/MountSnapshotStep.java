@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -49,12 +49,12 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
-        final String indexName = indexMetaData.getIndex().getName();
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
+        final String indexName = indexMetadata.getIndex().getName();
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetaData);
+        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
 
-        String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         final String snapshotRepository = lifecycleState.getSnapshotRepository();
         if (Strings.hasText(snapshotRepository) == false) {
             listener.onFailure(new IllegalStateException("snapshot repository is not present for policy [" + policyName + "] and index [" +
@@ -70,7 +70,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         }
 
         String mountedIndexName = restoredIndexPrefix + indexName;
-        if(currentClusterState.metaData().index(mountedIndexName) != null) {
+        if(currentClusterState.metadata().index(mountedIndexName) != null) {
             logger.debug("mounted index [{}] for policy [{}] and index [{}] already exists. will not attempt to mount the index again",
                 mountedIndexName, policyName, indexName);
             listener.onResponse(true);
@@ -92,7 +92,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             false);
         getClient().execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest,
             ActionListener.wrap(response -> {
-                if (response.status() != RestStatus.OK) {
+                if (response.status() != RestStatus.OK || response.status() != RestStatus.ACCEPTED) {
                     logger.debug("mount snapshot response failed to complete");
                     throw new ElasticsearchException("mount snapshot response failed to complete, got response " + response.status());
                 }

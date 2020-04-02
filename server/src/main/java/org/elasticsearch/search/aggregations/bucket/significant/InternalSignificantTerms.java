@@ -167,8 +167,8 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected final long minDocCount;
 
     protected InternalSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
     }

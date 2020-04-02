@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -46,10 +45,10 @@ public abstract class InternalMappedSignificantTerms<
     protected final List<B> buckets;
     protected Map<String, B> bucketMap;
 
-    protected InternalMappedSignificantTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+    protected InternalMappedSignificantTerms(String name, int requiredSize, long minDocCount,
             Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
             SignificanceHeuristic significanceHeuristic, List<B> buckets) {
-        super(name, requiredSize, minDocCount, pipelineAggregators, metadata);
+        super(name, requiredSize, minDocCount, metadata);
         this.format = format;
         this.buckets = buckets;
         this.subsetSize = subsetSize;

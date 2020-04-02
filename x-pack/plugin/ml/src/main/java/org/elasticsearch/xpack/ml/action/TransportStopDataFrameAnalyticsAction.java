@@ -361,7 +361,8 @@ public class TransportStopDataFrameAnalyticsAction
             List<String> failed = new ArrayList<>();
 
             for (String analyticsId : analyticsIds) {
-                switch (MlTasks.getDataFrameAnalyticsState(analyticsId, tasks)) {
+                DataFrameAnalyticsState taskState = MlTasks.getDataFrameAnalyticsState(analyticsId, tasks);
+                switch (taskState) {
                     case STARTING:
                     case STARTED:
                     case REINDEXING:
@@ -377,7 +378,7 @@ public class TransportStopDataFrameAnalyticsAction
                         failed.add(analyticsId);
                         break;
                     default:
-                        break;
+                        assert false : "unknown task state " + taskState;
                 }
             }
             return new AnalyticsByTaskState(started, stopping, failed);

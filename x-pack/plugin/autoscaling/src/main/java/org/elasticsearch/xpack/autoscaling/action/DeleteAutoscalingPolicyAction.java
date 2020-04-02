@@ -59,7 +59,7 @@ public class DeleteAutoscalingPolicyAction extends ActionType<AcknowledgedRespon
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();
             {
-                builder.field("name", name);
+
             }
             builder.endObject();
             return builder;

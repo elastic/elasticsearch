@@ -37,10 +37,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.BOOLEAN;
-import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.DATE;
-import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.NUMERIC;
-
 public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, AvgAggregationBuilder> {
     public static final String NAME = "avg";
     private static final ObjectParser<AvgAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(NAME, AvgAggregationBuilder::new);
@@ -50,14 +46,15 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
 
     public static final AggregationSpec SPEC = new AggregationSpec(NAME, AvgAggregationBuilder::new, PARSER)
         .addResultReader(InternalAvg::new)
-        .implementFor(AvgAggregatorFactory.IMPLEMENTATION, NUMERIC, DATE, BOOLEAN);
+        .implementFor(AvgAggregatorFactory.IMPLEMENTATION,
+            CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN);
 
     public AvgAggregationBuilder(String name) {
         super(name);
     }
 
-    public AvgAggregationBuilder(AvgAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    public AvgAggregationBuilder(AvgAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
@@ -73,8 +70,8 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new AvgAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new AvgAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -85,7 +82,7 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     @Override
     protected AvgAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
                                               AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new AvgAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new AvgAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

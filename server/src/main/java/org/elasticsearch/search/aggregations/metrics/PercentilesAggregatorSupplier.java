@@ -39,5 +39,5 @@ public interface PercentilesAggregatorSupplier extends AggregatorSupplier {
                      boolean keyed,
                      DocValueFormat formatter,
                      List<PipelineAggregator> pipelineAggregators,
-                     Map<String, Object> metaData) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

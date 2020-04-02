@@ -111,8 +111,8 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
-        verify(clusterState).metaData();
-        verify(metaData).clusterUUID();
+        verify(clusterState).metadata();
+        verify(metadata).clusterUUID();
 
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo((indices != NONE) ? routingTable.allShards().size() : 0));

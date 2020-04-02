@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
@@ -52,8 +52,8 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
     }
 
     @Override
-    protected IndexMetaData getIndexMetaData() {
-        return IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+    protected IndexMetadata getIndexMetadata() {
+        return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }
 
@@ -62,7 +62,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
     }
 
     public void testDeleted() {
-        IndexMetaData indexMetaData = getIndexMetaData();
+        IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
                 DeleteIndexRequest request = (DeleteIndexRequest) invocation.getArguments()[0];
@@ -70,7 +70,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
                 ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
                 assertNotNull(request);
                 assertEquals(1, request.indices().length);
-                assertEquals(indexMetaData.getIndex().getName(), request.indices()[0]);
+                assertEquals(indexMetadata.getIndex().getName(), request.indices()[0]);
                 listener.onResponse(null);
                 return null;
         }).when(indicesClient).delete(Mockito.any(), Mockito.any());
@@ -78,7 +78,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 actionCompleted.set(complete);
@@ -98,7 +98,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
     }
 
     public void testExceptionThrown() {
-        IndexMetaData indexMetaData = getIndexMetaData();
+        IndexMetadata indexMetadata = getIndexMetadata();
         Exception exception = new RuntimeException();
 
         Mockito.doAnswer(invocation -> {
@@ -107,14 +107,14 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
             assertNotNull(request);
             assertEquals(1, request.indices().length);
-            assertEquals(indexMetaData.getIndex().getName(), request.indices()[0]);
+            assertEquals(indexMetadata.getIndex().getName(), request.indices()[0]);
             listener.onFailure(exception);
             return null;
         }).when(indicesClient).delete(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");

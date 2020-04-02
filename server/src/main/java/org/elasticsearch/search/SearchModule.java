@@ -346,41 +346,45 @@ public class SearchModule {
             .addResultReader(InternalSum::new)
             .setAggregatorRegistrar(SumAggregationBuilder::registerAggregators));
         aggregations.add(new AggregationSpec(MinAggregationBuilder.NAME, MinAggregationBuilder::new, MinAggregationBuilder.PARSER)
-                .addResultReader(InternalMin::new)
-                .setAggregatorRegistrar(MinAggregationBuilder::registerAggregators));
+            .addResultReader(InternalMin::new)
+            .setAggregatorRegistrar(MinAggregationBuilder::registerAggregators));
         aggregations.add(new AggregationSpec(MaxAggregationBuilder.NAME, MaxAggregationBuilder::new, MaxAggregationBuilder.PARSER)
-                .addResultReader(InternalMax::new)
-                .setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators));
+            .addResultReader(InternalMax::new)
+            .setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators));
         aggregations.add(new AggregationSpec(StatsAggregationBuilder.NAME, StatsAggregationBuilder::new, StatsAggregationBuilder.PARSER)
             .addResultReader(InternalStats::new)
             .setAggregatorRegistrar(StatsAggregationBuilder::registerAggregators));
         aggregations.add(new AggregationSpec(ExtendedStatsAggregationBuilder.NAME, ExtendedStatsAggregationBuilder::new,
-                ExtendedStatsAggregationBuilder.PARSER).addResultReader(InternalExtendedStats::new));
+            ExtendedStatsAggregationBuilder.PARSER)
+                .addResultReader(InternalExtendedStats::new)
+                .setAggregatorRegistrar(ExtendedStatsAggregationBuilder::registerAggregators));
         aggregations.add(new AggregationSpec(ValueCountAggregationBuilder.NAME, ValueCountAggregationBuilder::new,
-                ValueCountAggregationBuilder.PARSER)
-                    .addResultReader(InternalValueCount::new)
-                    .setAggregatorRegistrar(ValueCountAggregationBuilder::registerAggregators));
+            ValueCountAggregationBuilder.PARSER)
+                .addResultReader(InternalValueCount::new)
+                .setAggregatorRegistrar(ValueCountAggregationBuilder::registerAggregators));
         aggregations.add(new AggregationSpec(PercentilesAggregationBuilder.NAME, PercentilesAggregationBuilder::new,
-                PercentilesAggregationBuilder.PARSER)
-                    .addResultReader(InternalTDigestPercentiles.NAME, InternalTDigestPercentiles::new)
-                    .addResultReader(InternalHDRPercentiles.NAME, InternalHDRPercentiles::new)
-                    .setAggregatorRegistrar(PercentilesAggregationBuilder::registerAggregators));
+            PercentilesAggregationBuilder.PARSER)
+                .addResultReader(InternalTDigestPercentiles.NAME, InternalTDigestPercentiles::new)
+                .addResultReader(InternalHDRPercentiles.NAME, InternalHDRPercentiles::new)
+                .setAggregatorRegistrar(PercentilesAggregationBuilder::registerAggregators));
         aggregations.add(new AggregationSpec(PercentileRanksAggregationBuilder.NAME, PercentileRanksAggregationBuilder::new,
-                PercentileRanksAggregationBuilder.PARSER)
-                        .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
-                        .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new)
-                        .setAggregatorRegistrar(PercentileRanksAggregationBuilder::registerAggregators));
+            PercentileRanksAggregationBuilder.PARSER)
+                .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
+                .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new)
+                .setAggregatorRegistrar(PercentileRanksAggregationBuilder::registerAggregators));
         aggregations.add(new AggregationSpec(MedianAbsoluteDeviationAggregationBuilder.NAME,
             MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder.PARSER)
                 .addResultReader(InternalMedianAbsoluteDeviation::new)
                 .setAggregatorRegistrar(MedianAbsoluteDeviationAggregationBuilder::registerAggregators));
         aggregations.add(new AggregationSpec(CardinalityAggregationBuilder.NAME, CardinalityAggregationBuilder::new,
-                CardinalityAggregationBuilder.PARSER).addResultReader(InternalCardinality::new)
-            .setAggregatorRegistrar(CardinalityAggregationBuilder::registerAggregators));
+            CardinalityAggregationBuilder.PARSER).addResultReader(InternalCardinality::new)
+                .setAggregatorRegistrar(CardinalityAggregationBuilder::registerAggregators));
         aggregations.add(new AggregationSpec(GlobalAggregationBuilder.NAME, GlobalAggregationBuilder::new,
                 GlobalAggregationBuilder::parse).addResultReader(InternalGlobal::new));
         aggregations.add(new AggregationSpec(MissingAggregationBuilder.NAME, MissingAggregationBuilder::new,
-                MissingAggregationBuilder.PARSER).addResultReader(InternalMissing::new));
+                MissingAggregationBuilder.PARSER)
+                    .addResultReader(InternalMissing::new)
+                    .setAggregatorRegistrar(MissingAggregationBuilder::registerAggregators));
         aggregations.add(new AggregationSpec(FilterAggregationBuilder.NAME, FilterAggregationBuilder::new,
                 FilterAggregationBuilder::parse).addResultReader(InternalFilter::new));
         aggregations.add(new AggregationSpec(FiltersAggregationBuilder.NAME, FiltersAggregationBuilder::new,

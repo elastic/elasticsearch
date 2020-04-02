@@ -52,8 +52,8 @@ public class StringStatsAggregator extends MetricsAggregator {
 
     StringStatsAggregator(String name, boolean showDistribution, ValuesSource.Bytes valuesSource, DocValueFormat format,
                           SearchContext context, Aggregator parent,
-                          List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                          List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.showDistribution = showDistribution;
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -154,7 +154,7 @@ public class StringStatsAggregator extends MetricsAggregator {
 
         return new InternalStringStats(name, count.get(bucket), totalLength.get(bucket),
             minLength.get(bucket), maxLength.get(bucket), occurrences, showDistribution,
-            format, pipelineAggregators(), metaData());
+            format, pipelineAggregators(), metadata());
     }
 
     @Override
@@ -162,7 +162,7 @@ public class StringStatsAggregator extends MetricsAggregator {
         return new InternalStringStats(name,
             0, 0, Integer.MAX_VALUE, Integer.MIN_VALUE,
             Collections.emptyMap(), showDistribution, format,
-            pipelineAggregators(), metaData());
+            pipelineAggregators(), metadata());
     }
 
     @Override

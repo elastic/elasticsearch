@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -100,7 +100,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
-        assertThat(state.metaData().indices().containsKey("test"), equalTo(false));
+        assertThat(state.metadata().indices().containsKey("test"), equalTo(false));
 
         createIndex("test");
         NumShards numShards = getNumShards("test");
@@ -153,7 +153,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
-        assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
+        assertThat(state.metadata().indices().containsKey("test"), equalTo(true));
 
         ensureGreen();
 
@@ -195,7 +195,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().getSize(), equalTo(2));
-        assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
+        assertThat(state.metadata().indices().containsKey("test"), equalTo(true));
 
         logger.info("Running Cluster Health");
         ensureGreen();
@@ -316,10 +316,10 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 logger.debug("--> starting the disruption, preventing cluster state publishing");
                 partition.startDisrupting();
-                MetaData.Builder metaData = MetaData.builder(currentState.metaData()).persistentSettings(
-                        Settings.builder().put(currentState.metaData().persistentSettings()).put("_SHOULD_NOT_BE_THERE_", true).build()
+                Metadata.Builder metadata = Metadata.builder(currentState.metadata()).persistentSettings(
+                        Settings.builder().put(currentState.metadata().persistentSettings()).put("_SHOULD_NOT_BE_THERE_", true).build()
                 );
-                return ClusterState.builder(currentState).metaData(metaData).build();
+                return ClusterState.builder(currentState).metadata(metadata).build();
             }
 
             @Override
@@ -354,7 +354,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForEvents(Priority.LANGUID));
 
         for (String node : internalCluster().getNodeNames()) {
-            Settings nodeSetting = internalCluster().clusterService(node).state().metaData().settings();
+            Settings nodeSetting = internalCluster().clusterService(node).state().metadata().settings();
             assertThat(node + " processed the cluster state despite of a min master node violation",
                 nodeSetting.get("_SHOULD_NOT_BE_THERE_"), nullValue());
         }

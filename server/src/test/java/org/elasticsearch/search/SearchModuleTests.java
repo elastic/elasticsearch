@@ -380,8 +380,8 @@ public class SearchModuleTests extends ESTestCase {
      */
     private static class TestAggregationBuilder extends ValuesSourceAggregationBuilder<TestAggregationBuilder> {
         protected TestAggregationBuilder(TestAggregationBuilder clone,
-                                         Builder factoriesBuilder, Map<String, Object> metaData) {
-            super(clone, factoriesBuilder, metaData);
+                                         Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
         }
 
         @Override
@@ -390,8 +390,8 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-            return new TestAggregationBuilder(this, factoriesBuilder, metaData);
+        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+            return new TestAggregationBuilder(this, factoriesBuilder, metadata);
         }
         /**
          * Read from a stream.
@@ -407,6 +407,11 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         protected void innerWriteTo(StreamOutput out) throws IOException {
+        }
+
+        @Override
+        public BucketCardinality bucketCardinality() {
+            return BucketCardinality.NONE;
         }
 
         @Override
@@ -448,7 +453,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) {
+        protected PipelineAggregator createInternal(Map<String, Object> metadata) {
             return null;
         }
 

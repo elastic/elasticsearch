@@ -47,24 +47,24 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         SearchContext aggregationContext,
                                         Aggregator parent,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
-                    return new ValueCountAggregator(name, valuesSource, aggregationContext, parent, pipelineAggregators, metaData);
+                                        Map<String, Object> metadata) throws IOException {
+                    return new ValueCountAggregator(name, valuesSource, aggregationContext, parent, pipelineAggregators, metadata);
                 }
             });
     }
 
     ValueCountAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new ValueCountAggregator(name, null, searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new ValueCountAggregator(name, null, searchContext, parent, pipelineAggregators, metadata);
     }
 
     @Override
@@ -73,7 +73,7 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             ValueCountAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof ValueCountAggregatorSupplier == false) {
@@ -81,6 +81,6 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((ValueCountAggregatorSupplier) aggregatorSupplier)
-            .build(name, valuesSource, searchContext, parent, pipelineAggregators,metaData);
+            .build(name, valuesSource, searchContext, parent, pipelineAggregators,metadata);
     }
 }

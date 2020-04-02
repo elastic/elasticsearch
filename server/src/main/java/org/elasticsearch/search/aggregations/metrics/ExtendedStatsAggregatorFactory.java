@@ -25,10 +25,13 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -45,32 +48,41 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.sigma = sigma;
+    }
+
+    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
+        valuesSourceRegistry.register(ExtendedStatsAggregationBuilder.NAME,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            (ExtendedStatsAggregatorProvider) ExtendedStatsAggregator::new);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
         return new ExtendedStatsAggregator(name, null, config.format(), searchContext,
-            parent, sigma, pipelineAggregators, metaData);
+            parent, sigma, pipelineAggregators, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        if (valuesSource instanceof Numeric == false) {
-            throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() + "is not supported for aggregation " +
-                this.name());
+                                          SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          List<PipelineAggregator> pipelineAggregators,
+                                          Map<String, Object> metadata) throws IOException {
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            ExtendedStatsAggregationBuilder.NAME);
+
+        if (aggregatorSupplier instanceof ExtendedStatsAggregatorProvider == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected ExtendedStatsAggregatorProvider, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
         }
-        return new ExtendedStatsAggregator(name, (Numeric) valuesSource, config.format(), searchContext,
-            parent, sigma, pipelineAggregators, metaData);
+        return ((ExtendedStatsAggregatorProvider) aggregatorSupplier).build(name, (Numeric) valuesSource, config.format(), searchContext,
+            parent, sigma, pipelineAggregators, metadata);
     }
 }

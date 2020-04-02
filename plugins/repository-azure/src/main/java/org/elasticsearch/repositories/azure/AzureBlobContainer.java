@@ -29,7 +29,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -152,7 +152,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String prefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable String prefix) throws IOException {
         logger.trace("listBlobsByPrefix({})", prefix);
 
         try {
@@ -164,7 +164,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetadata> listBlobs() throws IOException {
         logger.trace("listBlobs()");
         return listBlobsByPrefix(null);
     }

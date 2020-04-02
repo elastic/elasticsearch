@@ -93,6 +93,16 @@ category.
 (string) A space separated list of the common tokens that are matched in values
 of the category.
 
+`num_matches`::
+(long) The number of messages that have been matched by this category. This is
+only guaranteed to have the latest accurate count after a job `_flush` or `_close`
+
+`preferred_to_categories`::
+(list) A list of `category_id` entries that this current category encompasses.
+Any new message that is processed by the categorizer will match against this
+category and not any of the categories in this list. This is only guaranteed
+to have the latest accurate list of categories after a job `_flush` or `_close`
+
 [[ml-get-category-example]]
 ==== {api-examples-title}
 

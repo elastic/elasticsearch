@@ -44,14 +44,14 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
     @Override
     protected T createTestInstance(String name,
                                    List<PipelineAggregator> pipelineAggregators,
-                                   Map<String, Object> metaData,
+                                   Map<String, Object> metadata,
                                    InternalAggregations aggregations) {
-        return createTestInstance(name, pipelineAggregators, metaData, aggregations, keyed);
+        return createTestInstance(name, pipelineAggregators, metadata, aggregations, keyed);
     }
 
     protected abstract T createTestInstance(String name,
                                             List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData,
+                                            Map<String, Object> metadata,
                                             InternalAggregations aggregations,
                                             boolean keyed);
     @Override

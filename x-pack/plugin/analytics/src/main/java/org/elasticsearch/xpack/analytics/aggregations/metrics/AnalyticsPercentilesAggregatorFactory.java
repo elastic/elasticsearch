@@ -12,39 +12,38 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType.HISTOGRAM;
-
 public class AnalyticsPercentilesAggregatorFactory {
     private static final PercentilesAggregatorSupplier PERCENTILES =
-        (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, pipelineAggregators, metaData) -> {
+        (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, pipelineAggregators, metadata) -> {
             if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                 double compression = ((PercentilesConfig.TDigest)percentilesConfig).getCompression();
                 return new HistoBackedTDigestPercentilesAggregator(name, valuesSource, context, parent,
-                    percents, compression, keyed, formatter, pipelineAggregators, metaData);
+                    percents, compression, keyed, formatter, pipelineAggregators, metadata);
             }
             if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
                 int numSigFig = ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
                 return new HistoBackedHDRPercentilesAggregator(name, valuesSource, context, parent,
-                    percents, numSigFig, keyed, formatter, pipelineAggregators, metaData);
+                    percents, numSigFig, keyed, formatter, pipelineAggregators, metadata);
             }
 
             throw new IllegalArgumentException("Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " +
                 "is not compatible with Histogram field");
         };
     private static final PercentilesAggregatorSupplier PERCENTILE_RANKS =
-        (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, pipelineAggregators, metaData) -> {
+        (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, pipelineAggregators, metadata) -> {
             if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
                 double compression = ((PercentilesConfig.TDigest)percentilesConfig).getCompression();
                 return new HistoBackedTDigestPercentileRanksAggregator(name, valuesSource, context, parent,
-                    percents, compression, keyed, formatter, pipelineAggregators, metaData);
+                    percents, compression, keyed, formatter, pipelineAggregators, metadata);
             }
             if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
                 int numSigFig = ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
                 return new HistoBackedHDRPercentileRanksAggregator(name, valuesSource, context, parent,
-                    percents, numSigFig, keyed, formatter, pipelineAggregators, metaData);
+                    percents, numSigFig, keyed, formatter, pipelineAggregators, metadata);
             }
 
             throw new IllegalArgumentException("Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " +
@@ -52,7 +51,9 @@ public class AnalyticsPercentilesAggregatorFactory {
         };
 
     public static final List<AggregationExtension> EXTENSIONS = List.of(
-        new AggregationExtension(PercentilesAggregationBuilder.NAME, spec -> spec.implementFor(PERCENTILES, HISTOGRAM)),
-        new AggregationExtension(PercentileRanksAggregationBuilder.NAME,spec -> spec.implementFor(PERCENTILE_RANKS, HISTOGRAM))
+        new AggregationExtension(PercentilesAggregationBuilder.NAME,
+            spec -> spec.implementFor(PERCENTILES, AnalyticsValuesSourceType.HISTOGRAM)),
+        new AggregationExtension(PercentileRanksAggregationBuilder.NAME,
+            spec -> spec.implementFor(PERCENTILE_RANKS, AnalyticsValuesSourceType.HISTOGRAM))
     );
 }

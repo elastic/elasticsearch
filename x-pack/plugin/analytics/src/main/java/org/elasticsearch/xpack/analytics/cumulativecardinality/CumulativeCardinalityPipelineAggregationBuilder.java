@@ -80,8 +80,8 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new CumulativeCardinalityPipelineAggregator(name, bucketsPaths, formatter(), metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new CumulativeCardinalityPipelineAggregator(name, bucketsPaths, formatter(), metadata);
     }
 
     @Override

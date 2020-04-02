@@ -800,12 +800,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
      * This test checks the search context cacheable flag is updated accordingly.
      */
     public void testCachingStrategiesWithNow() throws IOException {
-        // if we hit all fields, this should contain a date field and should diable cachability
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        // if we hit all fields, this should contain a date field and should disable cachability
         String query = "now " + randomAlphaOfLengthBetween(4, 10);
         SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder(query);
         assertQueryCachability(queryBuilder, false);
 
-        // if we hit a date field with "now", this should diable cachability
+        // if we hit a date field with "now", this should disable cachability
         queryBuilder = new SimpleQueryStringBuilder("now");
         queryBuilder.field(DATE_FIELD_NAME);
         assertQueryCachability(queryBuilder, false);

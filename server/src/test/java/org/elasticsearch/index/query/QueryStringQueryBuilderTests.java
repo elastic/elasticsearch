@@ -1549,12 +1549,13 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
      * This test checks the search context cacheable flag is updated accordingly.
      */
     public void testCachingStrategiesWithNow() throws IOException {
-        // if we hit all fields, this should contain a date field and should diable cachability
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        // if we hit all fields, this should contain a date field and should disable cachability
         String query = "now " + randomAlphaOfLengthBetween(4, 10);
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(query);
         assertQueryCachability(queryStringQueryBuilder, false);
 
-        // if we hit a date field with "now", this should diable cachability
+        // if we hit a date field with "now", this should disable cachability
         queryStringQueryBuilder = new QueryStringQueryBuilder("now");
         queryStringQueryBuilder.field(DATE_FIELD_NAME);
         assertQueryCachability(queryStringQueryBuilder, false);

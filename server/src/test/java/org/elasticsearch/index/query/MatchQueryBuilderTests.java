@@ -512,7 +512,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
      * "now" on date fields should make the query non-cachable.
      */
     public void testCachingStrategiesWithNow() throws IOException {
-        // if we hit a date field with "now", this should diable cachability
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        // if we hit a date field with "now", this should disable cachability
         MatchQueryBuilder queryBuilder = new MatchQueryBuilder(DATE_FIELD_NAME, "now");
         QueryShardContext context = createShardContext();
         assert context.isCacheable();

@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.ClassificationTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
@@ -95,7 +96,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
     @Override
     protected List<Version> bwcVersions() {
-        return AbstractBWCSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
+        return AbstractBWCWireSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
     }
 
     @Override
@@ -155,12 +156,14 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             bwcAnalysis = new Classification(bwcClassification.getDependentVariable(),
                 bwcClassification.getBoostedTreeParams(),
                 bwcClassification.getPredictionFieldName(),
+                bwcClassification.getClassAssignmentObjective(),
                 bwcClassification.getNumTopClasses(),
                 bwcClassification.getTrainingPercent(),
                 42L);
             testAnalysis = new Classification(testClassification.getDependentVariable(),
                 testClassification.getBoostedTreeParams(),
                 testClassification.getPredictionFieldName(),
+                testClassification.getClassAssignmentObjective(),
                 testClassification.getNumTopClasses(),
                 testClassification.getTrainingPercent(),
                 42L);

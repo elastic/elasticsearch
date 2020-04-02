@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -27,7 +27,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
         client().admin().indices().prepareCreate(UNRELATED_INDEX).get();
 
-        enableIndexBlock(UNRELATED_INDEX, IndexMetaData.SETTING_READ_ONLY);
+        enableIndexBlock(UNRELATED_INDEX, IndexMetadata.SETTING_READ_ONLY);
 
         Job.Builder job = createJob("delete-aliases-test-job", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
@@ -44,6 +44,6 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         // If the deletion of aliases touches the unrelated index with the block
         // then the line above will throw a ClusterBlockException
 
-        disableIndexBlock(UNRELATED_INDEX, IndexMetaData.SETTING_READ_ONLY);
+        disableIndexBlock(UNRELATED_INDEX, IndexMetadata.SETTING_READ_ONLY);
     }
 }

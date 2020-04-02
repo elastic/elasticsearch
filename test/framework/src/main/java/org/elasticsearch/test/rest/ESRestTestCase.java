@@ -22,6 +22,7 @@ package org.elasticsearch.test.rest;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
@@ -99,6 +100,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
@@ -547,9 +549,21 @@ public abstract class ESRestTestCase extends ESTestCase {
                         adminClient().performRequest(new Request("DELETE", "_template/" + template));
                     }
                 }
+                try {
+                    adminClient().performRequest(new Request("DELETE", "_index_template/*"));
+                    adminClient().performRequest(new Request("DELETE", "_component_template/*"));
+                } catch (ResponseException e) {
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                }
             } else {
                 logger.debug("Clearing all templates");
                 adminClient().performRequest(new Request("DELETE", "_template/*"));
+                try {
+                    adminClient().performRequest(new Request("DELETE", "_index_template/*"));
+                    adminClient().performRequest(new Request("DELETE", "_component_template/*"));
+                } catch (ResponseException e) {
+                    // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                }
             }
         }
 
@@ -1120,16 +1134,17 @@ public abstract class ESRestTestCase extends ESTestCase {
             return true;
         }
         switch (name) {
-        case ".triggered_watches":
-        case ".watches":
-        case "logstash-index-template":
-        case ".logstash-management":
-        case "security_audit_log":
-        case ".slm-history":
-        case ".async-search":
-            return true;
-        default:
-            return false;
+            case ".triggered_watches":
+            case ".watches":
+            case "logstash-index-template":
+            case ".logstash-management":
+            case "security_audit_log":
+            case ".slm-history":
+            case ".async-search":
+            case "saml-service-provider":
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -1296,5 +1311,36 @@ public abstract class ESRestTestCase extends ESTestCase {
                     assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
                 });
         }, 60, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Wait for the license to be applied and active. The specified admin client is used to check the license and this is done using
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} to give some time to the License to be applied on nodes.
+     *
+     * @param restClient the client to use
+     * @throws Exception if an exception is thrown while checking the status of the license
+     */
+    protected static void waitForActiveLicense(final RestClient restClient) throws Exception {
+        assertBusy(() -> {
+            final Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
+            request.setOptions(RequestOptions.DEFAULT.toBuilder());
+
+            final Response response = restClient.performRequest(request);
+            assertOK(response);
+
+            try (InputStream is = response.getEntity().getContent()) {
+                XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+                final Map<String, ?> map = XContentHelper.convertToMap(xContentType.xContent(), is, true);
+                assertThat(map, notNullValue());
+                assertThat("License must exist", map.containsKey("license"), equalTo(true));
+                @SuppressWarnings("unchecked")
+                final Map<String, ?> license = (Map<String, ?>) map.get("license");
+                assertThat("Expecting non-null license", license, notNullValue());
+                assertThat("License status must exist", license.containsKey("status"), equalTo(true));
+                final String status = (String) license.get("status");
+                assertThat("Expecting non-null license status", status, notNullValue());
+                assertThat("Expecting active license", status, equalTo("active"));
+            }
+        });
     }
 }

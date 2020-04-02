@@ -21,8 +21,9 @@ package org.elasticsearch.rest.action.cat;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.RestRequest;
@@ -52,6 +53,7 @@ public class RestAliasAction extends AbstractCatAction {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
                 new GetAliasesRequest(Strings.commaDelimitedListToStringArray(request.param("alias"))) :
                 new GetAliasesRequest();
+        getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
         return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestResponseListener<GetAliasesResponse>(channel) {
@@ -86,18 +88,18 @@ public class RestAliasAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, GetAliasesResponse response) {
         Table table = getTableWithHeader(request);
 
-        for (ObjectObjectCursor<String, List<AliasMetaData>> cursor : response.getAliases()) {
+        for (ObjectObjectCursor<String, List<AliasMetadata>> cursor : response.getAliases()) {
             String indexName = cursor.key;
-            for (AliasMetaData aliasMetaData : cursor.value) {
+            for (AliasMetadata aliasMetadata : cursor.value) {
                 table.startRow();
-                table.addCell(aliasMetaData.alias());
+                table.addCell(aliasMetadata.alias());
                 table.addCell(indexName);
-                table.addCell(aliasMetaData.filteringRequired() ? "*" : "-");
-                String indexRouting = Strings.hasLength(aliasMetaData.indexRouting()) ? aliasMetaData.indexRouting() : "-";
+                table.addCell(aliasMetadata.filteringRequired() ? "*" : "-");
+                String indexRouting = Strings.hasLength(aliasMetadata.indexRouting()) ? aliasMetadata.indexRouting() : "-";
                 table.addCell(indexRouting);
-                String searchRouting = Strings.hasLength(aliasMetaData.searchRouting()) ? aliasMetaData.searchRouting() : "-";
+                String searchRouting = Strings.hasLength(aliasMetadata.searchRouting()) ? aliasMetadata.searchRouting() : "-";
                 table.addCell(searchRouting);
-                String isWriteIndex = aliasMetaData.writeIndex() == null ? "-" : aliasMetaData.writeIndex().toString();
+                String isWriteIndex = aliasMetadata.writeIndex() == null ? "-" : aliasMetadata.writeIndex().toString();
                 table.addCell(isWriteIndex);
                 table.endRow();
             }

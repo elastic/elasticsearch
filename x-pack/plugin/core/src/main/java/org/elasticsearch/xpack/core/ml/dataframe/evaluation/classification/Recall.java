@@ -20,6 +20,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -30,11 +31,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -54,15 +53,10 @@ public class Recall implements EvaluationMetric {
 
     public static final ParseField NAME = new ParseField("recall");
 
-    private static final String PAINLESS_TEMPLATE = "doc[''{0}''].value == doc[''{1}''].value";
     private static final String AGG_NAME_PREFIX = "classification_recall_";
     static final String BY_ACTUAL_CLASS_AGG_NAME = AGG_NAME_PREFIX + "by_actual_class";
     static final String PER_ACTUAL_CLASS_RECALL_AGG_NAME = AGG_NAME_PREFIX + "per_actual_class_recall";
     static final String AVG_RECALL_AGG_NAME = AGG_NAME_PREFIX + "avg_recall";
-
-    private static Script buildScript(Object...args) {
-        return new Script(new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args));
-    }
 
     private static final ObjectParser<Recall, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Recall::new);
 
@@ -98,11 +92,12 @@ public class Recall implements EvaluationMetric {
         if (result.get() != null) {
             return Tuple.tuple(List.of(), List.of());
         }
-        Script script = buildScript(actualField, predictedField);
+        Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
         return Tuple.tuple(
             List.of(
                 AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)
                     .field(actualField)
+                    .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
                     .size(MAX_CLASSES_CARDINALITY)
                     .subAggregation(AggregationBuilders.avg(PER_ACTUAL_CLASS_RECALL_AGG_NAME).script(script))),
             List.of(

@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.smoketest;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.xpack.watcher.WatcherYamlSuiteTestCase;
 
 /**
  * Runs the YAML rest tests against an external cluster
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53177")
 public class WatcherYamlRestIT extends WatcherYamlSuiteTestCase {
     public WatcherYamlRestIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

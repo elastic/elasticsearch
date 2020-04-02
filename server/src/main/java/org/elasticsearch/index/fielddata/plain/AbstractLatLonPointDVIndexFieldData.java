@@ -28,7 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -65,17 +65,17 @@ public abstract class AbstractLatLonPointDVIndexFieldData extends DocValuesIndex
         }
 
         @Override
-        public AtomicGeoPointFieldData load(LeafReaderContext context) {
+        public LeafGeoPointFieldData load(LeafReaderContext context) {
             LeafReader reader = context.reader();
             FieldInfo info = reader.getFieldInfos().fieldInfo(fieldName);
             if (info != null) {
                 checkCompatible(info);
             }
-            return new LatLonPointDVAtomicFieldData(reader, fieldName);
+            return new LatLonPointDVLeafFieldData(reader, fieldName);
         }
 
         @Override
-        public AtomicGeoPointFieldData loadDirect(LeafReaderContext context) throws Exception {
+        public LeafGeoPointFieldData loadDirect(LeafReaderContext context) throws Exception {
             return load(context);
         }
 

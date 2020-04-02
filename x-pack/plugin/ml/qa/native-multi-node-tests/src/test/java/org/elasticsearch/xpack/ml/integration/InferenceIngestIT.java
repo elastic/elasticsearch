@@ -120,7 +120,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "                \"num_top_feature_importance_values\": 2" +
             "          }},\n" +
             "          \"model_id\": \"test_classification\",\n" +
-            "          \"field_mappings\": {\n" +
+            "          \"field_map\": {\n" +
             "            \"col1\": \"col1\",\n" +
             "            \"col2\": \"col2\",\n" +
             "            \"col3\": \"col3\",\n" +
@@ -133,7 +133,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "          \"target_field\": \"ml.regression\",\n" +
             "          \"model_id\": \"test_regression\",\n" +
             "          \"inference_config\": {\"regression\":{}},\n" +
-            "          \"field_mappings\": {\n" +
+            "          \"field_map\": {\n" +
             "            \"col1\": \"col1\",\n" +
             "            \"col2\": \"col2\",\n" +
             "            \"col3\": \"col3\",\n" +
@@ -156,8 +156,10 @@ public class InferenceIngestIT extends ESRestTestCase {
         String responseString = EntityUtils.toString(response.getEntity());
         assertThat(responseString, containsString("\"predicted_value\":\"second\""));
         assertThat(responseString, containsString("\"predicted_value\":1.0"));
-        assertThat(responseString, containsString("\"col2\":0.944"));
-        assertThat(responseString, containsString("\"col1\":0.19999"));
+        assertThat(responseString, containsString("\"feature_name\":\"col1\""));
+        assertThat(responseString, containsString("\"feature_name\":\"col2\""));
+        assertThat(responseString, containsString("\"importance\":0.944"));
+        assertThat(responseString, containsString("\"importance\":0.19999"));
 
         String sourceWithMissingModel = "{\n" +
             "  \"pipeline\": {\n" +
@@ -166,7 +168,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "        \"inference\": {\n" +
             "          \"model_id\": \"test_classification_missing\",\n" +
             "          \"inference_config\": {\"classification\":{}},\n" +
-            "          \"field_mappings\": {\n" +
+            "          \"field_map\": {\n" +
             "            \"col1\": \"col1\",\n" +
             "            \"col2\": \"col2\",\n" +
             "            \"col3\": \"col3\",\n" +
@@ -204,7 +206,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "                \"num_top_feature_importance_values\": 2" +
             "          }},\n" +
             "          \"model_id\": \"test_classification\",\n" +
-            "          \"field_mappings\": {}\n" +
+            "          \"field_map\": {}\n" +
             "        }\n" +
             "      }\n"+
             "    ]\n" +
@@ -221,8 +223,10 @@ public class InferenceIngestIT extends ESRestTestCase {
         Response response = client().performRequest(simulateRequest(source));
         String responseString = EntityUtils.toString(response.getEntity());
         assertThat(responseString, containsString("\"predicted_value\":\"second\""));
-        assertThat(responseString, containsString("\"col2\":0.944"));
-        assertThat(responseString, containsString("\"col1\":0.19999"));
+        assertThat(responseString, containsString("\"feature_name\":\"col1\""));
+        assertThat(responseString, containsString("\"feature_name\":\"col2\""));
+        assertThat(responseString, containsString("\"importance\":0.944"));
+        assertThat(responseString, containsString("\"importance\":0.19999"));
     }
 
     public void testSimulateLangIdent() throws IOException {
@@ -233,7 +237,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "        \"inference\": {\n" +
             "          \"inference_config\": {\"classification\":{}},\n" +
             "          \"model_id\": \"lang_ident_model_1\",\n" +
-            "          \"field_mappings\": {}\n" +
+            "          \"field_map\": {}\n" +
             "        }\n" +
             "      }\n" +
             "    ]\n" +
@@ -420,6 +424,7 @@ public class InferenceIngestIT extends ESRestTestCase {
     private static final String REGRESSION_CONFIG = "{" +
         "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for regression\",\n" +
+        "  \"inference_config\": {\"regression\": {}},\n" +
         "  \"definition\": " + REGRESSION_DEFINITION +
         "}";
 
@@ -560,6 +565,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for classification\",\n" +
         "  \"default_field_map\": {\"col_1_alias\": \"col1\"},\n" +
+        "  \"inference_config\": {\"classification\": {}},\n" +
         "  \"definition\": " + CLASSIFICATION_DEFINITION +
         "}";
 
@@ -570,7 +576,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "          \"model_id\": \"test_classification\",\n" +
         "          \"tag\": \"classification\",\n" +
         "          \"inference_config\": {\"classification\": {}},\n" +
-        "          \"field_mappings\": {\n" +
+        "          \"field_map\": {\n" +
         "            \"col1\": \"col1\",\n" +
         "            \"col2\": \"col2\",\n" +
         "            \"col3\": \"col3\",\n" +
@@ -586,7 +592,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "          \"model_id\": \"test_regression\",\n" +
         "          \"tag\": \"regression\",\n" +
         "          \"inference_config\": {\"regression\": {}},\n" +
-        "          \"field_mappings\": {\n" +
+        "          \"field_map\": {\n" +
         "            \"col1\": \"col1\",\n" +
         "            \"col2\": \"col2\",\n" +
         "            \"col3\": \"col3\",\n" +

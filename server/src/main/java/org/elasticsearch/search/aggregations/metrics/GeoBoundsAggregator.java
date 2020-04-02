@@ -53,8 +53,8 @@ final class GeoBoundsAggregator extends MetricsAggregator {
 
     GeoBoundsAggregator(String name, SearchContext aggregationContext, Aggregator parent,
             ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
-        super(name, aggregationContext, parent, pipelineAggregators, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, aggregationContext, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         this.wrapLongitude = wrapLongitude;
         if (valuesSource != null) {
@@ -154,14 +154,14 @@ final class GeoBoundsAggregator extends MetricsAggregator {
         double negLeft = negLefts.get(owningBucketOrdinal);
         double negRight = negRights.get(owningBucketOrdinal);
         return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude,
-            pipelineAggregators(), metaData());
+            pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalGeoBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
             Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude,
-            pipelineAggregators(), metaData());
+            pipelineAggregators(), metadata());
     }
 
     @Override

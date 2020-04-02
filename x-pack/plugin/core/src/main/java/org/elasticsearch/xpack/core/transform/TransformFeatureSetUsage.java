@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,7 +54,7 @@ public class TransformFeatureSetUsage extends Usage {
                 builder.field(entry.getKey(), entry.getValue());
                 all+=entry.getValue();
             }
-            builder.field(MetaData.ALL, all);
+            builder.field(Metadata.ALL, all);
             builder.endObject();
 
             // if there are no transforms, do not show any stats

@@ -64,6 +64,6 @@ public class LinearRing extends Line {
     public String toString() {
         return "linearring(x=" + Arrays.toString(getX()) +
             ", y=" + Arrays.toString(getY()) +
-            (hasZ() ? ", z=" + Arrays.toString(getZ()) : "");
+            (hasZ() ? ", z=" + Arrays.toString(getZ()) : "") + ")";
     }
 }

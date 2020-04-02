@@ -201,7 +201,7 @@ public class IndicesModule extends AbstractModule {
     /**
      * Returns a set containing all of the builtin metadata fields
      */
-    public static Set<String> getBuiltInMetaDataFields() {
+    public static Set<String> getBuiltInMetadataFields() {
         return builtInMetadataMappers.keySet();
     }
 

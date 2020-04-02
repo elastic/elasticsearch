@@ -145,8 +145,8 @@ You can check progress by submitting a <<cat-health,`_cat/health`>> request:
 GET _cat/health?v
 --------------------------------------------------
 
-Wait for the `status` column to switch from `yellow` to `green`. Once the
-node is `green`, all primary and replica shards have been allocated.
+Wait for the `status` column to switch to `green`. Once the node is `green`, all
+primary and replica shards have been allocated.
 
 [IMPORTANT]
 ====================================================

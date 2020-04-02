@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -34,12 +34,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -56,7 +53,7 @@ public class RestIndicesActionTests extends ESTestCase {
     public void testBuildTable() {
         final int numIndices = randomIntBetween(3, 20);
         final Map<String, Settings> indicesSettings = new LinkedHashMap<>();
-        final Map<String, IndexMetaData> indicesMetaDatas = new LinkedHashMap<>();
+        final Map<String, IndexMetadata> indicesMetadatas = new LinkedHashMap<>();
         final Map<String, ClusterIndexHealth> indicesHealths = new LinkedHashMap<>();
         final Map<String, IndexStats> indicesStats = new LinkedHashMap<>();
 
@@ -64,28 +61,28 @@ public class RestIndicesActionTests extends ESTestCase {
             String indexName = "index-" + i;
 
             Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                 .put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), randomBoolean())
                 .build();
             indicesSettings.put(indexName, indexSettings);
 
-            IndexMetaData.State indexState = randomBoolean() ? IndexMetaData.State.OPEN : IndexMetaData.State.CLOSE;
+            IndexMetadata.State indexState = randomBoolean() ? IndexMetadata.State.OPEN : IndexMetadata.State.CLOSE;
             if (frequently()) {
                 ClusterHealthStatus healthStatus = randomFrom(ClusterHealthStatus.values());
                 int numberOfShards = randomIntBetween(1, 3);
                 int numberOfReplicas = healthStatus == ClusterHealthStatus.YELLOW ? 1 : randomInt(1);
-                IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
+                IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
                     .settings(indexSettings)
                     .creationDate(System.currentTimeMillis())
                     .numberOfShards(numberOfShards)
                     .numberOfReplicas(numberOfReplicas)
                     .state(indexState)
                     .build();
-                indicesMetaDatas.put(indexName, indexMetaData);
+                indicesMetadatas.put(indexName, indexMetadata);
 
                 if (frequently()) {
-                    Index index = indexMetaData.getIndex();
+                    Index index = indexMetadata.getIndex();
                     IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
                     switch (randomFrom(ClusterHealthStatus.values())) {
                         case GREEN:
@@ -115,7 +112,7 @@ public class RestIndicesActionTests extends ESTestCase {
                         case RED:
                             break;
                     }
-                    indicesHealths.put(indexName, new ClusterIndexHealth(indexMetaData, indexRoutingTable.build()));
+                    indicesHealths.put(indexName, new ClusterIndexHealth(indexMetadata, indexRoutingTable.build()));
 
                     if (frequently()) {
                         IndexStats indexStats = mock(IndexStats.class);
@@ -127,11 +124,8 @@ public class RestIndicesActionTests extends ESTestCase {
             }
         }
 
-        final RestController restController =
-            new RestController(Collections.emptySet(), null, null, null, new UsageService(), randomBoolean());
         final RestIndicesAction action = new RestIndicesAction();
-        restController.registerHandler(action);
-        final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetaDatas);
+        final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetadatas);
 
         // now, verify the table is correct
         List<Table.Cell> headers = table.getHeaders();
@@ -143,14 +137,14 @@ public class RestIndicesActionTests extends ESTestCase {
         assertThat(headers.get(5).value, equalTo("rep"));
 
         final List<List<Table.Cell>> rows = table.getRows();
-        assertThat(rows.size(), equalTo(indicesMetaDatas.size()));
+        assertThat(rows.size(), equalTo(indicesMetadatas.size()));
 
         for (final List<Table.Cell> row : rows) {
             final String indexName = (String) row.get(2).value;
 
             ClusterIndexHealth indexHealth = indicesHealths.get(indexName);
             IndexStats indexStats = indicesStats.get(indexName);
-            IndexMetaData indexMetaData = indicesMetaDatas.get(indexName);
+            IndexMetadata indexMetadata = indicesMetadatas.get(indexName);
 
             if (indexHealth != null) {
                 assertThat(row.get(0).value, equalTo(indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)));
@@ -160,12 +154,12 @@ public class RestIndicesActionTests extends ESTestCase {
                 assertThat(row.get(0).value, equalTo(""));
             }
 
-            assertThat(row.get(1).value, equalTo(indexMetaData.getState().toString().toLowerCase(Locale.ROOT)));
+            assertThat(row.get(1).value, equalTo(indexMetadata.getState().toString().toLowerCase(Locale.ROOT)));
             assertThat(row.get(2).value, equalTo(indexName));
-            assertThat(row.get(3).value, equalTo(indexMetaData.getIndexUUID()));
+            assertThat(row.get(3).value, equalTo(indexMetadata.getIndexUUID()));
             if (indexHealth != null) {
-                assertThat(row.get(4).value, equalTo(indexMetaData.getNumberOfShards()));
-                assertThat(row.get(5).value, equalTo(indexMetaData.getNumberOfReplicas()));
+                assertThat(row.get(4).value, equalTo(indexMetadata.getNumberOfShards()));
+                assertThat(row.get(5).value, equalTo(indexMetadata.getNumberOfReplicas()));
             } else {
                 assertThat(row.get(4).value, nullValue());
                 assertThat(row.get(5).value, nullValue());

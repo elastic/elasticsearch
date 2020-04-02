@@ -424,6 +424,7 @@ public class InferenceIngestIT extends ESRestTestCase {
     private static final String REGRESSION_CONFIG = "{" +
         "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for regression\",\n" +
+        "  \"inference_config\": {\"regression\": {}},\n" +
         "  \"definition\": " + REGRESSION_DEFINITION +
         "}";
 
@@ -564,6 +565,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         "  \"input\":{\"field_names\":[\"col1\",\"col2\",\"col3\",\"col4\"]}," +
         "  \"description\": \"test model for classification\",\n" +
         "  \"default_field_map\": {\"col_1_alias\": \"col1\"},\n" +
+        "  \"inference_config\": {\"classification\": {}},\n" +
         "  \"definition\": " + CLASSIFICATION_DEFINITION +
         "}";
 

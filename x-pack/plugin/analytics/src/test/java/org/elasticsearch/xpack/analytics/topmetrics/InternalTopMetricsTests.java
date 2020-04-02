@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -216,18 +215,17 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected InternalTopMetrics createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata) {
-        return createTestInstance(name, pipelineAggregators, metadata, InternalAggregationTestCase::randomNumericDocValueFormat);
+    protected InternalTopMetrics createTestInstance(String name, Map<String, Object> metadata) {
+        return createTestInstance(name, metadata, InternalAggregationTestCase::randomNumericDocValueFormat);
     }
 
-    private InternalTopMetrics createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
+    private InternalTopMetrics createTestInstance(String name, 
             Map<String, Object> metadata, Supplier<DocValueFormat> randomDocValueFormat) {
         int metricCount = between(1, 5);
         List<String> metricNames = randomMetricNames(metricCount);
         int size = between(1, 100);
         List<InternalTopMetrics.TopMetric> topMetrics = randomTopMetrics(randomDocValueFormat, between(0, size), metricCount);
-        return new InternalTopMetrics(name, sortOrder, metricNames, size, topMetrics, pipelineAggregators, metadata);
+        return new InternalTopMetrics(name, sortOrder, metricNames, size, topMetrics, emptyList(), metadata);
     }
 
     @Override
@@ -276,8 +274,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
      * implement {@link Object#equals(Object)}.
      */
     public void testFromXContentDates() throws IOException {
-        InternalTopMetrics aggregation = createTestInstance(
-                randomAlphaOfLength(3), emptyList(), emptyMap(), InternalTopMetricsTests::strictDateTime);
+        InternalTopMetrics aggregation = createTestInstance(randomAlphaOfLength(3), emptyMap(), InternalTopMetricsTests::strictDateTime);
         ParsedAggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), randomBoolean());
         assertFromXContent(aggregation, parsedAggregation);
     }

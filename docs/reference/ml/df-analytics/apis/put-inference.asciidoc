@@ -57,7 +57,7 @@ If `compressed_definition` is specified, then `definition` cannot be specified.
 (Required, object) 
 The {infer} definition for the model. If `definition` is specified, then 
 `compressed_definition` cannot be specified.
-
++
 .Properties of `definition`
 [%collapsible%open]
 ====
@@ -65,7 +65,7 @@ The {infer} definition for the model. If `definition` is specified, then
 `preprocessors`::
 (Optional, object)
 Collection of preprocessors.
-
++
 .Properties of `preprocessors`
 [%collapsible%open]
 =====
@@ -73,7 +73,7 @@ Collection of preprocessors.
 `frequency_encoding`::
 (Required, object) 
 Defines a frequency encoding for a field.
-
++
 .Properties of `frequency_encoding`
 [%collapsible%open]
 ======
@@ -95,7 +95,7 @@ Object that maps the field value to the frequency encoded value.
 `one_hot_encoding`::
 (Required, object) 
 Defines a one hot encoding map for a field.
-
++
 .Properties of `one_hot_encoding`
 [%collapsible%open]
 ======
@@ -113,7 +113,7 @@ String map of "field_value: one_hot_column_name".
 `target_mean_encoding`::
 (Required, object) 
 Defines a target mean encoding for a field.
-
++
 .Properties of `target_mean_encoding`
 [%collapsible%open]
 ======
@@ -144,7 +144,7 @@ See <<ml-put-inference-preprocessor-example>> for more details.
 `trained_model`::
 (Required, object) 
 The definition of the trained model.
-
++
 .Properties of `trained_model`
 [%collapsible%open]
 =====
@@ -152,7 +152,7 @@ The definition of the trained model.
 `tree`::
 (Required, object) 
 The definition for a binary decision tree.
-
++
 .Properties of `tree`
 [%collapsible%open]
 ======
@@ -233,7 +233,7 @@ The decision threshold with which to compare the feature value.
 `ensemble`::
 (Optional, object)
 The definition for an ensemble model.
-
++
 .Properties of `ensemble`
 [%collapsible%open]
 ======
@@ -243,7 +243,7 @@ The definition for an ensemble model.
 An aggregated output object that defines how to aggregate the outputs of the 
 `trained_models`. Supported objects are `weighted_mode`, `weighted_sum`, and 
 `logistic_regression`.
-
++
 .Properties of `aggregate_output`
 [%collapsible%open]
 =======
@@ -260,7 +260,7 @@ consequently, the probability of class 0 is `1 - P_1`. The class with the
 highest probability (either 0 or 1) is then returned. For more information about 
 logistic regression, see 
 https://en.wikipedia.org/wiki/Logistic_regression[this wiki article].
-
++
 .Properties of `logistic_regression`
 [%collapsible%open]
 ========
@@ -276,7 +276,7 @@ models).
 (Optional, object) 
 This `aggregated_output` type works with regression. The weighted sum of the 
 input values.
-
++
 .Properties of `weighted_sum`
 [%collapsible%open]
 ========
@@ -293,7 +293,7 @@ models).
 This `aggregated_output` type works with regression or classification. It takes 
 a weighted vote of the input values. The most common input value (taking the 
 weights into account) is returned.
-
++
 .Properties of `weighted_mode`
 [%collapsible%open]
 ========
@@ -336,18 +336,75 @@ See <<ml-put-inference-model-example>> for more details.
 ====
 //End definition
 
-
 `description`::
 (Optional, string) 
 A human-readable description of the {infer} trained model.
 
+//Begin inference_config
+`inference_config`::
+(Required, object)
+The default configuration for inference. This can be either a `regression`
+or `classification` configuration. It must match the underlying
+`definition.trained_model`'s `target_type`.
++
+.Properties of `inference_config`
+[%collapsible%open]
+====
+`regression`:::
+(Optional, object)
+Regression configuration for inference.
++
+.Properties of regression inference
+[%collapsible%open]
+=====
+`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+
+`results_field`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-results-field]
+=====
+
+`classification`:::
+(Optional, object)
+Classification configuration for inference.
++
+.Properties of classification inference
+[%collapsible%open]
+=====
+`num_top_classes`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
+
+`num_top_feature_importance_values`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
+
+`results_field`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-results-field]
+
+`top_classes_results_field`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
+=====
+====
+//End of inference_config
+
+//Begin input
 `input`::
 (Required, object) 
 The input field names for the model definition.
-
-`input`.`field_names`:::
++
+.Properties of `input`
+[%collapsible%open]
+====
+`field_names`:::
 (Required, string) 
 An array of input field names for the model.
+====
+//End input
 
 `metadata`::
 (Optional, object) 

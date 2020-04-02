@@ -48,7 +48,7 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
             case HETEROSCEDASTIC:
                 return new UnpairedTTestAggregator(name, null, tails, false, format, searchContext, parent, pipelineAggregators, metadata);
             default:
-                throw new UnsupportedOperationException("Unsupported t-test type " + testType);
+                throw new IllegalArgumentException("Unsupported t-test type " + testType);
         }
     }
 

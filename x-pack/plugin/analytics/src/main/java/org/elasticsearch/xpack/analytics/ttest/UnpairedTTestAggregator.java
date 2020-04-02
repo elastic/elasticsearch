@@ -27,8 +27,8 @@ import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.A_
 import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.B_FIELD;
 
 public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState> {
-    private final TStatsBuilder a;
-    private final TStatsBuilder b;
+    private final TTestStatsBuilder a;
+    private final TTestStatsBuilder b;
     private final boolean homoscedastic;
 
     UnpairedTTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, boolean homoscedastic,
@@ -36,8 +36,8 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
                             Map<String, Object> metadata) throws IOException {
         super(name, valuesSources, tails, format, context, parent, pipelineAggregators, metadata);
         BigArrays bigArrays = context.bigArrays();
-        a = new TStatsBuilder(bigArrays);
-        b = new TStatsBuilder(bigArrays);
+        a = new TTestStatsBuilder(bigArrays);
+        b = new TTestStatsBuilder(bigArrays);
         this.homoscedastic = homoscedastic;
     }
 
@@ -73,7 +73,7 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
         return new LeafBucketCollectorBase(sub, docAValues) {
 
             private void processValues(int doc, long bucket, SortedNumericDoubleValues docValues, CompensatedSum compSum,
-                                       CompensatedSum compSumOfSqr, TStatsBuilder builder) throws IOException {
+                                       CompensatedSum compSumOfSqr, TTestStatsBuilder builder) throws IOException {
                 if (docValues.advanceExact(doc)) {
                     final int numValues = docValues.docValueCount();
                     for (int i = 0; i < numValues; i++) {

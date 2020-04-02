@@ -13,7 +13,7 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
-public class TStatsBuilder implements Releasable {
+public class TTestStatsBuilder implements Releasable {
 
     private LongArray counts;
     private DoubleArray sums;
@@ -21,7 +21,7 @@ public class TStatsBuilder implements Releasable {
     private DoubleArray sumOfSqrs;
     private DoubleArray sumOfSqrCompensations;
 
-    TStatsBuilder(BigArrays bigArrays) {
+    TTestStatsBuilder(BigArrays bigArrays) {
         counts = bigArrays.newLongArray(1, true);
         sums = bigArrays.newDoubleArray(1, true);
         compensations = bigArrays.newDoubleArray(1, true);
@@ -42,11 +42,14 @@ public class TStatsBuilder implements Releasable {
     }
 
     public void grow(BigArrays bigArrays, long buckets) {
-        counts = bigArrays.grow(counts, buckets);
-        sums = bigArrays.grow(sums, buckets);
-        compensations = bigArrays.grow(compensations, buckets);
-        sumOfSqrs = bigArrays.grow(sumOfSqrs, buckets);
-        sumOfSqrCompensations = bigArrays.grow(sumOfSqrCompensations, buckets);
+        if (buckets >= counts.size()) {
+            long overSize = BigArrays.overSize(buckets);
+            counts = bigArrays.resize(counts, overSize);
+            sums = bigArrays.resize(sums, overSize);
+            compensations = bigArrays.resize(compensations, overSize);
+            sumOfSqrs = bigArrays.resize(sumOfSqrs, overSize);
+            sumOfSqrCompensations = bigArrays.resize(sumOfSqrCompensations, overSize);
+        }
     }
 
     public void addValue(CompensatedSum compSum, CompensatedSum compSumOfSqr, long bucket, double val) {

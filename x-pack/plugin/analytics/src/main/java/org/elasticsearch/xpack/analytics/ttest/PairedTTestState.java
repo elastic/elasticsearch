@@ -62,7 +62,10 @@ public class PairedTTestState implements TTestState {
         states.forEach(tTestState -> {
             PairedTTestState state = (PairedTTestState) tTestState;
             reducer.accept(state.stats);
-            assert state.tails == tails;
+            if (state.tails != tails) {
+                throw new IllegalStateException("Incompatible tails value in the reduce. Expected "
+                    + state.tails + " reduced with " + tails);
+            }
         });
         return new PairedTTestState(reducer.result(), tails);
     }

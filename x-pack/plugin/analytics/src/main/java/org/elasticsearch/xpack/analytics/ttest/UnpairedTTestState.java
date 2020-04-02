@@ -75,8 +75,14 @@ public class UnpairedTTestState implements TTestState {
         TTestStats.Reducer reducerB = new TTestStats.Reducer();
         states.forEach(tTestState -> {
             UnpairedTTestState state = (UnpairedTTestState) tTestState;
-            assert state.homoscedastic == homoscedastic;
-            assert state.tails == tails;
+            if (state.homoscedastic != homoscedastic) {
+                throw new IllegalStateException("Incompatible homoscedastic mode in the reduce. Expected "
+                    + state.homoscedastic + " reduced with " + homoscedastic);
+            }
+            if (state.tails != tails) {
+                throw new IllegalStateException("Incompatible tails value in the reduce. Expected "
+                    + state.tails + " reduced with " + tails);
+            }
             reducerA.accept(state.a);
             reducerB.accept(state.b);
         });

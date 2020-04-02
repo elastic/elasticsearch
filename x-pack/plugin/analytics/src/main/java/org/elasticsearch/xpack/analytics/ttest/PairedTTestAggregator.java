@@ -28,13 +28,13 @@ import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.A_
 import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.B_FIELD;
 
 public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
-    private TStatsBuilder statsBuilder;
+    private TTestStatsBuilder statsBuilder;
 
     PairedTTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, DocValueFormat format,
                           SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                          Map<String, Object> metadata) throws IOException {
+                         Map<String, Object> metadata) throws IOException {
         super(name, valuesSources, tails, format, context, parent, pipelineAggregators, metadata);
-        statsBuilder = new TStatsBuilder(context.bigArrays());
+        statsBuilder = new TTestStatsBuilder(context.bigArrays());
     }
 
     @Override
@@ -67,12 +67,12 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
         return new LeafBucketCollectorBase(sub, docAValues) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                statsBuilder.grow(bigArrays, bucket + 1);
                 if (docAValues.advanceExact(doc) && docBValues.advanceExact(doc)) {
                     if (docAValues.docValueCount() > 1 || docBValues.docValueCount() > 1) {
                         throw new AggregationExecutionException("Encountered more than one value for a " +
                             "single document. Use a script to combine multiple values per doc into a single value.");
                     }
+                    statsBuilder.grow(bigArrays, bucket + 1);
                     // There should always be one value if advanceExact lands us here, either
                     // a real value or a `missing` value
                     assert docAValues.docValueCount() == 1;

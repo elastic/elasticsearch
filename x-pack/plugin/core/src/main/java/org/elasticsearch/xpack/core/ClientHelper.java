@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
-import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 
 import java.util.Map;
 import java.util.Set;

@@ -155,6 +155,19 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      *
      * @param name The name of the aggregation.
      */
+    protected InternalAggregation(String name, Map<String, Object> metadata) {
+        this.name = name;
+        this.pipelineAggregators = emptyList();
+        this.metadata = metadata;
+    }
+
+    /**
+     * Constructs an aggregation result with a given name.
+     *
+     * @param name The name of the aggregation.
+     * @deprecated pipelines are being removed from the aggregation tree. Use the other ctor.
+     */
+    @Deprecated
     protected InternalAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         this.name = name;
         this.pipelineAggregators = pipelineAggregators;
@@ -170,6 +183,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         pipelineAggregatorsForBwcSerialization = pipelineTree.aggregators();
         forEachBucket(bucketAggs -> bucketAggs.mergePipelineTreeForBWCSerialization(pipelineTree));
     }
+
 
     /**
      * Read from a stream.

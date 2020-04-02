@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.junit.After;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,10 +39,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String NUMERICAL_FEATURE_FIELD = "feature";
     private static final String DISCRETE_NUMERICAL_FEATURE_FIELD = "discrete-feature";
-    private static final String DEPENDENT_VARIABLE_FIELD = "variable";
-    private static final List<Double> NUMERICAL_FEATURE_VALUES = Collections.unmodifiableList(Arrays.asList(1.0, 2.0, 3.0));
-    private static final List<Long> DISCRETE_NUMERICAL_FEATURE_VALUES = Collections.unmodifiableList(Arrays.asList(10L, 20L, 30L));
-    private static final List<Double> DEPENDENT_VARIABLE_VALUES = Collections.unmodifiableList(Arrays.asList(10.0, 20.0, 30.0));
+    static final String DEPENDENT_VARIABLE_FIELD = "variable";
+    private static final List<Double> NUMERICAL_FEATURE_VALUES = org.elasticsearch.common.collect.List.of(1.0, 2.0, 3.0);
+    private static final List<Long> DISCRETE_NUMERICAL_FEATURE_VALUES = org.elasticsearch.common.collect.List.of(10L, 20L, 30L);
+    private static final List<Double> DEPENDENT_VARIABLE_VALUES = org.elasticsearch.common.collect.List.of(10.0, 20.0, 30.0);
 
     private String jobId;
     private String sourceIndex;
@@ -399,7 +398,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         this.destIndex = sourceIndex + "_results";
     }
 
-    private static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows) {
+    static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows) {
         client().admin().indices().prepareCreate(sourceIndex)
             .addMapping("_doc",
                 NUMERICAL_FEATURE_FIELD, "type=double",

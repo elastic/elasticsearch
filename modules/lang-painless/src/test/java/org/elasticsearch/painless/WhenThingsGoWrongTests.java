@@ -185,7 +185,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             exec("try { int x; } catch (PainlessError error) {}", false);
             fail("should have hit ParseException");
         });
-        assertTrue(parseException.getMessage().contains("unexpected token ['PainlessError']"));
+        assertTrue(parseException.getMessage().contains("cannot resolve type [PainlessError]"));
     }
 
     public void testLoopLimits() {

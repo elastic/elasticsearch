@@ -127,16 +127,11 @@ FALSE: 'false';
 
 NULL: 'null';
 
-// The predicate here allows us to remove ambiguities when
-// dealing with types versus identifiers.  We check against
-// the current whitelist to determine whether a token is a type
-// or not.  Note this works by processing one character at a time
-// and the rule is added or removed as this happens.  This is also known
-// as "the lexer hack."  See (https://en.wikipedia.org/wiki/The_lexer_hack).
-TYPE: ID ( DOT ID )* { isType(getText()) }?;
+PRIMITIVE: 'boolean' | 'byte' | 'short'| 'char' | 'int' | 'long' | 'float' | 'double';
+
 ID: [_a-zA-Z] [_a-zA-Z0-9]*;
 
 mode AFTER_DOT;
 
-DOTINTEGER: ( '0' | [1-9] [0-9]* )                        -> mode(DEFAULT_MODE);
-DOTID: [_a-zA-Z] [_a-zA-Z0-9]*                            -> mode(DEFAULT_MODE);
+DOTINTEGER: ( '0' | [1-9] [0-9]* )                                            -> mode(DEFAULT_MODE);
+DOTID: [_a-zA-Z] [_a-zA-Z0-9]*                                                -> mode(DEFAULT_MODE);

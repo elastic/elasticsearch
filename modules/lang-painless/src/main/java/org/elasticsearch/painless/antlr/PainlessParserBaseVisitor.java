@@ -185,6 +185,13 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitType(PainlessParser.TypeContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitDeclvar(PainlessParser.DeclvarContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -298,13 +305,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitDynamic(PainlessParser.DynamicContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitStatic(PainlessParser.StaticContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -508,13 +508,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitConstructorfuncref(PainlessParser.ConstructorfuncrefContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitCapturingfuncref(PainlessParser.CapturingfuncrefContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

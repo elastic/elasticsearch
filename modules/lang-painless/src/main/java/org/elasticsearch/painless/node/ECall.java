@@ -28,6 +28,7 @@ import org.elasticsearch.painless.ir.CallSubNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
+import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -103,8 +104,9 @@ public class ECall extends AExpression {
 
             expressionNode = callSubDefNode;
         } else {
+            boolean isStatic = prefixOutput.expressionNode instanceof StaticNode;
             PainlessMethod method = scriptRoot.getPainlessLookup().lookupPainlessMethod(
-                    prefixOutput.actual, prefix instanceof EStatic, name, arguments.size());
+                    prefixOutput.actual, isStatic, name, arguments.size());
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(
@@ -133,7 +135,7 @@ public class ECall extends AExpression {
 
             CallSubNode callSubNode = new CallSubNode();
 
-            for (int argument = 0; argument < arguments.size(); ++ argument) {
+            for (int argument = 0; argument < arguments.size(); ++argument) {
                 callSubNode.addArgumentNode(cast(argumentOutputs.get(argument).expressionNode, argumentCasts.get(argument)));
             }
 

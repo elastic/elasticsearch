@@ -87,7 +87,12 @@ declaration
     ;
 
 decltype
-    : TYPE (LBRACE RBRACE)*
+    : type (LBRACE RBRACE)*
+    ;
+
+type
+    : PRIMITIVE
+    | ID (DOT DOTID)*
     ;
 
 declvar
@@ -95,7 +100,7 @@ declvar
     ;
 
 trap
-    : CATCH LP TYPE ID RP block
+    : CATCH LP type ID RP block
     ;
 
 noncondexpression
@@ -133,7 +138,6 @@ unary
 
 chain
     : primary postfix*          # dynamic
-    | decltype postdot postfix* # static
     | arrayinitializer          # newarray
     ;
 
@@ -149,7 +153,7 @@ primary
     | mapinitializer                      # mapinit
     | ID                                  # variable
     | ID arguments                        # calllocal
-    | NEW TYPE arguments                  # newobject
+    | NEW type arguments                  # newobject
     ;
 
 postfix
@@ -176,8 +180,8 @@ braceaccess
     ;
 
 arrayinitializer
-    : NEW TYPE ( LBRACE expression RBRACE )+ ( postdot postfix* )?                        # newstandardarray
-    | NEW TYPE LBRACE RBRACE LBRACK ( expression ( COMMA expression )* )? RBRACK postfix* # newinitializedarray
+    : NEW type ( LBRACE expression RBRACE )+ ( postdot postfix* )?                        # newstandardarray
+    | NEW type LBRACE RBRACE LBRACK ( expression ( COMMA expression )* )? RBRACK postfix* # newinitializedarray
     ;
 
 listinitializer
@@ -213,8 +217,7 @@ lamtype
     ;
 
 funcref
-    : TYPE REF ID      # classfuncref
+    : decltype REF ID  # classfuncref
     | decltype REF NEW # constructorfuncref
-    | ID REF ID        # capturingfuncref
     | THIS REF ID      # localfuncref
     ;

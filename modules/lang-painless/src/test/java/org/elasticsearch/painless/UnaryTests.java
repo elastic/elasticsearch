@@ -32,6 +32,8 @@ public class UnaryTests extends ScriptTestCase {
         assertEquals(1.0, exec("double x = 1; return +x;"));
         assertEquals(-1, exec("return -1;"));
         assertEquals(-2, exec("short x = 2; return -x;"));
+        assertEquals(-1.0, exec("def x = (def)-1.0; return +x"));
+        assertEquals(-1.0, exec("double x = (Double)-1.0; return +x"));
     }
 
     public void testNegationInt() throws Exception {

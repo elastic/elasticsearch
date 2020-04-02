@@ -43,7 +43,6 @@ import org.elasticsearch.painless.antlr.PainlessParser.BraceaccessContext;
 import org.elasticsearch.painless.antlr.PainlessParser.BreakContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CallinvokeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CalllocalContext;
-import org.elasticsearch.painless.antlr.PainlessParser.CapturingfuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CastContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ClassfuncrefContext;
 import org.elasticsearch.painless.antlr.PainlessParser.CompContext;
@@ -96,7 +95,6 @@ import org.elasticsearch.painless.antlr.PainlessParser.ReturnContext;
 import org.elasticsearch.painless.antlr.PainlessParser.SingleContext;
 import org.elasticsearch.painless.antlr.PainlessParser.SourceContext;
 import org.elasticsearch.painless.antlr.PainlessParser.StatementContext;
-import org.elasticsearch.painless.antlr.PainlessParser.StaticContext;
 import org.elasticsearch.painless.antlr.PainlessParser.StringContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ThrowContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TrailerContext;
@@ -116,11 +114,13 @@ import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
 import org.elasticsearch.painless.node.EBool;
 import org.elasticsearch.painless.node.EBoolean;
+import org.elasticsearch.painless.node.EBrace;
+import org.elasticsearch.painless.node.ECall;
 import org.elasticsearch.painless.node.ECallLocal;
-import org.elasticsearch.painless.node.ECapturingFunctionRef;
 import org.elasticsearch.painless.node.EComp;
 import org.elasticsearch.painless.node.EConditional;
 import org.elasticsearch.painless.node.EDecimal;
+import org.elasticsearch.painless.node.EDot;
 import org.elasticsearch.painless.node.EElvis;
 import org.elasticsearch.painless.node.EExplicit;
 import org.elasticsearch.painless.node.EFunctionRef;
@@ -134,13 +134,9 @@ import org.elasticsearch.painless.node.ENewObj;
 import org.elasticsearch.painless.node.ENull;
 import org.elasticsearch.painless.node.ENumeric;
 import org.elasticsearch.painless.node.ERegex;
-import org.elasticsearch.painless.node.EStatic;
 import org.elasticsearch.painless.node.EString;
 import org.elasticsearch.painless.node.EUnary;
 import org.elasticsearch.painless.node.EVariable;
-import org.elasticsearch.painless.node.EBrace;
-import org.elasticsearch.painless.node.ECall;
-import org.elasticsearch.painless.node.EDot;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SBreak;
 import org.elasticsearch.painless.node.SCatch;
@@ -527,12 +523,12 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitTrap(TrapContext ctx) {
-        String type = ctx.TYPE().getText();
+        String type = ctx.type().getText();
         String name = ctx.ID().getText();
         SBlock block = (SBlock)visit(ctx.block());
 
         return new SCatch(location(ctx), new DResolvedType(location(ctx), Exception.class),
-                new SDeclaration(location(ctx.TYPE()), new DUnresolvedType(location(ctx.TYPE()), type), name, false, null), block);
+                new SDeclaration(location(ctx.type()), new DUnresolvedType(location(ctx.type()), type), name, false, null), block);
     }
 
     @Override
@@ -771,13 +767,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitStatic(StaticContext ctx) {
-        String type = ctx.decltype().getText();
-
-        return buildPostfixChain(new EStatic(location(ctx), type), ctx.postdot(), ctx.postfix());
-    }
-
-    @Override
     public ANode visitNewarray(NewarrayContext ctx) {
         return visit(ctx.arrayinitializer());
     }
@@ -883,7 +872,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitNewobject(NewobjectContext ctx) {
-        String type = ctx.TYPE().getText();
+        String type = ctx.type().getText();
         List<AExpression> arguments = collectArguments(ctx.arguments());
 
         return new ENewObj(location(ctx), type, arguments);
@@ -979,7 +968,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitNewstandardarray(NewstandardarrayContext ctx) {
-        StringBuilder type = new StringBuilder(ctx.TYPE().getText());
+        StringBuilder type = new StringBuilder(ctx.type().getText());
         List<AExpression> expressions = new ArrayList<>();
 
         for (ExpressionContext expression : ctx.expression()) {
@@ -992,7 +981,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitNewinitializedarray(NewinitializedarrayContext ctx) {
-        String type = ctx.TYPE().getText() + "[]";
+        String type = ctx.type().getText() + "[]";
         List<AExpression> expressions = new ArrayList<>();
 
         for (ExpressionContext expression : ctx.expression()) {
@@ -1099,7 +1088,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitClassfuncref(ClassfuncrefContext ctx) {
-        return new EFunctionRef(location(ctx), ctx.TYPE().getText(), ctx.ID().getText());
+        return new EFunctionRef(location(ctx), ctx.decltype().getText(), ctx.ID().getText());
     }
 
     @Override
@@ -1107,11 +1096,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         return ctx.decltype().LBRACE().isEmpty() ?
                 new EFunctionRef(location(ctx), ctx.decltype().getText(), ctx.NEW().getText()) :
                 new ENewArrayFunctionRef(location(ctx), ctx.decltype().getText());
-    }
-
-    @Override
-    public ANode visitCapturingfuncref(CapturingfuncrefContext ctx) {
-        return new ECapturingFunctionRef(location(ctx), ctx.ID(0).getText(), ctx.ID(1).getText());
     }
 
     @Override

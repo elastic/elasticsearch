@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Scope.Variable;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -43,27 +44,47 @@ public class EVariable extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.read == false && input.write == false) {
-            throw createError(new IllegalArgumentException("not a statement: variable [" + name + "] not used"));
-        }
-
         Output output = new Output();
+        Class<?> type = scriptRoot.getPainlessLookup().canonicalTypeNameToType(name);
 
-        Variable variable = scope.getVariable(location, name);
+        if (type != null)  {
+            if (input.write) {
+                throw createError(new IllegalArgumentException("invalid assignment: cannot write a value to a static type [" + type + "]"));
+            }
 
-        if (input.write && variable.isFinal()) {
-            throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
+            if (input.read == false) {
+                throw createError(new IllegalArgumentException("not a statement: static type [" + type + "] not used"));
+            }
+
+            output.actual = type;
+
+            StaticNode staticNode = new StaticNode();
+
+            staticNode.setLocation(location);
+            staticNode.setExpressionType(output.actual);
+
+            output.expressionNode = staticNode;
+        } else {
+            if (input.read == false && input.write == false) {
+                throw createError(new IllegalArgumentException("not a statement: variable [" + name + "] not used"));
+            }
+
+            Variable variable = scope.getVariable(location, name);
+
+            if (input.write && variable.isFinal()) {
+                throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
+            }
+
+            output.actual = variable.getType();
+
+            VariableNode variableNode = new VariableNode();
+
+            variableNode.setLocation(location);
+            variableNode.setExpressionType(output.actual);
+            variableNode.setName(name);
+
+            output.expressionNode = variableNode;
         }
-
-        output.actual = variable.getType();
-
-        VariableNode variableNode = new VariableNode();
-
-        variableNode.setLocation(location);
-        variableNode.setExpressionType(output.actual);
-        variableNode.setName(name);
-
-        output.expressionNode = variableNode;
 
         return output;
     }

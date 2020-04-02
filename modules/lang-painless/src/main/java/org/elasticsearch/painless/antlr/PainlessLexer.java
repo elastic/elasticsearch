@@ -26,7 +26,7 @@ abstract class PainlessLexer extends Lexer {
     COND=51, COLON=52, ELVIS=53, REF=54, ARROW=55, FIND=56, MATCH=57, INCR=58, 
     DECR=59, ASSIGN=60, AADD=61, ASUB=62, AMUL=63, ADIV=64, AREM=65, AAND=66, 
     AXOR=67, AOR=68, ALSH=69, ARSH=70, AUSH=71, OCTAL=72, HEX=73, INTEGER=74, 
-    DECIMAL=75, STRING=76, REGEX=77, TRUE=78, FALSE=79, NULL=80, TYPE=81, 
+    DECIMAL=75, STRING=76, REGEX=77, TRUE=78, FALSE=79, NULL=80, PRIMITIVE=81, 
     ID=82, DOTINTEGER=83, DOTID=84;
   public static final int AFTER_DOT = 1;
   public static String[] modeNames = {
@@ -42,7 +42,7 @@ abstract class PainlessLexer extends Lexer {
     "XOR", "BWOR", "BOOLAND", "BOOLOR", "COND", "COLON", "ELVIS", "REF", "ARROW", 
     "FIND", "MATCH", "INCR", "DECR", "ASSIGN", "AADD", "ASUB", "AMUL", "ADIV", 
     "AREM", "AAND", "AXOR", "AOR", "ALSH", "ARSH", "AUSH", "OCTAL", "HEX", 
-    "INTEGER", "DECIMAL", "STRING", "REGEX", "TRUE", "FALSE", "NULL", "TYPE", 
+    "INTEGER", "DECIMAL", "STRING", "REGEX", "TRUE", "FALSE", "NULL", "PRIMITIVE", 
     "ID", "DOTINTEGER", "DOTID"
   };
 
@@ -67,7 +67,7 @@ abstract class PainlessLexer extends Lexer {
     "REF", "ARROW", "FIND", "MATCH", "INCR", "DECR", "ASSIGN", "AADD", "ASUB", 
     "AMUL", "ADIV", "AREM", "AAND", "AXOR", "AOR", "ALSH", "ARSH", "AUSH", 
     "OCTAL", "HEX", "INTEGER", "DECIMAL", "STRING", "REGEX", "TRUE", "FALSE", 
-    "NULL", "TYPE", "ID", "DOTINTEGER", "DOTID"
+    "NULL", "PRIMITIVE", "ID", "DOTINTEGER", "DOTID"
   };
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
 
@@ -145,8 +145,6 @@ abstract class PainlessLexer extends Lexer {
       return DIV_sempred((RuleContext)_localctx, predIndex);
     case 76:
       return REGEX_sempred((RuleContext)_localctx, predIndex);
-    case 80:
-      return TYPE_sempred((RuleContext)_localctx, predIndex);
     }
     return true;
   }
@@ -164,16 +162,9 @@ abstract class PainlessLexer extends Lexer {
     }
     return true;
   }
-  private boolean TYPE_sempred(RuleContext _localctx, int predIndex) {
-    switch (predIndex) {
-    case 2:
-      return  isType(getText()) ;
-    }
-    return true;
-  }
 
   public static final String _serializedATN =
-    "\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\2V\u0257\b\1\b\1\4"+
+    "\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\2V\u0274\b\1\b\1\4"+
     "\2\t\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n"+
     "\4\13\t\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22"+
     "\t\22\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31"+
@@ -207,18 +198,19 @@ abstract class PainlessLexer extends Lexer {
     "M\3M\3M\7M\u01fc\nM\fM\16M\u01ff\13M\3M\3M\3M\3M\3M\3M\3M\7M\u0208\nM"+
     "\fM\16M\u020b\13M\3M\5M\u020e\nM\3N\3N\3N\3N\6N\u0214\nN\rN\16N\u0215"+
     "\3N\3N\7N\u021a\nN\fN\16N\u021d\13N\3N\3N\3O\3O\3O\3O\3O\3P\3P\3P\3P\3"+
-    "P\3P\3Q\3Q\3Q\3Q\3Q\3R\3R\3R\3R\7R\u0235\nR\fR\16R\u0238\13R\3R\3R\3S"+
-    "\3S\7S\u023e\nS\fS\16S\u0241\13S\3T\3T\3T\7T\u0246\nT\fT\16T\u0249\13"+
-    "T\5T\u024b\nT\3T\3T\3U\3U\7U\u0251\nU\fU\16U\u0254\13U\3U\3U\7\u00b9\u00c3"+
-    "\u01fd\u0209\u0215\2V\4\3\6\4\b\5\n\6\f\7\16\b\20\t\22\n\24\13\26\f\30"+
-    "\r\32\16\34\17\36\20 \21\"\22$\23&\24(\25*\26,\27.\30\60\31\62\32\64\33"+
-    "\66\348\35:\36<\37> @!B\"D#F$H%J&L\'N(P)R*T+V,X-Z.\\/^\60`\61b\62d\63"+
-    "f\64h\65j\66l\67n8p9r:t;v<x=z>|?~@\u0080A\u0082B\u0084C\u0086D\u0088E"+
-    "\u008aF\u008cG\u008eH\u0090I\u0092J\u0094K\u0096L\u0098M\u009aN\u009c"+
+    "P\3P\3Q\3Q\3Q\3Q\3Q\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3"+
+    "R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\3R\5R\u0257"+
+    "\nR\3S\3S\7S\u025b\nS\fS\16S\u025e\13S\3T\3T\3T\7T\u0263\nT\fT\16T\u0266"+
+    "\13T\5T\u0268\nT\3T\3T\3U\3U\7U\u026e\nU\fU\16U\u0271\13U\3U\3U\7\u00b9"+
+    "\u00c3\u01fd\u0209\u0215\2V\4\3\6\4\b\5\n\6\f\7\16\b\20\t\22\n\24\13\26"+
+    "\f\30\r\32\16\34\17\36\20 \21\"\22$\23&\24(\25*\26,\27.\30\60\31\62\32"+
+    "\64\33\66\348\35:\36<\37> @!B\"D#F$H%J&L\'N(P)R*T+V,X-Z.\\/^\60`\61b\62"+
+    "d\63f\64h\65j\66l\67n8p9r:t;v<x=z>|?~@\u0080A\u0082B\u0084C\u0086D\u0088"+
+    "E\u008aF\u008cG\u008eH\u0090I\u0092J\u0094K\u0096L\u0098M\u009aN\u009c"+
     "O\u009eP\u00a0Q\u00a2R\u00a4S\u00a6T\u00a8U\u00aaV\4\2\3\25\5\2\13\f\17"+
     "\17\"\"\4\2\f\f\17\17\3\2\629\4\2NNnn\4\2ZZzz\5\2\62;CHch\3\2\63;\3\2"+
     "\62;\b\2FFHHNNffhhnn\4\2GGgg\4\2--//\6\2FFHHffhh\4\2$$^^\4\2))^^\3\2\f"+
-    "\f\4\2\f\f\61\61\t\2WWeekknouuwwzz\5\2C\\aac|\6\2\62;C\\aac|\u0277\2\4"+
+    "\f\4\2\f\f\61\61\t\2WWeekknouuwwzz\5\2C\\aac|\6\2\62;C\\aac|\u029a\2\4"+
     "\3\2\2\2\2\6\3\2\2\2\2\b\3\2\2\2\2\n\3\2\2\2\2\f\3\2\2\2\2\16\3\2\2\2"+
     "\2\20\3\2\2\2\2\22\3\2\2\2\2\24\3\2\2\2\2\26\3\2\2\2\2\30\3\2\2\2\2\32"+
     "\3\2\2\2\2\34\3\2\2\2\2\36\3\2\2\2\2 \3\2\2\2\2\"\3\2\2\2\2$\3\2\2\2\2"+
@@ -253,7 +245,7 @@ abstract class PainlessLexer extends Lexer {
     "\2\2\u0090\u01b0\3\2\2\2\u0092\u01b5\3\2\2\2\u0094\u01be\3\2\2\2\u0096"+
     "\u01d0\3\2\2\2\u0098\u01dd\3\2\2\2\u009a\u020d\3\2\2\2\u009c\u020f\3\2"+
     "\2\2\u009e\u0220\3\2\2\2\u00a0\u0225\3\2\2\2\u00a2\u022b\3\2\2\2\u00a4"+
-    "\u0230\3\2\2\2\u00a6\u023b\3\2\2\2\u00a8\u024a\3\2\2\2\u00aa\u024e\3\2"+
+    "\u0256\3\2\2\2\u00a6\u0258\3\2\2\2\u00a8\u0267\3\2\2\2\u00aa\u026b\3\2"+
     "\2\2\u00ac\u00ae\t\2\2\2\u00ad\u00ac\3\2\2\2\u00ae\u00af\3\2\2\2\u00af"+
     "\u00ad\3\2\2\2\u00af\u00b0\3\2\2\2\u00b0\u00b1\3\2\2\2\u00b1\u00b2\b\2"+
     "\2\2\u00b2\5\3\2\2\2\u00b3\u00b4\7\61\2\2\u00b4\u00b5\7\61\2\2\u00b5\u00b9"+
@@ -366,22 +358,31 @@ abstract class PainlessLexer extends Lexer {
     "\u0226\7h\2\2\u0226\u0227\7c\2\2\u0227\u0228\7n\2\2\u0228\u0229\7u\2\2"+
     "\u0229\u022a\7g\2\2\u022a\u00a1\3\2\2\2\u022b\u022c\7p\2\2\u022c\u022d"+
     "\7w\2\2\u022d\u022e\7n\2\2\u022e\u022f\7n\2\2\u022f\u00a3\3\2\2\2\u0230"+
-    "\u0236\5\u00a6S\2\u0231\u0232\5\24\n\2\u0232\u0233\5\u00a6S\2\u0233\u0235"+
-    "\3\2\2\2\u0234\u0231\3\2\2\2\u0235\u0238\3\2\2\2\u0236\u0234\3\2\2\2\u0236"+
-    "\u0237\3\2\2\2\u0237\u0239\3\2\2\2\u0238\u0236\3\2\2\2\u0239\u023a\6R"+
-    "\4\2\u023a\u00a5\3\2\2\2\u023b\u023f\t\23\2\2\u023c\u023e\t\24\2\2\u023d"+
-    "\u023c\3\2\2\2\u023e\u0241\3\2\2\2\u023f\u023d\3\2\2\2\u023f\u0240\3\2"+
-    "\2\2\u0240\u00a7\3\2\2\2\u0241\u023f\3\2\2\2\u0242\u024b\7\62\2\2\u0243"+
-    "\u0247\t\b\2\2\u0244\u0246\t\t\2\2\u0245\u0244\3\2\2\2\u0246\u0249\3\2"+
-    "\2\2\u0247\u0245\3\2\2\2\u0247\u0248\3\2\2\2\u0248\u024b\3\2\2\2\u0249"+
-    "\u0247\3\2\2\2\u024a\u0242\3\2\2\2\u024a\u0243\3\2\2\2\u024b\u024c\3\2"+
-    "\2\2\u024c\u024d\bT\4\2\u024d\u00a9\3\2\2\2\u024e\u0252\t\23\2\2\u024f"+
-    "\u0251\t\24\2\2\u0250\u024f\3\2\2\2\u0251\u0254\3\2\2\2\u0252\u0250\3"+
-    "\2\2\2\u0252\u0253\3\2\2\2\u0253\u0255\3\2\2\2\u0254\u0252\3\2\2\2\u0255"+
-    "\u0256\bU\4\2\u0256\u00ab\3\2\2\2$\2\3\u00af\u00b9\u00c3\u00c8\u01b9\u01bc"+
-    "\u01c3\u01c6\u01cd\u01d0\u01d3\u01da\u01dd\u01e3\u01e5\u01e9\u01ee\u01f0"+
-    "\u01f3\u01fb\u01fd\u0207\u0209\u020d\u0213\u0215\u021b\u0236\u023f\u0247"+
-    "\u024a\u0252\5\b\2\2\4\3\2\4\2\2";
+    "\u0231\7d\2\2\u0231\u0232\7q\2\2\u0232\u0233\7q\2\2\u0233\u0234\7n\2\2"+
+    "\u0234\u0235\7g\2\2\u0235\u0236\7c\2\2\u0236\u0257\7p\2\2\u0237\u0238"+
+    "\7d\2\2\u0238\u0239\7{\2\2\u0239\u023a\7v\2\2\u023a\u0257\7g\2\2\u023b"+
+    "\u023c\7u\2\2\u023c\u023d\7j\2\2\u023d\u023e\7q\2\2\u023e\u023f\7t\2\2"+
+    "\u023f\u0257\7v\2\2\u0240\u0241\7e\2\2\u0241\u0242\7j\2\2\u0242\u0243"+
+    "\7c\2\2\u0243\u0257\7t\2\2\u0244\u0245\7k\2\2\u0245\u0246\7p\2\2\u0246"+
+    "\u0257\7v\2\2\u0247\u0248\7n\2\2\u0248\u0249\7q\2\2\u0249\u024a\7p\2\2"+
+    "\u024a\u0257\7i\2\2\u024b\u024c\7h\2\2\u024c\u024d\7n\2\2\u024d\u024e"+
+    "\7q\2\2\u024e\u024f\7c\2\2\u024f\u0257\7v\2\2\u0250\u0251\7f\2\2\u0251"+
+    "\u0252\7q\2\2\u0252\u0253\7w\2\2\u0253\u0254\7d\2\2\u0254\u0255\7n\2\2"+
+    "\u0255\u0257\7g\2\2\u0256\u0230\3\2\2\2\u0256\u0237\3\2\2\2\u0256\u023b"+
+    "\3\2\2\2\u0256\u0240\3\2\2\2\u0256\u0244\3\2\2\2\u0256\u0247\3\2\2\2\u0256"+
+    "\u024b\3\2\2\2\u0256\u0250\3\2\2\2\u0257\u00a5\3\2\2\2\u0258\u025c\t\23"+
+    "\2\2\u0259\u025b\t\24\2\2\u025a\u0259\3\2\2\2\u025b\u025e\3\2\2\2\u025c"+
+    "\u025a\3\2\2\2\u025c\u025d\3\2\2\2\u025d\u00a7\3\2\2\2\u025e\u025c\3\2"+
+    "\2\2\u025f\u0268\7\62\2\2\u0260\u0264\t\b\2\2\u0261\u0263\t\t\2\2\u0262"+
+    "\u0261\3\2\2\2\u0263\u0266\3\2\2\2\u0264\u0262\3\2\2\2\u0264\u0265\3\2"+
+    "\2\2\u0265\u0268\3\2\2\2\u0266\u0264\3\2\2\2\u0267\u025f\3\2\2\2\u0267"+
+    "\u0260\3\2\2\2\u0268\u0269\3\2\2\2\u0269\u026a\bT\4\2\u026a\u00a9\3\2"+
+    "\2\2\u026b\u026f\t\23\2\2\u026c\u026e\t\24\2\2\u026d\u026c\3\2\2\2\u026e"+
+    "\u0271\3\2\2\2\u026f\u026d\3\2\2\2\u026f\u0270\3\2\2\2\u0270\u0272\3\2"+
+    "\2\2\u0271\u026f\3\2\2\2\u0272\u0273\bU\4\2\u0273\u00ab\3\2\2\2$\2\3\u00af"+
+    "\u00b9\u00c3\u00c8\u01b9\u01bc\u01c3\u01c6\u01cd\u01d0\u01d3\u01da\u01dd"+
+    "\u01e3\u01e5\u01e9\u01ee\u01f0\u01f3\u01fb\u01fd\u0207\u0209\u020d\u0213"+
+    "\u0215\u021b\u0256\u025c\u0264\u0267\u026f\5\b\2\2\4\3\2\4\2\2";
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

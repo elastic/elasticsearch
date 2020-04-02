@@ -71,6 +71,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsNull.notNullValue;
 
+@ESIntegTestCase.ClusterScope(numClientNodes = 1)
 public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     @Override

@@ -148,19 +148,19 @@
       indices.put_index_template:
         name: my-template
         body:
-          index_patterns: ["*baz"]
+          index_patterns: ["baz*"]
           composed_of: ["ct_low", "ct_high"]
 
   - do:
       indices.create:
-        index: foobaz
+        index: bazfoo
 
   - do:
       indices.get:
-        index: foobaz
+        index: bazfoo
 
-  - match: {foobaz.mappings.properties.field: {type: keyword}}
-  - match: {foobaz.aliases.alias1: {}}
+  - match: {bazfoo.mappings.properties.field: {type: keyword}}
+  - match: {bazfoo.aliases.alias1: {}}
 
 ---
 "Index template without component templates":

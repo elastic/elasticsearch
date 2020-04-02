@@ -892,23 +892,4 @@ public class RestoreService implements ClusterStateApplier {
             logger.warn("Failed to update restore state ", t);
         }
     }
-
-    /**
-     * Checks if a repository is currently in use by one of the snapshots
-     *
-     * @param clusterState cluster state
-     * @param repository   repository id
-     * @return true if repository is currently in use by one of the running snapshots
-     */
-    public static boolean isRepositoryInUse(ClusterState clusterState, String repository) {
-        RestoreInProgress restoreInProgress = clusterState.custom(RestoreInProgress.TYPE);
-        if (restoreInProgress != null) {
-            for (RestoreInProgress.Entry entry: restoreInProgress) {
-                if (repository.equals(entry.snapshot().getRepository())) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 }

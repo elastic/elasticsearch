@@ -34,7 +34,7 @@ public final class ClientHelper {
      * List of headers that are related to security
      */
     public static final Set<String> SECURITY_HEADER_FILTERS = Sets.newHashSet(AuthenticationServiceField.RUN_AS_USER_HEADER,
-        AuthenticationField.AUTHENTICATION_KEY);
+            AuthenticationField.AUTHENTICATION_KEY);
 
     /**
      * .

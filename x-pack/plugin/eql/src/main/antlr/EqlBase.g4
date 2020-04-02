@@ -130,7 +130,7 @@ identifier
     ;
 
 timeUnit
-    : number unit=IDENTIFIER?
+    : INTEGER_VALUE unit=IDENTIFIER?
     ;
 
 number

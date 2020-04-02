@@ -112,13 +112,13 @@ sequence by pid with maxspan=2sec [process where process_name == "*" ] [file whe
 
 sequence by pid with maxspan=2seconds [process where process_name == "*" ] [file where file_path == "*"];
 
-sequence with maxspan=2.5m [process where x == x] by pid [file where file_path == "*"] by ppid;
+sequence with maxspan=150s [process where x == x] by pid [file where file_path == "*"] by ppid;
 
-sequence by pid with maxspan=2.0h [process where process_name == "*"] [file where file_path == "*"];
+sequence by pid with maxspan=2h [process where process_name == "*"] [file where file_path == "*"];
 
-sequence by pid with maxspan=2.0h [process where process_name == "*"] [file where file_path == "*"];
+sequence by pid with maxspan=2h [process where process_name == "*"] [file where file_path == "*"];
 
-sequence by pid with maxspan=1.0075d [process where process_name == "*"] [file where file_path == "*"];
+sequence by pid with maxspan=1d [process where process_name == "*"] [file where file_path == "*"];
 
 dns where pid == 100 | head 100 | tail 50 | unique pid;
 
@@ -386,7 +386,7 @@ sequence with maxspan=10s
 | head 4
 | tail 2;
 
-sequence with maxspan=0.5s
+sequence with maxspan=500ms
   [file where event_subtype_full == "file_create_event"] by file_path
   [process where opcode == 1] by process_path
   [process where opcode == 2] by process_path

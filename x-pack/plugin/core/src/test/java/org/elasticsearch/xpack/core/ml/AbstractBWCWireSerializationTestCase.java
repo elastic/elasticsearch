@@ -7,15 +7,24 @@ package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase.DEFAULT_BWC_VERSIONS;
+import static org.elasticsearch.Version.getDeclaredVersions;
 
-public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractSerializingTestCase<T> {
+public abstract class AbstractBWCWireSerializationTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
+
+    static final List<Version> ALL_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
+
+    public static List<Version> getAllBWCVersions(Version version) {
+        return ALL_VERSIONS.stream().filter(v -> v.before(version) && version.isCompatible(v)).collect(Collectors.toList());
+    }
+
+    static final List<Version> DEFAULT_BWC_VERSIONS = getAllBWCVersions(Version.CURRENT);
 
     /**
      * Returns the expected instance if serialized from the given version.

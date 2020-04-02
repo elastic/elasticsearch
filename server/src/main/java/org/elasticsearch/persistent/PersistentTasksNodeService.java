@@ -197,9 +197,11 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         } finally {
             if (processed == false) {
                 // something went wrong - unregistering task
-                logger.warn("Persistent task [{}] with id [{}] and allocation id [{}] failed to create", task.getAction(),
-                        task.getPersistentTaskId(), task.getAllocationId());
+                ParameterizedMessage e = new ParameterizedMessage("Persistent task [{}] with id [{}] and allocation id " +
+                    "[{}] failed to create", task.getAction(), task.getPersistentTaskId(), task.getAllocationId());
+                logger.warn(e.getFormattedMessage());
                 taskManager.unregister(task);
+                notifyMasterOfFailedTask(taskInProgress, new RuntimeException(e.getFormattedMessage()));
             }
         }
     }

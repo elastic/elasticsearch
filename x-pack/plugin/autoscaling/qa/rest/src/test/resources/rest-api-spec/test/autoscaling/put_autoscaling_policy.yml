@@ -1,5 +1,5 @@
 ---
-"Test put autoscaling decision":
+"Test put autoscaling policy":
   - do:
       autoscaling.put_autoscaling_policy:
         name: hot

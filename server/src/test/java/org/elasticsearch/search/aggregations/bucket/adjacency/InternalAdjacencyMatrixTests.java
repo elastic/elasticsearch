@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static java.util.Collections.emptyList;
+
 public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregationTestCase<InternalAdjacencyMatrix> {
 
     private List<String> keys;
@@ -66,15 +68,14 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     }
 
     @Override
-    protected InternalAdjacencyMatrix createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metadata, InternalAggregations aggregations) {
+    protected InternalAdjacencyMatrix createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>();
         for (int i = 0; i < keys.size(); ++i) {
             String key = keys.get(i);
             int docCount = randomIntBetween(0, 1000);
             buckets.add(new InternalAdjacencyMatrix.InternalBucket(key, docCount, aggregations));
         }
-        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators, metadata);
+        return new InternalAdjacencyMatrix(name, buckets, emptyList(), metadata);
     }
 
     @Override

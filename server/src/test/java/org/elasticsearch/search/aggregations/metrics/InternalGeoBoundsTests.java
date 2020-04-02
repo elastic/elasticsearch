@@ -24,25 +24,24 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.closeTo;
 
 public class InternalGeoBoundsTests extends InternalAggregationTestCase<InternalGeoBounds> {
     static final double GEOHASH_TOLERANCE = 1E-5D;
 
     @Override
-    protected InternalGeoBounds createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                   Map<String, Object> metadata) {
+    protected InternalGeoBounds createTestInstance(String name, Map<String, Object> metadata) {
         // we occasionally want to test top = Double.NEGATIVE_INFINITY since this triggers empty xContent object
         double top = frequently() ? randomDouble() : Double.NEGATIVE_INFINITY;
         InternalGeoBounds geo = new InternalGeoBounds(name,
             top, randomDouble(), randomDouble(), randomDouble(),
             randomDouble(), randomDouble(), randomBoolean(),
-            pipelineAggregators, Collections.emptyMap());
+            emptyList(), metadata);
         return geo;
     }
 

@@ -59,10 +59,10 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         subAggregationsSupplier = () -> {
             List<InternalAggregation> aggs = new ArrayList<>();
             if (hasInternalMax) {
-                aggs.add(new InternalMax("max", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
+                aggs.add(new InternalMax("max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
             }
             if (hasInternalMin) {
-                aggs.add(new InternalMin("min", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
+                aggs.add(new InternalMin("min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
             }
             return new InternalAggregations(aggs);
         };
@@ -73,10 +73,10 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
     protected abstract void extraAssertReduced(T reduced, List<T> inputs);
 
     @Override
-    protected final T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+    protected final T createTestInstance(String name, Map<String, Object> metadata) {
         // we shouldn't use the full long range here since we sum doc count on reduce, and don't want to overflow the long range there
         long docCount = between(0, Integer.MAX_VALUE);
-        return createTestInstance(name, docCount, subAggregationsSupplier.get(), pipelineAggregators, metadata);
+        return createTestInstance(name, docCount, subAggregationsSupplier.get(), emptyList(), metadata);
     }
 
     @Override
@@ -95,8 +95,8 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
             break;
         case 2:
             List<InternalAggregation> aggs = new ArrayList<>();
-            aggs.add(new InternalMax("new_max", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
-            aggs.add(new InternalMin("new_min", randomDouble(), randomNumericDocValueFormat(), emptyList(), emptyMap()));
+            aggs.add(new InternalMax("new_max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
+            aggs.add(new InternalMin("new_min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
             aggregations = new InternalAggregations(aggs);
             break;
         case 3:

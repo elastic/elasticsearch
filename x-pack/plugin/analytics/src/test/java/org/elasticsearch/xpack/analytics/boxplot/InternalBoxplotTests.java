@@ -16,7 +16,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -27,17 +26,15 @@ import java.util.Map;
 
 public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBoxplot> {
     @Override
-    protected InternalBoxplot createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                 Map<String, Object> metadata) {
+    protected InternalBoxplot createTestInstance(String name, Map<String, Object> metadata) {
         int numValues = frequently() ? randomInt(100) : 0;
-        double[] values = new double[numValues];
         TDigestState state = new TDigestState(100);
         for (int i = 0; i < numValues; ++i) {
             state.add(randomDouble());
         }
         DocValueFormat formatter = randomNumericDocValueFormat();
 
-        return new InternalBoxplot(name, state, formatter, pipelineAggregators, metadata);
+        return new InternalBoxplot(name, state, formatter, metadata);
     }
 
     @Override
@@ -74,7 +71,6 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
             throw new IllegalStateException(ex);
         }
         DocValueFormat formatter = instance.format();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
             case 0:
@@ -94,7 +90,7 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalBoxplot(name, state, formatter, pipelineAggregators, metadata);
+        return new InternalBoxplot(name, state, formatter, metadata);
     }
 
     @Override

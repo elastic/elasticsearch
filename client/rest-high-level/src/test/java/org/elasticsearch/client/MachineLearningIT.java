@@ -158,6 +158,7 @@ import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
+import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
@@ -2272,6 +2273,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition)
             .setModelId(modelId)
+            .setInferenceConfig(new RegressionConfig())
             .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
             .setDescription("test model")
             .build();
@@ -2285,6 +2287,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         trainedModelConfig = TrainedModelConfig.builder()
             .setCompressedDefinition(InferenceToXContentCompressor.deflate(definition))
             .setModelId(modelIdCompressed)
+            .setInferenceConfig(new RegressionConfig())
             .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
             .setDescription("test model")
             .build();
@@ -2591,6 +2594,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition)
             .setModelId(modelId)
+            .setInferenceConfig(new RegressionConfig())
             .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
             .setDescription("test model")
             .build();

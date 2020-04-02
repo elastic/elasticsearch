@@ -35,6 +35,12 @@ IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
 which roles the user who updated it had at the time of update and runs the query
 using those same roles.
 
++
+--
+NOTE: It is possible that secondary authorization headers are supplied in the
+request. If this is the case, the secondary authorization headers are used
+instead of the primary headers.
+--
 [[ml-update-datafeed-path-parms]]
 ==== {api-path-parms-title}
 

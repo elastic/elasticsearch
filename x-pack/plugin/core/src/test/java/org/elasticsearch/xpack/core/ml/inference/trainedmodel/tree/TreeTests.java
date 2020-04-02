@@ -64,16 +64,20 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         return createRandom();
     }
 
-    public static Tree createRandom() {
+    public static Tree createRandom(TargetType targetType) {
         int numberOfFeatures = randomIntBetween(1, 10);
         List<String> featureNames = new ArrayList<>();
         for (int i = 0; i < numberOfFeatures; i++) {
             featureNames.add(randomAlphaOfLength(10));
         }
-        return buildRandomTree(featureNames,  6);
+        return buildRandomTree(targetType, featureNames,  6);
     }
 
-    public static Tree buildRandomTree(List<String> featureNames, int depth) {
+    public static Tree createRandom() {
+        return createRandom(randomFrom(TargetType.values()));
+    }
+
+    public static Tree buildRandomTree(TargetType targetType, List<String> featureNames, int depth) {
         Tree.Builder builder = Tree.builder();
         int maxFeatureIndex = featureNames.size() - 1;
         builder.setFeatureNames(featureNames);
@@ -96,13 +100,16 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             }
             childNodes = nextNodes;
         }
-        TargetType targetType = randomFrom(TargetType.values());
         List<String> categoryLabels = null;
         if (randomBoolean() && targetType == TargetType.CLASSIFICATION) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
 
         return builder.setTargetType(targetType).setClassificationLabels(categoryLabels).build();
+    }
+
+    public static Tree buildRandomTree(List<String> featureNames, int depth) {
+        return buildRandomTree(randomFrom(TargetType.values()), featureNames, depth);
     }
 
     @Override

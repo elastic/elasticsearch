@@ -440,9 +440,10 @@ node.remote_cluster_client: false <8>
 <2> Disable the `node.voting_only`.
 <3> Disable the `node.data` role.
 <4> Disable the `node.ingest` role.
-<5> Enable the `node.ml` role.
-<6> Enable the `xpack.ml.enabled` setting.
-<7> Disable remote cluster connections.
+<5> Disable the `node.ml` role.
+<6> Enable the `node.transform` role.
+<7> Enable the `xpack.transform.enabled` setting.
+<8> Disable remote cluster connections.
 
 [float]
 [[change-node-role]]

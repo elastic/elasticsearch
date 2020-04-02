@@ -87,7 +87,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             grokPattern = in.readOptionalString();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             this.preferredToCategories = in.readVLongArray();
             this.numMatches = in.readVLong();
         }
@@ -104,7 +104,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeOptionalString(grokPattern);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeVLongArray(preferredToCategories);
             out.writeVLong(numMatches);
         }

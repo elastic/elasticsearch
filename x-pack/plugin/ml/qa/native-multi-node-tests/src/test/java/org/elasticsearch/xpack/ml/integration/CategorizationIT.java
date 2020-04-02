@@ -211,7 +211,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
     public void testNumMatchesAndCategoryPreference() throws Exception {
         String index = "hadoop_logs";
         client().admin().indices().prepareCreate(index)
-            .setMapping("time", "type=date,format=epoch_millis",
+            .addMapping(SINGLE_MAPPING_NAME, "time", "type=date,format=epoch_millis",
                 "msg", "type=text")
             .get();
 

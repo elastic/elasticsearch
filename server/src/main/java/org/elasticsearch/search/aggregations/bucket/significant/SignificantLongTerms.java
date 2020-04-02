@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -101,10 +100,10 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         }
     }
 
-    public SignificantLongTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+    public SignificantLongTerms(String name, int requiredSize, long minDocCount,
             Map<String, Object> metadata, DocValueFormat format, long subsetSize, long supersetSize,
             SignificanceHeuristic significanceHeuristic, List<Bucket> buckets) {
-        super(name, requiredSize, minDocCount, pipelineAggregators, metadata, format, subsetSize, supersetSize, significanceHeuristic,
+        super(name, requiredSize, minDocCount, metadata, format, subsetSize, supersetSize, significanceHeuristic,
                 buckets);
     }
 
@@ -122,7 +121,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
 
     @Override
     public SignificantLongTerms create(List<SignificantLongTerms.Bucket> buckets) {
-        return new SignificantLongTerms(name, requiredSize, minDocCount, pipelineAggregators(), metadata, format, subsetSize, supersetSize,
+        return new SignificantLongTerms(name, requiredSize, minDocCount, metadata, format, subsetSize, supersetSize,
                 significanceHeuristic, buckets);
     }
 
@@ -134,7 +133,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
 
     @Override
     protected SignificantLongTerms create(long subsetSize, long supersetSize, List<Bucket> buckets) {
-        return new SignificantLongTerms(getName(), requiredSize, minDocCount, pipelineAggregators(), getMetadata(), format, subsetSize,
+        return new SignificantLongTerms(getName(), requiredSize, minDocCount, getMetadata(), format, subsetSize,
                 supersetSize, significanceHeuristic, buckets);
     }
 

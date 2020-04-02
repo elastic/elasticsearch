@@ -541,7 +541,7 @@ public class RollupResponseTranslator {
             if (count != -1) {
                 // Note: Avgs have a slightly different name to prevent collision with empty bucket defaults
                 return new InternalAvg(metric.getName().replace("." + RollupField.VALUE, ""), metric.value(), count, DocValueFormat.RAW,
-                        metric.pipelineAggregators(), metric.getMetadata());
+                        metric.getMetadata());
             }
             return metric;
         } else {

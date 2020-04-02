@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfig
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -317,11 +316,11 @@ public class TransportStopDataFrameAnalyticsAction
             }));
     }
 
-    void waitForTaskRemoved(Set<String> analyticsIds, StopDataFrameAnalyticsAction.Request request,
+    void waitForTaskRemoved(Set<String> taskIds, StopDataFrameAnalyticsAction.Request request,
                             StopDataFrameAnalyticsAction.Response response,
                             ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
         persistentTasksService.waitForPersistentTasksCondition(persistentTasks ->
-                filterPersistentTasks(persistentTasks, analyticsIds).isEmpty(),
+                persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, t -> taskIds.contains(t.getId())).isEmpty(),
             request.getTimeout(), ActionListener.wrap(
                 booleanResponse -> {
                     auditor.info(request.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STOPPED);
@@ -329,12 +328,6 @@ public class TransportStopDataFrameAnalyticsAction
                 },
                 listener::onFailure
             ));
-    }
-
-    private static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> filterPersistentTasks(
-            PersistentTasksCustomMetadata persistentTasks, Set<String> analyticsIds) {
-        return persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            t -> analyticsIds.contains(MlTasks.dataFrameAnalyticsIdFromTaskId(t.getId())));
     }
 
     // Visible for testing

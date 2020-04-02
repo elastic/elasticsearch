@@ -336,21 +336,38 @@ public class RestHighLevelClientTests extends ESTestCase {
             return value;
         };
 
-        HttpEntity jsonEntity = new NByteArrayEntity(compress("{\"field\":\"value\"}"), ContentType.APPLICATION_JSON);
-        assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(jsonEntity), entityParser));
-        HttpEntity yamlEntity = new NByteArrayEntity(compress("---\nfield: value\n"), ContentType.create("application/yaml"));
-        assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(yamlEntity), entityParser));
-        HttpEntity smileEntity = createCompressedBinaryEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
-        assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(smileEntity), entityParser));
-        HttpEntity cborEntity = createCompressedBinaryEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
-        assertEquals("value", restHighLevelClient.parseEntity(enrichHeaderContentEncodingWithGzip(cborEntity), entityParser));
+        HttpEntity jsonEntity = createGzipEncodedEntity("{\"field\":\"value\"}", ContentType.APPLICATION_JSON);
+        assertEquals("value", restHighLevelClient.parseEntity(jsonEntity, entityParser));
+        HttpEntity yamlEntity = createGzipEncodedEntity("---\nfield: value\n", ContentType.create("application/yaml"));
+        assertEquals("value", restHighLevelClient.parseEntity(yamlEntity, entityParser));
+        HttpEntity smileEntity = createGzipEncodedEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
+        assertEquals("value", restHighLevelClient.parseEntity(smileEntity, entityParser));
+        HttpEntity cborEntity = createGzipEncodedEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
+        assertEquals("value", restHighLevelClient.parseEntity(cborEntity, entityParser));
     }
 
-    private static byte[] compress(String content) throws IOException {
-        return compress(content.getBytes(StandardCharsets.ISO_8859_1));
+    private HttpEntity createGzipEncodedEntity(String content, ContentType contentType) throws IOException {
+        byte[] gzipEncodedContent = compressContentWithGzip(content.getBytes(StandardCharsets.UTF_8));
+        HttpEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
+
+        return enrichHeaderWithGzipContentEncoding(httpEntity);
     }
 
-    private static byte[] compress(byte[] content) throws IOException {
+    private HttpEntity createGzipEncodedEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
+        try (XContentBuilder builder = xContentBuilder) {
+            builder.startObject();
+            builder.field("field", "value");
+            builder.endObject();
+
+            BytesRef bytesRef = BytesReference.bytes(xContentBuilder).toBytesRef();
+            byte[] gzipEncodedContent = compressContentWithGzip(bytesRef.bytes);
+            HttpEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
+
+            return enrichHeaderWithGzipContentEncoding(httpEntity);
+        }
+    }
+
+    private static byte[] compressContentWithGzip(byte[] content) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream(content.length);
         GZIPOutputStream gzip = new GZIPOutputStream(bos);
         gzip.write(content);
@@ -360,7 +377,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         return bos.toByteArray();
     }
 
-    private static HttpEntity enrichHeaderContentEncodingWithGzip(HttpEntity httpEntity) {
+    private static HttpEntity enrichHeaderWithGzipContentEncoding(HttpEntity httpEntity) {
         HttpEntity spiedHttpEntity = spy(httpEntity);
         Header mockedHeader = mock(Header.class);
 
@@ -377,16 +394,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             builder.endObject();
             return new NByteArrayEntity(BytesReference.bytes(builder).toBytesRef().bytes, contentType);
         }
-    }
-
-    private static HttpEntity createCompressedBinaryEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
-        xContentBuilder.startObject();
-        xContentBuilder.field("field", "value");
-        xContentBuilder.endObject();
-        xContentBuilder.close();
-
-        BytesRef bytesRef = BytesReference.bytes(xContentBuilder).toBytesRef();
-        return new NByteArrayEntity(compress(bytesRef.bytes), contentType);
     }
 
     public void testConvertExistsResponse() {

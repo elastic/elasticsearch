@@ -1883,7 +1883,7 @@ public class RestHighLevelClient implements Closeable {
         final HttpEntity entity = Optional.ofNullable(httpEntity.getContentEncoding())
             .map(Header::getValue)
             .filter("gzip"::equalsIgnoreCase)
-            .map(headerValue -> (HttpEntity) new GzipDecompressingEntity(httpEntity))
+            .map(gzipHeaderValue -> (HttpEntity) new GzipDecompressingEntity(httpEntity))
             .orElse(httpEntity);
 
         if (entity.getContentType() == null) {

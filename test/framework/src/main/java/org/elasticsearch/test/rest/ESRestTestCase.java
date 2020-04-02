@@ -37,7 +37,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
@@ -141,7 +140,6 @@ public abstract class ESRestTestCase extends ESTestCase {
      * A client for the running Elasticsearch cluster
      */
     private static RestClient client;
-    private static RestHighLevelClient restHighLevelClient;
     /**
      * A client for the running Elasticsearch cluster configured to take test administrative actions like remove all indexes after the test
      * completes
@@ -172,8 +170,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             clusterHosts = unmodifiableList(hosts);
             logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
-            restHighLevelClient = new RestHighLevelClient(
-                createRestClientBuilder(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()])));
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
 
             hasXPack = false;
@@ -306,11 +302,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     @AfterClass
     public static void closeClients() throws IOException {
         try {
-            IOUtils.close(client, adminClient, restHighLevelClient);
+            IOUtils.close(client, adminClient);
         } finally {
             clusterHosts = null;
             client = null;
-            restHighLevelClient = null;
             adminClient = null;
             hasXPack = null;
             nodeVersions = null;
@@ -322,13 +317,6 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected static RestClient client() {
         return client;
-    }
-
-    /**
-     * Get the RestHighLevelClient used for ordinary api calls while writing a test
-     */
-    protected static RestHighLevelClient restHighLevelClient() {
-        return restHighLevelClient;
     }
 
     /**
@@ -908,14 +896,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
-        return createRestClientBuilder(settings, hosts).build();
-    }
-
-    protected RestClientBuilder createRestClientBuilder(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
         builder.setStrictDeprecationMode(true);
-        return builder;
+        return builder.build();
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {

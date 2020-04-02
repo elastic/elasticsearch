@@ -217,17 +217,17 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
 
     @Override
     protected InternalTopMetrics createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        return createTestInstance(name, pipelineAggregators, metaData, InternalAggregationTestCase::randomNumericDocValueFormat);
+            Map<String, Object> metadata) {
+        return createTestInstance(name, pipelineAggregators, metadata, InternalAggregationTestCase::randomNumericDocValueFormat);
     }
 
     private InternalTopMetrics createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, Supplier<DocValueFormat> randomDocValueFormat) {
+            Map<String, Object> metadata, Supplier<DocValueFormat> randomDocValueFormat) {
         int metricCount = between(1, 5);
         List<String> metricNames = randomMetricNames(metricCount);
         int size = between(1, 100);
         List<InternalTopMetrics.TopMetric> topMetrics = randomTopMetrics(randomDocValueFormat, between(0, size), metricCount);
-        return new InternalTopMetrics(name, sortOrder, metricNames, size, topMetrics, pipelineAggregators, metaData);
+        return new InternalTopMetrics(name, sortOrder, metricNames, size, topMetrics, pipelineAggregators, metadata);
     }
 
     @Override
@@ -262,7 +262,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             throw new IllegalArgumentException("bad mutation");
         }
         return new InternalTopMetrics(name, sortOrder, metricNames, size, topMetrics,
-                instance.pipelineAggregators(), instance.getMetaData());
+                instance.pipelineAggregators(), instance.getMetadata());
     }
 
     @Override

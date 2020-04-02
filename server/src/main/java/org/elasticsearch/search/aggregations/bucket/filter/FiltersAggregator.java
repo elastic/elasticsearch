@@ -124,8 +124,8 @@ public class FiltersAggregator extends BucketsAggregator {
 
     public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Supplier<Weight[]> filters, boolean keyed,
             String otherBucketKey, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, pipelineAggregators, metadata);
         this.keyed = keyed;
         this.keys = keys;
         this.filters = filters;
@@ -181,7 +181,7 @@ public class FiltersAggregator extends BucketsAggregator {
                     bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());
+        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metadata());
     }
 
     @Override
@@ -198,7 +198,7 @@ public class FiltersAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
 
-        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());
+        return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metadata());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {

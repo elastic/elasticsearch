@@ -50,10 +50,10 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
     private int maxDocsPerValue;
 
     DiversifiedBytesHashSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
-            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata,
             ValuesSource valuesSource,
             int maxDocsPerValue) throws IOException {
-        super(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
+        super(name, shardSize, factories, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         this.maxDocsPerValue = maxDocsPerValue;
     }

@@ -49,17 +49,17 @@ public class TestAggregatorFactory extends AggregatorFactory {
 
     @Override
     protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket, List list,
-                                        Map metaData) throws IOException {
+                                        Map metadata) throws IOException {
         return aggregator;
     }
-    
+
     public static TestAggregatorFactory createInstance() throws IOException {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.bigArrays()).thenReturn(bigArrays);
 
         Aggregator aggregator = mock(Aggregator.class);
-        
+
         return new TestAggregatorFactory(queryShardContext, aggregator);
     }
 }

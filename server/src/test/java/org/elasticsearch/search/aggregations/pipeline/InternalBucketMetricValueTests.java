@@ -37,14 +37,14 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
 
     @Override
     protected InternalBucketMetricValue createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+            Map<String, Object> metadata) {
         double value = frequently() ? randomDoubleBetween(-10000, 100000, true)
                 : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
         String[] keys = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < keys.length; i++) {
             keys[i] = randomAlphaOfLength(10);
         }
-        return new InternalBucketMetricValue(name, keys, value, randomNumericDocValueFormat(), pipelineAggregators, metaData);
+        return new InternalBucketMetricValue(name, keys, value, randomNumericDocValueFormat(), pipelineAggregators, metadata);
     }
 
     @Override
@@ -85,7 +85,7 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
         double value = instance.value();
         DocValueFormat formatter = instance.formatter();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -102,16 +102,16 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
             keys[keys.length - 1] = randomAlphaOfLengthBetween(1, 20);
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalBucketMetricValue(name, keys, value, formatter, pipelineAggregators, metaData);
+        return new InternalBucketMetricValue(name, keys, value, formatter, pipelineAggregators, metadata);
     }
 }

@@ -42,7 +42,7 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new CancellingAggregationBuilder(name);
     }
 
@@ -81,13 +81,13 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
         final FilterAggregationBuilder filterAgg = new FilterAggregationBuilder(name, QueryBuilders.matchAllQuery());
         filterAgg.subAggregations(subfactoriesBuilder);
         final AggregatorFactory factory = filterAgg.build(queryShardContext, parent);
-        return new AggregatorFactory(name, queryShardContext, parent, subfactoriesBuilder, metaData) {
+        return new AggregatorFactory(name, queryShardContext, parent, subfactoriesBuilder, metadata) {
             @Override
             protected Aggregator createInternal(SearchContext searchContext,
                                                 Aggregator parent,
                                                 boolean collectsFromSingleBucket,
                                                 List<PipelineAggregator> pipelineAggregators,
-                                                Map<String, Object> metaData) throws IOException {
+                                                Map<String, Object> metadata) throws IOException {
                 while (searchContext.isCancelled() == false) {
                     try {
                         Thread.sleep(SLEEP_TIME);

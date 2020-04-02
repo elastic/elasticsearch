@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -60,7 +60,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
 
-        PersistentTasksCustomMetaData persistentTasks = masterClusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(MlMetadata.getMlMetadata(masterClusterState).isUpgradeMode(), equalTo(false));
@@ -74,7 +74,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
         masterClusterState = client().admin().cluster().prepareState().all().get().getState();
 
         // Assert state for tasks still exists and that the upgrade setting is set
-        persistentTasks = masterClusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(MlMetadata.getMlMetadata(masterClusterState).isUpgradeMode(), equalTo(true));
@@ -111,7 +111,7 @@ public class SetUpgradeModeIT extends MlNativeAutodetectIntegTestCase {
 
         masterClusterState = client().admin().cluster().prepareState().all().get().getState();
 
-        persistentTasks = masterClusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        persistentTasks = masterClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(persistentTasks.findTasks(MlTasks.DATAFEED_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(persistentTasks.findTasks(MlTasks.JOB_TASK_NAME, task -> true).size(), equalTo(1));
         assertThat(MlMetadata.getMlMetadata(masterClusterState).isUpgradeMode(), equalTo(false));

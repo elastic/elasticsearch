@@ -28,7 +28,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -295,7 +295,7 @@ public class TransportUpdateTransformAction extends TransportMasterNodeAction<Re
                 config.getSource().getIndex()
             );
             // If we are running, we should verify that the destination index exists and create it if it does not
-            if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, request.getId()) != null && dest.length == 0
+            if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, request.getId()) != null && dest.length == 0
             // Verify we have source indices. The user could defer_validations and if the task is already running
             // we allow source indices to disappear. If the source and destination indices do not exist, don't do anything
             // the transform will just have to dynamically create the destination index without special mapping.

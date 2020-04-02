@@ -42,19 +42,19 @@ public class ChildrenToParentAggregator extends ParentJoinAggregator {
     public ChildrenToParentAggregator(String name, AggregatorFactories factories,
             SearchContext context, Aggregator parent, Query childFilter,
             Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
-            long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, childFilter, parentFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
+            long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, childFilter, parentFilter, valuesSource, maxOrd, pipelineAggregators, metadata);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalParent(name, bucketDocCount(owningBucketOrdinal),
-                bucketAggregations(owningBucketOrdinal), pipelineAggregators(), metaData());
+                bucketAggregations(owningBucketOrdinal), pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalParent(name, 0, buildEmptySubAggregations(), pipelineAggregators(),
-                metaData());
+                metadata());
     }
 }

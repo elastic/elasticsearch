@@ -53,7 +53,7 @@ import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ResizeRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -238,7 +238,7 @@ final class IndicesRequestConverters {
     }
 
     static Request split(ResizeRequest resizeRequest) throws IOException {
-        if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(resizeRequest.getSettings()) == false) {
+        if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(resizeRequest.getSettings()) == false) {
             throw new IllegalArgumentException("index.number_of_shards is required for split operations");
         }
         return resize(resizeRequest, ResizeType.SPLIT);

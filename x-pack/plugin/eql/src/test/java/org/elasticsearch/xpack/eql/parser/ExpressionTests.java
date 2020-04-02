@@ -13,16 +13,19 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -38,6 +41,14 @@ public class ExpressionTests extends ESTestCase {
 
     private Expression expr(String source) {
         return parser.createExpression(source);
+    }
+
+    private List<Expression> exprs(String... sources) {
+        List<Expression> results = new ArrayList<Expression>(sources.length);
+        for (String s : sources) {
+            results.add(expr(s));
+        }
+        return results;
     }
 
 
@@ -157,18 +168,48 @@ public class ExpressionTests extends ESTestCase {
 
     public void testInSet() {
         assertEquals(
+            expr("name in (1)"),
+            new In(null, expr("name"), exprs("1"))
+        );
+
+        assertEquals(
+            expr("name in (2, 1)"),
+            new In(null, expr("name"), exprs("2", "1"))
+        );
+        assertEquals(
             expr("name in ('net.exe')"),
-            expr("name == 'net.exe'")
+            new In(null, expr("name"), exprs("'net.exe'"))
         );
 
         assertEquals(
             expr("name in ('net.exe', 'whoami.exe', 'hostname.exe')"),
-            expr("name == 'net.exe' or name == 'whoami.exe' or name == 'hostname.exe'")
+            new In(null, expr("name"), exprs("'net.exe'", "'whoami.exe'", "'hostname.exe'"))
+        );
+    }
+
+    public void testInSetDuplicates() {
+        assertEquals(
+            expr("name in (1, 1)"),
+            new In(null, expr("name"), exprs("1", "1"))
         );
 
         assertEquals(
-            expr("name not in ('net.exe', 'whoami.exe', 'hostname.exe')"),
-            expr("not (name == 'net.exe' or name == 'whoami.exe' or name == 'hostname.exe')")
+            expr("name in ('net.exe', 'net.exe')"),
+            new In(null, expr("name"), exprs("'net.exe'", "'net.exe'"))
         );
+    }
+
+    public void testNotInSet() {
+        assertEquals(
+            expr("name not in ('net.exe', 'whoami.exe', 'hostname.exe')"),
+            new Not(null, new In(null,
+                expr("name"),
+                exprs("'net.exe'", "'whoami.exe'", "'hostname.exe'")))
+        );
+    }
+
+    public void testInEmptySet() {
+        expectThrows(ParsingException.class, "Expected syntax error",
+            () -> expr("name in ()"));
     }
 }

@@ -157,7 +157,7 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
 
     @Override
     protected CategoryDefinition mutateInstanceForVersion(CategoryDefinition instance, Version version) {
-        if (version.before(Version.V_8_0_0)) {
+        if (version.before(Version.V_7_8_0)) {
             instance.setPreferredToCategories(new long[0]);
             instance.setNumMatches(0L);
         }

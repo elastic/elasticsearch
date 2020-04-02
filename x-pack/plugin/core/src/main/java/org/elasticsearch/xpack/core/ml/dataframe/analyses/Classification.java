@@ -243,7 +243,7 @@ public class Classification implements DataFrameAnalysis {
         return params;
     }
 
-    private static String getPredictionFieldType(Set<String> dependentVariableTypes) {
+    public static String getPredictionFieldType(Set<String> dependentVariableTypes) {
         if (dependentVariableTypes == null) {
             return null;
         }

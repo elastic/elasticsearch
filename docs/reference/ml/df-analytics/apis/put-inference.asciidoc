@@ -382,6 +382,10 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 `top_classes_results_field`::::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
+
+`prediction_field_type`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
 =====
 ====
 //End of inference_config

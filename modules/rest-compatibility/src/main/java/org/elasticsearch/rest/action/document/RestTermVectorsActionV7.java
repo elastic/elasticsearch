@@ -59,16 +59,6 @@ public class RestTermVectorsActionV7 extends RestTermVectorsAction {
         return String.valueOf(Version.V_7_0_0.major);
     }
 
-//    @Override
-//    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-//        TypeConsumer typeConsumer = new TypeConsumer(request);
-//        if (typeConsumer.hasTypes()) {
-//            request.param("type");
-//            deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
-//        }
-//        return super.prepareRequest(request, client);
-//    }
-
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TypeConsumer typeConsumer = new TypeConsumer(request,"_type");

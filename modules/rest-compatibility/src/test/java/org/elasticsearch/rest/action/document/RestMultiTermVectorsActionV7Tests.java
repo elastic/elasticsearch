@@ -79,6 +79,8 @@ public class RestMultiTermVectorsActionV7Tests extends RestActionTestCase {
             .build();
 
         dispatchRequest(request);
-        assertWarnings(RestTermVectorsActionV7.TYPES_DEPRECATION_MESSAGE);
+        //TODO change - now the deprecation warning is from MultiTermVectors..
+//        assertWarnings(RestTermVectorsActionV7.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(RestMultiTermVectorsActionV7.TYPES_DEPRECATION_MESSAGE);
     }
 }

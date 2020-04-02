@@ -21,9 +21,14 @@ package org.elasticsearch.rest.action.document;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.compat.TypeConsumer;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,10 +57,20 @@ public class RestMultiTermVectorsActionV7 extends RestMultiTermVectorsAction {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        TypeConsumer typeConsumer = new TypeConsumer(request, "_type");
+
+        MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
+        TermVectorsRequest template = new TermVectorsRequest()
+            .index(request.param("index"));
+
+        RestTermVectorsAction.readURIParameters(template, request);
+        multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));
+        request.withContentOrSourceParamParserOrNull(p -> multiTermVectorsRequest.add(template, p, typeConsumer));
+
         if (request.hasParam("type")) {
             request.param("type");
             deprecationLogger.deprecatedAndMaybeLog("mtermvectors_with_types", TYPES_DEPRECATION_MESSAGE);
         }
-        return super.prepareRequest(request, client);
+        return channel -> client.multiTermVectors(multiTermVectorsRequest, new RestToXContentListener<>(channel));
     }
 }

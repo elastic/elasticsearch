@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -132,7 +131,20 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
     public void testGetParams() {
         assertThat(
             new Regression("foo").getParams(null),
-            allOf(hasEntry("dependent_variable", "foo"), hasEntry("prediction_field_name", "foo_prediction")));
+            equalTo(org.elasticsearch.common.collect.Map.of(
+                "dependent_variable", "foo",
+                "prediction_field_name", "foo_prediction",
+                "training_percent", 100.0)));
+        assertThat(
+            new Regression("foo",
+                BoostedTreeParams.builder().build(),
+                null,
+                50.0,
+                null).getParams(null),
+            equalTo(org.elasticsearch.common.collect.Map.of(
+                "dependent_variable", "foo",
+                "prediction_field_name", "foo_prediction",
+                "training_percent", 50.0)));
     }
 
     public void testRequiredFieldsIsNonEmpty() {

@@ -32,7 +32,6 @@ import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -45,7 +44,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -65,7 +63,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.scriptedMetric;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -506,8 +503,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
             client.prepareIndex("index").setSource("f", "2014-03-10T00:00:00.000Z"),
             client.prepareIndex("index").setSource("f", "2014-05-13T00:00:00.000Z"));
         ensureSearchable("index");
-
-        Script COMBINE_SCRIPT_NOOP = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combine", Collections.emptyMap());
 
         final SearchRequestBuilder searchRequest = client.prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
             .addAggregation(scriptedMetric("metric")

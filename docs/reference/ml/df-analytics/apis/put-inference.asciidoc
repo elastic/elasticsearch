@@ -64,7 +64,7 @@ The {infer} definition for the model. If `definition` is specified, then
 //Begin preprocessors
 `preprocessors`::
 (Optional, object)
-Collection of preprocessors.
+Collection of preprocessors. See <<ml-put-inference-preprocessor-example>>.
 +
 .Properties of `preprocessors`
 [%collapsible%open]
@@ -134,9 +134,6 @@ The field name to encode.
 Object that maps the field value to the target mean value.
 ======
 //End target mean encoding
-
-See <<ml-put-inference-preprocessor-example>> for more details.
-
 =====
 //End preprocessors
 
@@ -179,13 +176,15 @@ An array of `tree_node` objects. The nodes must be in ordinal order by their
 `tree_node`::
 (Required, object) 
 The definition of a node in a tree.
-
++
+--
 There are two major types of nodes: leaf nodes and not-leaf nodes.
 
 * Leaf nodes only need `node_index` and `leaf_value` defined.
 * All other nodes need `split_feature`, `left_child`, `right_child`, 
   `threshold`, `decision_type`, and `default_left` defined.
-
+--
++
 .Properties of `tree_node`
 [%collapsible%open]
 ======
@@ -232,7 +231,7 @@ The decision threshold with which to compare the feature value.
 //Begin ensemble
 `ensemble`::
 (Optional, object)
-The definition for an ensemble model.
+The definition for an ensemble model. See <<ml-put-inference-model-example>>.
 +
 .Properties of `ensemble`
 [%collapsible%open]
@@ -242,7 +241,7 @@ The definition for an ensemble model.
 (Required, object) 
 An aggregated output object that defines how to aggregate the outputs of the 
 `trained_models`. Supported objects are `weighted_mode`, `weighted_sum`, and 
-`logistic_regression`.
+`logistic_regression`. See <<ml-put-inference-aggregated-output-example>>.
 +
 .Properties of `aggregate_output`
 [%collapsible%open]
@@ -303,9 +302,6 @@ The weights to multiply by the input values (the inference values of the trained
 models).
 ========
 //End weighted mode
-
-See <<ml-put-inference-aggregated-output-example>> for more details.
-
 =======
 //End aggregate output
 
@@ -327,8 +323,6 @@ An array of `trained_model` objects. Supported trained models are `tree` and
 `ensemble`.
 ======
 //End ensemble
-
-See <<ml-put-inference-model-example>> for more details.
 
 =====
 //End trained model

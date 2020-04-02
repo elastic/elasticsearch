@@ -42,11 +42,17 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class UsageServiceTests extends ESTestCase {
 
-    public void testNullHandler() {
+    /**
+     * Test that we can not add a null reference to a {@link org.elasticsearch.rest.RestHandler} to the {@link UsageService}.
+     */
+    public void testHandlerCanNotBeNull() {
         final UsageService service = new UsageService();
         expectThrows(NullPointerException.class, () -> service.addRestHandler(null));
     }
 
+    /**
+     * Test that we can not add an instance of a {@link org.elasticsearch.rest.RestHandler} with no name to the {@link UsageService}.
+     */
     public void testAHandlerWithNoName() {
         final UsageService service = new UsageService();
         final BaseRestHandler horse = new MockRestHandler(null);
@@ -56,15 +62,22 @@ public class UsageServiceTests extends ESTestCase {
             equalTo("handler of type [org.elasticsearch.usage.UsageServiceTests$MockRestHandler] does not have a name"));
     }
 
+    /**
+     * Test that we can add the same instance of a {@link org.elasticsearch.rest.RestHandler} to the {@link UsageService} multiple times.
+     */
     public void testHandlerWithConflictingNamesButSameInstance() {
         final UsageService service = new UsageService();
         final String name = randomAlphaOfLength(8);
         final BaseRestHandler first = new MockRestHandler(name);
         service.addRestHandler(first);
-        // nothing bad should happen
+        // nothing bad ever happens to me
         service.addRestHandler(first);
     }
 
+    /**
+     * Test that we can not add different instances of {@link org.elasticsearch.rest.RestHandler} with the same name to the
+     * {@link UsageService}.
+     */
     public void testHandlersWithConflictingNamesButDifferentInstances() {
         final UsageService service = new UsageService();
         final String name = randomAlphaOfLength(8);

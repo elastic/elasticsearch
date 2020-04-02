@@ -45,11 +45,13 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
 
     protected InputStream openInputStream(final long position, final long length) throws IOException {
         assert assertCurrentThreadMayAccessBlobStore();
-        final long startPart = getPartNumberForPosition(position);
-        final long endPart = getPartNumberForPosition(position + length);
-        if ((startPart == endPart) || fileInfo.numberOfParts() == 1L) {
-            return blobContainer.readBlob(fileInfo.partName(startPart), getRelativePositionInPart(position), length);
+        if (fileInfo.numberOfParts() == 1L) {
+            assert position + length <= fileInfo.partBytes(0)
+                : "cannot read [" + position + "-" + (position + length) + "] from [" + fileInfo + "]";
+            return blobContainer.readBlob(fileInfo.partName(0L), position, length);
         } else {
+            final long startPart = getPartNumberForPosition(position);
+            final long endPart = getPartNumberForPosition(position + length);
             return new SlicedInputStream(endPart - startPart + 1L) {
                 @Override
                 protected InputStream openSlice(long slice) throws IOException {
@@ -57,11 +59,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
                     final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
                     final long endInPart
                         = (currentPart == endPart) ? getRelativePositionInPart(position + length) : getLengthOfPart(currentPart);
-                    return blobContainer.readBlob(
-                        fileInfo.partName(currentPart),
-                        startInPart,
-                        endInPart - startInPart
-                    );
+                    return blobContainer.readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
                 }
             };
         }

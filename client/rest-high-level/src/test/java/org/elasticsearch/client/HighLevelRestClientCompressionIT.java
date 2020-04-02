@@ -19,65 +19,25 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpHeaders;
-import org.apache.http.client.entity.GzipDecompressingEntity;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.junit.Before;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
-import static org.hamcrest.core.StringContains.containsString;
-
-public class HttpCompressionIT extends ESRestHighLevelClientTestCase {
+public class HighLevelRestClientCompressionIT extends ESRestHighLevelClientTestCase {
 
     private static final String GZIP_ENCODING = "gzip";
     private static final String SAMPLE_DOCUMENT = "{\"name\":{\"first name\":\"Steve\",\"last name\":\"Jobs\"}}";
 
-    @Before
-    public void indexDocuments() throws IOException {
+    public void testCompressesResponseIfRequested() throws IOException {
         Request doc = new Request(HttpPut.METHOD_NAME, "/company/_doc/1");
         doc.setJsonEntity(SAMPLE_DOCUMENT);
         client().performRequest(doc);
-
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
-    }
 
-    public void testCompressesResponseIfRequested() throws IOException {
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING)
-            .build();
-
-        Request request = new Request("GET", "/company/_doc/1");
-        request.setOptions(requestOptions);
-
-        Response response = client().performRequest(request);
-
-        assertOK(response);
-        assertEquals(GZIP_ENCODING, response.getHeader(HttpHeaders.CONTENT_ENCODING));
-
-        GzipDecompressingEntity decompressingEntity = new GzipDecompressingEntity(response.getEntity());
-        String uncompressedContent = EntityUtils.toString(decompressingEntity);
-        assertThat(uncompressedContent, containsString(SAMPLE_DOCUMENT));
-    }
-
-    public void testUncompressedResponseByDefault() throws IOException {
-        Response response = client().performRequest(new Request("GET", "/"));
-
-        assertOK(response);
-        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
-
-        Request request = new Request("POST", "/company/_doc/2");
-        request.setJsonEntity(SAMPLE_DOCUMENT);
-        response = client().performRequest(request);
-
-        assertOK(response);
-        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
-    }
-
-    public void testCompressesResponseIfRequestedWhileUsingRestHighLevelClient() throws IOException {
         RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
             .addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING)
             .build();
@@ -85,7 +45,7 @@ public class HttpCompressionIT extends ESRestHighLevelClientTestCase {
         SearchRequest searchRequest = new SearchRequest("company");
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync, requestOptions);
 
-        assertOK(searchResponse);
+        assertThat(searchResponse.status().getStatus(), Matchers.equalTo(200));
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
         assertEquals(SAMPLE_DOCUMENT, searchResponse.getHits().getHits()[0].getSourceAsString());
     }

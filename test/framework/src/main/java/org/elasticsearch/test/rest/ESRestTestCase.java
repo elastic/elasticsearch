@@ -47,7 +47,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -951,10 +950,6 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
-    }
-
-    protected static void assertOK(StatusToXContentObject response) {
-        assertThat(response.status().getStatus(), anyOf(equalTo(200), equalTo(201)));
     }
 
     /**

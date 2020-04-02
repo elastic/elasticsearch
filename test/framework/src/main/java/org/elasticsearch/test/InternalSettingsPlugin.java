@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,7 +38,7 @@ public final class InternalSettingsPlugin extends Plugin {
     public static final Setting<Boolean> MERGE_ENABLED =
         Setting.boolSetting("index.merge.enabled", true, Property.IndexScope, Property.NodeScope);
     public static final Setting<Long> INDEX_CREATION_DATE_SETTING =
-        Setting.longSetting(IndexMetaData.SETTING_CREATION_DATE, -1, -1, Property.IndexScope, Property.NodeScope);
+        Setting.longSetting(IndexMetadata.SETTING_CREATION_DATE, -1, -1, Property.IndexScope, Property.NodeScope);
     public static final Setting<TimeValue> TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING =
         Setting.timeSetting("index.translog.retention.check_interval", new TimeValue(10, TimeUnit.MINUTES),
             new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic, Property.IndexScope);

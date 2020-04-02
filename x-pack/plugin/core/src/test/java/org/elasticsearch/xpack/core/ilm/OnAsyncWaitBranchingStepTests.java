@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -16,8 +16,8 @@ import static org.hamcrest.Matchers.is;
 
 public class OnAsyncWaitBranchingStepTests extends AbstractStepTestCase<OnAsyncWaitBranchingStep> {
 
-    public static final TriConsumer<Client, IndexMetaData, OnAsyncWaitBranchingStep.BranchingStepListener> NO_OP_ASYNC_ACTION =
-        (client, indexMetaData, branchingStepListener) -> {
+    public static final TriConsumer<Client, IndexMetadata, OnAsyncWaitBranchingStep.BranchingStepListener> NO_OP_ASYNC_ACTION =
+        (client, indexMetadata, branchingStepListener) -> {
         };
 
     @Override
@@ -82,7 +82,7 @@ public class OnAsyncWaitBranchingStepTests extends AbstractStepTestCase<OnAsyncW
         Step.StepKey nextKeyOnFulfilledAction = randomStepKey();
 
         OnAsyncWaitBranchingStep onAsyncWaitBranchingStep = new OnAsyncWaitBranchingStep(randomStepKey(), nextKeyOnUnfulfilledAction,
-            nextKeyOnFulfilledAction, client, (client, indexMetaData, branchingStepListener) -> {
+            nextKeyOnFulfilledAction, client, (client, indexMetadata, branchingStepListener) -> {
             branchingStepListener.onStopWaitingAndMoveToNextKey(null);
         });
 
@@ -105,7 +105,7 @@ public class OnAsyncWaitBranchingStepTests extends AbstractStepTestCase<OnAsyncW
     public void testStepReportsFailure() {
         IllegalStateException failure = new IllegalStateException("failure");
         OnAsyncWaitBranchingStep onAsyncWaitBranchingStep = new OnAsyncWaitBranchingStep(randomStepKey(), randomStepKey(), randomStepKey(),
-            client, (client, indexMetaData, branchingStepListener) -> {
+            client, (client, indexMetadata, branchingStepListener) -> {
             branchingStepListener.onFailure(failure);
         });
 

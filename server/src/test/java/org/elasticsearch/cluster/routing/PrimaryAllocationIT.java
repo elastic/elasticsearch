@@ -30,7 +30,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -68,8 +68,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -266,7 +266,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
         final CountDownLatch clusterStateChangeLatch = new CountDownLatch(1);
         final ClusterStateListener clusterStateListener = event -> {
-            final Set<String> allocationIds = event.state().metaData().index(idxName).inSyncAllocationIds(0);
+            final Set<String> allocationIds = event.state().metadata().index(idxName).inSyncAllocationIds(0);
             if (expectedAllocationIds.equals(allocationIds)) {
                 clusterStateChangeLatch.countDown();
             }
@@ -300,7 +300,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
 
         assertEquals(Collections.singleton(state.routingTable().index(idxName).shard(0).primary.allocationId().getId()),
-            state.metaData().index(idxName).inSyncAllocationIds(0));
+            state.metadata().index(idxName).inSyncAllocationIds(0));
 
         Set<String> newHistoryUUIds = Stream.of(shardStats)
             .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY)).collect(Collectors.toSet());
@@ -392,7 +392,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final Settings inSyncDataPathSettings = internalCluster().dataPathSettings(replicaNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
         ensureYellow("test");
-        assertEquals(2, client().admin().cluster().prepareState().get().getState().metaData().index("test")
+        assertEquals(2, client().admin().cluster().prepareState().get().getState().metadata().index("test")
             .inSyncAllocationIds(0).size());
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
@@ -404,7 +404,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState()
             .getRoutingTable().index("test").allPrimaryShardsUnassigned()));
         assertEquals(2, client().admin().cluster().prepareState().get().getState()
-            .metaData().index("test").inSyncAllocationIds(0).size());
+            .metadata().index("test").inSyncAllocationIds(0).size());
 
         logger.info("--> starting node that reuses data folder with the up-to-date shard");
         internalCluster().startDataOnlyNode(inSyncDataPathSettings);
@@ -423,12 +423,12 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
         ensureYellow("test");
         assertEquals(2, client().admin().cluster().prepareState().get().getState()
-            .metaData().index("test").inSyncAllocationIds(0).size());
+            .metadata().index("test").inSyncAllocationIds(0).size());
         logger.info("--> indexing...");
         client().prepareIndex("test").setSource(jsonBuilder().startObject()
             .field("field", "value1").endObject()).get();
         assertEquals(1, client().admin().cluster().prepareState().get().getState()
-            .metaData().index("test").inSyncAllocationIds(0).size());
+            .metadata().index("test").inSyncAllocationIds(0).size());
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
             public boolean clearData(String nodeName) {
@@ -439,7 +439,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState()
             .getRoutingTable().index("test").allPrimaryShardsUnassigned()));
         assertEquals(1, client().admin().cluster().prepareState().get().getState()
-            .metaData().index("test").inSyncAllocationIds(0).size());
+            .metadata().index("test").inSyncAllocationIds(0).size());
 
         logger.info("--> starting node that reuses data folder with the up-to-date shard");
         internalCluster().startDataOnlyNode(inSyncDataPathSettings);
@@ -477,12 +477,12 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final String indexName = "test-idx";
         assertAcked(client().admin().indices()
                         .prepareCreate(indexName)
-                        .setSettings(Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                         .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0))
+                        .setSettings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                         .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0))
                         .get());
         logger.info("--> update the settings to prevent allocation to the data node");
         assertTrue(client().admin().indices().prepareUpdateSettings(indexName)
-                       .setSettings(Settings.builder().put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node))
+                       .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node))
                        .get()
                        .isAcknowledged());
         logger.info("--> full cluster restart");
@@ -504,7 +504,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             prepareCreate("test", Settings.builder().put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)));
-        final ShardId shardId = new ShardId(clusterService().state().metaData().index("test").getIndex(), 0);
+        final ShardId shardId = new ShardId(clusterService().state().metadata().index("test").getIndex(), 0);
         final Set<String> replicaNodes = new HashSet<>(internalCluster().startDataOnlyNodes(numberOfReplicas));
         ensureGreen();
         assertAcked(
@@ -541,7 +541,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             for (ShardRouting activeShard : shardRoutingTable.activeShards()) {
                 assertThat(state.getRoutingNodes().node(activeShard.currentNodeId()).node().getName(), isIn(selectedPartition));
             }
-            assertThat(state.metaData().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
+            assertThat(state.metadata().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
         }, 1, TimeUnit.MINUTES);
         assertAcked(
             client(master).admin().cluster().prepareUpdateSettings()
@@ -552,7 +552,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = client(master).admin().cluster().prepareState().get().getState();
             assertThat(state.routingTable().shardRoutingTable(shardId).activeShards(), hasSize(numberOfReplicas));
-            assertThat(state.metaData().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
+            assertThat(state.metadata().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
             for (String node : replicaNodes) {
                 IndexShard shard = internalCluster().getInstance(IndicesService.class, node).getShardOrNull(shardId);
                 assertThat(shard.getLocalCheckpoint(), equalTo(numDocs + moreDocs));

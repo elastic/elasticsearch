@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -33,12 +33,12 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener) {
-        final String indexName = indexMetaData.getIndex().getName();
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
+        final String indexName = indexMetadata.getIndex().getName();
 
-        final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetaData);
+        final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
 
-        final String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         final String snapshotRepository = lifecycleState.getSnapshotRepository();
         if (Strings.hasText(snapshotRepository) == false) {
             listener.onFailure(new IllegalStateException("snapshot repository is not present for policy [" + policyName + "] and index [" +

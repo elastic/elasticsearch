@@ -55,5 +55,8 @@ class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalE
 #
 # ASCII Functions
 # 
+  Boolean endsWith(String, String)
+  Integer length(String)
+  Boolean startsWith(String, String)
   String  substring(String, Number, Number)
 }

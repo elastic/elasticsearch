@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -26,8 +26,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class GetRollupCapsRequestTests extends ESTestCase {
 
     public void testImplicitIndexPattern() {
-        String pattern = randomFrom("", "*", MetaData.ALL, null);
+        String pattern = randomFrom("", "*", Metadata.ALL, null);
         GetRollupCapsRequest request = new GetRollupCapsRequest(pattern);
-        assertThat(request.getIndexPattern(), equalTo(MetaData.ALL));
+        assertThat(request.getIndexPattern(), equalTo(Metadata.ALL));
     }
 }

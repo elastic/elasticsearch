@@ -55,8 +55,8 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
                                     ScriptedMetricAggContexts.CombineScript.Factory combineScript,
                                     Map<String, Object> combineScriptParams, Script reduceScript, Map<String, Object> aggParams,
                                     SearchLookup lookup, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metaData);
+                                    AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metadata);
         this.mapScript = mapScript;
         this.mapScriptParams = mapScriptParams;
         this.initScript = initScript;
@@ -73,7 +73,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+                                        Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
@@ -100,7 +100,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
         }
         return new ScriptedMetricAggregator(name, mapScript,
                 combineScript, reduceScript, aggState, searchContext, parent,
-                pipelineAggregators, metaData);
+                pipelineAggregators, metadata);
     }
 
     private static Script deepCopyScript(Script script, SearchContext context, Map<String, Object> aggParams) {

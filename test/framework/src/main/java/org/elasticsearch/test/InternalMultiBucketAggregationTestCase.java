@@ -85,15 +85,15 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     }
 
     @Override
-    protected final T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        T instance = createTestInstance(name, pipelineAggregators, metaData, subAggregationsSupplier.get());
+    protected final T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        T instance = createTestInstance(name, pipelineAggregators, metadata, subAggregationsSupplier.get());
         assert instance.getBuckets().size() <= maxNumberOfBuckets() :
                 "Maximum number of buckets exceeded for " + instance.getClass().getSimpleName() + " aggregation";
         return instance;
     }
 
     protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData, InternalAggregations aggregations);
+                                            Map<String, Object> metadata, InternalAggregations aggregations);
 
     protected abstract Class<? extends ParsedMultiBucketAggregation> implementationClass();
 
@@ -154,7 +154,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
         assertTrue(expected instanceof InternalAggregation);
         assertEquals(expected.getName(), actual.getName());
-        assertEquals(expected.getMetaData(), actual.getMetaData());
+        assertEquals(expected.getMetadata(), actual.getMetadata());
         assertEquals(expected.getType(), actual.getType());
     }
 

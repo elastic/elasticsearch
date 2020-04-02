@@ -9,20 +9,32 @@ package org.elasticsearch.xpack.autoscaling;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingDecisionAction;
+import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingDecisionAction;
+import org.elasticsearch.xpack.autoscaling.action.TransportPutAutoscalingPolicyAction;
+import org.elasticsearch.xpack.autoscaling.decision.AlwaysAutoscalingDecider;
+import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingDecisionHandler;
+import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -78,10 +90,17 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         }
     }
 
+    boolean isSnapshot() {
+        return Build.CURRENT.isSnapshot();
+    }
+
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         if (enabled) {
-            return List.of(new ActionHandler<>(GetAutoscalingDecisionAction.INSTANCE, TransportGetAutoscalingDecisionAction.class));
+            return List.of(
+                new ActionHandler<>(GetAutoscalingDecisionAction.INSTANCE, TransportGetAutoscalingDecisionAction.class),
+                new ActionHandler<>(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
+            );
         } else {
             return List.of();
         }
@@ -98,14 +117,35 @@ public class Autoscaling extends Plugin implements ActionPlugin {
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
         if (enabled) {
-            return List.of(new RestGetAutoscalingDecisionHandler());
+            return List.of(new RestGetAutoscalingDecisionHandler(), new RestPutAutoscalingPolicyHandler());
         } else {
             return List.of();
         }
     }
 
-    boolean isSnapshot() {
-        return Build.CURRENT.isSnapshot();
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, AutoscalingMetadata.NAME, AutoscalingMetadata.AutoscalingMetadataDiff::new),
+            new NamedWriteableRegistry.Entry(AutoscalingDecider.class, AlwaysAutoscalingDecider.NAME, AlwaysAutoscalingDecider::new)
+        );
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return List.of(
+            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse),
+            new NamedXContentRegistry.Entry(
+                AutoscalingDecider.class,
+                new ParseField(AlwaysAutoscalingDecider.NAME),
+                AlwaysAutoscalingDecider::parse
+            )
+        );
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
     }
 
 }

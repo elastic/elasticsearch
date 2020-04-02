@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.sqlType;
 
 public class SqlDataTypesTests extends ESTestCase {
 
-    public void testMetaDataType() {
+    public void testMetadataType() {
         assertEquals(Integer.valueOf(9), metaSqlDataType(DATETIME));
         DataType t = randomDataTypeNoDateTime();
         assertEquals(sqlType(t).getVendorTypeNumber(), metaSqlDataType(t));
@@ -146,7 +146,7 @@ public class SqlDataTypesTests extends ESTestCase {
                 "interval_day_to_hour", "interval_day_to_minute", "interval_day_to_second",
                 "interval_hour_to_minute", "interval_hour_to_second",
                 "interval_minute_to_second"));
-        
+
         types.addAll(SqlDataTypes.types().stream()
                 .filter(DataTypes::isPrimitive)
                 .map(DataType::typeName)

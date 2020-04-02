@@ -14,7 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
@@ -51,9 +51,9 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
 
                 final String blobName = randomUnicodeOfLength(10);
-                final StoreFileMetaData metaData = new StoreFileMetaData(fileName, input.length, "_na", Version.CURRENT.luceneVersion);
+                final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length, "_na", Version.CURRENT.luceneVersion);
                 final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L,
-                    List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metaData, new ByteSizeValue(input.length))), 0L, 0L, 0, 0L);
+                    List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, new ByteSizeValue(input.length))), 0L, 0L, 0, 0L);
 
                 final BlobContainer singleBlobContainer = singleBlobContainer(blobName, input);
                 final BlobContainer blobContainer;
@@ -98,9 +98,9 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
 
             final String blobName = randomUnicodeOfLength(10);
-            final StoreFileMetaData metaData = new StoreFileMetaData(fileName, input.length + 1, "_na", Version.CURRENT.luceneVersion);
+            final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length + 1, "_na", Version.CURRENT.luceneVersion);
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L,
-                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metaData, new ByteSizeValue(input.length + 1))), 0L, 0L, 0, 0L);
+                List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, new ByteSizeValue(input.length + 1))), 0L, 0L, 0, 0L);
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
 

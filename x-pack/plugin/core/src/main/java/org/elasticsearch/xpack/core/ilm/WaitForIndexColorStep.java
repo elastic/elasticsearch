@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -76,9 +76,9 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         String indexName = indexNamePrefix != null ? indexNamePrefix + index.getName() : index.getName();
-        IndexMetaData indexMetaData = clusterState.metaData().index(index);
+        IndexMetadata indexMetadata = clusterState.metadata().index(index);
 
-        if (indexMetaData == null) {
+        if (indexMetadata == null) {
             String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but index no longer exists",
                 getKey().getAction(), indexName);
             // Index must have been since deleted
@@ -86,7 +86,7 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
             return new Result(false, new Info(errorMessage));
         }
 
-        IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexMetaData.getIndex());
+        IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexMetadata.getIndex());
         Result result;
         switch (this.color) {
             case GREEN:

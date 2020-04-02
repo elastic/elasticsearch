@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
@@ -120,14 +120,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
      * Creates a consumer to evaluate the ILM generated snapshot status in the provided snapshotRepository in an async way, akin to an
      * equivalent {@link AsyncWaitStep} implementation.
      */
-    static TriConsumer<Client, IndexMetaData, BranchingStepListener> getCheckSnapshotStatusAsyncAction() {
-        return (client, indexMetaData, branchingStepListener) -> {
+    static TriConsumer<Client, IndexMetadata, BranchingStepListener> getCheckSnapshotStatusAsyncAction() {
+        return (client, indexMetadata, branchingStepListener) -> {
 
-            LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
+            LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
 
             String snapshotName = executionState.getSnapshotName();
-            String policyName = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-            final String indexName = indexMetaData.getIndex().getName();
+            String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+            final String indexName = indexMetadata.getIndex().getName();
             final String repositoryName = executionState.getSnapshotRepository();
             if (Strings.hasText(repositoryName) == false) {
                 branchingStepListener.onFailure(

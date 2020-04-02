@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -77,11 +77,11 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         String policyName = "test-ilm-policy";
 
         {
-            IndexMetaData.Builder indexMetadataBuilder =
-                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            IndexMetadata.Builder indexMetadataBuilder =
+                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                     .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
-            TriConsumer<Client, IndexMetaData, BranchingStepListener> checkSnapshotStatusAsyncAction =
+            TriConsumer<Client, IndexMetadata, BranchingStepListener> checkSnapshotStatusAsyncAction =
                 getCheckSnapshotStatusAsyncAction();
 
             try (NoOpClient client = new NoOpClient(getTestName())) {
@@ -105,13 +105,13 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         }
 
         {
-            IndexMetaData.Builder indexMetadataBuilder =
-                IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            IndexMetadata.Builder indexMetadataBuilder =
+                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                     .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
             Map<String, String> ilmCustom = Map.of("snapshot_repository", "repository_name");
             indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
 
-            TriConsumer<Client, IndexMetaData, BranchingStepListener> checkSnapshotStatusAsyncAction =
+            TriConsumer<Client, IndexMetadata, BranchingStepListener> checkSnapshotStatusAsyncAction =
                 getCheckSnapshotStatusAsyncAction();
 
             try (NoOpClient client = new NoOpClient(getTestName())) {
@@ -140,13 +140,13 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         String policyName = "test-ilm-policy";
         String snapshotName = "ilm-snapshot";
         String repoName = "repo_name";
-        IndexMetaData.Builder indexMetadataBuilder =
-            IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+        IndexMetadata.Builder indexMetadataBuilder =
+            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
                 .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("repository_name", repoName, "snapshot_name",
                     snapshotName));
 
-        TriConsumer<Client, IndexMetaData, BranchingStepListener> checkSnapshotStatusAsyncAction =
+        TriConsumer<Client, IndexMetadata, BranchingStepListener> checkSnapshotStatusAsyncAction =
             getCheckSnapshotStatusAsyncAction();
 
         try (NoOpClient client = getSnapshotStatusRequestAssertingClient(repoName, snapshotName)) {

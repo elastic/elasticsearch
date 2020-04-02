@@ -47,23 +47,23 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
 
     @Override
     protected InternalPercentilesBucket createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        return createTestInstance(name, pipelineAggregators, metaData, randomPercents(), true);
+            Map<String, Object> metadata) {
+        return createTestInstance(name, pipelineAggregators, metadata, randomPercents(), true);
     }
 
     private static InternalPercentilesBucket createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, double[] percents, boolean keyed) {
+            Map<String, Object> metadata, double[] percents, boolean keyed) {
         final double[] percentiles = new double[percents.length];
         for (int i = 0; i < percents.length; ++i) {
             percentiles[i] = frequently() ? randomDouble() : Double.NaN;
         }
-        return createTestInstance(name, pipelineAggregators, metaData, percents, percentiles, keyed);
+        return createTestInstance(name, pipelineAggregators, metadata, percents, percentiles, keyed);
     }
 
     private static InternalPercentilesBucket createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, double[] percents, double[] percentiles, boolean keyed) {
+            Map<String, Object> metadata, double[] percents, double[] percentiles, boolean keyed) {
         DocValueFormat format = randomNumericDocValueFormat();
-        return new InternalPercentilesBucket(name, percents, percentiles, keyed, format, pipelineAggregators, metaData);
+        return new InternalPercentilesBucket(name, percents, percentiles, keyed, format, pipelineAggregators, metadata);
     }
 
     @Override
@@ -191,7 +191,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         double[] percentiles = extractPercentiles(instance);
         DocValueFormat formatter = instance.formatter();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -205,17 +205,17 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
             percentiles[percentiles.length - 1] = randomDouble();
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalPercentilesBucket(name, percents, percentiles, randomBoolean(), formatter, pipelineAggregators, metaData);
+        return new InternalPercentilesBucket(name, percents, percentiles, randomBoolean(), formatter, pipelineAggregators, metadata);
     }
 
     private double[] extractPercentiles(InternalPercentilesBucket instance) {

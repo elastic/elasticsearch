@@ -75,7 +75,7 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
                 return new UnpairedTTestAggregator(name, numericMultiVS, tails, false, format, searchContext, parent, pipelineAggregators,
                     metadata);
             default:
-                throw new UnsupportedOperationException("Unsupported t-test type " + testType);
+                throw new IllegalArgumentException("Unsupported t-test type " + testType);
         }
     }
 }

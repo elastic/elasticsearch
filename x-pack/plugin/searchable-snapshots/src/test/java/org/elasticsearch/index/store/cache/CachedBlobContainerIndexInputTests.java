@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
+import static org.elasticsearch.index.store.cache.TestUtils.singleSplitBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -51,13 +52,16 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                 final byte[] input = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
 
                 final String blobName = randomUnicodeOfLength(10);
-                final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length, "_na", Version.CURRENT.luceneVersion);
-                final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L,
-                    List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metadata, new ByteSizeValue(input.length))), 0L, 0L, 0, 0L);
+                final StoreFileMetadata metaData = new StoreFileMetadata(fileName, input.length, "_na", Version.CURRENT.luceneVersion);
 
-                final BlobContainer singleBlobContainer = singleBlobContainer(blobName, input);
+                final int partSize = randomBoolean() ? input.length : randomIntBetween(1, input.length);
+
+                final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L,
+                    List.of(new BlobStoreIndexShardSnapshot.FileInfo(blobName, metaData, new ByteSizeValue(partSize))), 0L, 0L, 0, 0L);
+
+                final BlobContainer singleBlobContainer = singleSplitBlobContainer(blobName, input, partSize);
                 final BlobContainer blobContainer;
-                if (input.length <= cacheService.getCacheSize()) {
+                if (input.length == partSize && input.length <= cacheService.getCacheSize()) {
                     blobContainer = new CountingBlobContainer(singleBlobContainer, cacheService.getRangeSize());
                 } else {
                     blobContainer = singleBlobContainer;

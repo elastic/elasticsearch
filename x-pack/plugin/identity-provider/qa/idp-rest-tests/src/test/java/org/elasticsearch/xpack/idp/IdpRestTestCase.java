@@ -29,10 +29,12 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;

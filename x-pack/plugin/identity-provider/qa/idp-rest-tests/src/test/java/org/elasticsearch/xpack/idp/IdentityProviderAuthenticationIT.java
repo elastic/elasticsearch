@@ -25,6 +25,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -48,19 +49,22 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     }
 
     public void testRegistrationAndIdpInitiatedSso() throws Exception {
-        final Map<String, Object> request = Map.ofEntries(
-            Map.entry("name", "Test SP"),
-            Map.entry("acs", SP_ACS),
-            Map.entry("privileges", Map.ofEntries(
-                Map.entry("resource", SP_ENTITY_ID),
-                Map.entry("roles", Map.of("superuser", "role:superuser", "viewer", "role:viewer"))
-            )),
-            Map.entry("attributes", Map.ofEntries(
-                Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
-                Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
-                Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
-                Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
-            )));
+        final Map<String, Object> request = new HashMap<>();
+        request.put("name", "Test SP");
+        request.put("acs", SP_ACS);
+        final Map<String, Object> privilegeMap = new HashMap<>();
+        privilegeMap.put("resource", SP_ENTITY_ID);
+        final Map<String, String> roleMap = new HashMap<>();
+        roleMap.put("superuser", "role:superuser");
+        roleMap.put("viewer", "role:viewer");
+        privilegeMap.put("roles", roleMap);
+        request.put("privileges", privilegeMap);
+        final Map<String, String> attributeMap = new HashMap<>();
+        attributeMap.put("principal", "https://idp.test.es.elasticsearch.org/attribute/principal");
+        attributeMap.put("name", "https://idp.test.es.elasticsearch.org/attribute/name");
+        attributeMap.put("email", "https://idp.test.es.elasticsearch.org/attribute/email");
+        attributeMap.put("roles", "https://idp.test.es.elasticsearch.org/attribute/roles");
+        request.put("attributes", attributeMap);
         final SamlServiceProviderIndex.DocumentVersion docVersion = createServiceProvider(SP_ENTITY_ID, request);
         checkIndexDoc(docVersion);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
@@ -69,19 +73,22 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     }
 
     public void testRegistrationAndSpInitiatedSso() throws Exception {
-        final Map<String, Object> request = Map.ofEntries(
-            Map.entry("name", "Test SP"),
-            Map.entry("acs", SP_ACS),
-            Map.entry("privileges", Map.ofEntries(
-                Map.entry("resource", SP_ENTITY_ID),
-                Map.entry("roles", Map.of("superuser", "role:superuser", "viewer", "role:viewer"))
-            )),
-            Map.entry("attributes", Map.ofEntries(
-                Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
-                Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
-                Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
-                Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
-            )));
+        final Map<String, Object> request = new HashMap<>();
+        request.put("name", "Test SP");
+        request.put("acs", SP_ACS);
+        final Map<String, Object> privilegeMap = new HashMap<>();
+        privilegeMap.put("resource", SP_ENTITY_ID);
+        final Map<String, String> roleMap = new HashMap<>();
+        roleMap.put("superuser", "role:superuser");
+        roleMap.put("viewer", "role:viewer");
+        privilegeMap.put("roles", roleMap);
+        request.put("privileges", privilegeMap);
+        final Map<String, String> attributeMap = new HashMap<>();
+        attributeMap.put("principal", "https://idp.test.es.elasticsearch.org/attribute/principal");
+        attributeMap.put("name", "https://idp.test.es.elasticsearch.org/attribute/name");
+        attributeMap.put("email", "https://idp.test.es.elasticsearch.org/attribute/email");
+        attributeMap.put("roles", "https://idp.test.es.elasticsearch.org/attribute/roles");
+        request.put("attributes", attributeMap);
         final SamlServiceProviderIndex.DocumentVersion docVersion = createServiceProvider(SP_ENTITY_ID, request);
         checkIndexDoc(docVersion);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);

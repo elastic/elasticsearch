@@ -393,6 +393,7 @@ class EqlBaseParser extends Parser {
 
   public static class SequenceContext extends ParserRuleContext {
     public JoinKeysContext by;
+    public SequenceTermContext until;
     public TerminalNode SEQUENCE() { return getToken(EqlBaseParser.SEQUENCE, 0); }
     public List<SequenceTermContext> sequenceTerm() {
       return getRuleContexts(SequenceTermContext.class);
@@ -495,7 +496,7 @@ class EqlBaseParser extends Parser {
         setState(94);
         match(UNTIL);
         setState(95);
-        sequenceTerm();
+        ((SequenceContext)_localctx).until = sequenceTerm();
         }
       }
 

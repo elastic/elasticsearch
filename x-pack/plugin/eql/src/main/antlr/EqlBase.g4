@@ -32,7 +32,7 @@ sequenceParams
 sequence
     : SEQUENCE  (by=joinKeys sequenceParams? | sequenceParams by=joinKeys?)?
       sequenceTerm sequenceTerm+
-      (UNTIL sequenceTerm)?
+      (UNTIL until=sequenceTerm)?
     ;
 
 join

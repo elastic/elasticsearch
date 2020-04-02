@@ -15,9 +15,9 @@ You can view a list of in-progress and completed recoveries using the
 [float]
 ==== Peer recovery settings
 
-`indices.recovery.max_bytes_per_sec` (<<cluster-update-settings,Dynamic>>)::
-Limits total inbound and outbound recovery traffic for each node. Defaults to
-`40mb`.
+`indices.recovery.max_bytes_per_sec`
+(<<cluster-update-settings,Dynamic>>):: Limits total inbound and outbound
+recovery traffic for each node. Defaults to `40mb`.
 +
 This limit applies to each node separately. If multiple nodes in a cluster
 perform recoveries at the same time, the cluster's total recovery traffic may

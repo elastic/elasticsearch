@@ -60,17 +60,26 @@ final class MethodHandlers {
 
     /**
      * Return a handler for a given method and a version
-     * If a handler for a given version is not found, the handler for Version.CURRENT is returned.
+     * If a handler for a given version is not found, the handler for Version.CURRENT is returned. todo hmm should this be like this/
      * When using compatible API and compatible-with header, it is possible that a handler is registered under the same path
      * and same method twice. For compatible version and CURRENT.
+     * //todo this is an example when a request to /foo in v7 would return in 404, but it was added in v8 so /foo would be returned.
+     * //todo should we allow this?
      * If a handler was not overridden with compatible version, a request should still be handled with the CURRENT version.
+     *
      * @param method a REST method under which a handler was registered
      * @param version a Version under which a handler was registered
      * @return a handler
+     *
+     *
      */
     @Nullable
     RestHandler getHandler(RestRequest.Method method, Version version) {
         Map<Version, RestHandler> versionToHandlers = methodHandlers.get(method);
+
+        if(versionToHandlers == null){
+            return null;
+        }
         if (versionToHandlers.containsKey(version)) {
             return versionToHandlers.get(version);
         }

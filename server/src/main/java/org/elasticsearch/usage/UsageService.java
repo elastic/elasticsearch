@@ -73,7 +73,7 @@ public class UsageService {
         }
         final BaseRestHandler maybeHandler = handlers.put(handler.getName(), handler);
         /*
-         * Handlers will be registered multiple times, once for reach route that the handler handles. This means that we will see handlers
+         * Handlers will be registered multiple times, once for each route that the handler handles. This means that we will see handlers
          * multiple times, so we do not have a conflict if we are seeing the same instance multiple times. So, we only reject if a handler
          * with the same name was registered before, and it is not the same instance as before.
          */

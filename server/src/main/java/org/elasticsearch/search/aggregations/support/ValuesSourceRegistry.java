@@ -98,6 +98,7 @@ public class ValuesSourceRegistry {
      *                           from the aggregation standard set of parameters
      * @deprecated register the implementation with {@link AggregationSpec#implementFor(AggregatorSupplier, ValuesSourceType...)}
      */
+    @Deprecated
     public void register(String aggregationName, List<ValuesSourceType> valuesSourceTypes, AggregatorSupplier aggregatorSupplier) {
         register(aggregationName, (candidate) -> {
             for (ValuesSourceType valuesSourceType : valuesSourceTypes) {

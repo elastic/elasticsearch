@@ -40,12 +40,12 @@ This API puts an autoscaling policy with the provided name.
 [[autoscaling-put-autoscaling-policy-examples]]
 ==== {api-examples-title}
 
-This example puts an autoscaling policy named `hot` using the always
-autoscaling decider.
+This example puts an autoscaling policy named `my_autoscaling_policy` using the
+always autoscaling decider.
 
 [source,console]
 --------------------------------------------------
-PUT /_autoscaling/policy/hot
+PUT /_autoscaling/policy/my_autoscaling_policy
 {
   "policy": {
     "deciders": {

@@ -25,7 +25,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -77,7 +76,6 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
 
     @Override
     protected InternalDateRange createTestInstance(String name,
-                                                   List<PipelineAggregator> pipelineAggregators,
                                                    Map<String, Object> metadata,
                                                    InternalAggregations aggregations,
                                                    boolean keyed) {
@@ -89,7 +87,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
             double to = range.v2();
             buckets.add(new InternalDateRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
         }
-        return new InternalDateRange(name, buckets, format, keyed, pipelineAggregators, metadata);
+        return new InternalDateRange(name, buckets, format, keyed, metadata);
     }
 
     @Override
@@ -118,7 +116,6 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
         DocValueFormat format = instance.format;
         boolean keyed = instance.keyed;
         List<InternalDateRange.Bucket> buckets = instance.getBuckets();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
@@ -144,6 +141,6 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalDateRange(name, buckets, format, keyed, pipelineAggregators, metadata);
+        return new InternalDateRange(name, buckets, format, keyed, metadata);
     }
 }

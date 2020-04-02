@@ -13,6 +13,7 @@ setup:
             "description": "empty model for tests",
             "tags": ["regression", "tag1"],
             "input": {"field_names": ["field1", "field2"]},
+            "inference_config": { "regression": {"results_field": "my_regression"}},
             "definition": {
                "preprocessors": [],
                "trained_model": {
@@ -112,3 +113,42 @@ setup:
         - 'Deprecated field [field_mappings] used, expected [field_map] instead'
       ingest.delete_pipeline:
         id: "regression-model-pipeline"
+---
+"Test simulate":
+  - do:
+      ingest.simulate:
+        body:  >
+          {
+            "pipeline": {
+            "processors": [
+              {
+                "inference" : {
+                  "model_id" : "a-perfect-regression-model",
+                  "inference_config": {"regression": {}},
+                  "target_field": "regression_field",
+                  "field_map": {}
+                }
+              }
+            ]},
+            "docs": [{"_source": {"field1": 1, "field2": 2}}]
+          }
+  - match: { docs.0.doc._source.regression_field.my_regression: 42.0 }
+
+  - do:
+      ingest.simulate:
+        body:  >
+          {
+            "pipeline": {
+            "processors": [
+              {
+                "inference" : {
+                  "model_id" : "a-perfect-regression-model",
+                  "inference_config": {"regression": {"results_field": "value"}},
+                  "target_field": "regression_field",
+                  "field_map": {}
+                }
+              }
+            ]},
+            "docs": [{"_source": {"field1": 1, "field2": 2}}]
+          }
+  - match: { docs.0.doc._source.regression_field.value: 42.0 }

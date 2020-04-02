@@ -85,8 +85,10 @@ import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -1275,7 +1277,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String templateName = "my-template";
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
         CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
-        AliasMetaData alias = AliasMetaData.builder("alias").writeIndex(true).build();
+        AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         PutComponentTemplateRequest putComponentTemplateRequest =

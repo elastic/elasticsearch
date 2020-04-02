@@ -363,7 +363,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-
 
 `results_field`::::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-results-field]
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 =====
 
 `classification`:::
@@ -383,7 +383,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-
 
 `results_field`::::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-results-field]
+include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `top_classes_results_field`::::
 (Optional, string)

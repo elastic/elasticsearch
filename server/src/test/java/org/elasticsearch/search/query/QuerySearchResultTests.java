@@ -36,7 +36,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalAggregationsTests;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;

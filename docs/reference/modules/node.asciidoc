@@ -96,7 +96,7 @@ restarts.
 ==== Dedicated master-eligible node
 
 It is important for the health of the cluster that the elected master node has 
-the resources it needs to fulfil its responsibilities. If the elected master 
+the resources it needs to fulfill its responsibilities. If the elected master 
 node is overloaded with other tasks then the cluster may not operate well. In 
 particular, indexing and searching your data can be very resource-intensive, so 
 in large or high-throughput clusters it is a good idea to avoid using the 
@@ -209,7 +209,7 @@ cluster.remote.connect: false <7>
 
 [float]
 [[data-node]]
-=== Data Node
+=== Data node
 
 Data nodes hold the shards that contain the documents you have indexed. Data
 nodes handle data related operations like CRUD, search, and aggregations.
@@ -251,7 +251,7 @@ cluster.remote.connect: false <4>
 
 [float]
 [[node-ingest-node]]
-=== Ingest Node
+=== Ingest node
 
 Ingest nodes can execute pre-processing pipelines, composed of one or more
 ingest processors. Depending on the type of operations performed by the ingest
@@ -320,14 +320,16 @@ node.voting_only: false <2>
 node.data: false <3>
 node.ingest: false <4>
 node.ml: false <5>
-cluster.remote.connect: false <6>
+xpack.ml.enabled: true <6>
+cluster.remote.connect: false <7>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.voting_only` role is disabled by default.
 <3> Disable the `node.data` role (enabled by default).
 <4> Disable the `node.ingest` role (enabled by default).
 <5> Disable the `node.ml` role (enabled by default).
-<6> Disable remote cluster connections (enabled by default).
+<6> The `xpack.ml.enabled` setting is enabled by default.
+<7> Disable remote cluster connections (enabled by default).
 
 To create a dedicated coordinating node in the {oss-dist}, set:
 
@@ -352,8 +354,9 @@ requests. If `xpack.ml.enabled` is set to true and `node.ml` is set to `false`,
 the node can service API requests but it cannot run jobs.
 
 If you want to use {ml-features} in your cluster, you must enable {ml}
-(set `xpack.ml.enabled` to `true`) on all master-eligible nodes. If you have the
-{oss-dist}, do not use these settings.
+(set `xpack.ml.enabled` to `true`) on all master-eligible nodes. If you want to
+use {ml-features} in clients (including {kib}), it must also be enabled on all
+coordinating nodes. If you have the {oss-dist}, do not use these settings.
 
 For more information about these settings, see <<ml-settings>>.
 

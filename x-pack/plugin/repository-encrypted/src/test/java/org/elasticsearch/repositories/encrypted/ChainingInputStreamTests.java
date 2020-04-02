@@ -499,11 +499,15 @@ public class ChainingInputStreamTests extends ESTestCase {
         assertThat(test.markIn, Matchers.is(currentIn));
         verify(currentIn).mark(Mockito.eq(readLimit));
         // mark again, same position
-        readLimit = randomInt(63);
-        test.mark(readLimit);
+        int readLimit2 = randomInt(63);
+        test.mark(readLimit2);
         assertThat(test.currentIn, Matchers.is(currentIn));
         assertThat(test.markIn, Matchers.is(currentIn));
-        verify(currentIn).mark(Mockito.eq(readLimit));
+        if (readLimit != readLimit2) {
+            verify(currentIn).mark(Mockito.eq(readLimit2));
+        } else {
+            verify(currentIn, times(2)).mark(Mockito.eq(readLimit));
+        }
         // read more (possibly moving on to a new component)
         test.readNBytes(randomInt(63));
         // mark does not budge

@@ -220,6 +220,14 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-total]
 (long)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pages-processed]
 
+`processing_time_in_ms`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=processing-time-ms]
+
+`processing_total`:::
+(long)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=processing-total]
+
 `search_failures`:::
 (long)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=search-failures]
@@ -257,12 +265,11 @@ GET _transform/_stats?from=5&size=10
 --------------------------------------------------
 // TEST[skip:todo]
 
-The following example gets usage information for the `ecommerce_transform`
-{transform}:
+The following example gets usage information for the {transform}:
 
 [source,console]
 --------------------------------------------------
-GET _transform/ecommerce_transform/_stats
+GET _transform/ecommerce-customer-transform/_stats
 --------------------------------------------------
 // TEST[skip:todo]
 
@@ -274,48 +281,39 @@ The API returns the following results:
   "count" : 1,
   "transforms" : [
     {
-      "id" : "ecommerce_transform",
-      "state" : "indexing",
+      "id" : "ecommerce-customer-transform",
+      "state" : "started",
+      "node" : {
+        "id" : "cpTIGMsVQ8Gqwqlxxxxxxx",
+        "name" : "my.home",
+        "ephemeral_id" : "5-L21nFsQxxxxxxxxxx-xx",
+        "transport_address" : "127.0.0.1:9300",
+        "attributes" : { }
+      },
       "stats" : {
-        "pages_processed" : 2,
-        "documents_processed" : 1220,
-        "documents_indexed" : 13,
-        "trigger_count" : 1,
-        "index_time_in_ms" : 19,
-        "index_total" : 1,
+        "pages_processed" : 78,
+        "documents_processed" : 6027,
+        "documents_indexed" : 68,
+        "trigger_count" : 168,
+        "index_time_in_ms" : 412,
+        "index_total" : 20,
         "index_failures" : 0,
-        "search_time_in_ms" : 52,
-        "search_total" : 2,
+        "search_time_in_ms" : 353,
+        "search_total" : 78,
         "search_failures" : 0,
-        "exponential_avg_checkpoint_duration_ms" : 77,
-        "exponential_avg_documents_indexed" : 2,
-        "exponential_avg_documents_processed" : 12
+        "processing_time_in_ms" : 8,
+        "processing_total" : 78,
+        "exponential_avg_checkpoint_duration_ms" : 97.30637923893185,
+        "exponential_avg_documents_indexed" : 2.2064915040974062,
+        "exponential_avg_documents_processed" : 179.89419945785045
       },
       "checkpointing" : {
         "last" : {
-          "checkpoint" : 100,
-          "timestamp_millis" : 1561740252497,
-          "time_upper_bound_millis" : 1561740192497
+          "checkpoint" : 20,
+          "timestamp_millis" : 1585344558220,
+          "time_upper_bound_millis" : 1585344498220
         },
-        "next" : {
-          "checkpoint" : 101,
-          "position" : {
-            "indexer_position" : {
-              "hashtag" : "abcd1234"
-            },
-            "buckets_position" : {
-              "hashtag" : "abcd5678"
-            }
-          },
-          "checkpoint_progress" : {
-            "documents_processed": 100,
-            "documents_indexed": 1
-          },
-          "changes_last_detected_at": 1561740629170,
-          "timestamp_millis" : 1561740629172,
-          "time_upper_bound_millis" : 1561740569172
-        },
-        "operations_behind": 27000
+        "changes_last_detected_at" : 1585344558219
       }
     }
   ]

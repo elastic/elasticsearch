@@ -68,6 +68,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -146,7 +148,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             beforeExecuteLatches.get(req).countDown();
         }
         cancelFuture.actionGet();
-        mainTaskFuture.actionGet();
+        waitForMainTask(mainTaskFuture);
         assertBusy(() -> {
             for (DiscoveryNode node : nodes) {
                 TaskManager taskManager = internalCluster().getInstance(TransportService.class, node.getName()).getTaskManager();
@@ -177,7 +179,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         }
         assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
         assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
-        mainTaskFuture.actionGet();
+        waitForMainTask(mainTaskFuture);
         CancelTasksResponse cancelError = client().admin().cluster().prepareCancelTasks()
             .setTaskId(taskId).waitForCompletion(randomBoolean()).get();
         assertThat(cancelError.getNodeFailures(), hasSize(1));
@@ -204,7 +206,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         for (ChildRequest r : childRequests) {
             beforeExecuteLatches.get(r).countDown();
         }
-        mainTaskFuture.actionGet();
+        waitForMainTask(mainTaskFuture);
     }
 
     TaskId getMainTaskId() {
@@ -212,6 +214,17 @@ public class CancellableTasksIT extends ESIntegTestCase {
             .setActions(TransportMainAction.ACTION.name()).setDetailed(true).get();
         assertThat(listTasksResponse.getTasks(), hasSize(1));
         return listTasksResponse.getTasks().get(0).getTaskId();
+    }
+
+    void waitForMainTask(ActionFuture<MainResponse> mainTask) {
+        try {
+            mainTask.actionGet();
+        } catch (Exception e) {
+            final Throwable cause = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+            assertThat(cause.getMessage(),
+                either(equalTo("The parent task was cancelled, shouldn't start any child tasks"))
+                    .or(containsString("Task cancelled before it started:")));
+        }
     }
 
     public static class MainRequest extends ActionRequest {
@@ -302,7 +315,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                 return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
                     @Override
                     public boolean shouldCancelChildrenOnCancellation() {
-                        return false;
+                        return shouldCancelChildrenOnCancellation;
                     }
                 };
             } else {
@@ -364,15 +377,15 @@ public class CancellableTasksIT extends ESIntegTestCase {
         protected void startChildTask(TaskId parentTaskId, ChildRequest childRequest, ActionListener<ChildResponse> listener) {
             childRequest.setParentTask(parentTaskId);
             final CountDownLatch completeLatch = completedLatches.get(childRequest);
+            LatchedActionListener<ChildResponse> latchedListener = new LatchedActionListener<>(listener, completeLatch);
             transportService.getThreadPool().generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
-                    throw new AssertionError(e);
+                    listener.onFailure(e);
                 }
 
                 @Override
                 protected void doRun() {
-                    LatchedActionListener<ChildResponse> latchedListener = new LatchedActionListener<>(listener, completeLatch);
                     if (client.getLocalNodeId().equals(childRequest.targetNode.getId()) && randomBoolean()) {
                         try {
                             client.executeLocally(TransportChildAction.ACTION, childRequest, latchedListener);

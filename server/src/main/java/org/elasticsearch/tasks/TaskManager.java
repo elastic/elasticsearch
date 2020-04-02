@@ -183,7 +183,7 @@ public class TaskManager implements ClusterStateApplier {
             if (reason != null) {
                 try {
                     holder.cancel(reason);
-                    throw new IllegalStateException("Task cancelled before it started: " + reason);
+                    throw new TaskCancelledException("Task cancelled before it started: " + reason);
                 } finally {
                     // let's clean up the registration
                     unregister(task);

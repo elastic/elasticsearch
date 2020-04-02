@@ -43,6 +43,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -352,7 +353,9 @@ public interface SearchPlugin {
         /**
          * Get the function to register the {@link org.elasticsearch.search.aggregations.support.ValuesSource} to aggregator mappings for
          * this aggregation
+         * @deprecated we're moving {@link #getAggregatorImplementations()} instead
          */
+        @Deprecated
         public Consumer<ValuesSourceRegistry> getAggregatorRegistrar() {
             return aggregatorRegistrar;
         }
@@ -369,7 +372,11 @@ public interface SearchPlugin {
         }
 
         /**
-         * Configure an {@link Aggregator} implementation.
+         * Configure an {@link Aggregator} implementation for some {@link ValuesSourceType}s.
+         *
+         * @param aggregatorSupplier implementation to register
+         * @param appliesTo a predicate which accepts the resolved {@link ValuesSourceType}
+         *                  and decides if the given aggregator can be applied to that type.
          */
         public AggregationSpec implement(AggregatorSupplier aggregatorSupplier, Predicate<ValuesSourceType> appliesTo) {
             aggregatorImplementations.add(new AggregatorImplementation(appliesTo, aggregatorSupplier));
@@ -377,7 +384,11 @@ public interface SearchPlugin {
         }
 
         /**
-         * Configure an {@link Aggregator} implementation for any of a list of {@link ValuesSourceType}s.
+         * Configure an {@link Aggregator} implementation for any of a
+         * list of {@link ValuesSourceType}s.
+         *
+         * @param aggregatorSupplier implementation to register
+         * @param appliesTo {@link ValuesSourceType}s that this implementation can consume
          */
         public AggregationSpec implementFor(AggregatorSupplier aggregatorSupplier, ValuesSourceType... appliesTo) {
             Collection<ValuesSourceType> types = List.of(appliesTo); 
@@ -385,7 +396,11 @@ public interface SearchPlugin {
         }
 
         /**
-         * Configure an {@link Aggregator} for all {@link ValuesSourceType}s.
+         * Configure an {@link Aggregator} implementation for
+         * a {@link ValuesSourceType}s.
+         *
+         * @param aggregatorSupplier implementation to register
+         * @param appliesTo {@link ValuesSourceType} that this implementation can consume
          */
         public AggregationSpec implementForAllValues(AggregatorSupplier aggregatorSupplier) {
             return implement(aggregatorSupplier, candidate -> true);

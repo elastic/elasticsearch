@@ -339,7 +339,7 @@ public class SearchModule {
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
         List<AggregationSpec> aggregations = new ArrayList<>();
-        aggregations.add(AvgAggregationBuilder.SPEC);
+        aggregations.add(AvgAggregationBuilder.spec());
         aggregations.add(new AggregationSpec(WeightedAvgAggregationBuilder.NAME, WeightedAvgAggregationBuilder::new,
             WeightedAvgAggregationBuilder.PARSER).addResultReader(InternalWeightedAvg::new));
         aggregations.add(new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder.PARSER)

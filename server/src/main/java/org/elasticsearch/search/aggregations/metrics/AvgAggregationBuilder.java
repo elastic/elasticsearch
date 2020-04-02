@@ -44,10 +44,12 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
     }
 
-    public static final AggregationSpec SPEC = new AggregationSpec(NAME, AvgAggregationBuilder::new, PARSER)
-        .addResultReader(InternalAvg::new)
-        .implementFor(AvgAggregatorFactory.IMPLEMENTATION,
-            CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN);
+    public static final AggregationSpec spec() {
+        return new AggregationSpec(NAME, AvgAggregationBuilder::new, PARSER)
+            .addResultReader(InternalAvg::new)
+            .implementFor(AvgAggregatorFactory.IMPLEMENTATION,
+                CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN);
+    }
 
     public AvgAggregationBuilder(String name) {
         super(name);

@@ -43,10 +43,14 @@ public class IndexInputStatsTests extends ESTestCase {
             }
         }
 
-        assertCounter(inputStats.getContiguousReads(),
-            contiguous.total(), contiguous.count(), contiguous.min(), contiguous.max());
-        assertCounter(inputStats.getNonContiguousReads(),
-            nonContiguous.total(), nonContiguous.count(), nonContiguous.min(), nonContiguous.max());
+        assertCounter(inputStats.getContiguousReads(), contiguous.total(), contiguous.count(), contiguous.min(), contiguous.max());
+        assertCounter(
+            inputStats.getNonContiguousReads(),
+            nonContiguous.total(),
+            nonContiguous.count(),
+            nonContiguous.min(),
+            nonContiguous.max()
+        );
     }
 
     public void testSeeks() {
@@ -79,15 +83,35 @@ public class IndexInputStatsTests extends ESTestCase {
             }
         }
 
-        assertCounter(inputStats.getForwardSmallSeeks(),
-            fwSmallSeeks.total(), fwSmallSeeks.count(), fwSmallSeeks.min(), fwSmallSeeks.max());
-        assertCounter(inputStats.getForwardLargeSeeks(),
-            fwLargeSeeks.total(), fwLargeSeeks.count(), fwLargeSeeks.min(), fwLargeSeeks.max());
+        assertCounter(
+            inputStats.getForwardSmallSeeks(),
+            fwSmallSeeks.total(),
+            fwSmallSeeks.count(),
+            fwSmallSeeks.min(),
+            fwSmallSeeks.max()
+        );
+        assertCounter(
+            inputStats.getForwardLargeSeeks(),
+            fwLargeSeeks.total(),
+            fwLargeSeeks.count(),
+            fwLargeSeeks.min(),
+            fwLargeSeeks.max()
+        );
 
-        assertCounter(inputStats.getBackwardSmallSeeks(),
-            bwSmallSeeks.total(), bwSmallSeeks.count(), bwSmallSeeks.min(), bwSmallSeeks.max());
-        assertCounter(inputStats.getBackwardLargeSeeks(),
-            bwLargeSeeks.total(), bwLargeSeeks.count(), bwLargeSeeks.min(), bwLargeSeeks.max());
+        assertCounter(
+            inputStats.getBackwardSmallSeeks(),
+            bwSmallSeeks.total(),
+            bwSmallSeeks.count(),
+            bwSmallSeeks.min(),
+            bwSmallSeeks.max()
+        );
+        assertCounter(
+            inputStats.getBackwardLargeSeeks(),
+            bwLargeSeeks.total(),
+            bwLargeSeeks.count(),
+            bwLargeSeeks.min(),
+            bwLargeSeeks.max()
+        );
     }
 
     public void testSeekToSamePosition() {

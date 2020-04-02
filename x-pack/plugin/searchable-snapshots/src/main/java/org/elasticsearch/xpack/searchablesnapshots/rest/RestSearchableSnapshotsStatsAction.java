@@ -33,7 +33,10 @@ public class RestSearchableSnapshotsStatsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(restRequest.param("index"));
-        return channel -> client.execute(SearchableSnapshotsStatsAction.INSTANCE,
-            new SearchableSnapshotsStatsRequest(indices), new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            SearchableSnapshotsStatsAction.INSTANCE,
+            new SearchableSnapshotsStatsRequest(indices),
+            new RestToXContentListener<>(channel)
+        );
     }
 }

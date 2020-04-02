@@ -69,16 +69,20 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         if (randomBoolean()) {
-            builder.put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-                rarely() ?
-                    new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB) :
-                    new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB));
+            builder.put(
+                CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+                rarely()
+                    ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
+                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+            );
         }
         if (randomBoolean()) {
-            builder.put(CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(),
-                rarely() ?
-                    new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB) :
-                    new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB));
+            builder.put(
+                CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(),
+                rarely()
+                    ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
+                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+            );
         }
         return builder.build();
     }
@@ -90,11 +94,13 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
         final Path repo = randomRepoPath();
-        assertAcked(client().admin().cluster().preparePutRepository(fsRepoName)
-            .setType("fs")
-            .setSettings(Settings.builder()
-                .put("location", repo)
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(fsRepoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", repo).put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES))
+        );
 
         createIndex(indexName);
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
@@ -104,20 +110,37 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         // TODO NORELEASE no dummy docs since that includes deletes, yet we always copy the .liv file in peer recovery
         indexRandom(true, false, indexRequestBuilders);
         refresh(indexName);
-        assertThat(client().admin().indices().prepareForceMerge(indexName)
-            .setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(), equalTo(0));
+        assertThat(
+            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+            equalTo(0)
+        );
 
-        final TotalHits originalAllHits = internalCluster().client().prepareSearch(indexName)
-            .setTrackTotalHits(true).get().getHits().getTotalHits();
-        final TotalHits originalBarHits = internalCluster().client().prepareSearch(indexName)
-            .setTrackTotalHits(true).setQuery(matchQuery("foo", "bar")).get().getHits().getTotalHits();
+        final TotalHits originalAllHits = internalCluster().client()
+            .prepareSearch(indexName)
+            .setTrackTotalHits(true)
+            .get()
+            .getHits()
+            .getTotalHits();
+        final TotalHits originalBarHits = internalCluster().client()
+            .prepareSearch(indexName)
+            .setTrackTotalHits(true)
+            .setQuery(matchQuery("foo", "bar"))
+            .get()
+            .getHits()
+            .getTotalHits();
         logger.info("--> [{}] in total, of which [{}] match the query", originalAllHits, originalBarHits);
 
-        expectThrows(ResourceNotFoundException.class, "Searchable snapshot stats on a non snapshot searchable index should fail",
-            () -> client().execute(SearchableSnapshotsStatsAction.INSTANCE, new SearchableSnapshotsStatsRequest()).actionGet());
+        expectThrows(
+            ResourceNotFoundException.class,
+            "Searchable snapshot stats on a non snapshot searchable index should fail",
+            () -> client().execute(SearchableSnapshotsStatsAction.INSTANCE, new SearchableSnapshotsStatsRequest()).actionGet()
+        );
 
-        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(fsRepoName, snapshotName)
-            .setWaitForCompletion(true).get();
+        CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(fsRepoName, snapshotName)
+            .setWaitForCompletion(true)
+            .get();
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
@@ -138,18 +161,30 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
             nonCachedExtensions = Collections.emptyList();
         }
         if (randomBoolean()) {
-            indexSettingsBuilder.put(SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(),
-                new ByteSizeValue(randomLongBetween(10, 100_000)));
+            indexSettingsBuilder.put(
+                SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(),
+                new ByteSizeValue(randomLongBetween(10, 100_000))
+            );
         }
-        final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(restoredIndexName, fsRepoName,
-            snapshotInfo.snapshotId().getName(), indexName,
-            indexSettingsBuilder.build(), Strings.EMPTY_ARRAY, true);
+        final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            restoredIndexName,
+            fsRepoName,
+            snapshotInfo.snapshotId().getName(),
+            indexName,
+            indexSettingsBuilder.build(),
+            Strings.EMPTY_ARRAY,
+            true
+        );
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        final Settings settings
-            = client().admin().indices().prepareGetSettings(restoredIndexName).get().getIndexToSettings().get(restoredIndexName);
+        final Settings settings = client().admin()
+            .indices()
+            .prepareGetSettings(restoredIndexName)
+            .get()
+            .getIndexToSettings()
+            .get(restoredIndexName);
         assertThat(SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING.get(settings), equalTo(fsRepoName));
         assertThat(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(settings), equalTo(snapshotName));
         assertThat(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings), equalTo(SNAPSHOT_DIRECTORY_FACTORY_KEY));
@@ -166,16 +201,36 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
 
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        final DiscoveryNode dataNode = randomFrom(StreamSupport.stream(client().admin().cluster().prepareState().get().getState().nodes()
-            .getDataNodes().values().spliterator(), false).map(c -> c.value).toArray(DiscoveryNode[]::new));
+        final DiscoveryNode dataNode = randomFrom(
+            StreamSupport.stream(
+                client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values().spliterator(),
+                false
+            ).map(c -> c.value).toArray(DiscoveryNode[]::new)
+        );
 
-        assertAcked(client().admin().indices().prepareUpdateSettings(restoredIndexName).setSettings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
-                    dataNode.getName())));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(restoredIndexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(
+                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
+                            dataNode.getName()
+                        )
+                )
+        );
 
-        assertFalse(client().admin().cluster().prepareHealth(restoredIndexName)
-            .setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertFalse(
+            client().admin()
+                .cluster()
+                .prepareHealth(restoredIndexName)
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForEvents(Priority.LANGUID)
+                .get()
+                .isTimedOut()
+        );
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
@@ -195,10 +250,16 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                allHits.set(t, client().prepareSearch(indexName).setTrackTotalHits(true)
-                    .get().getHits().getTotalHits());
-                barHits.set(t, client().prepareSearch(indexName).setTrackTotalHits(true)
-                    .setQuery(matchQuery("foo", "bar")).get().getHits().getTotalHits());
+                allHits.set(t, client().prepareSearch(indexName).setTrackTotalHits(true).get().getHits().getTotalHits());
+                barHits.set(
+                    t,
+                    client().prepareSearch(indexName)
+                        .setTrackTotalHits(true)
+                        .setQuery(matchQuery("foo", "bar"))
+                        .get()
+                        .getHits()
+                        .getTotalHits()
+                );
             });
             threads[i].start();
         }
@@ -210,8 +271,8 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
         for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
             for (RecoveryState recoveryState : recoveryStates) {
                 logger.info("Checking {}[{}]", recoveryState.getShardId(), recoveryState.getPrimary() ? "p" : "r");
-                assertThat(recoveryState.getIndex().recoveredFileCount(),
-                    lessThanOrEqualTo(1)); // we make a new commit so we write a new `segments_n` file
+                assertThat(recoveryState.getIndex().recoveredFileCount(), lessThanOrEqualTo(1)); // we make a new commit so we write a new
+                                                                                                 // `segments_n` file
             }
         }
 
@@ -228,8 +289,10 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
     }
 
     private void assertSearchableSnapshotStats(String indexName, boolean cacheEnabled, List<String> nonCachedExtensions) {
-        final SearchableSnapshotsStatsResponse statsResponse = client().execute(SearchableSnapshotsStatsAction.INSTANCE,
-            new SearchableSnapshotsStatsRequest(indexName)).actionGet();
+        final SearchableSnapshotsStatsResponse statsResponse = client().execute(
+            SearchableSnapshotsStatsAction.INSTANCE,
+            new SearchableSnapshotsStatsRequest(indexName)
+        ).actionGet();
         final NumShards restoredNumShards = getNumShards(indexName);
         assertThat(statsResponse.getStats(), hasSize(restoredNumShards.totalNumShards));
 
@@ -240,26 +303,44 @@ public class SearchableSnapshotsIntegTests extends ESIntegTestCase {
                 assertThat("Expecting stats to exist for at least 1 Lucene file", stats.getStats().size(), greaterThan(0));
                 for (SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : stats.getStats()) {
                     final String fileName = indexInputStats.getFileName();
-                    assertThat("Unexpected open count for " + fileName + " of shard " + shardRouting,
-                        indexInputStats.getOpenCount(), greaterThan(0L));
-                    assertThat("Unexpected close count for " + fileName + " of shard " + shardRouting,
-                        indexInputStats.getCloseCount(), lessThanOrEqualTo(indexInputStats.getOpenCount()));
-                    assertThat("Unexpected file length for " + fileName + " of shard " + shardRouting,
-                        indexInputStats.getFileLength(), greaterThan(0L));
+                    assertThat(
+                        "Unexpected open count for " + fileName + " of shard " + shardRouting,
+                        indexInputStats.getOpenCount(),
+                        greaterThan(0L)
+                    );
+                    assertThat(
+                        "Unexpected close count for " + fileName + " of shard " + shardRouting,
+                        indexInputStats.getCloseCount(),
+                        lessThanOrEqualTo(indexInputStats.getOpenCount())
+                    );
+                    assertThat(
+                        "Unexpected file length for " + fileName + " of shard " + shardRouting,
+                        indexInputStats.getFileLength(),
+                        greaterThan(0L)
+                    );
 
                     if (cacheEnabled == false || nonCachedExtensions.contains(IndexFileNames.getExtension(fileName))) {
-                        assertThat("Expected at least 1 optimized or direct read for " + fileName + " of shard " + shardRouting,
+                        assertThat(
+                            "Expected at least 1 optimized or direct read for " + fileName + " of shard " + shardRouting,
                             Math.max(indexInputStats.getOptimizedBytesRead().getCount(), indexInputStats.getDirectBytesRead().getCount()),
-                            greaterThan(0L));
-                        assertThat("Expected no cache read or write for " + fileName + " of shard " + shardRouting,
+                            greaterThan(0L)
+                        );
+                        assertThat(
+                            "Expected no cache read or write for " + fileName + " of shard " + shardRouting,
                             Math.max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
-                            equalTo(0L));
+                            equalTo(0L)
+                        );
                     } else {
-                        assertThat("Expected at least 1 cache read or write for " + fileName + " of shard " + shardRouting,
+                        assertThat(
+                            "Expected at least 1 cache read or write for " + fileName + " of shard " + shardRouting,
                             Math.max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
-                            greaterThan(0L));
-                        assertThat("Expected no optimized read for " + fileName + " of shard " + shardRouting,
-                            indexInputStats.getOptimizedBytesRead().getCount(), equalTo(0L));
+                            greaterThan(0L)
+                        );
+                        assertThat(
+                            "Expected no optimized read for " + fileName + " of shard " + shardRouting,
+                            indexInputStats.getOptimizedBytesRead().getCount(),
+                            equalTo(0L)
+                        );
                     }
                 }
             }

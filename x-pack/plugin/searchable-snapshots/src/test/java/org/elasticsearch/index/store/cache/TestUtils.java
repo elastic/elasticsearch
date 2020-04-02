@@ -29,18 +29,21 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public final class TestUtils {
-    private TestUtils() {
-    }
+    private TestUtils() {}
 
     public static CacheService createCacheService(final Random random) {
-        final ByteSizeValue cacheSize = new ByteSizeValue(randomIntBetween(random, 1, 100),
-            randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB)));
+        final ByteSizeValue cacheSize = new ByteSizeValue(
+            randomIntBetween(random, 1, 100),
+            randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB))
+        );
         return new CacheService(cacheSize, randomCacheRangeSize(random));
     }
 
     public static ByteSizeValue randomCacheRangeSize(final Random random) {
-        return new ByteSizeValue(randomIntBetween(random, 1, 100),
-            randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB)));
+        return new ByteSizeValue(
+            randomIntBetween(random, 1, 100),
+            randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB))
+        );
     }
 
     public static long numberOfRanges(long fileSize, long rangeSize) {
@@ -88,8 +91,10 @@ public final class TestUtils {
                 if (blobName.equals(name) == false) {
                     throw new FileNotFoundException("Blob not found: " + name);
                 }
-                return Streams.limitStream(new ByteArrayInputStream(blobContent, Math.toIntExact(position),
-                    blobContent.length - Math.toIntExact(position)), length);
+                return Streams.limitStream(
+                    new ByteArrayInputStream(blobContent, Math.toIntExact(position), blobContent.length - Math.toIntExact(position)),
+                    length
+                );
             }
         };
     }
@@ -105,15 +110,26 @@ public final class TestUtils {
                     if (name.startsWith(prefix) == false) {
                         throw new FileNotFoundException("Blob not found: " + name);
                     }
-                    assert position + length <= partSize
-                        : "cannot read [" + position + "-" + (position + length) + "] from array part of length [" + partSize + "]";
+                    assert position + length <= partSize : "cannot read ["
+                        + position
+                        + "-"
+                        + (position + length)
+                        + "] from array part of length ["
+                        + partSize
+                        + "]";
                     final int partNumber = Integer.parseInt(name.substring(prefix.length()));
                     final int positionInBlob = Math.toIntExact(position) + partSize * partNumber;
-                    assert positionInBlob + length <= blobContent.length
-                        : "cannot read [" + positionInBlob + "-" + (positionInBlob + length) + "] from array of length ["
-                        + blobContent.length + "]";
-                    return Streams.limitStream(new ByteArrayInputStream(blobContent,
-                        positionInBlob, blobContent.length - positionInBlob), length);
+                    assert positionInBlob + length <= blobContent.length : "cannot read ["
+                        + positionInBlob
+                        + "-"
+                        + (positionInBlob + length)
+                        + "] from array of length ["
+                        + blobContent.length
+                        + "]";
+                    return Streams.limitStream(
+                        new ByteArrayInputStream(blobContent, positionInBlob, blobContent.length - positionInBlob),
+                        length
+                    );
                 }
             };
         }

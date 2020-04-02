@@ -7,7 +7,6 @@ package org.elasticsearch.index.store.cache;
 
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;

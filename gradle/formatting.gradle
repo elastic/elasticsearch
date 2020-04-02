@@ -142,8 +142,6 @@ def projectPathsToExclude = [
   ':x-pack:plugin:monitoring',
   ':x-pack:plugin:ql',
   ':x-pack:plugin:rollup',
-  ':x-pack:plugin:searchable-snapshots',
-  ':x-pack:plugin:searchable-snapshots:qa',
   ':x-pack:plugin:search-business-rules',
   ':x-pack:plugin:security',
   ':x-pack:plugin:security:cli',

@@ -310,15 +310,14 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
 
         // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
-        assertBusy(() -> {
-            DataFrameAnalyticsState state = getAnalyticsStats(jobId).getState();
+        assertBusy(() ->
             assertThat(
-                state,
+                getAnalyticsStats(jobId).getState(),
                 is(anyOf(
                     equalTo(DataFrameAnalyticsState.REINDEXING),
                     equalTo(DataFrameAnalyticsState.ANALYZING),
-                    equalTo(DataFrameAnalyticsState.STOPPED))));
-        });
+                    equalTo(DataFrameAnalyticsState.STOPPED))))
+        );
         stopAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
@@ -512,6 +511,15 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         registerAnalytics(config);
         putAnalytics(config);
         startAnalytics(jobId);
+        assertBusy(() ->
+            assertThat(
+                getAnalyticsStats(jobId).getState(),
+                is(anyOf(
+                    equalTo(DataFrameAnalyticsState.REINDEXING),
+                    equalTo(DataFrameAnalyticsState.ANALYZING),
+                    equalTo(DataFrameAnalyticsState.STOPPED))))
+        );
+
         assertThat(analyticsTaskList(), hasSize(1));
         assertThat(analyticsAssignedTaskList(), hasSize(1));
 

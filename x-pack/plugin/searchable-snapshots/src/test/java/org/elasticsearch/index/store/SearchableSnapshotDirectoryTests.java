@@ -101,26 +101,36 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
     public void testListAll() throws Exception {
-        testDirectories((directory, snapshotDirectory) ->
-            assertThat(snapshotDirectory.listAll(), equalTo(Arrays.stream(directory.listAll())
-                .filter(file -> "write.lock".equals(file) == false)
-                .filter(file -> file.startsWith("extra") == false)
-                .toArray(String[]::new))));
+        testDirectories(
+            (directory, snapshotDirectory) -> assertThat(
+                snapshotDirectory.listAll(),
+                equalTo(
+                    Arrays.stream(directory.listAll())
+                        .filter(file -> "write.lock".equals(file) == false)
+                        .filter(file -> file.startsWith("extra") == false)
+                        .toArray(String[]::new)
+                )
+            )
+        );
     }
 
     public void testFileLength() throws Exception {
-        testDirectories((directory, snapshotDirectory) ->
-            Arrays.stream(directory.listAll())
+        testDirectories(
+            (directory, snapshotDirectory) -> Arrays.stream(directory.listAll())
                 .filter(file -> "write.lock".equals(file) == false)
                 .filter(file -> file.startsWith("extra") == false)
                 .forEach(file -> {
                     try {
-                        assertThat("File [" + file + "] length mismatch",
-                            snapshotDirectory.fileLength(file), equalTo(directory.fileLength(file)));
+                        assertThat(
+                            "File [" + file + "] length mismatch",
+                            snapshotDirectory.fileLength(file),
+                            equalTo(directory.fileLength(file))
+                        );
                     } catch (IOException e) {
                         throw new AssertionError(e);
                     }
-                }));
+                })
+        );
     }
 
     public void testIndexSearcher() throws Exception {
@@ -146,10 +156,13 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         CheckHits.checkEqual(query, snapshotSearcher.search(query, 10).scoreDocs, searcher.search(query, 10).scoreDocs);
                     }
                     {
-                        Query query = new TermRangeQuery("rank",
+                        Query query = new TermRangeQuery(
+                            "rank",
                             BytesRefs.toBytesRef(randomLongBetween(0L, 500L)),
                             BytesRefs.toBytesRef(randomLongBetween(501L, 1000L)),
-                            randomBoolean(), randomBoolean());
+                            randomBoolean(),
+                            randomBoolean()
+                        );
                         assertThat(snapshotSearcher.count(query), equalTo(searcher.count(query)));
                         CheckHits.checkEqual(query, snapshotSearcher.search(query, 10).scoreDocs, searcher.search(query, 10).scoreDocs);
                     }
@@ -221,16 +234,24 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         indexInput.seek(position);
                         snapshotIndexInput.seek(position);
                     }
-                    assertThat("File pointers values should be the same before reading a byte",
-                        snapshotIndexInput, indexInput, IndexInput::getFilePointer);
+                    assertThat(
+                        "File pointers values should be the same before reading a byte",
+                        snapshotIndexInput,
+                        indexInput,
+                        IndexInput::getFilePointer
+                    );
 
                     if (indexInput.getFilePointer() < indexInput.length()) {
                         assertThat("Read byte result should be the same", snapshotIndexInput, indexInput, IndexInput::readByte);
                     } else {
                         expectThrows(EOFException.class, snapshotIndexInput::readByte);
                     }
-                    assertThat("File pointers values should be the same after reading a byte",
-                        snapshotIndexInput, indexInput, IndexInput::getFilePointer);
+                    assertThat(
+                        "File pointers values should be the same after reading a byte",
+                        snapshotIndexInput,
+                        indexInput,
+                        IndexInput::getFilePointer
+                    );
                 }
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -249,8 +270,12 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     indexInput.seek(position);
                     snapshotIndexInput.seek(position);
                 }
-                assertThat("File pointers values should be the same before reading a byte",
-                    snapshotIndexInput, indexInput, IndexInput::getFilePointer);
+                assertThat(
+                    "File pointers values should be the same before reading a byte",
+                    snapshotIndexInput,
+                    indexInput,
+                    IndexInput::getFilePointer
+                );
 
                 int available = Math.toIntExact(indexInput.length() - indexInput.getFilePointer());
                 if (available == 0) {
@@ -266,8 +291,12 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 Arrays.fill(snapshotBuffer, (byte) 0);
                 snapshotIndexInput.readBytes(snapshotBuffer, 0, length);
 
-                assertThat("File pointers values should be the same after reading a byte",
-                    snapshotIndexInput, indexInput, IndexInput::getFilePointer);
+                assertThat(
+                    "File pointers values should be the same after reading a byte",
+                    snapshotIndexInput,
+                    indexInput,
+                    IndexInput::getFilePointer
+                );
                 assertArrayEquals(snapshotBuffer, buffer);
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -283,10 +312,13 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
      * - consumes the default and the searchable snapshot directories using the {@link CheckedBiConsumer}.
      */
     private void testDirectories(final CheckedBiConsumer<Directory, Directory, Exception> consumer) throws Exception {
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("_index", Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-            .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
-            .build());
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "_index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+                .build()
+        );
         final ShardId shardId = new ShardId(indexSettings.getIndex(), randomIntBetween(0, 10));
         final List<Releasable> releasables = new ArrayList<>();
 
@@ -340,16 +372,25 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 }
 
                 final String repositoryName = randomAlphaOfLength(10);
-                final RepositoryMetadata repositoryMetadata =
-                    new RepositoryMetadata(repositoryName, FsRepository.TYPE, repositorySettings.build());
+                final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
+                    repositoryName,
+                    FsRepository.TYPE,
+                    repositorySettings.build()
+                );
 
                 final BlobStoreRepository repository = new FsRepository(
                     repositoryMetadata,
-                    new Environment(Settings.builder()
-                        .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                        .put(Environment.PATH_REPO_SETTING.getKey(), repositoryPath.toAbsolutePath())
-                        .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build(), null),
-                    NamedXContentRegistry.EMPTY, BlobStoreTestUtil.mockClusterService(repositoryMetadata)) {
+                    new Environment(
+                        Settings.builder()
+                            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                            .put(Environment.PATH_REPO_SETTING.getKey(), repositoryPath.toAbsolutePath())
+                            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+                            .build(),
+                        null
+                    ),
+                    NamedXContentRegistry.EMPTY,
+                    BlobStoreTestUtil.mockClusterService(repositoryMetadata)
+                ) {
 
                     @Override
                     protected void assertSnapshotOrGenericThread() {
@@ -365,8 +406,18 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final PlainActionFuture<String> future = PlainActionFuture.newFuture();
                 threadPool.generic().submit(() -> {
                     IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-                    repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, null, snapshotStatus, Version.CURRENT,
-                        emptyMap(), future);
+                    repository.snapshotShard(
+                        store,
+                        null,
+                        snapshotId,
+                        indexId,
+                        indexCommit,
+                        null,
+                        snapshotStatus,
+                        Version.CURRENT,
+                        emptyMap(),
+                        future
+                    );
                     future.actionGet();
                 });
                 future.actionGet();
@@ -379,9 +430,19 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 releasables.add(cacheService);
                 cacheService.start();
 
-                try (Directory snapshotDirectory = new SearchableSnapshotDirectory(() -> blobContainer, () -> snapshot, snapshotId, indexId,
-                    shardId, Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean()).build(), () -> 0L,
-                    cacheService, cacheDir)) {
+                try (
+                    Directory snapshotDirectory = new SearchableSnapshotDirectory(
+                        () -> blobContainer,
+                        () -> snapshot,
+                        snapshotId,
+                        indexId,
+                        shardId,
+                        Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean()).build(),
+                        () -> 0L,
+                        cacheService,
+                        cacheDir
+                    )
+                ) {
                     consumer.accept(directory, snapshotDirectory);
                 }
             } finally {
@@ -424,23 +485,40 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
                 final String blobName = randomAlphaOfLength(15);
                 Files.write(shardSnapshotDir.resolve(blobName), fileContent, StandardOpenOption.CREATE_NEW);
-                randomFiles.add(new BlobStoreIndexShardSnapshot.FileInfo(blobName,
-                    new StoreFileMetadata(fileName, fileContent.length, "_check", Version.CURRENT.luceneVersion),
-                    new ByteSizeValue(fileContent.length)));
+                randomFiles.add(
+                    new BlobStoreIndexShardSnapshot.FileInfo(
+                        blobName,
+                        new StoreFileMetadata(fileName, fileContent.length, "_check", Version.CURRENT.luceneVersion),
+                        new ByteSizeValue(fileContent.length)
+                    )
+                );
             }
 
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("_snapshot", 0L, randomFiles, 0L, 0L, 0, 0L);
-            final BlobContainer blobContainer = new FsBlobContainer(new FsBlobStore(Settings.EMPTY, shardSnapshotDir, true),
-                BlobPath.cleanPath(), shardSnapshotDir);
+            final BlobContainer blobContainer = new FsBlobContainer(
+                new FsBlobStore(Settings.EMPTY, shardSnapshotDir, true),
+                BlobPath.cleanPath(),
+                shardSnapshotDir
+            );
 
             final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
             final IndexId indexId = new IndexId("_id", "_uuid");
             final ShardId shardId = new ShardId(new Index("_name", "_id"), 0);
 
             final Path cacheDir = createTempDir();
-            try (SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(() -> blobContainer, () -> snapshot, snapshotId,
-                indexId, shardId, Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(), () -> 0L, cacheService,
-                cacheDir)) {
+            try (
+                SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
+                    () -> blobContainer,
+                    () -> snapshot,
+                    snapshotId,
+                    indexId,
+                    shardId,
+                    Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(),
+                    () -> 0L,
+                    cacheService,
+                    cacheDir
+                )
+            ) {
 
                 final byte[] buffer = new byte[1024];
                 for (int i = 0; i < randomIntBetween(10, 50); i++) {
@@ -466,11 +544,18 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             }
         }
     }
-    private static <T> void assertThat(String reason, IndexInput actual, IndexInput expected,
-                                       CheckedFunction<IndexInput, ? super T, IOException> eval) throws IOException {
-        assertThat(reason
-                + "\n\t  actual index input: " + actual.toString()
-                + "\n\texpected index input: " + expected.toString(), eval.apply(actual), equalTo(eval.apply(expected)));
+
+    private static <T> void assertThat(
+        String reason,
+        IndexInput actual,
+        IndexInput expected,
+        CheckedFunction<IndexInput, ? super T, IOException> eval
+    ) throws IOException {
+        assertThat(
+            reason + "\n\t  actual index input: " + actual.toString() + "\n\texpected index input: " + expected.toString(),
+            eval.apply(actual),
+            equalTo(eval.apply(expected))
+        );
     }
 
     private void assertListOfFiles(Path cacheDir, Matcher<Integer> matchNumberOfFiles, Matcher<Long> matchSizeOfFiles) throws IOException {

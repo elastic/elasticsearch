@@ -36,23 +36,38 @@ import java.util.List;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
-public abstract class AbstractTransportSearchableSnapshotsAction
-    <Request extends BroadcastRequest<Request>, Response extends BroadcastResponse, ShardOperationResult extends Writeable>
-    extends TransportBroadcastByNodeAction<Request, Response, ShardOperationResult> {
+public abstract class AbstractTransportSearchableSnapshotsAction<
+    Request extends BroadcastRequest<Request>,
+    Response extends BroadcastResponse,
+    ShardOperationResult extends Writeable> extends TransportBroadcastByNodeAction<Request, Response, ShardOperationResult> {
 
     private final IndicesService indicesService;
 
-    AbstractTransportSearchableSnapshotsAction(String actionName, ClusterService clusterService, TransportService transportService,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver resolver,
-                                               Writeable.Reader<Request> request, String executor, IndicesService indicesService) {
+    AbstractTransportSearchableSnapshotsAction(
+        String actionName,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver resolver,
+        Writeable.Reader<Request> request,
+        String executor,
+        IndicesService indicesService
+    ) {
         super(actionName, clusterService, transportService, actionFilters, resolver, request, executor);
         this.indicesService = indicesService;
     }
 
-    AbstractTransportSearchableSnapshotsAction(String actionName, ClusterService clusterService, TransportService transportService,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver resolver,
-                                               Writeable.Reader<Request> request, String executor, IndicesService indicesService,
-                                               boolean canTripCircuitBreaker) {
+    AbstractTransportSearchableSnapshotsAction(
+        String actionName,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver resolver,
+        Writeable.Reader<Request> request,
+        String executor,
+        IndicesService indicesService,
+        boolean canTripCircuitBreaker
+    ) {
         super(actionName, clusterService, transportService, actionFilters, resolver, request, executor, canTripCircuitBreaker);
         this.indicesService = indicesService;
     }
@@ -94,9 +109,11 @@ public abstract class AbstractTransportSearchableSnapshotsAction
         return executeShardOperation(request, shardRouting, directory);
     }
 
-    protected abstract ShardOperationResult executeShardOperation(Request request,
-                                                                  ShardRouting shardRouting,
-                                                                  SearchableSnapshotDirectory directory) throws IOException;
+    protected abstract ShardOperationResult executeShardOperation(
+        Request request,
+        ShardRouting shardRouting,
+        SearchableSnapshotDirectory directory
+    ) throws IOException;
 
     @Nullable
     private static SearchableSnapshotDirectory unwrapDirectory(Directory dir) {

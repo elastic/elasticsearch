@@ -25,16 +25,17 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     public static final String ALLOCATOR_NAME = "searchable_snapshot_allocator";
 
     @Override
-    public void beforeAllocation(RoutingAllocation allocation) {
-    }
+    public void beforeAllocation(RoutingAllocation allocation) {}
 
     @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
-    }
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
 
     @Override
-    public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
-                                   UnassignedAllocationHandler unassignedAllocationHandler) {
+    public void allocateUnassigned(
+        ShardRouting shardRouting,
+        RoutingAllocation allocation,
+        UnassignedAllocationHandler unassignedAllocationHandler
+    ) {
         final AllocateUnassignedDecision allocateUnassignedDecision = decideAllocation(allocation, shardRouting);
         assert allocateUnassignedDecision.isDecisionTaken();
 
@@ -42,8 +43,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             if (shardRouting.primary() && shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
                 // we don't care what the allocation ID is since we know that these shards cannot really be stale, so we can
                 // safely ignore the allocation ID with a forced-stale allocation
-                unassignedAllocationHandler.updateUnassigned(shardRouting.unassignedInfo(),
-                    RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE, allocation.changes());
+                unassignedAllocationHandler.updateUnassigned(
+                    shardRouting.unassignedInfo(),
+                    RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE,
+                    allocation.changes()
+                );
             }
             unassignedAllocationHandler.initialize(allocateUnassignedDecision.getTargetNode().getId(), null, 0L, allocation.changes());
         } else {
@@ -54,17 +58,18 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     private static AllocateUnassignedDecision decideAllocation(RoutingAllocation allocation, ShardRouting shardRouting) {
         assert shardRouting.unassigned();
         assert ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            allocation.metadata().getIndexSafe(shardRouting.index()).getSettings()).equals(ALLOCATOR_NAME);
+            allocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
+        ).equals(ALLOCATOR_NAME);
 
         Decision.Type bestDecision = Decision.Type.NO;
         RoutingNode bestNode = null;
-        final List<NodeAllocationResult> nodeAllocationResults
-            = allocation.debugDecision() ? new ArrayList<>(allocation.routingNodes().size()) : null;
+        final List<NodeAllocationResult> nodeAllocationResults = allocation.debugDecision()
+            ? new ArrayList<>(allocation.routingNodes().size())
+            : null;
 
         for (final RoutingNode routingNode : allocation.routingNodes()) {
             final Decision decision = allocation.deciders().canAllocate(shardRouting, routingNode, allocation);
-            if (decision.type() == Decision.Type.YES
-                || (decision.type() == Decision.Type.THROTTLE && bestDecision != Decision.Type.YES)) {
+            if (decision.type() == Decision.Type.YES || (decision.type() == Decision.Type.THROTTLE && bestDecision != Decision.Type.YES)) {
                 bestDecision = decision.type();
                 bestNode = routingNode;
             }
@@ -90,16 +95,13 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void cleanCaches() {
-    }
+    public void cleanCaches() {}
 
     @Override
-    public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
-    }
+    public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {}
 
     @Override
-    public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
-    }
+    public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {}
 
     @Override
     public int getNumberOfInFlightFetches() {

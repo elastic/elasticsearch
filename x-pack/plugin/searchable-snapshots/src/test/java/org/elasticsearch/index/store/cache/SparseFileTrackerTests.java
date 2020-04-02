@@ -46,13 +46,17 @@ public class SparseFileTrackerTests extends ESTestCase {
         final AtomicBoolean invoked = new AtomicBoolean(false);
         final ActionListener<Void> listener = ActionListener.wrap(() -> invoked.set(true));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> sparseFileTracker.waitForRange(-1L, randomLongBetween(0L, length), listener));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> sparseFileTracker.waitForRange(-1L, randomLongBetween(0L, length), listener)
+        );
         assertThat("start must not be negative", e.getMessage(), containsString("invalid range"));
         assertThat(invoked.get(), is(false));
 
-        e = expectThrows(IllegalArgumentException.class,
-            () -> sparseFileTracker.waitForRange(randomLongBetween(0L, Math.max(0L, length - 1L)), length + 1L, listener));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> sparseFileTracker.waitForRange(randomLongBetween(0L, Math.max(0L, length - 1L)), length + 1L, listener)
+        );
         assertThat("end must not be greater than length", e.getMessage(), containsString("invalid range"));
         assertThat(invoked.get(), is(false));
 
@@ -89,13 +93,10 @@ public class SparseFileTrackerTests extends ESTestCase {
         if (pending) {
             final AtomicBoolean expectNotification = new AtomicBoolean();
             final AtomicBoolean wasNotified = new AtomicBoolean();
-            final List<SparseFileTracker.Gap> gaps
-                = sparseFileTracker.waitForRange(start, end, ActionListener.wrap(ignored -> {
+            final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(start, end, ActionListener.wrap(ignored -> {
                 assertTrue(expectNotification.get());
                 assertTrue(wasNotified.compareAndSet(false, true));
-            }, e -> {
-                throw new AssertionError(e);
-            }));
+            }, e -> { throw new AssertionError(e); }));
             for (int gapIndex = 0; gapIndex < gaps.size(); gapIndex++) {
                 final SparseFileTracker.Gap gap = gaps.get(gapIndex);
                 assertThat(gap.start, greaterThanOrEqualTo(start));
@@ -114,11 +115,11 @@ public class SparseFileTrackerTests extends ESTestCase {
         }
 
         final AtomicBoolean wasNotified = new AtomicBoolean();
-        final List<SparseFileTracker.Gap> gaps
-            = sparseFileTracker.waitForRange(start, end, ActionListener.wrap(
-            ignored -> assertTrue(wasNotified.compareAndSet(false, true)), e -> {
-                throw new AssertionError(e);
-            }));
+        final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
+            start,
+            end,
+            ActionListener.wrap(ignored -> assertTrue(wasNotified.compareAndSet(false, true)), e -> { throw new AssertionError(e); })
+        );
         assertThat(gaps, empty());
         assertTrue(wasNotified.get());
     }
@@ -133,8 +134,14 @@ public class SparseFileTrackerTests extends ESTestCase {
         deterministicTaskQueue.setExecutionDelayVariabilityMillis(1000);
 
         for (int i = between(1, 1000); i > 0; i--) {
-            deterministicTaskQueue.scheduleNow(() -> waitForRandomRange(fileContents, sparseFileTracker, listenersCalled::add,
-                gap -> deterministicTaskQueue.scheduleNow(() -> processGap(fileContents, gap))));
+            deterministicTaskQueue.scheduleNow(
+                () -> waitForRandomRange(
+                    fileContents,
+                    sparseFileTracker,
+                    listenersCalled::add,
+                    gap -> deterministicTaskQueue.scheduleNow(() -> processGap(fileContents, gap))
+                )
+            );
         }
 
         deterministicTaskQueue.runAllTasks();
@@ -177,8 +184,12 @@ public class SparseFileTrackerTests extends ESTestCase {
         assertTrue(listenersCalled.stream().allMatch(AtomicBoolean::get));
     }
 
-    private static void waitForRandomRange(byte[] fileContents, SparseFileTracker sparseFileTracker,
-                                           Consumer<AtomicBoolean> listenerCalledConsumer, Consumer<SparseFileTracker.Gap> gapConsumer) {
+    private static void waitForRandomRange(
+        byte[] fileContents,
+        SparseFileTracker sparseFileTracker,
+        Consumer<AtomicBoolean> listenerCalledConsumer,
+        Consumer<SparseFileTracker.Gap> gapConsumer
+    ) {
         final long start = randomLongBetween(0L, Math.max(0L, fileContents.length - 1));
         final long end = randomLongBetween(start, fileContents.length);
         final AtomicBoolean listenerCalled = new AtomicBoolean();

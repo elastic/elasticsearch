@@ -25,14 +25,23 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
             randomBoolean() ? instance.snapshotIndexName() : mutateString(instance.snapshotIndexName()),
             randomBoolean() ? instance.indexSettings() : mutateSettings(instance.indexSettings()),
             randomBoolean() ? instance.ignoreIndexSettings() : mutateStringArray(instance.ignoreIndexSettings()),
-            randomBoolean())
-            .masterNodeTimeout(randomBoolean() ? instance.masterNodeTimeout() : mutateTimeValue(instance.masterNodeTimeout()));
+            randomBoolean()
+        ).masterNodeTimeout(randomBoolean() ? instance.masterNodeTimeout() : mutateTimeValue(instance.masterNodeTimeout()));
     }
 
     @Override
     protected MountSearchableSnapshotRequest createTestInstance() {
-        return randomState(new MountSearchableSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5),
-            randomAlphaOfLength(5), Settings.EMPTY, Strings.EMPTY_ARRAY, randomBoolean()));
+        return randomState(
+            new MountSearchableSnapshotRequest(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                Settings.EMPTY,
+                Strings.EMPTY_ARRAY,
+                randomBoolean()
+            )
+        );
     }
 
     @Override
@@ -44,44 +53,92 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
     protected MountSearchableSnapshotRequest mutateInstance(MountSearchableSnapshotRequest req) {
         switch (randomInt(7)) {
             case 0:
-                return new MountSearchableSnapshotRequest(mutateString(req.mountedIndexName()), req.repositoryName(), req.snapshotName(),
-                    req.snapshotIndexName(), req.indexSettings(), req.ignoreIndexSettings(),
-                    req.waitForCompletion()).masterNodeTimeout(req.masterNodeTimeout());
+                return new MountSearchableSnapshotRequest(
+                    mutateString(req.mountedIndexName()),
+                    req.repositoryName(),
+                    req.snapshotName(),
+                    req.snapshotIndexName(),
+                    req.indexSettings(),
+                    req.ignoreIndexSettings(),
+                    req.waitForCompletion()
+                ).masterNodeTimeout(req.masterNodeTimeout());
             case 1:
-                return new MountSearchableSnapshotRequest(req.mountedIndexName(), mutateString(req.repositoryName()), req.snapshotName(),
-                    req.snapshotIndexName(), req.indexSettings(), req.ignoreIndexSettings(),
-                    req.waitForCompletion()).masterNodeTimeout(req.masterNodeTimeout());
+                return new MountSearchableSnapshotRequest(
+                    req.mountedIndexName(),
+                    mutateString(req.repositoryName()),
+                    req.snapshotName(),
+                    req.snapshotIndexName(),
+                    req.indexSettings(),
+                    req.ignoreIndexSettings(),
+                    req.waitForCompletion()
+                ).masterNodeTimeout(req.masterNodeTimeout());
             case 2:
-                return new MountSearchableSnapshotRequest(req.mountedIndexName(), req.repositoryName(), mutateString(req.snapshotName()),
-                    req.snapshotIndexName(), req.indexSettings(), req.ignoreIndexSettings(),
-                    req.waitForCompletion()).masterNodeTimeout(req.masterNodeTimeout());
+                return new MountSearchableSnapshotRequest(
+                    req.mountedIndexName(),
+                    req.repositoryName(),
+                    mutateString(req.snapshotName()),
+                    req.snapshotIndexName(),
+                    req.indexSettings(),
+                    req.ignoreIndexSettings(),
+                    req.waitForCompletion()
+                ).masterNodeTimeout(req.masterNodeTimeout());
             case 3:
-                return new MountSearchableSnapshotRequest(req.mountedIndexName(), req.repositoryName(), req.snapshotName(),
-                    mutateString(req.snapshotIndexName()), req.indexSettings(), req.ignoreIndexSettings(),
-                    req.waitForCompletion()).masterNodeTimeout(req.masterNodeTimeout());
+                return new MountSearchableSnapshotRequest(
+                    req.mountedIndexName(),
+                    req.repositoryName(),
+                    req.snapshotName(),
+                    mutateString(req.snapshotIndexName()),
+                    req.indexSettings(),
+                    req.ignoreIndexSettings(),
+                    req.waitForCompletion()
+                ).masterNodeTimeout(req.masterNodeTimeout());
             case 4:
-                return new MountSearchableSnapshotRequest(req.mountedIndexName(), req.repositoryName(), req.snapshotName(),
-                    req.snapshotIndexName(), mutateSettings(req.indexSettings()), req.ignoreIndexSettings(),
-                    req.waitForCompletion()).masterNodeTimeout(req.masterNodeTimeout());
+                return new MountSearchableSnapshotRequest(
+                    req.mountedIndexName(),
+                    req.repositoryName(),
+                    req.snapshotName(),
+                    req.snapshotIndexName(),
+                    mutateSettings(req.indexSettings()),
+                    req.ignoreIndexSettings(),
+                    req.waitForCompletion()
+                ).masterNodeTimeout(req.masterNodeTimeout());
             case 5:
-                return new MountSearchableSnapshotRequest(req.mountedIndexName(), req.repositoryName(), req.snapshotName(),
-                    req.snapshotIndexName(), req.indexSettings(), mutateStringArray(req.ignoreIndexSettings()),
-                    req.waitForCompletion()).masterNodeTimeout(req.masterNodeTimeout());
+                return new MountSearchableSnapshotRequest(
+                    req.mountedIndexName(),
+                    req.repositoryName(),
+                    req.snapshotName(),
+                    req.snapshotIndexName(),
+                    req.indexSettings(),
+                    mutateStringArray(req.ignoreIndexSettings()),
+                    req.waitForCompletion()
+                ).masterNodeTimeout(req.masterNodeTimeout());
             case 6:
-                return new MountSearchableSnapshotRequest(req.mountedIndexName(), req.repositoryName(), req.snapshotName(),
-                    req.snapshotIndexName(), req.indexSettings(), req.ignoreIndexSettings(),
-                    req.waitForCompletion() == false).masterNodeTimeout(req.masterNodeTimeout());
+                return new MountSearchableSnapshotRequest(
+                    req.mountedIndexName(),
+                    req.repositoryName(),
+                    req.snapshotName(),
+                    req.snapshotIndexName(),
+                    req.indexSettings(),
+                    req.ignoreIndexSettings(),
+                    req.waitForCompletion() == false
+                ).masterNodeTimeout(req.masterNodeTimeout());
 
             default:
-                return new MountSearchableSnapshotRequest(req.mountedIndexName(), req.repositoryName(), req.snapshotName(),
-                    req.snapshotIndexName(), req.indexSettings(), req.ignoreIndexSettings(),
-                    req.waitForCompletion()).masterNodeTimeout(mutateTimeValue(req.masterNodeTimeout()));
+                return new MountSearchableSnapshotRequest(
+                    req.mountedIndexName(),
+                    req.repositoryName(),
+                    req.snapshotName(),
+                    req.snapshotIndexName(),
+                    req.indexSettings(),
+                    req.ignoreIndexSettings(),
+                    req.waitForCompletion()
+                ).masterNodeTimeout(mutateTimeValue(req.masterNodeTimeout()));
         }
     }
 
     private static TimeValue mutateTimeValue(TimeValue timeValue) {
         long millis = timeValue.millis();
-        long newMillis = randomValueOtherThan(millis, () ->  randomLongBetween(0, 60000));
+        long newMillis = randomValueOtherThan(millis, () -> randomLongBetween(0, 60000));
         return TimeValue.timeValueMillis(newMillis);
     }
 

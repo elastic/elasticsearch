@@ -67,12 +67,10 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
     }
 
     @Override
-    public void sync(Collection<String> names) {
-    }
+    public void sync(Collection<String> names) {}
 
     @Override
-    public void syncMetaData() {
-    }
+    public void syncMetaData() {}
 
     @Override
     public IndexOutput createOutput(String name, IOContext context) throws IOException {

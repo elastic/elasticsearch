@@ -48,13 +48,29 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         IOContext context,
         IndexInputStats stats
     ) {
-        this("CachedBlobContainerIndexInput(" + fileInfo.physicalName() + ")", directory, fileInfo, context, stats, 0L, fileInfo.length(),
-            new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()));
+        this(
+            "CachedBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
+            directory,
+            fileInfo,
+            context,
+            stats,
+            0L,
+            fileInfo.length(),
+            new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length())
+        );
         stats.incrementOpenCount();
     }
 
-    private CachedBlobContainerIndexInput(String resourceDesc, SearchableSnapshotDirectory directory, FileInfo fileInfo, IOContext context,
-                                          IndexInputStats stats, long offset, long length, CacheFileReference cacheFileReference) {
+    private CachedBlobContainerIndexInput(
+        String resourceDesc,
+        SearchableSnapshotDirectory directory,
+        FileInfo fileInfo,
+        IOContext context,
+        IndexInputStats stats,
+        long offset,
+        long length,
+        CacheFileReference cacheFileReference
+    ) {
         super(resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
         this.directory = directory;
         this.cacheFileReference = cacheFileReference;
@@ -87,10 +103,11 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 }
 
                 try (ReleasableLock ignored = cacheFile.fileLock()) {
-                    bytesRead = cacheFile.fetchRange(pos,
+                    bytesRead = cacheFile.fetchRange(
+                        pos,
                         (start, end) -> readCacheFile(cacheFile.getChannel(), end, pos, buffer, off, len),
-                        (start, end) -> writeCacheFile(cacheFile.getChannel(), start, end))
-                        .get();
+                        (start, end) -> writeCacheFile(cacheFile.getChannel(), start, end)
+                    ).get();
                 }
             } catch (final Exception e) {
                 if (e instanceof AlreadyClosedException || (e.getCause() != null && e.getCause() instanceof AlreadyClosedException)) {
@@ -136,8 +153,16 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 final int len = (remaining < copyBuffer.length) ? Math.toIntExact(remaining) : copyBuffer.length;
                 int bytesRead = input.read(copyBuffer, 0, len);
                 if (bytesRead == -1) {
-                    throw new EOFException(String.format(Locale.ROOT,
-                        "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s", start, end, remaining, cacheFileReference));
+                    throw new EOFException(
+                        String.format(
+                            Locale.ROOT,
+                            "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s",
+                            start,
+                            end,
+                            remaining,
+                            cacheFileReference
+                        )
+                    );
                 }
                 fc.write(ByteBuffer.wrap(copyBuffer, 0, bytesRead), start + bytesCopied);
                 bytesCopied += bytesRead;
@@ -168,30 +193,51 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) {
         if (offset < 0 || length < 0 || offset + length > length()) {
-            throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: offset=" + offset
-                + ",length=" + length + ",fileLength=" + length() + ": " + this);
+            throw new IllegalArgumentException(
+                "slice() "
+                    + sliceDescription
+                    + " out of bounds: offset="
+                    + offset
+                    + ",length="
+                    + length
+                    + ",fileLength="
+                    + length()
+                    + ": "
+                    + this
+            );
         }
-        final CachedBlobContainerIndexInput slice = new CachedBlobContainerIndexInput(getFullSliceDescription(sliceDescription), directory,
-            fileInfo, context, stats, this.offset + offset, length, cacheFileReference);
+        final CachedBlobContainerIndexInput slice = new CachedBlobContainerIndexInput(
+            getFullSliceDescription(sliceDescription),
+            directory,
+            fileInfo,
+            context,
+            stats,
+            this.offset + offset,
+            length,
+            cacheFileReference
+        );
         slice.isClone = true;
         return slice;
     }
 
     @Override
     public String toString() {
-        return "CachedBlobContainerIndexInput{" +
-            "cacheFileReference=" + cacheFileReference +
-            ", offset=" + offset +
-            ", length=" + length() +
-            ", position=" + getFilePointer() +
-            '}';
+        return "CachedBlobContainerIndexInput{"
+            + "cacheFileReference="
+            + cacheFileReference
+            + ", offset="
+            + offset
+            + ", length="
+            + length()
+            + ", position="
+            + getFilePointer()
+            + '}';
     }
 
     private int readDirectly(long start, long end, byte[] buffer, int offset) throws IOException {
         final long length = end - start;
         final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.trace(() ->
-            new ParameterizedMessage("direct reading of range [{}-{}] for cache file [{}]", start, end, cacheFileReference));
+        logger.trace(() -> new ParameterizedMessage("direct reading of range [{}-{}] for cache file [{}]", start, end, cacheFileReference));
 
         int bytesCopied = 0;
         final long startTimeNanos = stats.currentTimeNanos();
@@ -201,8 +247,16 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 final int len = (remaining < copyBuffer.length) ? (int) remaining : copyBuffer.length;
                 int bytesRead = input.read(copyBuffer, 0, len);
                 if (bytesRead == -1) {
-                    throw new EOFException(String.format(Locale.ROOT,
-                        "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s", start, end, remaining, cacheFileReference));
+                    throw new EOFException(
+                        String.format(
+                            Locale.ROOT,
+                            "unexpected EOF reading [%d-%d] ([%d] bytes remaining) from %s",
+                            start,
+                            end,
+                            remaining,
+                            cacheFileReference
+                        )
+                    );
                 }
                 System.arraycopy(copyBuffer, 0, buffer, offset + bytesCopied, bytesRead);
                 bytesCopied += bytesRead;
@@ -269,11 +323,15 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
         @Override
         public String toString() {
-            return "CacheFileReference{" +
-                "cacheKey='" + cacheKey + '\'' +
-                ", fileLength=" + fileLength +
-                ", acquired=" + (cacheFile.get() != null) +
-                '}';
+            return "CacheFileReference{"
+                + "cacheKey='"
+                + cacheKey
+                + '\''
+                + ", fileLength="
+                + fileLength
+                + ", acquired="
+                + (cacheFile.get() != null)
+                + '}';
         }
     }
 

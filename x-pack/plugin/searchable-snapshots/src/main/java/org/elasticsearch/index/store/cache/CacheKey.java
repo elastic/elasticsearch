@@ -63,12 +63,7 @@ public class CacheKey {
 
     @Override
     public String toString() {
-        return "[" +
-            "snapshotId=" + snapshotId +
-            ", indexId=" + indexId +
-            ", shardId=" + shardId +
-            ", fileName='" + fileName + '\'' +
-            ']';
+        return "[" + "snapshotId=" + snapshotId + ", indexId=" + indexId + ", shardId=" + shardId + ", fileName='" + fileName + "']";
     }
 
     public boolean belongsTo(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {

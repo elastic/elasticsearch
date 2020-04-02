@@ -26,11 +26,6 @@ public class AzureSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestT
         final String basePath = System.getProperty("test.azure.base_path");
         assertThat(basePath, not(blankOrNullString()));
 
-        return Settings.builder()
-            .put("client", "searchable_snapshots")
-            .put("container", container)
-            .put("base_path", basePath)
-            .build();
+        return Settings.builder().put("client", "searchable_snapshots").put("container", container).put("base_path", basePath).build();
     }
 }
-

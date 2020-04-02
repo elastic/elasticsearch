@@ -249,7 +249,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats);
         } else {
             return new DirectBlobContainerIndexInput(
-                blobContainer(), fileInfo, context, inputStats, getUncachedChunkSize(), bufferSize(context));
+                blobContainer(),
+                fileInfo,
+                context,
+                inputStats,
+                getUncachedChunkSize(),
+                bufferSize(context)
+            );
         }
     }
 
@@ -271,11 +277,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return this.getClass().getSimpleName() + "@" + snapshot().snapshot() + " lockFactory=" + lockFactory;
     }
 
-    public static Directory create(RepositoriesService repositories,
-                                   CacheService cache,
-                                   IndexSettings indexSettings,
-                                   ShardPath shardPath,
-                                   LongSupplier currentTimeNanosSupplier) throws IOException {
+    public static Directory create(
+        RepositoriesService repositories,
+        CacheService cache,
+        IndexSettings indexSettings,
+        ShardPath shardPath,
+        LongSupplier currentTimeNanosSupplier
+    ) throws IOException {
 
         final Repository repository = repositories.repository(SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));
         if (repository instanceof BlobStoreRepository == false) {
@@ -289,10 +297,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings())
         );
 
-        final LazyInitializable<BlobContainer, RuntimeException> lazyBlobContainer
-            = new LazyInitializable<>(() -> blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id()));
-        final LazyInitializable<BlobStoreIndexShardSnapshot, RuntimeException> lazySnapshot
-            = new LazyInitializable<>(() -> blobStoreRepository.loadShardSnapshot(lazyBlobContainer.getOrCompute(), snapshotId));
+        final LazyInitializable<BlobContainer, RuntimeException> lazyBlobContainer = new LazyInitializable<>(
+            () -> blobStoreRepository.shardContainer(indexId, shardPath.getShardId().id())
+        );
+        final LazyInitializable<BlobStoreIndexShardSnapshot, RuntimeException> lazySnapshot = new LazyInitializable<>(
+            () -> blobStoreRepository.loadShardSnapshot(lazyBlobContainer.getOrCompute(), snapshotId)
+        );
 
         final Path cacheDir = shardPath.getDataPath().resolve("snapshots").resolve(snapshotId.getUUID());
         Files.createDirectories(cacheDir);

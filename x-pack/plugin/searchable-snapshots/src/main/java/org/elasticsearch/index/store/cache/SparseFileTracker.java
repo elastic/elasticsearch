@@ -93,8 +93,7 @@ public class SparseFileTracker {
 
                 final SortedSet<Range> existingRanges = ranges.tailSet(targetRange);
                 if (existingRanges.isEmpty()) {
-                    final Range newPendingRange
-                        = new Range(targetRange.start, end, PlainListenableActionFuture.newListenableFuture());
+                    final Range newPendingRange = new Range(targetRange.start, end, PlainListenableActionFuture.newListenableFuture());
                     ranges.add(newPendingRange);
                     pendingRanges.add(newPendingRange);
                     gaps.add(new Gap(targetRange.start, end));
@@ -109,9 +108,11 @@ public class SparseFileTracker {
                         }
                         targetRange.start = Math.min(end, firstExistingRange.end);
                     } else {
-                        final Range newPendingRange
-                            = new Range(targetRange.start, Math.min(end, firstExistingRange.start),
-                            PlainListenableActionFuture.newListenableFuture());
+                        final Range newPendingRange = new Range(
+                            targetRange.start,
+                            Math.min(end, firstExistingRange.start),
+                            PlainListenableActionFuture.newListenableFuture()
+                        );
 
                         ranges.add(newPendingRange);
                         pendingRanges.add(newPendingRange);
@@ -132,8 +133,10 @@ public class SparseFileTracker {
                     assert gaps.size() <= 1 : gaps;
                     pendingRanges.get(0).completionListener.addListener(listener);
                 } else {
-                    final GroupedActionListener<Void> groupedActionListener
-                        = new GroupedActionListener<>(ActionListener.map(listener, ignored -> null), pendingRanges.size());
+                    final GroupedActionListener<Void> groupedActionListener = new GroupedActionListener<>(
+                        ActionListener.map(listener, ignored -> null),
+                        pendingRanges.size()
+                    );
                     pendingRanges.forEach(pendingRange -> pendingRange.completionListener.addListener(groupedActionListener));
                 }
 

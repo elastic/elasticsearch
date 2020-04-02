@@ -88,6 +88,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -1039,25 +1040,35 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     if (bwCMode) {
                         deleteSnapshotsLegacy(repositoryName, snapshotName, listener, immediatePriority);
-                    } else if (inProgress == null) {
-                        threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
-                            final Repository repository = repositoriesService.repository(repositoryName);
-                            repository.getRepositoryData(ActionListener.wrap(repositoryData -> repositoryData.getSnapshotIds()
-                                .stream()
-                                .filter(s -> s.getName().equals(snapshotName))
-                                .findFirst().ifPresentOrElse(snapshotId ->
-                                deleteCompletedSnapshotStep(repositoryName, snapshotId, repositoryData.getGenId(), listener),
-                                    () -> {
-                                    removeSnapshotDeletionFromClusterState(snapshotName,
-                                        new SnapshotMissingException(repositoryName, snapshotName), listener);
-                                    }),
-                                listener::onFailure));
-                        }));
                     } else {
-                        final Snapshot snapshot = inProgress.snapshot();
-                        addListener(snapshot, ActionListener.wrap(snapshotInfo -> deleteSnapshotFromRepository(
-                            snapshot, listener, inProgress.repositoryStateId() + 1,
-                            newState.nodes().getMinNodeVersion()), listener::onFailure));
+                        final Consumer<Exception> onFailure = e -> removeSnapshotDeletionFromClusterState(snapshotName, e, listener);
+                        if (inProgress == null) {
+                            threadPool.generic().execute(new AbstractRunnable() {
+                                @Override
+                                protected void doRun() {
+                                    final Repository repository = repositoriesService.repository(repositoryName);
+                                    repository.getRepositoryData(ActionListener.wrap(repositoryData -> repositoryData.getSnapshotIds()
+                                        .stream()
+                                        .filter(s -> s.getName().equals(snapshotName))
+                                        .findFirst()
+                                        .ifPresentOrElse(snapshotId ->
+                                                deleteCompletedSnapshotStep(
+                                                    repositoryName, snapshotId, repositoryData.getGenId(), listener),
+                                            () -> removeSnapshotDeletionFromClusterState(snapshotName,
+                                                new SnapshotMissingException(repositoryName, snapshotName), listener)), onFailure));
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    onFailure.accept(e);
+                                }
+                            });
+                        } else {
+                            final Snapshot snapshot = inProgress.snapshot();
+                            addListener(snapshot, ActionListener.wrap(snapshotInfo -> deleteSnapshotFromRepository(
+                                snapshot, listener, inProgress.repositoryStateId() + 1,
+                                newState.nodes().getMinNodeVersion()), onFailure));
+                        }
                     }
                 }
             });

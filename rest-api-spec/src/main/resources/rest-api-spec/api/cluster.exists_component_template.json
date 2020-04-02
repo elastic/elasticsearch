@@ -10,7 +10,7 @@
         {
           "path":"/_component_template/{name}",
           "methods":[
-            "GET"
+            "HEAD"
           ],
           "parts":{
             "name":{

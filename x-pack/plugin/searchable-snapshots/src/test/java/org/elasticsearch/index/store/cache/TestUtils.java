@@ -76,8 +76,6 @@ public final class TestUtils {
                 if (blobName.equals(name) == false) {
                     throw new FileNotFoundException("Blob not found: " + name);
                 }
-                assert position + length <= blobContent.length
-                    : "cannot read [" + position + "-" + (position + length) + "] from array of length [" + blobContent.length + "]";
                 return Streams.limitStream(new ByteArrayInputStream(blobContent, Math.toIntExact(position),
                     blobContent.length - Math.toIntExact(position)), length);
             }

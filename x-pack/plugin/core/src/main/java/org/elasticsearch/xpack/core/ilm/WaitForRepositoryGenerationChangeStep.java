@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -47,7 +47,7 @@ public class WaitForRepositoryGenerationChangeStep extends ClusterStateWaitStep 
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetaData indexMetaData = clusterState.metaData().index(index);
+        IndexMetadata indexMetaData = clusterState.metadata().index(index);
 
         if (indexMetaData == null) {
             String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but index no longer exists",
@@ -73,8 +73,8 @@ public class WaitForRepositoryGenerationChangeStep extends ClusterStateWaitStep 
             return new Result(false, new Info(errorMessage));
         }
 
-        RepositoryMetaData repositoryMetadata =
-            clusterState.getMetaData().<RepositoriesMetaData>custom(RepositoriesMetaData.TYPE).repository(snapshotRepository);
+        RepositoryMetadata repositoryMetadata =
+            clusterState.getMetadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE).repository(snapshotRepository);
         if (repositoryMetadata == null) {
             String errorMessage = "repository [" + snapshotRepository + "] is missing. [" + policyName +
                 "] policy for index [" + indexMetaData.getIndex().getName() + "] cannot continue until the repository is created";

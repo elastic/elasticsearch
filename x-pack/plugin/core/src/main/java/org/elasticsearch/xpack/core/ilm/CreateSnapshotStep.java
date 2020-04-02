@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndex
 public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     public static final String NAME = "create-snapshot";
 
-    private final static Logger logger = LogManager.getLogger(CleanupSnapshotStep.class);
+    private static final Logger logger = LogManager.getLogger(CreateSnapshotStep.class);
 
     public CreateSnapshotStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);

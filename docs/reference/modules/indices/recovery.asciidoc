@@ -30,11 +30,11 @@ This is a dynamic setting, which means you can set it in each node's
 `elasticsearch.yml` config file and you can update it dynamically using the
 <<cluster-update-settings,cluster update settings API>>. If you set it
 dynamically then the same limit applies on every node in the cluster. If you do
-not set it dynamically then you can set a different limit on each node, which
-is useful if some of your nodes have better bandwidth than others. For example,
-if you are using <<overview-index-lifecycle-management,Index Lifecycle
-Management>> then you may restrict the recovery bandwidth on your warm nodes
-more than on your hot nodes.
+not set it dynamically then you can set a different limit on each node, which is
+useful if some of your nodes have better bandwidth than others. For example, if
+you are using <<overview-index-lifecycle-management,Index Lifecycle Management>>
+then you may be able to give your hot nodes a higher recovery bandwidth limit
+than your warm nodes.
 
 [float]
 ==== Expert peer recovery settings

@@ -156,7 +156,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
                     .stream(bucket.getAggregations().spliterator(), false)
                     .map(InternalAggregation.class::cast)
                     .collect(Collectors.toList());
-                aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<>(), metaData()));
+                aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<>(), metadata()));
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
                 index++;
             }

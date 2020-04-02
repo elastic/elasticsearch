@@ -34,8 +34,8 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
 
     @Override
     protected InternalValueCount createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        return new InternalValueCount(name, randomIntBetween(0, 100), pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        return new InternalValueCount(name, randomIntBetween(0, 100), pipelineAggregators, metadata);
     }
 
     @Override
@@ -59,7 +59,7 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
         String name = instance.getName();
         long value = instance.getValue();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -72,16 +72,16 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
             }
             break;
         case 2:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalValueCount(name, value, pipelineAggregators, metaData);
+        return new InternalValueCount(name, value, pipelineAggregators, metadata);
     }
 }

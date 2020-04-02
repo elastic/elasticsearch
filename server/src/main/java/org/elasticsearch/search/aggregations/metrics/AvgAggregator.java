@@ -48,8 +48,8 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     DocValueFormat format;
 
     AvgAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext context,
-            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+            Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         this.format = formatter;
         if (valuesSource != null) {
@@ -117,12 +117,12 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), format, pipelineAggregators(), metaData());
+        return new InternalAvg(name, sums.get(bucket), counts.get(bucket), format, pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalAvg(name, 0.0, 0L, format, pipelineAggregators(), metaData());
+        return new InternalAvg(name, 0.0, 0L, format, pipelineAggregators(), metadata());
     }
 
     @Override

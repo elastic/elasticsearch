@@ -30,11 +30,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_HIDDEN_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 
 /**
  * An index abstraction is a reference to one or more concrete indices.
- * An index abstraction has a unique name and encapsulates all the  {@link IndexMetaData} instances it is pointing to.
+ * An index abstraction has a unique name and encapsulates all the  {@link IndexMetadata} instances it is pointing to.
  * Also depending on type it may refer to a single or many concrete indices and may or may not have a write index.
  */
 public interface IndexAbstraction {
@@ -50,9 +50,9 @@ public interface IndexAbstraction {
     String getName();
 
     /**
-     * @return All {@link IndexMetaData} of all concrete indices this index abstraction is referring to.
+     * @return All {@link IndexMetadata} of all concrete indices this index abstraction is referring to.
      */
-    List<IndexMetaData> getIndices();
+    List<IndexMetadata> getIndices();
 
     /**
      * A write index is a dedicated concrete index, that accepts all the new documents that belong to an index abstraction.
@@ -64,7 +64,7 @@ public interface IndexAbstraction {
      * <code>null</code> if this index abstraction doesn't have a write index.
      */
     @Nullable
-    IndexMetaData getWriteIndex();
+    IndexMetadata getWriteIndex();
 
     /**
      * @return whether this index abstraction is hidden or not
@@ -101,14 +101,14 @@ public interface IndexAbstraction {
     }
 
     /**
-     * Represents an concrete index and encapsulates its {@link IndexMetaData}
+     * Represents an concrete index and encapsulates its {@link IndexMetadata}
      */
     class Index implements IndexAbstraction {
 
-        private final IndexMetaData concreteIndex;
+        private final IndexMetadata concreteIndex;
 
-        public Index(IndexMetaData indexMetaData) {
-            this.concreteIndex = indexMetaData;
+        public Index(IndexMetadata indexMetadata) {
+            this.concreteIndex = indexMetadata;
         }
 
         @Override
@@ -122,12 +122,12 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public List<IndexMetaData> getIndices() {
+        public List<IndexMetadata> getIndices() {
             return List.of(concreteIndex);
         }
 
         @Override
-        public IndexMetaData getWriteIndex() {
+        public IndexMetadata getWriteIndex() {
             return concreteIndex;
         }
 
@@ -138,20 +138,20 @@ public interface IndexAbstraction {
     }
 
     /**
-     * Represents an alias and groups all {@link IndexMetaData} instances sharing the same alias name together.
+     * Represents an alias and groups all {@link IndexMetadata} instances sharing the same alias name together.
      */
     class Alias implements IndexAbstraction {
 
         private final String aliasName;
-        private final List<IndexMetaData> referenceIndexMetaDatas;
-        private final SetOnce<IndexMetaData> writeIndex = new SetOnce<>();
+        private final List<IndexMetadata> referenceIndexMetadatas;
+        private final SetOnce<IndexMetadata> writeIndex = new SetOnce<>();
         private final boolean isHidden;
 
-        public Alias(AliasMetaData aliasMetaData, IndexMetaData indexMetaData) {
-            this.aliasName = aliasMetaData.getAlias();
-            this.referenceIndexMetaDatas = new ArrayList<>();
-            this.referenceIndexMetaDatas.add(indexMetaData);
-            this.isHidden = aliasMetaData.isHidden() == null ? false : aliasMetaData.isHidden();
+        public Alias(AliasMetadata aliasMetadata, IndexMetadata indexMetadata) {
+            this.aliasName = aliasMetadata.getAlias();
+            this.referenceIndexMetadatas = new ArrayList<>();
+            this.referenceIndexMetadatas.add(indexMetadata);
+            this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
         }
 
         @Override
@@ -164,13 +164,13 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public List<IndexMetaData> getIndices() {
-            return referenceIndexMetaDatas;
+        public List<IndexMetadata> getIndices() {
+            return referenceIndexMetadatas;
         }
 
 
         @Nullable
-        public IndexMetaData getWriteIndex() {
+        public IndexMetadata getWriteIndex() {
             return writeIndex.get();
         }
 
@@ -185,41 +185,41 @@ public interface IndexAbstraction {
          * (note that although alias can point to the same concrete indices, each alias reference may have its own routing
          * and filters)
          */
-        public Iterable<Tuple<String, AliasMetaData>> getConcreteIndexAndAliasMetaDatas() {
+        public Iterable<Tuple<String, AliasMetadata>> getConcreteIndexAndAliasMetadatas() {
             return () -> new Iterator<>() {
 
                 int index = 0;
 
                 @Override
                 public boolean hasNext() {
-                    return index < referenceIndexMetaDatas.size();
+                    return index < referenceIndexMetadatas.size();
                 }
 
                 @Override
-                public Tuple<String, AliasMetaData> next() {
-                    IndexMetaData indexMetaData = referenceIndexMetaDatas.get(index++);
-                    return new Tuple<>(indexMetaData.getIndex().getName(), indexMetaData.getAliases().get(aliasName));
+                public Tuple<String, AliasMetadata> next() {
+                    IndexMetadata indexMetadata = referenceIndexMetadatas.get(index++);
+                    return new Tuple<>(indexMetadata.getIndex().getName(), indexMetadata.getAliases().get(aliasName));
                 }
             };
         }
 
-        public AliasMetaData getFirstAliasMetaData() {
-            return referenceIndexMetaDatas.get(0).getAliases().get(aliasName);
+        public AliasMetadata getFirstAliasMetadata() {
+            return referenceIndexMetadatas.get(0).getAliases().get(aliasName);
         }
 
-        void addIndex(IndexMetaData indexMetaData) {
-            this.referenceIndexMetaDatas.add(indexMetaData);
+        void addIndex(IndexMetadata indexMetadata) {
+            this.referenceIndexMetadatas.add(indexMetadata);
         }
 
         public void computeAndValidateAliasProperties() {
             // Validate write indices
-            List<IndexMetaData> writeIndices = referenceIndexMetaDatas.stream()
+            List<IndexMetadata> writeIndices = referenceIndexMetadatas.stream()
                 .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
                 .collect(Collectors.toList());
 
-            if (writeIndices.isEmpty() && referenceIndexMetaDatas.size() == 1
-                    && referenceIndexMetaDatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
-                writeIndices.add(referenceIndexMetaDatas.get(0));
+            if (writeIndices.isEmpty() && referenceIndexMetadatas.size() == 1
+                    && referenceIndexMetadatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                writeIndices.add(referenceIndexMetadatas.get(0));
             }
 
             if (writeIndices.size() == 1) {
@@ -232,7 +232,7 @@ public interface IndexAbstraction {
             }
 
             // Validate hidden status
-            final Map<Boolean, List<IndexMetaData>> groupedByHiddenStatus = referenceIndexMetaDatas.stream()
+            final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = referenceIndexMetadatas.stream()
                     .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
             if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
                 List<String> hiddenOn = groupedByHiddenStatus.get(true).stream()
@@ -246,7 +246,7 @@ public interface IndexAbstraction {
             }
         }
 
-        private boolean isNonEmpty(List<IndexMetaData> idxMetas) {
+        private boolean isNonEmpty(List<IndexMetadata> idxMetas) {
             return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
         }
     }

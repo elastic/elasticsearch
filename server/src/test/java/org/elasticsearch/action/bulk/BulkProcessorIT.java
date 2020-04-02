@@ -26,7 +26,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -184,7 +184,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
     public void testBulkProcessorConcurrentRequestsReadOnlyIndex() throws Exception {
         createIndex("test-ro");
         assertAcked(client().admin().indices().prepareUpdateSettings("test-ro")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true)));
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true)));
         ensureGreen();
 
         int bulkActions = randomIntBetween(10, 100);

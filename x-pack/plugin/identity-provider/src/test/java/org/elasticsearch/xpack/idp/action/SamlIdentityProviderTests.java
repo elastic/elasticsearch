@@ -299,6 +299,9 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
     }
 
     private void registerServiceProvider(String entityId, String acsUrl) throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        ensureYellowAndNoInitializingShards();
+
         Map<String, Object> spFields = new HashMap<>();
         spFields.put(SamlServiceProviderDocument.Fields.ACS.getPreferredName(), acsUrl);
         spFields.put(SamlServiceProviderDocument.Fields.ENTITY_ID.getPreferredName(), entityId);

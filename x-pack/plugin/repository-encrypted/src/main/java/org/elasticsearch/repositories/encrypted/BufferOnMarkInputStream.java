@@ -188,12 +188,12 @@ public final class BufferOnMarkInputStream extends InputStream {
             return source.skip(n);
         }
         long remaining = n;
-        int size = (int)Math.min(2048, remaining);
+        int size = (int) Math.min(2048, remaining);
         byte[] skipBuffer = new byte[size];
         while (remaining > 0) {
             // skipping translates to a read so that the skipped bytes are stored in the buffer,
             // so they can possibly be replayed after a reset
-            int bytesRead = read(skipBuffer, 0, (int)Math.min(size, remaining));
+            int bytesRead = read(skipBuffer, 0, (int) Math.min(size, remaining));
             if (bytesRead < 0) {
                 break;
             }
@@ -261,8 +261,9 @@ public final class BufferOnMarkInputStream extends InputStream {
         // readlimit is otherwise ignored but this defensively fails if the caller is expecting to be able to mark/reset more than this
         // instance can accommodate in the fixed ring buffer
         if (readlimit > ringBuffer.getBufferSize()) {
-            throw new IllegalArgumentException("Readlimit value [" + readlimit + "] exceeds the maximum value of [" +
-                    ringBuffer.getBufferSize() + "]");
+            throw new IllegalArgumentException(
+                "Readlimit value [" + readlimit + "] exceeds the maximum value of [" + ringBuffer.getBufferSize() + "]"
+            );
         } else if (readlimit < 0) {
             throw new IllegalArgumentException("Readlimit value [" + readlimit + "] cannot be negative");
         }

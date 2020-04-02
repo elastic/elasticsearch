@@ -16,8 +16,7 @@ import java.util.List;
 
 public final class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
-    public EncryptedRepositoryPlugin(final Settings settings) {
-    }
+    public EncryptedRepositoryPlugin(final Settings settings) {}
 
     @Override
     public List<Setting<?>> getSettings() {

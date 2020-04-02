@@ -40,9 +40,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         BufferOnMarkInputStream test = new BufferOnMarkInputStream(mockSourceTuple.v2(), 1 + Randomness.get().nextInt(1024));
         // maybe read some bytes
         test.readNBytes(randomFrom(0, randomInt(31)));
-        IOException e = expectThrows(IOException.class, () -> {
-            test.reset();
-        });
+        IOException e = expectThrows(IOException.class, () -> { test.reset(); });
         assertThat(e.getMessage(), Matchers.is("Mark not called or has been invalidated"));
     }
 
@@ -54,18 +52,14 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         // maybe read some bytes
         test.readNBytes(randomFrom(0, randomInt(32)));
         int wrongLargeReadLimit = bufferSize + randomIntBetween(1, 8);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            test.mark(wrongLargeReadLimit);
-        });
-        assertThat(e.getMessage(), Matchers.is("Readlimit value [" + wrongLargeReadLimit + "] exceeds the maximum value of ["
-                + bufferSize + "]"));
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            test.mark(-1 - randomInt(1));
-        });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> { test.mark(wrongLargeReadLimit); });
+        assertThat(
+            e.getMessage(),
+            Matchers.is("Readlimit value [" + wrongLargeReadLimit + "] exceeds the maximum value of [" + bufferSize + "]")
+        );
+        e = expectThrows(IllegalArgumentException.class, () -> { test.mark(-1 - randomInt(1)); });
         assertThat(e.getMessage(), Matchers.containsString("cannot be negative"));
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            new BufferOnMarkInputStream(mock(InputStream.class), 0 - randomInt(1));
-        });
+        e = expectThrows(IllegalArgumentException.class, () -> { new BufferOnMarkInputStream(mock(InputStream.class), 0 - randomInt(1)); });
         assertThat(e.getMessage(), Matchers.is("The buffersize constructor argument must be a strictly positive value"));
     }
 
@@ -78,26 +72,18 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         test.readNBytes(randomFrom(0, Randomness.get().nextInt(32)));
         test.close();
         int bytesReadBefore = bytesRead.get();
-        IOException e = expectThrows(IOException.class, () -> {
-            test.read();
-        });
+        IOException e = expectThrows(IOException.class, () -> { test.read(); });
         assertThat(e.getMessage(), Matchers.is("Stream has been closed"));
         e = expectThrows(IOException.class, () -> {
             byte[] b = new byte[1 + Randomness.get().nextInt(32)];
             test.read(b, 0, 1 + Randomness.get().nextInt(b.length));
         });
         assertThat(e.getMessage(), Matchers.is("Stream has been closed"));
-        e = expectThrows(IOException.class, () -> {
-            test.skip(1 + Randomness.get().nextInt(32));
-        });
+        e = expectThrows(IOException.class, () -> { test.skip(1 + Randomness.get().nextInt(32)); });
         assertThat(e.getMessage(), Matchers.is("Stream has been closed"));
-        e = expectThrows(IOException.class, () -> {
-            test.available();
-        });
+        e = expectThrows(IOException.class, () -> { test.available(); });
         assertThat(e.getMessage(), Matchers.is("Stream has been closed"));
-        e = expectThrows(IOException.class, () -> {
-            test.reset();
-        });
+        e = expectThrows(IOException.class, () -> { test.reset(); });
         assertThat(e.getMessage(), Matchers.is("Stream has been closed"));
         int bytesReadAfter = bytesRead.get();
         assertThat(bytesReadAfter - bytesReadBefore, Matchers.is(0));
@@ -216,9 +202,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         assertThat(test.storeToBuffer, Matchers.is(false));
         assertThat(test.replayFromBuffer, Matchers.is(false));
         // assert reset does not work any more
-        IOException e = expectThrows(IOException.class, () -> {
-            test.reset();
-        });
+        IOException e = expectThrows(IOException.class, () -> { test.reset(); });
         assertThat(e.getMessage(), Matchers.is("Mark not called or has been invalidated"));
     }
 
@@ -356,9 +340,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         assertThat(test.storeToBuffer, Matchers.is(false));
         assertThat(test.replayFromBuffer, Matchers.is(false));
         // assert reset does not work anymore
-        IOException e = expectThrows(IOException.class, () -> {
-            test.reset();
-        });
+        IOException e = expectThrows(IOException.class, () -> { test.reset(); });
         assertThat(e.getMessage(), Matchers.is("Mark not called or has been invalidated"));
     }
 
@@ -572,8 +554,9 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         for (int length = 1; length <= 10; length++) {
             for (int offset = 0; offset < length; offset++) {
                 for (int mark = 1; mark <= length - offset; mark++) {
-                    try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new
-                            NoMarkByteArrayInputStream(testArray, 0, length), mark)) {
+                    try (
+                        BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length), mark)
+                    ) {
                         // skip first offset bytes
                         in.readNBytes(offset);
                         in.mark(mark);
@@ -595,8 +578,9 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
     public void testNoMockMarkResetEverywhere() throws Exception {
         for (int length = 1; length <= 8; length++) {
             for (int offset = 0; offset < length; offset++) {
-                try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length),
-                        length)) {
+                try (
+                    BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length), length)
+                ) {
                     // skip first offset bytes
                     in.readNBytes(offset);
                     in.mark(length);
@@ -607,8 +591,9 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
                         in.reset();
                     }
                 }
-                try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length),
-                        length)) {
+                try (
+                    BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length), length)
+                ) {
                     // skip first offset bytes
                     in.readNBytes(offset);
                     in.mark(length);
@@ -628,8 +613,12 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
             for (int offset = 0; offset < length; offset++) {
                 for (int readLen = 1; readLen <= length - offset; readLen++) {
                     for (int markLen = 1; markLen <= length - offset; markLen++) {
-                        try (BufferOnMarkInputStream in = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray, 0, length),
-                                length)) {
+                        try (
+                            BufferOnMarkInputStream in = new BufferOnMarkInputStream(
+                                new NoMarkByteArrayInputStream(testArray, 0, length),
+                                length
+                            )
+                        ) {
                             in.readNBytes(offset);
                             assertThat(in.ringBuffer.getAvailableToWriteByteCount(), Matchers.is(length));
                             assertThat(in.ringBuffer.getAvailableToReadByteCount(), Matchers.is(0));
@@ -719,7 +708,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         stream.mark(stepLen);
         for (int readLen = 1; readLen <= Math.min(stepLen, length - offset); readLen++) {
             for (int markLen = 1; markLen <= Math.min(stepLen, length - offset); markLen++) {
-                BufferOnMarkInputStream cloneStream = cloneBufferOnMarkStream(stream) ;
+                BufferOnMarkInputStream cloneStream = cloneBufferOnMarkStream(stream);
                 // read ahead
                 byte[] test = cloneStream.readNBytes(readLen);
                 assertArray(offset, test);
@@ -738,8 +727,10 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
     private BufferOnMarkInputStream cloneBufferOnMarkStream(BufferOnMarkInputStream orig) {
         int origOffset = ((NoMarkByteArrayInputStream) orig.source).getPos();
         int origLen = ((NoMarkByteArrayInputStream) orig.source).getCount();
-        BufferOnMarkInputStream cloneStream = new BufferOnMarkInputStream(new NoMarkByteArrayInputStream(testArray,
-                origOffset, origLen - origOffset), orig.ringBuffer.getBufferSize());
+        BufferOnMarkInputStream cloneStream = new BufferOnMarkInputStream(
+            new NoMarkByteArrayInputStream(testArray, origOffset, origLen - origOffset),
+            orig.ringBuffer.getBufferSize()
+        );
         if (orig.ringBuffer.buffer != null) {
             cloneStream.ringBuffer.buffer = Arrays.copyOf(orig.ringBuffer.buffer, orig.ringBuffer.buffer.length);
         } else {
@@ -777,17 +768,18 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
     private Tuple<AtomicInteger, InputStream> getMockInfiniteInputStream() throws IOException {
         InputStream mockSource = mock(InputStream.class);
         AtomicInteger bytesRead = new AtomicInteger(0);
-        when(mockSource.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt())).
-                thenAnswer(invocationOnMock -> {
-                    final int len = (int) invocationOnMock.getArguments()[2];
-                    if (len == 0) {
-                        return 0;
-                    } else {
-                        int bytesCount = 1 + Randomness.get().nextInt(len);
-                        bytesRead.addAndGet(bytesCount);
-                        return bytesCount;
-                    }
-                });
+        when(mockSource.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt())).thenAnswer(
+            invocationOnMock -> {
+                final int len = (int) invocationOnMock.getArguments()[2];
+                if (len == 0) {
+                    return 0;
+                } else {
+                    int bytesCount = 1 + Randomness.get().nextInt(len);
+                    bytesRead.addAndGet(bytesCount);
+                    return bytesCount;
+                }
+            }
+        );
         when(mockSource.read()).thenAnswer(invocationOnMock -> {
             bytesRead.incrementAndGet();
             return Randomness.get().nextInt(256);
@@ -845,8 +837,7 @@ public class BufferOnMarkInputStreamTests extends ESTestCase {
         }
 
         @Override
-        public void mark(int readlimit) {
-        }
+        public void mark(int readlimit) {}
 
         @Override
         public boolean markSupported() {

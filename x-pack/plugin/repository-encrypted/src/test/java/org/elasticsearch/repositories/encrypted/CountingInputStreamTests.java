@@ -47,13 +47,9 @@ public class CountingInputStreamTests extends ESTestCase {
         isClosed.set(false);
         new CountingInputStream(mockIn, false).close();
         assertThat(isClosed.get(), Matchers.is(false));
-        when(mockIn.markSupported()).thenAnswer(invocationOnMock -> {
-            return false;
-        });
+        when(mockIn.markSupported()).thenAnswer(invocationOnMock -> { return false; });
         assertThat(new CountingInputStream(mockIn, randomBoolean()).markSupported(), Matchers.is(false));
-        when(mockIn.markSupported()).thenAnswer(invocationOnMock -> {
-            return true;
-        });
+        when(mockIn.markSupported()).thenAnswer(invocationOnMock -> { return true; });
         assertThat(new CountingInputStream(mockIn, randomBoolean()).markSupported(), Matchers.is(true));
     }
 
@@ -62,12 +58,12 @@ public class CountingInputStreamTests extends ESTestCase {
         assertThat(test.getCount(), Matchers.is(0L));
         int readLen = Randomness.get().nextInt(testArray.length);
         test.readNBytes(readLen);
-        assertThat(test.getCount(), Matchers.is((long)readLen));
+        assertThat(test.getCount(), Matchers.is((long) readLen));
         readLen = testArray.length - readLen;
         test.readNBytes(readLen);
-        assertThat(test.getCount(), Matchers.is((long)testArray.length));
+        assertThat(test.getCount(), Matchers.is((long) testArray.length));
         test.close();
-        assertThat(test.getCount(), Matchers.is((long)testArray.length));
+        assertThat(test.getCount(), Matchers.is((long) testArray.length));
     }
 
     public void testSimpleCountForSkip() throws Exception {
@@ -75,12 +71,12 @@ public class CountingInputStreamTests extends ESTestCase {
         assertThat(test.getCount(), Matchers.is(0L));
         int skipLen = Randomness.get().nextInt(testArray.length);
         test.skip(skipLen);
-        assertThat(test.getCount(), Matchers.is((long)skipLen));
+        assertThat(test.getCount(), Matchers.is((long) skipLen));
         skipLen = testArray.length - skipLen;
         test.readNBytes(skipLen);
-        assertThat(test.getCount(), Matchers.is((long)testArray.length));
+        assertThat(test.getCount(), Matchers.is((long) testArray.length));
         test.close();
-        assertThat(test.getCount(), Matchers.is((long)testArray.length));
+        assertThat(test.getCount(), Matchers.is((long) testArray.length));
     }
 
     public void testCountingForMarkAndReset() throws Exception {
@@ -93,7 +89,7 @@ public class CountingInputStreamTests extends ESTestCase {
         } else {
             test.read(new byte[offset1]);
         }
-        assertThat(test.getCount(), Matchers.is((long)offset1));
+        assertThat(test.getCount(), Matchers.is((long) offset1));
         test.mark(testArray.length);
         int offset2 = 1 + Randomness.get().nextInt(testArray.length - offset1 - 1);
         if (randomBoolean()) {
@@ -101,22 +97,22 @@ public class CountingInputStreamTests extends ESTestCase {
         } else {
             test.read(new byte[offset2]);
         }
-        assertThat(test.getCount(), Matchers.is((long)offset1 + offset2));
+        assertThat(test.getCount(), Matchers.is((long) offset1 + offset2));
         test.reset();
-        assertThat(test.getCount(), Matchers.is((long)offset1));
+        assertThat(test.getCount(), Matchers.is((long) offset1));
         int offset3 = Randomness.get().nextInt(offset2);
         if (randomBoolean()) {
             test.skip(offset3);
         } else {
             test.read(new byte[offset3]);
         }
-        assertThat(test.getCount(), Matchers.is((long)offset1 + offset3));
+        assertThat(test.getCount(), Matchers.is((long) offset1 + offset3));
         test.reset();
-        assertThat(test.getCount(), Matchers.is((long)offset1));
+        assertThat(test.getCount(), Matchers.is((long) offset1));
         test.readAllBytes();
-        assertThat(test.getCount(), Matchers.is((long)testArray.length));
+        assertThat(test.getCount(), Matchers.is((long) testArray.length));
         test.close();
-        assertThat(test.getCount(), Matchers.is((long)testArray.length));
+        assertThat(test.getCount(), Matchers.is((long) testArray.length));
     }
 
     public void testCountingForMarkAfterReset() throws Exception {
@@ -129,7 +125,7 @@ public class CountingInputStreamTests extends ESTestCase {
         } else {
             test.read(new byte[offset1]);
         }
-        assertThat(test.getCount(), Matchers.is((long)offset1));
+        assertThat(test.getCount(), Matchers.is((long) offset1));
         test.mark(testArray.length);
         int offset2 = 1 + Randomness.get().nextInt(testArray.length - offset1 - 1);
         if (randomBoolean()) {
@@ -137,9 +133,9 @@ public class CountingInputStreamTests extends ESTestCase {
         } else {
             test.read(new byte[offset2]);
         }
-        assertThat(test.getCount(), Matchers.is((long)offset1 + offset2));
+        assertThat(test.getCount(), Matchers.is((long) offset1 + offset2));
         test.reset();
-        assertThat(test.getCount(), Matchers.is((long)offset1));
+        assertThat(test.getCount(), Matchers.is((long) offset1));
         int offset3 = Randomness.get().nextInt(offset2);
         if (randomBoolean()) {
             test.skip(offset3);
@@ -147,20 +143,20 @@ public class CountingInputStreamTests extends ESTestCase {
             test.read(new byte[offset3]);
         }
         test.mark(testArray.length);
-        assertThat(test.getCount(), Matchers.is((long)offset1 + offset3));
+        assertThat(test.getCount(), Matchers.is((long) offset1 + offset3));
         int offset4 = Randomness.get().nextInt(testArray.length - offset1 - offset3);
         if (randomBoolean()) {
             test.skip(offset4);
         } else {
             test.read(new byte[offset4]);
         }
-        assertThat(test.getCount(), Matchers.is((long)offset1 + offset3 + offset4));
+        assertThat(test.getCount(), Matchers.is((long) offset1 + offset3 + offset4));
         test.reset();
-        assertThat(test.getCount(), Matchers.is((long)offset1 + offset3));
+        assertThat(test.getCount(), Matchers.is((long) offset1 + offset3));
         test.readAllBytes();
-        assertThat(test.getCount(), Matchers.is((long)testArray.length));
+        assertThat(test.getCount(), Matchers.is((long) testArray.length));
         test.close();
-        assertThat(test.getCount(), Matchers.is((long)testArray.length));
+        assertThat(test.getCount(), Matchers.is((long) testArray.length));
     }
 
 }

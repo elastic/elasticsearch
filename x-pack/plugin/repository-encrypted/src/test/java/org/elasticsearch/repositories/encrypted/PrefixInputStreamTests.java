@@ -40,22 +40,16 @@ public class PrefixInputStreamTests extends ESTestCase {
         PrefixInputStream test = new PrefixInputStream(mockTuple.v2(), prefixLength, randomBoolean());
         test.close();
         int byteCountBefore = mockTuple.v1().get();
-        IOException e = expectThrows(IOException.class, () -> {
-            test.read();
-        });
+        IOException e = expectThrows(IOException.class, () -> { test.read(); });
         assertThat(e.getMessage(), Matchers.is("Stream has been closed"));
         e = expectThrows(IOException.class, () -> {
             byte[] b = new byte[1 + Randomness.get().nextInt(32)];
             test.read(b, 0, 1 + Randomness.get().nextInt(b.length));
         });
         assertThat(e.getMessage(), Matchers.is("Stream has been closed"));
-        e = expectThrows(IOException.class, () -> {
-            test.skip(1 + Randomness.get().nextInt(32));
-        });
+        e = expectThrows(IOException.class, () -> { test.skip(1 + Randomness.get().nextInt(32)); });
         assertThat(e.getMessage(), Matchers.is("Stream has been closed"));
-        e = expectThrows(IOException.class, () -> {
-            test.available();
-        });
+        e = expectThrows(IOException.class, () -> { test.available(); });
         assertThat(e.getMessage(), Matchers.is("Stream has been closed"));
         int byteCountAfter = mockTuple.v1().get();
         assertThat(byteCountBefore - byteCountAfter, Matchers.is(0));
@@ -79,9 +73,7 @@ public class PrefixInputStreamTests extends ESTestCase {
         AtomicInteger available = new AtomicInteger(0);
         int boundedLength = 1 + Randomness.get().nextInt(256);
         InputStream mockIn = mock(InputStream.class);
-        when(mockIn.available()).thenAnswer(invocationOnMock -> {
-            return available.get();
-        });
+        when(mockIn.available()).thenAnswer(invocationOnMock -> { return available.get(); });
         PrefixInputStream test = new PrefixInputStream(mockIn, boundedLength, randomBoolean());
         assertThat(test.available(), Matchers.is(0));
         available.set(Randomness.get().nextInt(boundedLength));
@@ -152,9 +144,7 @@ public class PrefixInputStreamTests extends ESTestCase {
         if (prefixLength == boundedLength) {
             skipNBytes(test, prefixLength);
         } else {
-            expectThrows(EOFException.class, () -> {
-                skipNBytes(test, prefixLength);
-            });
+            expectThrows(EOFException.class, () -> { skipNBytes(test, prefixLength); });
         }
         int byteCountAfter = mockTuple.v1().get();
         assertThat(byteCountBefore - byteCountAfter, Matchers.is(boundedLength));
@@ -167,22 +157,23 @@ public class PrefixInputStreamTests extends ESTestCase {
     private Tuple<AtomicInteger, InputStream> getMockBoundedInputStream(int bound) throws IOException {
         InputStream mockSource = mock(InputStream.class);
         AtomicInteger bytesRemaining = new AtomicInteger(bound);
-        when(mockSource.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt())).
-                thenAnswer(invocationOnMock -> {
-                    final byte[] b = (byte[]) invocationOnMock.getArguments()[0];
-                    final int off = (int) invocationOnMock.getArguments()[1];
-                    final int len = (int) invocationOnMock.getArguments()[2];
-                    if (len == 0) {
-                        return 0;
-                    } else {
-                        if (bytesRemaining.get() <= 0) {
-                            return -1;
-                        }
-                        int bytesCount = 1 + Randomness.get().nextInt(Math.min(len, bytesRemaining.get()));
-                        bytesRemaining.addAndGet(-bytesCount);
-                        return bytesCount;
+        when(mockSource.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt())).thenAnswer(
+            invocationOnMock -> {
+                final byte[] b = (byte[]) invocationOnMock.getArguments()[0];
+                final int off = (int) invocationOnMock.getArguments()[1];
+                final int len = (int) invocationOnMock.getArguments()[2];
+                if (len == 0) {
+                    return 0;
+                } else {
+                    if (bytesRemaining.get() <= 0) {
+                        return -1;
                     }
-                });
+                    int bytesCount = 1 + Randomness.get().nextInt(Math.min(len, bytesRemaining.get()));
+                    bytesRemaining.addAndGet(-bytesCount);
+                    return bytesCount;
+                }
+            }
+        );
         when(mockSource.read()).thenAnswer(invocationOnMock -> {
             if (bytesRemaining.get() <= 0) {
                 return -1;

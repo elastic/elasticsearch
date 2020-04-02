@@ -98,9 +98,11 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
         if (false == hasNext) {
             return null;
         }
-        PrefixInputStream packetInputStream = new PrefixInputStream(source,
-                packetLength + GCM_IV_LENGTH_IN_BYTES + GCM_TAG_LENGTH_IN_BYTES,
-                false);
+        PrefixInputStream packetInputStream = new PrefixInputStream(
+            source,
+            packetLength + GCM_IV_LENGTH_IN_BYTES + GCM_TAG_LENGTH_IN_BYTES,
+            false
+        );
         int currentPacketLength = decrypt(packetInputStream);
         // only the last packet is shorter, so this must be the last packet
         if (currentPacketLength != packetLength) {
@@ -115,8 +117,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
     }
 
     @Override
-    public void mark(int readlimit) {
-    }
+    public void mark(int readlimit) {}
 
     @Override
     public void reset() throws IOException {

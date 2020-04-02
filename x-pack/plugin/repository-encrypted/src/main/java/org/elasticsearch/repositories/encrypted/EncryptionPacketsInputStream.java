@@ -87,7 +87,7 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
      */
     public static long getEncryptionLength(long plaintextLength, int packetLength) {
         return plaintextLength + (plaintextLength / packetLength + 1) * (EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES
-                + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES);
+            + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES);
     }
 
     public EncryptionPacketsInputStream(InputStream source, SecretKey secretKey, int nonce, int packetLength) {
@@ -100,8 +100,8 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
         this.packetIv = ByteBuffer.allocate(EncryptedRepository.GCM_IV_LENGTH_IN_BYTES).order(ByteOrder.LITTLE_ENDIAN);
         // nonce takes the first 4 bytes of the IV
         this.packetIv.putInt(0, nonce);
-        this.encryptedPacketLength =
-                packetLength + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
+        this.encryptedPacketLength = packetLength + EncryptedRepository.GCM_IV_LENGTH_IN_BYTES
+            + EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
         this.counter = EncryptedRepository.PACKET_START_COUNTER;
         this.markCounter = null;
         this.markSourceOnNextPacket = -1;

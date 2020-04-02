@@ -125,7 +125,6 @@ public abstract class ChainingInputStream extends InputStream {
         return -1;
     }
 
-
     /**
      * Reads up to {@code len} bytes of data into an array of bytes from this
      * chaining input stream. If {@code len} is zero, then no bytes are read

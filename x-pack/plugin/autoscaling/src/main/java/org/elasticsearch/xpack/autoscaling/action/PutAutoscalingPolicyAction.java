@@ -30,7 +30,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
         super(NAME, AcknowledgedResponse::new);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> {
 
         static final ParseField POLICY_FIELD = new ParseField("policy");
 
@@ -73,16 +73,6 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
         public ActionRequestValidationException validate() {
             // TODO: validate that the policy deciders are non-empty
             return null;
-        }
-
-        @Override
-        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field(POLICY_FIELD.getPreferredName(), policy);
-            }
-            builder.endObject();
-            return builder;
         }
 
     }

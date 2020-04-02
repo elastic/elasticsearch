@@ -185,8 +185,8 @@ public final class InternalBinaryRange
     private final List<Bucket> buckets;
 
     public InternalBinaryRange(String name, DocValueFormat format, boolean keyed, List<Bucket> buckets,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
+        super(name, pipelineAggregators, metadata);
         this.format = format;
         this.keyed = keyed;
         this.buckets = buckets;
@@ -221,7 +221,7 @@ public final class InternalBinaryRange
 
     @Override
     public InternalBinaryRange create(List<Bucket> buckets) {
-        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators(), metaData);
+        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators(), metadata);
     }
 
     @Override
@@ -254,7 +254,7 @@ public final class InternalBinaryRange
             buckets.add(new Bucket(format, keyed, b.key, b.from, b.to, docCounts[i],
                     InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)));
         }
-        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators(), metaData);
+        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators(), metadata);
     }
 
     @Override

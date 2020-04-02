@@ -44,8 +44,8 @@ abstract class AbstractHistoBackedHDRPercentilesAggregator extends NumericMetric
 
     AbstractHistoBackedHDRPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
                                      double[] keys, int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
-                                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, pipelineAggregators, metadata);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
         this.format = formatter;

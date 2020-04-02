@@ -59,9 +59,9 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     private final Metrics metrics;
 
     TopMetricsAggregator(String name, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, int size,
+            Map<String, Object> metadata, int size,
             SortBuilder<?> sort, List<MetricSource> metricSources) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+        super(name, context, parent, pipelineAggregators, metadata);
         this.size = size;
         metrics = new Metrics(size, context.getQueryShardContext().bigArrays(), metricSources);
         /*
@@ -127,12 +127,12 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     public InternalAggregation buildAggregation(long bucket) throws IOException {
         List<InternalTopMetrics.TopMetric> topMetrics = sort.getValues(bucket, metrics.resultBuilder(sort.getFormat()));
         assert topMetrics.size() <= size;
-        return new InternalTopMetrics(name, sort.getOrder(), metrics.names(), size, topMetrics, pipelineAggregators(), metaData());
+        return new InternalTopMetrics(name, sort.getOrder(), metrics.names(), size, topMetrics, pipelineAggregators(), metadata());
     }
 
     @Override
     public InternalTopMetrics buildEmptyAggregation() {
-        return InternalTopMetrics.buildEmptyAggregation(name, metrics.names(), pipelineAggregators(), metaData());
+        return InternalTopMetrics.buildEmptyAggregation(name, metrics.names(), pipelineAggregators(), metadata());
     }
 
     @Override

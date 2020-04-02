@@ -32,7 +32,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -187,7 +187,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         Version indexVersionCreated = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
         return Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated)
             .build();
     }
 

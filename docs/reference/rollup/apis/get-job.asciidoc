@@ -56,6 +56,12 @@ For details about a historical {rollup-job}, the
 identical to the configuration that was supplied when creating the job via the
 <<rollup-put-job,create job API>>.
 
+`stats`:::
+(object) Contains transient statistics about the {rollup-job}, such as how many
+documents have been processed and how many rollup summary docs have been
+indexed. These stats are not persisted. If a node is restarted, these stats are
+reset.
+
 `status`:::
 (object) Contains the current status of the indexer for the {rollup-job}. The
 possible values and their meanings are:
@@ -71,12 +77,6 @@ be ignored because the job is already active with the prior trigger.
 is used if the task needs to be shut down for some reason (job has been deleted,
 an unrecoverable error has been encountered, etc).  Shortly after the `abort`
 state is set, the job will remove itself from the cluster.
-
-`stats`:::
-(object) Contains transient statistics about the {rollup-job}, such as how many
-documents have been processed and how many rollup summary docs have been
-indexed. These stats are not persisted. If a node is restarted, these stats are
-reset.
 ====
 
 [[rollup-get-job-example]]

@@ -246,10 +246,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.luceneVersion = Objects.requireNonNull(luceneVersion);
     }
 
-    public static Version forCompatibleApiVersion(String compatibleVersion) {
-        return Version.CURRENT;
-    }
-
     public boolean after(Version version) {
         return version.id < id;
     }

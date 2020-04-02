@@ -19,6 +19,19 @@ coming[7.8.0]
 //end::notable-breaking-changes[]
 
 [discrete]
+[[breaking_78_mappings_changes]]
+=== Mappings changes
+
+[discrete]
+[[prevent-enabled-setting-change]]
+==== `enabled` setting cannot be changed on root mapper
+
+Previously, Elasticsearch accepted mapping updates that tried to change the
+`enabled` setting on the root mapping. The update was not applied, but the
+request didn't throw an error. As of 7.8, requests that attempt to change
+`enabled` on the root mapping will fail.
+
+[discrete]
 [[breaking_78_settings_changes]]
 === Settings changes
 

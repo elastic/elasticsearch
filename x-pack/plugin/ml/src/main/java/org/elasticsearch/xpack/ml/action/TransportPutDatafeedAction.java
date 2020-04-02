@@ -61,6 +61,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
 
@@ -106,52 +107,52 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         // If security is enabled only create the datafeed if the user requesting creation has
         // permission to read the indices the datafeed is going to read from
         if (licenseState.isAuthAllowed()) {
+            useSecondaryAuthIfAvailable(securityContext, () -> {
+                final String[] indices = request.getDatafeed().getIndices().toArray(new String[0]);
 
-            final String[] indices = request.getDatafeed().getIndices().toArray(new String[0]);
+                final String username = securityContext.getUser().principal();
+                final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
+                privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+                privRequest.username(username);
+                privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
 
-            final String username = securityContext.getUser().principal();
-            final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
-            privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
-            privRequest.username(username);
-            privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
+                final RoleDescriptor.IndicesPrivileges.Builder indicesPrivilegesBuilder = RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(indices);
 
-            final RoleDescriptor.IndicesPrivileges.Builder indicesPrivilegesBuilder = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(indices);
+                ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
+                    r -> handlePrivsResponse(username, request, r, state, listener),
+                    listener::onFailure);
 
-            ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, r, state, listener),
-                listener::onFailure);
-
-            ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
-                response -> {
-                    if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
-                    } else {
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
-                    }
-                    privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
-                    client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
-                },
-                e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
+                    response -> {
+                        if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
+                            indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        } else {
+                            indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
+                        }
                         privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
                         client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
-                    } else {
-                        listener.onFailure(e);
+                    },
+                    e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                            indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                            privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
+                            client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                        } else {
+                            listener.onFailure(e);
+                        }
                     }
+                );
+                if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
+                    getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
+                } else {
+                    executeAsyncWithOrigin(client,
+                        ML_ORIGIN,
+                        GetRollupIndexCapsAction.INSTANCE,
+                        new GetRollupIndexCapsAction.Request(indices),
+                        getRollupIndexCapsActionHandler);
                 }
-            );
-            if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
-                getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
-            } else {
-                executeAsyncWithOrigin(client,
-                    ML_ORIGIN,
-                    GetRollupIndexCapsAction.INSTANCE,
-                    new GetRollupIndexCapsAction.Request(indices),
-                    getRollupIndexCapsActionHandler);
-            }
-
+            });
         } else {
             putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
         }

@@ -161,8 +161,6 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                 assertThat(createSnapshotRequest.indices()[0], is(indexName));
                 assertThat(createSnapshotRequest.repository(), is(expectedRepoName));
                 assertThat(createSnapshotRequest.snapshot(), is(expectedSnapshotName));
-                assertThat("another ILM step will wait for completion. the " + CreateSnapshotStep.NAME + " step should not",
-                    createSnapshotRequest.waitForCompletion(), is(false));
                 assertThat("ILM generated snapshots should not include global state", createSnapshotRequest.includeGlobalState(),
                     is(false));
             }

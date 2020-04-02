@@ -45,7 +45,7 @@ class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalHDRPercentiles(name, keys, state, keyed, format, pipelineAggregators(), metadata());
+            return new InternalHDRPercentiles(name, keys, state, keyed, format, metadata());
         }
     }
 
@@ -64,8 +64,6 @@ class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         DoubleHistogram state;
         state = new DoubleHistogram(numberOfSignificantValueDigits);
         state.setAutoResize(true);
-        return new InternalHDRPercentiles(name, keys, state,
-                keyed,
-                format, pipelineAggregators(), metadata());
+        return new InternalHDRPercentiles(name, keys, state, keyed, format, metadata());
     }
 }

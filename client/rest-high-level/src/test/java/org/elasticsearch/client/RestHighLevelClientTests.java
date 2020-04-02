@@ -33,6 +33,7 @@ import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -75,6 +76,8 @@ import org.elasticsearch.client.ml.inference.preprocessing.CustomWordEmbedding;
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
+import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
@@ -115,10 +118,12 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -132,6 +137,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -318,6 +324,59 @@ public class RestHighLevelClientTests extends ESTestCase {
             HttpEntity cborEntity = createBinaryEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
             assertEquals("value", restHighLevelClient.parseEntity(cborEntity, entityParser));
         }
+    }
+
+    public void testParseCompressedEntity() throws IOException {
+        CheckedFunction<XContentParser, String, IOException> entityParser = parser -> {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertTrue(parser.nextToken().isValue());
+            String value = parser.text();
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            return value;
+        };
+
+        HttpEntity jsonEntity = createGzipEncodedEntity("{\"field\":\"value\"}", ContentType.APPLICATION_JSON);
+        assertEquals("value", restHighLevelClient.parseEntity(jsonEntity, entityParser));
+        HttpEntity yamlEntity = createGzipEncodedEntity("---\nfield: value\n", ContentType.create("application/yaml"));
+        assertEquals("value", restHighLevelClient.parseEntity(yamlEntity, entityParser));
+        HttpEntity smileEntity = createGzipEncodedEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
+        assertEquals("value", restHighLevelClient.parseEntity(smileEntity, entityParser));
+        HttpEntity cborEntity = createGzipEncodedEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
+        assertEquals("value", restHighLevelClient.parseEntity(cborEntity, entityParser));
+    }
+
+    private HttpEntity createGzipEncodedEntity(String content, ContentType contentType) throws IOException {
+        byte[] gzipEncodedContent = compressContentWithGzip(content.getBytes(StandardCharsets.UTF_8));
+        NByteArrayEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
+        httpEntity.setContentEncoding("gzip");
+
+        return httpEntity;
+    }
+
+    private HttpEntity createGzipEncodedEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
+        try (XContentBuilder builder = xContentBuilder) {
+            builder.startObject();
+            builder.field("field", "value");
+            builder.endObject();
+
+            BytesRef bytesRef = BytesReference.bytes(xContentBuilder).toBytesRef();
+            byte[] gzipEncodedContent = compressContentWithGzip(bytesRef.bytes);
+            NByteArrayEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
+            httpEntity.setContentEncoding("gzip");
+
+            return httpEntity;
+        }
+    }
+
+    private static byte[] compressContentWithGzip(byte[] content) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(content.length);
+        GZIPOutputStream gzip = new GZIPOutputStream(bos);
+        gzip.write(content);
+        gzip.close();
+        bos.close();
+
+        return bos.toByteArray();
     }
 
     private static HttpEntity createBinaryEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
@@ -699,7 +758,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(62, namedXContents.size());
+        assertEquals(64, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -709,7 +768,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals("Had: " + categories, 13, categories.size());
+        assertEquals("Had: " + categories, 14, categories.size());
         assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
@@ -783,6 +842,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals(Integer.valueOf(3),
             categories.get(org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggregator.class));
         assertThat(names, hasItems(WeightedMode.NAME, WeightedSum.NAME, LogisticRegression.NAME));
+        assertEquals(Integer.valueOf(2),
+            categories.get(org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig.class));
+        assertThat(names, hasItems(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
     }
 
     public void testApiNamingConventions() throws Exception {

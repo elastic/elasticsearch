@@ -253,7 +253,7 @@ public class TypeParsersTests extends ESTestCase {
                 Collections.singletonMap("foo", Collections.singletonMap("bar", "baz"))));
             MapperParsingException e = expectThrows(MapperParsingException.class,
                     () -> TypeParsers.parseField(builder, builder.name, mapping, parserContext));
-            assertEquals("[meta] values can only be strings, but got SingletonImmutableBiMap[{bar=baz}] for field [foo]",
+            assertEquals("[meta] values can only be strings, but got SingletonMap[{bar=baz}] for field [foo]",
                     e.getMessage());
         }
 

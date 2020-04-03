@@ -37,11 +37,6 @@ public class AlwaysAutoscalingDecider implements AutoscalingDecider {
     }
 
     @Override
-    public AutoscalingDecision scale() {
-        return new AutoscalingDecision(NAME, AutoscalingDecisionType.SCALE_UP, "always");
-    }
-
-    @Override
     public String getWriteableName() {
         return NAME;
     }

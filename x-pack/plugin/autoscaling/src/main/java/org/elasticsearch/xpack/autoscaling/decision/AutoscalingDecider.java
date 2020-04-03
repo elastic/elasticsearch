@@ -21,11 +21,4 @@ public interface AutoscalingDecider extends ToXContentObject, NamedWriteable {
      */
     String name();
 
-    /**
-     * Whether or not to scale based on the current state.
-     *
-     * @return the autoscaling decision
-     */
-    AutoscalingDecision scale();
-
 }

@@ -108,7 +108,8 @@ public class ModelLoadingService implements ClusterStateListener {
         this.localModelCache = CacheBuilder.<String, LocalModel<? extends InferenceConfig>>builder()
             .setMaximumWeight(this.maxCacheSize.getBytes())
             .weigher((id, localModel) -> localModel.ramBytesUsed())
-            .removalListener(this::cacheEvictionListener)
+            // explicit declaration of the listener lambda necessary for Eclipse IDE 4.14
+            .removalListener(notification -> cacheEvictionListener(notification))
             .setExpireAfterAccess(INFERENCE_MODEL_CACHE_TTL.get(settings))
             .build();
         clusterService.addListener(this);

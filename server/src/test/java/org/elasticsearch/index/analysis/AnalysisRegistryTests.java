@@ -20,11 +20,13 @@
 package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -39,6 +41,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
@@ -46,6 +49,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -58,6 +62,7 @@ import static org.mockito.Mockito.verify;
 
 public class AnalysisRegistryTests extends ESTestCase {
     private AnalysisRegistry emptyRegistry;
+    private AnalysisRegistry nonEmptyRegistry;
 
     private static AnalyzerProvider<?> analyzerProvider(final String name) {
         return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDEX, new EnglishAnalyzer());
@@ -68,6 +73,16 @@ public class AnalysisRegistryTests extends ESTestCase {
                 emptyMap(), emptyMap(), emptyMap(), emptyMap());
     }
 
+    /**
+     * Creates a reverse filter available for use in testNameClashNormalizer test
+     */
+    public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {
+        @Override
+        public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
+            return singletonList(PreConfiguredTokenFilter.singleton("reverse", true, ReverseStringFilter::new));
+        }
+    }    
+    
     private static IndexSettings indexSettingsOfCurrentVersion(Settings.Builder settings) {
         return IndexSettingsModule.newIndexSettings("index", settings
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -77,9 +92,13 @@ public class AnalysisRegistryTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        emptyRegistry = emptyAnalysisRegistry(Settings.builder()
+        Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build());
+                .build();
+        emptyRegistry = emptyAnalysisRegistry(settings);
+        // Module loaded to register in-built normalizers for testing
+        AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(new MockAnalysisPlugin()));
+        nonEmptyRegistry = module.getAnalysisRegistry();
     }
 
     public void testDefaultAnalyzers() throws IOException {
@@ -135,7 +154,29 @@ public class AnalysisRegistryTests extends ESTestCase {
                         emptyMap(), emptyMap(), emptyMap()));
         assertEquals("analyzer [default] contains filters [my_filter] that are not allowed to run in all mode.", ex.getMessage());
     }
+    
+    
+    public void testNameClashNormalizer() throws IOException {
+        
+        // Test out-of-the-box normalizer works OK.
+        IndexAnalyzers indexAnalyzers = nonEmptyRegistry.build(IndexSettingsModule.newIndexSettings("index", Settings.EMPTY));
+        assertNotNull(indexAnalyzers.getNormalizer("lowercase"));
+        assertThat(indexAnalyzers.getNormalizer("lowercase").normalize("field", "AbC").utf8ToString(), equalTo("abc"));
+        
+        // Test that a name clash with a custom normalizer will favour the index's normalizer rather than the out-of-the-box 
+        // one of the same name. (However this "feature" will be removed with https://github.com/elastic/elasticsearch/issues/22263 ) 
+        Settings settings = Settings.builder()
+            // Deliberately bad choice of normalizer name for the job it does.
+            .put("index.analysis.normalizer.lowercase.type", "custom")
+            .putList("index.analysis.normalizer.lowercase.filter", "reverse")
+            .build();
+        
+        indexAnalyzers = nonEmptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings));
+        assertNotNull(indexAnalyzers.getNormalizer("lowercase"));
+        assertThat(indexAnalyzers.getNormalizer("lowercase").normalize("field","AbC").utf8ToString(), equalTo("CbA"));
+    }       
 
+    
     public void testOverrideDefaultIndexAnalyzerIsUnsupported() {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();

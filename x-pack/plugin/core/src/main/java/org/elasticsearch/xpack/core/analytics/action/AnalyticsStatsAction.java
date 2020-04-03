@@ -114,6 +114,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         static final ParseField CUMULATIVE_CARDINALITY_USAGE = new ParseField("cumulative_cardinality_usage");
         static final ParseField STRING_STATS_USAGE = new ParseField("string_stats_usage");
         static final ParseField TOP_METRICS_USAGE = new ParseField("top_metrics_usage");
+        static final ParseField T_TEST_USAGE = new ParseField("t_test_usage");
 
         private final long boxplotUsage;
         private final long cumulativeCardinalityUsage;
@@ -176,6 +177,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             builder.field(CUMULATIVE_CARDINALITY_USAGE.getPreferredName(), cumulativeCardinalityUsage);
             builder.field(STRING_STATS_USAGE.getPreferredName(), stringStatsUsage);
             builder.field(TOP_METRICS_USAGE.getPreferredName(), topMetricsUsage);
+            builder.field(T_TEST_USAGE.getPreferredName(), ttestUsage);
             builder.endObject();
             return builder;
         }

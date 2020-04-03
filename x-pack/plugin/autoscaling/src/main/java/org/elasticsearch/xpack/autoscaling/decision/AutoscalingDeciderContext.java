@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling.decision;
 
+import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -14,9 +15,14 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
 public interface AutoscalingDeciderContext {
+    // input
     public ClusterState state();
     public ClusterInfo info();
 
+    // demonstrate service
+    MetadataRolloverService rolloverService();
+
+    // demonstrate specific calls
     void allocate(RoutingAllocation allocation);
     Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
     Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);

@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -144,7 +145,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
             assertThat(obj2, equalTo(obj1));
 
             final BytesReference bytes2 = XContentHelper.toXContent(obj2, xContentType, humanReadable);
-            assertThat(bytes2, equalTo(bytes1));
+            assertToXContentEquivalent(bytes1, bytes2, xContentType);
 
             return obj2;
         }

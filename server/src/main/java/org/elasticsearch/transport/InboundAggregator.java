@@ -56,7 +56,6 @@ public class InboundAggregator implements Releasable {
                 return reg.canTripCircuitBreaker();
             }
         });
-
     }
 
     // Visible for testing

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -86,6 +87,8 @@ public class TransportGetComponentTemplateAction extends
             }
         } else if (allTemplates.containsKey(name)) {
             results.put(name, allTemplates.get(name));
+        } else {
+            throw new ResourceNotFoundException("component template matching [" + request.name() + "] not found");
         }
 
         listener.onResponse(new GetComponentTemplateAction.Response(results));

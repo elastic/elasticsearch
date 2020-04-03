@@ -78,6 +78,7 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -817,7 +818,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         Request request = new Request(shardId);
         TransportReplicationAction.ConcreteShardRequest<Request> concreteShardRequest =
             new TransportReplicationAction.ConcreteShardRequest<>(request, routingEntry.allocationId().getId(), primaryTerm);
-        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
 
 
         final IndexShard shard = mockIndexShard(shardId, clusterService);
@@ -981,7 +982,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService, state(index, true, ShardRoutingState.STARTED));
         final ShardRouting primary = clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
         final long primaryTerm = clusterService.state().metadata().index(shardId.getIndexName()).primaryTerm(shardId.id());
-        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
         final boolean wrongAllocationId = randomBoolean();
         final long requestTerm = wrongAllocationId && randomBoolean() ? primaryTerm : primaryTerm + randomIntBetween(1, 10);
         Request request = new Request(shardId).timeout("1ms");
@@ -1018,7 +1019,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(replica.currentNodeId())).build();
         setState(clusterService, state);
 
-        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
         Request request = new Request(shardId).timeout("1ms");
         action.handleReplicaRequest(
             new TransportReplicationAction.ConcreteReplicaRequest<>(request, "_not_a_valid_aid_", randomNonNegativeLong(),
@@ -1062,7 +1063,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 return new ReplicaResult();
             }
         };
-        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        final PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
         final Request request = new Request(shardId);
         final long checkpoint = randomNonNegativeLong();
         final long maxSeqNoOfUpdatesOrDeletes = randomNonNegativeLong();
@@ -1130,7 +1131,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 return new ReplicaResult();
             }
         };
-        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        final PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
         final Request request = new Request(shardId);
         final long checkpoint = randomNonNegativeLong();
         final long maxSeqNoOfUpdates = randomNonNegativeLong();
@@ -1371,29 +1372,8 @@ public class TransportReplicationActionTests extends ESTestCase {
     /**
      * Transport channel that is needed for replica operation testing.
      */
-    public TransportChannel createTransportChannel(final PlainActionFuture<TestResponse> listener) {
-        return new TransportChannel() {
-
-            @Override
-            public String getProfileName() {
-                return "";
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response) {
-                listener.onResponse(((TestResponse) response));
-            }
-
-            @Override
-            public void sendResponse(Exception exception) {
-                listener.onFailure(exception);
-            }
-
-            @Override
-            public String getChannelType() {
-                return "replica_test";
-            }
-        };
+    public TransportChannel createTransportChannel(final PlainActionFuture<TransportResponse> listener) {
+        return new TestTransportChannel(listener);
     }
 
 }
